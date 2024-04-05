@@ -124,16 +124,6 @@ built
 /.idea
 .idea/
 
-packages/*
-
-# Explicit allow packages.txt
-!packages/packages.txt
-
-# Temporary: allow web-app until new web-app integrated
-!packages/web-app
-
-# Allow types package
-!packages/types
 
 # .vscode generally
 .vscode/*

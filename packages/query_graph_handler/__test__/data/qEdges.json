@@ -1,0 +1,544 @@
+[
+  {
+    "qEdge":{
+      "id":"e01",
+
+      "subject":{
+        "id":"n0",
+        "category":["biolink:DiseaseOrPhenotypicFeature"],
+        "curie":["UMLS:C0751434"],
+
+        "expanded_curie":{
+          "UMLS:C0751434":["UMLS:C0751434"]
+        },
+        "entity_count":1,
+        "held_curie":[],
+        "held_expanded":{},
+        "connected_to":{}
+      },
+      "object":{
+        "id":"n1",
+        "category":["biolink:Gene"],
+
+
+        "expanded_curie":{},
+        "entity_count":0,
+        "held_curie":[],
+        "held_expanded":{},
+        "connected_to":{}
+      }
+
+    },
+    "reverse":false,
+
+    "input_equivalent_identifiers":{
+      "UMLS:C0751434":[
+        {
+          "id":{
+            "identifier":"MONDO:0019259",
+            "label":"classic phenylketonuria"
+          },
+          "equivalent_identifiers":[
+            {
+              "identifier":"MONDO:0019259",
+              "label":"classic phenylketonuria"
+            },
+            {
+              "identifier":"ORPHANET:79254"
+            },
+            {
+              "identifier":"UMLS:C0751434",
+              "label":"Classical phenylketonuria"
+            },
+            {
+              "identifier":"UMLS:C4025094",
+              "label":"Reduced phenylalanine hydroxylase activity"
+            },
+            {
+              "identifier":"MEDDRA:10034875"
+            },
+            {
+              "identifier":"NCIT:C117117",
+              "label":"Classical Phenylketonuria"
+            },
+            {
+              "identifier":"HP:0005982",
+              "label":"Reduced phenylalanine hydroxylase level"
+            }
+          ],
+          "type":[
+            "biolink:Disease",
+            "biolink:DiseaseOrPhenotypicFeature",
+            "biolink:ThingWithTaxon",
+            "biolink:BiologicalEntity",
+            "biolink:NamedThing",
+            "biolink:Entity"
+          ],
+          "information_content":100,
+          "primaryID":"MONDO:0019259",
+          "label":"classic phenylketonuria",
+          "attributes":{},
+          "semanticType":"Disease",
+          "_leafSemanticType":"Disease",
+          "semanticTypes":[
+            "biolink:Disease",
+            "biolink:DiseaseOrPhenotypicFeature",
+            "biolink:ThingWithTaxon",
+            "biolink:BiologicalEntity",
+            "biolink:NamedThing",
+            "biolink:Entity"
+          ],
+          "curies":[
+            "MONDO:0019259",
+            "ORPHANET:79254",
+            "UMLS:C0751434",
+            "UMLS:C4025094",
+            "MEDDRA:10034875",
+            "NCIT:C117117",
+            "HP:0005982"
+          ],
+          "dbIDs":{
+            "MONDO":["MONDO:0019259"],
+            "ORPHANET":["79254"],
+            "UMLS":["C0751434", "C4025094"],
+            "MEDDRA":["10034875"],
+            "NCIT":["C117117"],
+            "HP":["HP:0005982"],
+            "name":[
+              "classic phenylketonuria",
+              "Classical phenylketonuria",
+              "Reduced phenylalanine hydroxylase activity",
+              "Classical Phenylketonuria",
+              "Reduced phenylalanine hydroxylase level"
+            ]
+          },
+          "_dbIDs":{
+            "MONDO":["MONDO:0019259"],
+            "ORPHANET":["79254"],
+            "UMLS":["C0751434", "C4025094"],
+            "MEDDRA":["10034875"],
+            "NCIT":["C117117"],
+            "HP":["HP:0005982"],
+            "name":[
+              "classic phenylketonuria",
+              "Classical phenylketonuria",
+              "Reduced phenylalanine hydroxylase activity",
+              "Classical Phenylketonuria",
+              "Reduced phenylalanine hydroxylase level"
+            ]
+          }
+        },
+        {
+          "id":{
+            "identifier":"MONDO:0019259",
+            "label":"classic phenylketonuria"
+          },
+          "equivalent_identifiers":[
+            {
+              "identifier":"MONDO:0019259",
+              "label":"classic phenylketonuria"
+            },
+            {
+              "identifier":"ORPHANET:79254"
+            },
+            {
+              "identifier":"UMLS:C0751434",
+              "label":"Classical phenylketonuria"
+            },
+            {
+              "identifier":"UMLS:C4025094",
+              "label":"Reduced phenylalanine hydroxylase activity"
+            },
+            {
+              "identifier":"MEDDRA:10034875"
+            },
+            {
+              "identifier":"NCIT:C117117",
+              "label":"Classical Phenylketonuria"
+            },
+            {
+              "identifier":"HP:0005982",
+              "label":"Reduced phenylalanine hydroxylase level"
+            }
+          ],
+          "type":[
+            "PhenotypicFeature",
+            "biolink:DiseaseOrPhenotypicFeature",
+            "biolink:ThingWithTaxon",
+            "biolink:BiologicalEntity",
+            "biolink:NamedThing",
+            "biolink:Entity"
+          ],
+          "information_content":100,
+          "primaryID":"MONDO:0019259",
+          "label":"classic phenylketonuria",
+          "attributes":{},
+          "semanticType":"PhenotypicFeature",
+          "_leafSemanticType":"PhenotypicFeature",
+          "semanticTypes":[
+            "PhenotypicFeature",
+            "biolink:DiseaseOrPhenotypicFeature",
+            "biolink:ThingWithTaxon",
+            "biolink:BiologicalEntity",
+            "biolink:NamedThing",
+            "biolink:Entity"
+          ],
+          "curies":[
+            "MONDO:0019259",
+            "ORPHANET:79254",
+            "UMLS:C0751434",
+            "UMLS:C4025094",
+            "MEDDRA:10034875",
+            "NCIT:C117117",
+            "HP:0005982"
+          ],
+          "dbIDs":{
+            "MONDO":["MONDO:0019259"],
+            "ORPHANET":["79254"],
+            "UMLS":["C0751434", "C4025094"],
+            "MEDDRA":["10034875"],
+            "NCIT":["C117117"],
+            "HP":["HP:0005982"],
+            "name":[
+              "classic phenylketonuria",
+              "Classical phenylketonuria",
+              "Reduced phenylalanine hydroxylase activity",
+              "Classical Phenylketonuria",
+              "Reduced phenylalanine hydroxylase level"
+            ]
+          },
+          "_dbIDs":{
+            "MONDO":["MONDO:0019259"],
+            "ORPHANET":["79254"],
+            "UMLS":["C0751434", "C4025094"],
+            "MEDDRA":["10034875"],
+            "NCIT":["C117117"],
+            "HP":["HP:0005982"],
+            "name":[
+              "classic phenylketonuria",
+              "Classical phenylketonuria",
+              "Reduced phenylalanine hydroxylase activity",
+              "Classical Phenylketonuria",
+              "Reduced phenylalanine hydroxylase level"
+            ]
+          }
+        },
+        {
+          "id":{
+            "identifier":"MONDO:0019259",
+            "label":"classic phenylketonuria"
+          },
+          "equivalent_identifiers":[
+            {
+              "identifier":"MONDO:0019259",
+              "label":"classic phenylketonuria"
+            },
+            {
+              "identifier":"ORPHANET:79254"
+            },
+            {
+              "identifier":"UMLS:C0751434",
+              "label":"Classical phenylketonuria"
+            },
+            {
+              "identifier":"UMLS:C4025094",
+              "label":"Reduced phenylalanine hydroxylase activity"
+            },
+            {
+              "identifier":"MEDDRA:10034875"
+            },
+            {
+              "identifier":"NCIT:C117117",
+              "label":"Classical Phenylketonuria"
+            },
+            {
+              "identifier":"HP:0005982",
+              "label":"Reduced phenylalanine hydroxylase level"
+            }
+          ],
+          "type":[
+            "BehavioralFeature",
+            "biolink:DiseaseOrPhenotypicFeature",
+            "biolink:ThingWithTaxon",
+            "biolink:BiologicalEntity",
+            "biolink:NamedThing",
+            "biolink:Entity"
+          ],
+          "information_content":100,
+          "primaryID":"MONDO:0019259",
+          "label":"classic phenylketonuria",
+          "attributes":{},
+          "semanticType":"BehavioralFeature",
+          "_leafSemanticType":"BehavioralFeature",
+          "semanticTypes":[
+            "BehavioralFeature",
+            "biolink:DiseaseOrPhenotypicFeature",
+            "biolink:ThingWithTaxon",
+            "biolink:BiologicalEntity",
+            "biolink:NamedThing",
+            "biolink:Entity"
+          ],
+          "curies":[
+            "MONDO:0019259",
+            "ORPHANET:79254",
+            "UMLS:C0751434",
+            "UMLS:C4025094",
+            "MEDDRA:10034875",
+            "NCIT:C117117",
+            "HP:0005982"
+          ],
+          "dbIDs":{
+            "MONDO":["MONDO:0019259"],
+            "ORPHANET":["79254"],
+            "UMLS":["C0751434", "C4025094"],
+            "MEDDRA":["10034875"],
+            "NCIT":["C117117"],
+            "HP":["HP:0005982"],
+            "name":[
+              "classic phenylketonuria",
+              "Classical phenylketonuria",
+              "Reduced phenylalanine hydroxylase activity",
+              "Classical Phenylketonuria",
+              "Reduced phenylalanine hydroxylase level"
+            ]
+          },
+          "_dbIDs":{
+            "MONDO":["MONDO:0019259"],
+            "ORPHANET":["79254"],
+            "UMLS":["C0751434", "C4025094"],
+            "MEDDRA":["10034875"],
+            "NCIT":["C117117"],
+            "HP":["HP:0005982"],
+            "name":[
+              "classic phenylketonuria",
+              "Classical phenylketonuria",
+              "Reduced phenylalanine hydroxylase activity",
+              "Classical Phenylketonuria",
+              "Reduced phenylalanine hydroxylase level"
+            ]
+          }
+        },
+        {
+          "id":{
+            "identifier":"MONDO:0019259",
+            "label":"classic phenylketonuria"
+          },
+          "equivalent_identifiers":[
+            {
+              "identifier":"MONDO:0019259",
+              "label":"classic phenylketonuria"
+            },
+            {
+              "identifier":"ORPHANET:79254"
+            },
+            {
+              "identifier":"UMLS:C0751434",
+              "label":"Classical phenylketonuria"
+            },
+            {
+              "identifier":"UMLS:C4025094",
+              "label":"Reduced phenylalanine hydroxylase activity"
+            },
+            {
+              "identifier":"MEDDRA:10034875"
+            },
+            {
+              "identifier":"NCIT:C117117",
+              "label":"Classical Phenylketonuria"
+            },
+            {
+              "identifier":"HP:0005982",
+              "label":"Reduced phenylalanine hydroxylase level"
+            }
+          ],
+          "type":[
+            "ClinicalFinding",
+            "biolink:DiseaseOrPhenotypicFeature",
+            "biolink:ThingWithTaxon",
+            "biolink:BiologicalEntity",
+            "biolink:NamedThing",
+            "biolink:Entity"
+          ],
+          "information_content":100,
+          "primaryID":"MONDO:0019259",
+          "label":"classic phenylketonuria",
+          "attributes":{},
+          "semanticType":"ClinicalFinding",
+          "_leafSemanticType":"ClinicalFinding",
+          "semanticTypes":[
+            "ClinicalFinding",
+            "biolink:DiseaseOrPhenotypicFeature",
+            "biolink:ThingWithTaxon",
+            "biolink:BiologicalEntity",
+            "biolink:NamedThing",
+            "biolink:Entity"
+          ],
+          "curies":[
+            "MONDO:0019259",
+            "ORPHANET:79254",
+            "UMLS:C0751434",
+            "UMLS:C4025094",
+            "MEDDRA:10034875",
+            "NCIT:C117117",
+            "HP:0005982"
+          ],
+          "dbIDs":{
+            "MONDO":["MONDO:0019259"],
+            "ORPHANET":["79254"],
+            "UMLS":["C0751434", "C4025094"],
+            "MEDDRA":["10034875"],
+            "NCIT":["C117117"],
+            "HP":["HP:0005982"],
+            "name":[
+              "classic phenylketonuria",
+              "Classical phenylketonuria",
+              "Reduced phenylalanine hydroxylase activity",
+              "Classical Phenylketonuria",
+              "Reduced phenylalanine hydroxylase level"
+            ]
+          },
+          "_dbIDs":{
+            "MONDO":["MONDO:0019259"],
+            "ORPHANET":["79254"],
+            "UMLS":["C0751434", "C4025094"],
+            "MEDDRA":["10034875"],
+            "NCIT":["C117117"],
+            "HP":["HP:0005982"],
+            "name":[
+              "classic phenylketonuria",
+              "Classical phenylketonuria",
+              "Reduced phenylalanine hydroxylase activity",
+              "Classical Phenylketonuria",
+              "Reduced phenylalanine hydroxylase level"
+            ]
+          }
+        },
+        {
+          "id":{
+            "identifier":"MONDO:0019259",
+            "label":"classic phenylketonuria"
+          },
+          "equivalent_identifiers":[
+            {
+              "identifier":"MONDO:0019259",
+              "label":"classic phenylketonuria"
+            },
+            {
+              "identifier":"ORPHANET:79254"
+            },
+            {
+              "identifier":"UMLS:C0751434",
+              "label":"Classical phenylketonuria"
+            },
+            {
+              "identifier":"UMLS:C4025094",
+              "label":"Reduced phenylalanine hydroxylase activity"
+            },
+            {
+              "identifier":"MEDDRA:10034875"
+            },
+            {
+              "identifier":"NCIT:C117117",
+              "label":"Classical Phenylketonuria"
+            },
+            {
+              "identifier":"HP:0005982",
+              "label":"Reduced phenylalanine hydroxylase level"
+            }
+          ],
+          "type":[
+            "DiseaseOrPhenotypicFeature",
+            "biolink:DiseaseOrPhenotypicFeature",
+            "biolink:ThingWithTaxon",
+            "biolink:BiologicalEntity",
+            "biolink:NamedThing",
+            "biolink:Entity"
+          ],
+          "information_content":100,
+          "primaryID":"MONDO:0019259",
+          "label":"classic phenylketonuria",
+          "attributes":{},
+          "semanticType":"DiseaseOrPhenotypicFeature",
+          "_leafSemanticType":"DiseaseOrPhenotypicFeature",
+          "semanticTypes":[
+            "DiseaseOrPhenotypicFeature",
+            "biolink:DiseaseOrPhenotypicFeature",
+            "biolink:ThingWithTaxon",
+            "biolink:BiologicalEntity",
+            "biolink:NamedThing",
+            "biolink:Entity"
+          ],
+          "curies":[
+            "MONDO:0019259",
+            "ORPHANET:79254",
+            "UMLS:C0751434",
+            "UMLS:C4025094",
+            "MEDDRA:10034875",
+            "NCIT:C117117",
+            "HP:0005982"
+          ],
+          "dbIDs":{
+            "MONDO":["MONDO:0019259"],
+            "ORPHANET":["79254"],
+            "UMLS":["C0751434", "C4025094"],
+            "MEDDRA":["10034875"],
+            "NCIT":["C117117"],
+            "HP":["HP:0005982"],
+            "name":[
+              "classic phenylketonuria",
+              "Classical phenylketonuria",
+              "Reduced phenylalanine hydroxylase activity",
+              "Classical Phenylketonuria",
+              "Reduced phenylalanine hydroxylase level"
+            ]
+          },
+          "_dbIDs":{
+            "MONDO":["MONDO:0019259"],
+            "ORPHANET":["79254"],
+            "UMLS":["C0751434", "C4025094"],
+            "MEDDRA":["10034875"],
+            "NCIT":["C117117"],
+            "HP":["HP:0005982"],
+            "name":[
+              "classic phenylketonuria",
+              "Classical phenylketonuria",
+              "Reduced phenylalanine hydroxylase activity",
+              "Classical Phenylketonuria",
+              "Reduced phenylalanine hydroxylase level"
+            ]
+          }
+        }
+      ]
+    },
+    "output_equivalent_identifiers":{},
+    "object":{
+      "id":"n1",
+      "category":["biolink:Gene"],
+
+
+      "expanded_curie":{},
+      "entity_count":0,
+      "held_curie":[],
+      "held_expanded":{},
+
+      "connected_to":{}
+    },
+    "subject":{
+      "id":"n0",
+      "category":["biolink:DiseaseOrPhenotypicFeature"],
+      "curie":["UMLS:C0751434"],
+
+      "expanded_curie":{
+        "UMLS:C0751434":["UMLS:C0751434"]
+      },
+      "entity_count":1,
+      "held_curie":[],
+      "held_expanded":{},
+
+      "connected_to":{}
+    },
+    "executed":false,
+    "logs":[],
+    "records":[]
+  }
+]

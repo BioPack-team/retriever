@@ -1,0 +1,193 @@
+[
+  {
+    "query": "1017",
+    "_id": "1017",
+    "_score": 23.263514,
+    "go": {
+      "BP": [
+        {
+          "evidence": "IBA",
+          "gocategory": "BP",
+          "id": "GO:0000082",
+          "pubmed": 21873635,
+          "term": "G1/S transition of mitotic cell cycle"
+        },
+        {
+          "evidence": "TAS",
+          "gocategory": "BP",
+          "id": "GO:0000082",
+          "term": "G1/S transition of mitotic cell cycle"
+        },
+        {
+          "evidence": "NAS",
+          "gocategory": "BP",
+          "id": "GO:0000086",
+          "pubmed": 1653904,
+          "term": "G2/M transition of mitotic cell cycle"
+        },
+        {
+          "evidence": "TAS",
+          "gocategory": "BP",
+          "id": "GO:0000086",
+          "term": "G2/M transition of mitotic cell cycle"
+        },
+        {
+          "evidence": "TAS",
+          "gocategory": "BP",
+          "id": "GO:0006260",
+          "pubmed": 19238148,
+          "term": "DNA replication"
+        },
+        {
+          "evidence": "IEA",
+          "gocategory": "BP",
+          "id": "GO:0006281",
+          "term": "DNA repair"
+        },
+        {
+          "evidence": "IBA",
+          "gocategory": "BP",
+          "id": "GO:0006468",
+          "pubmed": 21873635,
+          "term": "protein phosphorylation"
+        },
+        {
+          "evidence": "IDA",
+          "gocategory": "BP",
+          "id": "GO:0006468",
+          "pubmed": [12944431, 28666995],
+          "term": "protein phosphorylation"
+        },
+        {
+          "evidence": "IMP",
+          "gocategory": "BP",
+          "id": "GO:0006468",
+          "pubmed": 29203878,
+          "term": "protein phosphorylation"
+        },
+        {
+          "evidence": "TAS",
+          "gocategory": "BP",
+          "id": "GO:0006977",
+          "term": "DNA damage response, signal transduction by p53 class mediator resulting in cell cycle arrest"
+        },
+        {
+          "evidence": "IMP",
+          "gocategory": "BP",
+          "id": "GO:0007099",
+          "pubmed": 26297806,
+          "term": "centriole replication"
+        },
+        {
+          "evidence": "IBA",
+          "gocategory": "BP",
+          "id": "GO:0007165",
+          "pubmed": 21873635,
+          "term": "signal transduction"
+        },
+        {
+          "evidence": "IEP",
+          "gocategory": "BP",
+          "id": "GO:0007265",
+          "pubmed": 9054499,
+          "term": "Ras protein signal transduction"
+        },
+        {
+          "evidence": "IBA",
+          "gocategory": "BP",
+          "id": "GO:0008284",
+          "pubmed": 21873635,
+          "term": "positive regulation of cell population proliferation"
+        },
+        {
+          "evidence": "IDA",
+          "gocategory": "BP",
+          "id": "GO:0008284",
+          "pubmed": 10767298,
+          "term": "positive regulation of cell population proliferation"
+        },
+        {
+          "evidence": "IBA",
+          "gocategory": "BP",
+          "id": "GO:0010389",
+          "pubmed": 21873635,
+          "term": "regulation of G2/M transition of mitotic cell cycle"
+        },
+        {
+          "evidence": "IBA",
+          "gocategory": "BP",
+          "id": "GO:0010468",
+          "pubmed": 21873635,
+          "term": "regulation of gene expression"
+        },
+        {
+          "evidence": "IDA",
+          "gocategory": "BP",
+          "id": "GO:0016572",
+          "pubmed": 11746698,
+          "term": "histone phosphorylation"
+        },
+        {
+          "evidence": "IDA",
+          "gocategory": "BP",
+          "id": "GO:0018105",
+          "pubmed": 23184662,
+          "term": "peptidyl-serine phosphorylation"
+        },
+        {
+          "evidence": "TAS",
+          "gocategory": "BP",
+          "id": "GO:0031145",
+          "term": "anaphase-promoting complex-dependent catabolic process"
+        },
+        {
+          "evidence": "TAS",
+          "gocategory": "BP",
+          "id": "GO:0031571",
+          "pubmed": 21319273,
+          "term": "mitotic G1 DNA damage checkpoint"
+        },
+        {
+          "evidence": "TAS",
+          "gocategory": "BP",
+          "id": "GO:0051298",
+          "pubmed": 19238148,
+          "term": "centrosome duplication"
+        },
+        {
+          "evidence": "IEA",
+          "gocategory": "BP",
+          "id": "GO:0051301",
+          "term": "cell division"
+        },
+        {
+          "evidence": "TAS",
+          "gocategory": "BP",
+          "id": "GO:0051321",
+          "pubmed": 19238148,
+          "term": "meiotic cell cycle"
+        },
+        {
+          "evidence": "IDA",
+          "gocategory": "BP",
+          "id": "GO:0060968",
+          "pubmed": 20935635,
+          "term": "regulation of gene silencing"
+        },
+        {
+          "evidence": "TAS",
+          "gocategory": "BP",
+          "id": "GO:0071732",
+          "pubmed": 20079829,
+          "term": "cellular response to nitric oxide"
+        },
+        {
+          "evidence": "TAS",
+          "gocategory": "BP",
+          "id": "GO:1901796",
+          "term": "regulation of signal transduction by p53 class mediator"
+        }
+      ]
+    }
+  }
+]

@@ -1,0 +1,718 @@
+{
+  "from": 0,
+  "took": 11,
+  "next": [1.0, "4167b06db977aac34fbe4bbb6674e99b"],
+  "data_version": "20.11",
+  "query": {
+    "sort": ["scores.association_score"],
+    "format": "json",
+    "fields": ["drug"],
+    "datastructure": "custom",
+    "pathway": [],
+    "size": 100
+  },
+  "total": 320,
+  "data": [
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "PERAMPANEL",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL1214124",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "PERAMPANEL",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL1214124",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "PERAMPANEL",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL1214124",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "PERAMPANEL",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL1214124",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "PERAMPANEL",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL1214124",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    },
+    {
+      "drug": {
+        "molecule_name": "TOPIRAMATE",
+        "id": "http://identifiers.org/chembl.compound/CHEMBL220492",
+        "molecule_type": "Small molecule"
+      }
+    }
+  ],
+  "size": 100
+}

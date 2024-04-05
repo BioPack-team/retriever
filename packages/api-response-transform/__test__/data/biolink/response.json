@@ -1,0 +1,3303 @@
+{
+  "associations": [
+    {
+      "id": "235d96fe-7a99-4554-8cae-ed2d04e2c0c5",
+      "type": null,
+      "subject": {
+        "taxon": {
+          "id": null,
+          "label": null
+        },
+        "id": "MONDO:0019037",
+        "label": "progressive supranuclear palsy",
+        "iri": "http://purl.obolibrary.org/obo/MONDO_0019037",
+        "category": ["disease"]
+      },
+      "subject_eq": null,
+      "subject_extensions": null,
+      "object": {
+        "taxon": {
+          "id": "NCBITaxon:9606",
+          "label": "Homo sapiens"
+        },
+        "id": "HGNC:10956",
+        "label": "SLCO1A2",
+        "iri": "https://www.genenames.org/data/gene-symbol-report/#!/hgnc_id/HGNC:10956",
+        "category": ["gene"]
+      },
+      "object_eq": null,
+      "object_extensions": null,
+      "relation": {
+        "inverse": true,
+        "id": "RO:0003304",
+        "label": "contributes to condition",
+        "iri": "http://purl.obolibrary.org/obo/RO_0003304",
+        "category": null
+      },
+      "slim": null,
+      "negated": false,
+      "qualifiers": null,
+      "evidence_graph": {
+        "nodes": [
+          {
+            "id": "MONARCH:b8d5e5d72e9364f0e46e",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "MONARCH:bff6d3cb1c2f75352e05",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "RO:0003304",
+            "lbl": "contributes to condition",
+            "meta": {}
+          },
+          {
+            "id": "PMID:30089514",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "MONDO:0019037",
+            "lbl": "progressive supranuclear palsy",
+            "meta": {}
+          },
+          {
+            "id": "ECO:0000213",
+            "lbl": "combinatorial evidence used in automatic assertion",
+            "meta": {}
+          },
+          {
+            "id": "PMID:21685912",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "HGNC:10956",
+            "lbl": "SLCO1A2",
+            "meta": {}
+          },
+          {
+            "id": "dbSNP:rs11568563",
+            "lbl": "rs11568563-?",
+            "meta": {}
+          },
+          {
+            "id": "dbSNP:rs7966334",
+            "lbl": "rs7966334-?",
+            "meta": {}
+          }
+        ],
+        "edges": [
+          {
+            "sub": "MONARCH:b8d5e5d72e9364f0e46e",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000213",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has evidence"]
+            }
+          },
+          {
+            "sub": "MONARCH:b8d5e5d72e9364f0e46e",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0003304",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has predicate"]
+            }
+          },
+          {
+            "sub": "MONARCH:bff6d3cb1c2f75352e05",
+            "pred": "dc:source",
+            "obj": "PMID:30089514",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["source"]
+            }
+          },
+          {
+            "sub": "MONARCH:bff6d3cb1c2f75352e05",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs11568563",
+            "pred": "RO:0003304",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["contributes to condition"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:bff6d3cb1c2f75352e05",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000213",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has evidence"]
+            }
+          },
+          {
+            "sub": "MONARCH:bff6d3cb1c2f75352e05",
+            "pred": "OBAN:association_has_subject",
+            "obj": "dbSNP:rs7966334",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has subject"]
+            }
+          },
+          {
+            "sub": "MONARCH:b8d5e5d72e9364f0e46e",
+            "pred": "OBAN:association_has_subject",
+            "obj": "dbSNP:rs11568563",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has subject"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs7966334",
+            "pred": "RO:0003304",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["contributes to condition"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:b8d5e5d72e9364f0e46e",
+            "pred": "dc:source",
+            "obj": "PMID:21685912",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["source"]
+            }
+          },
+          {
+            "sub": "MONARCH:b8d5e5d72e9364f0e46e",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs11568563",
+            "pred": "GENO:0000418",
+            "obj": "HGNC:10956",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has_affected_feature"],
+              "equivalentOriginalNodeTarget": ["http://ensembl.org/id/ENSG00000084453"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs7966334",
+            "pred": "GENO:0000418",
+            "obj": "HGNC:10956",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has_affected_feature"],
+              "equivalentOriginalNodeTarget": ["http://ensembl.org/id/ENSG00000084453"]
+            }
+          },
+          {
+            "sub": "MONARCH:bff6d3cb1c2f75352e05",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0003304",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has predicate"]
+            }
+          }
+        ]
+      },
+      "evidence_types": [
+        {
+          "id": "ECO:0000213",
+          "label": "combinatorial evidence used in automatic assertion"
+        }
+      ],
+      "provided_by": ["https://archive.monarchinitiative.org/#gwascatalog"],
+      "publications": [
+        {
+          "id": "PMID:21685912",
+          "label": null
+        },
+        {
+          "id": "PMID:30089514",
+          "label": null
+        }
+      ]
+    },
+    {
+      "id": "235d96fe-7a99-4554-8cae-ed2d04e2c0c5",
+      "type": null,
+      "subject": {
+        "taxon": {
+          "id": null,
+          "label": null
+        },
+        "id": "MONDO:0019037",
+        "label": "progressive supranuclear palsy",
+        "iri": "http://purl.obolibrary.org/obo/MONDO_0019037",
+        "category": ["disease"]
+      },
+      "subject_eq": null,
+      "subject_extensions": null,
+      "object": {
+        "taxon": {
+          "id": "NCBITaxon:9606",
+          "label": "Homo sapiens"
+        },
+        "id": "HGNC:10956",
+        "label": "SLCO1A2",
+        "iri": "https://www.genenames.org/data/gene-symbol-report/#!/hgnc_id/HGNC:10956",
+        "category": ["gene"]
+      },
+      "object_eq": null,
+      "object_extensions": null,
+      "relation": {
+        "inverse": true,
+        "id": "RO:0003304",
+        "label": "contributes to condition",
+        "iri": "http://purl.obolibrary.org/obo/RO_0003304",
+        "category": null
+      },
+      "slim": null,
+      "negated": false,
+      "qualifiers": null,
+      "evidence_graph": {
+        "nodes": [
+          {
+            "id": "MONARCH:b8d5e5d72e9364f0e46e",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "MONARCH:bff6d3cb1c2f75352e05",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "RO:0003304",
+            "lbl": "contributes to condition",
+            "meta": {}
+          },
+          {
+            "id": "PMID:30089514",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "MONDO:0019037",
+            "lbl": "progressive supranuclear palsy",
+            "meta": {}
+          },
+          {
+            "id": "ECO:0000213",
+            "lbl": "combinatorial evidence used in automatic assertion",
+            "meta": {}
+          },
+          {
+            "id": "PMID:21685912",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "HGNC:10956",
+            "lbl": "SLCO1A2",
+            "meta": {}
+          },
+          {
+            "id": "dbSNP:rs11568563",
+            "lbl": "rs11568563-?",
+            "meta": {}
+          },
+          {
+            "id": "dbSNP:rs7966334",
+            "lbl": "rs7966334-?",
+            "meta": {}
+          }
+        ],
+        "edges": [
+          {
+            "sub": "MONARCH:b8d5e5d72e9364f0e46e",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000213",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has evidence"]
+            }
+          },
+          {
+            "sub": "MONARCH:b8d5e5d72e9364f0e46e",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0003304",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has predicate"]
+            }
+          },
+          {
+            "sub": "MONARCH:bff6d3cb1c2f75352e05",
+            "pred": "dc:source",
+            "obj": "PMID:30089514",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["source"]
+            }
+          },
+          {
+            "sub": "MONARCH:bff6d3cb1c2f75352e05",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs11568563",
+            "pred": "RO:0003304",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["contributes to condition"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:bff6d3cb1c2f75352e05",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000213",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has evidence"]
+            }
+          },
+          {
+            "sub": "MONARCH:bff6d3cb1c2f75352e05",
+            "pred": "OBAN:association_has_subject",
+            "obj": "dbSNP:rs7966334",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has subject"]
+            }
+          },
+          {
+            "sub": "MONARCH:b8d5e5d72e9364f0e46e",
+            "pred": "OBAN:association_has_subject",
+            "obj": "dbSNP:rs11568563",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has subject"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs7966334",
+            "pred": "RO:0003304",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["contributes to condition"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:b8d5e5d72e9364f0e46e",
+            "pred": "dc:source",
+            "obj": "PMID:21685912",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["source"]
+            }
+          },
+          {
+            "sub": "MONARCH:b8d5e5d72e9364f0e46e",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs11568563",
+            "pred": "GENO:0000418",
+            "obj": "HGNC:10956",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has_affected_feature"],
+              "equivalentOriginalNodeTarget": ["http://ensembl.org/id/ENSG00000084453"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs7966334",
+            "pred": "GENO:0000418",
+            "obj": "HGNC:10956",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has_affected_feature"],
+              "equivalentOriginalNodeTarget": ["http://ensembl.org/id/ENSG00000084453"]
+            }
+          },
+          {
+            "sub": "MONARCH:bff6d3cb1c2f75352e05",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0003304",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has predicate"]
+            }
+          }
+        ]
+      },
+      "evidence_types": [
+        {
+          "id": "ECO:0000213",
+          "label": "combinatorial evidence used in automatic assertion"
+        }
+      ]
+    },
+    {
+      "id": "ed897f98-f18f-45c7-9544-23e30cabfae5",
+      "type": null,
+      "subject": {
+        "taxon": {
+          "id": null,
+          "label": null
+        },
+        "id": "MONDO:0019037",
+        "label": "progressive supranuclear palsy",
+        "iri": "http://purl.obolibrary.org/obo/MONDO_0019037",
+        "category": ["disease"]
+      },
+      "subject_eq": null,
+      "subject_extensions": null,
+      "object": {
+        "taxon": {
+          "id": "NCBITaxon:9606",
+          "label": "Homo sapiens"
+        },
+        "id": "HGNC:11441",
+        "label": "STX6",
+        "iri": "https://www.genenames.org/data/gene-symbol-report/#!/hgnc_id/HGNC:11441",
+        "category": ["gene"]
+      },
+      "object_eq": null,
+      "object_extensions": null,
+      "relation": {
+        "inverse": true,
+        "id": "RO:0003304",
+        "label": "contributes to condition",
+        "iri": "http://purl.obolibrary.org/obo/RO_0003304",
+        "category": null
+      },
+      "slim": null,
+      "negated": false,
+      "qualifiers": null,
+      "evidence_graph": {
+        "nodes": [
+          {
+            "id": "dbSNP:rs57113693",
+            "lbl": "rs57113693-?",
+            "meta": {}
+          },
+          {
+            "id": "HGNC:11441",
+            "lbl": "STX6",
+            "meta": {}
+          },
+          {
+            "id": "RO:0003304",
+            "lbl": "contributes to condition",
+            "meta": {}
+          },
+          {
+            "id": "PMID:30089514",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "MONDO:0019037",
+            "lbl": "progressive supranuclear palsy",
+            "meta": {}
+          },
+          {
+            "id": "ECO:0000213",
+            "lbl": "combinatorial evidence used in automatic assertion",
+            "meta": {}
+          },
+          {
+            "id": "PMID:21685912",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "MONARCH:b21943dda0e6cab1a2cc",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "dbSNP:rs1411478",
+            "lbl": "rs1411478-?",
+            "meta": {}
+          },
+          {
+            "id": "MONARCH:b12236aef12f80911955",
+            "lbl": null,
+            "meta": {}
+          }
+        ],
+        "edges": [
+          {
+            "sub": "MONARCH:b12236aef12f80911955",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000213",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has evidence"]
+            }
+          },
+          {
+            "sub": "MONARCH:b12236aef12f80911955",
+            "pred": "dc:source",
+            "obj": "PMID:30089514",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["source"]
+            }
+          },
+          {
+            "sub": "MONARCH:b21943dda0e6cab1a2cc",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs57113693",
+            "pred": "RO:0003304",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["contributes to condition"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs1411478",
+            "pred": "RO:0003304",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["contributes to condition"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:b12236aef12f80911955",
+            "pred": "OBAN:association_has_subject",
+            "obj": "dbSNP:rs57113693",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has subject"]
+            }
+          },
+          {
+            "sub": "MONARCH:b12236aef12f80911955",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:b21943dda0e6cab1a2cc",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0003304",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has predicate"]
+            }
+          },
+          {
+            "sub": "MONARCH:b21943dda0e6cab1a2cc",
+            "pred": "dc:source",
+            "obj": "PMID:21685912",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["source"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs1411478",
+            "pred": "GENO:0000418",
+            "obj": "HGNC:11441",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has_affected_feature"],
+              "equivalentOriginalNodeTarget": ["http://ensembl.org/id/ENSG00000135823"]
+            }
+          },
+          {
+            "sub": "MONARCH:b21943dda0e6cab1a2cc",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000213",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has evidence"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs57113693",
+            "pred": "GENO:0000418",
+            "obj": "HGNC:11441",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has_affected_feature"],
+              "equivalentOriginalNodeTarget": ["http://ensembl.org/id/ENSG00000135823"]
+            }
+          },
+          {
+            "sub": "MONARCH:b12236aef12f80911955",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0003304",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has predicate"]
+            }
+          },
+          {
+            "sub": "MONARCH:b21943dda0e6cab1a2cc",
+            "pred": "OBAN:association_has_subject",
+            "obj": "dbSNP:rs1411478",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has subject"]
+            }
+          }
+        ]
+      },
+      "evidence_types": [
+        {
+          "id": "ECO:0000213",
+          "label": "combinatorial evidence used in automatic assertion"
+        }
+      ],
+      "provided_by": ["https://archive.monarchinitiative.org/#gwascatalog"],
+      "publications": [
+        {
+          "id": "PMID:21685912",
+          "label": null
+        },
+        {
+          "id": "PMID:30089514",
+          "label": null
+        }
+      ]
+    },
+    {
+      "id": "6fe34b22-4aeb-4741-a15b-f381800432fa",
+      "type": null,
+      "subject": {
+        "taxon": {
+          "id": null,
+          "label": null
+        },
+        "id": "MONDO:0019037",
+        "label": "progressive supranuclear palsy",
+        "iri": "http://purl.obolibrary.org/obo/MONDO_0019037",
+        "category": ["disease"]
+      },
+      "subject_eq": null,
+      "subject_extensions": null,
+      "object": {
+        "taxon": {
+          "id": "NCBITaxon:9606",
+          "label": "Homo sapiens"
+        },
+        "id": "HGNC:7189",
+        "label": "MOBP",
+        "iri": "https://www.genenames.org/data/gene-symbol-report/#!/hgnc_id/HGNC:7189",
+        "category": ["gene"]
+      },
+      "object_eq": null,
+      "object_extensions": null,
+      "relation": {
+        "inverse": true,
+        "id": "RO:0003304",
+        "label": "contributes to condition",
+        "iri": "http://purl.obolibrary.org/obo/RO_0003304",
+        "category": null
+      },
+      "slim": null,
+      "negated": false,
+      "qualifiers": null,
+      "evidence_graph": {
+        "nodes": [
+          {
+            "id": "HGNC:7189",
+            "lbl": "MOBP",
+            "meta": {}
+          },
+          {
+            "id": "RO:0003304",
+            "lbl": "contributes to condition",
+            "meta": {}
+          },
+          {
+            "id": "PMID:30089514",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "MONDO:0019037",
+            "lbl": "progressive supranuclear palsy",
+            "meta": {}
+          },
+          {
+            "id": "ECO:0000213",
+            "lbl": "combinatorial evidence used in automatic assertion",
+            "meta": {}
+          },
+          {
+            "id": "PMID:21685912",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "dbSNP:rs10675541",
+            "lbl": "rs10675541-?",
+            "meta": {}
+          },
+          {
+            "id": "MONARCH:baf5fc97243ba2edc95b",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "MONARCH:b80135ac696316362aa5",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "dbSNP:rs1768208",
+            "lbl": "rs1768208-?",
+            "meta": {}
+          }
+        ],
+        "edges": [
+          {
+            "sub": "MONARCH:baf5fc97243ba2edc95b",
+            "pred": "dc:source",
+            "obj": "PMID:21685912",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["source"]
+            }
+          },
+          {
+            "sub": "MONARCH:baf5fc97243ba2edc95b",
+            "pred": "OBAN:association_has_subject",
+            "obj": "dbSNP:rs1768208",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has subject"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs1768208",
+            "pred": "GENO:0000418",
+            "obj": "HGNC:7189",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has_affected_feature"],
+              "equivalentOriginalNodeTarget": ["http://ensembl.org/id/ENSG00000168314"]
+            }
+          },
+          {
+            "sub": "MONARCH:b80135ac696316362aa5",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000213",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has evidence"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs10675541",
+            "pred": "RO:0003304",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["contributes to condition"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:b80135ac696316362aa5",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0003304",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has predicate"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs10675541",
+            "pred": "GENO:0000418",
+            "obj": "HGNC:7189",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has_affected_feature"],
+              "equivalentOriginalNodeTarget": ["http://ensembl.org/id/ENSG00000168314"]
+            }
+          },
+          {
+            "sub": "MONARCH:baf5fc97243ba2edc95b",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:b80135ac696316362aa5",
+            "pred": "OBAN:association_has_subject",
+            "obj": "dbSNP:rs10675541",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has subject"]
+            }
+          },
+          {
+            "sub": "MONARCH:baf5fc97243ba2edc95b",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000213",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has evidence"]
+            }
+          },
+          {
+            "sub": "MONARCH:b80135ac696316362aa5",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs1768208",
+            "pred": "RO:0003304",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["contributes to condition"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:b80135ac696316362aa5",
+            "pred": "dc:source",
+            "obj": "PMID:30089514",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["source"]
+            }
+          },
+          {
+            "sub": "MONARCH:baf5fc97243ba2edc95b",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0003304",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has predicate"]
+            }
+          }
+        ]
+      },
+      "evidence_types": [
+        {
+          "id": "ECO:0000213",
+          "label": "combinatorial evidence used in automatic assertion"
+        }
+      ],
+      "provided_by": ["https://archive.monarchinitiative.org/#gwascatalog"],
+      "publications": [
+        {
+          "id": "PMID:21685912",
+          "label": null
+        },
+        {
+          "id": "PMID:30089514",
+          "label": null
+        }
+      ]
+    },
+    {
+      "id": "2455fad5-3def-42bd-ba80-65d7367e22f0",
+      "type": null,
+      "subject": {
+        "taxon": {
+          "id": null,
+          "label": null
+        },
+        "id": "MONDO:0019037",
+        "label": "progressive supranuclear palsy",
+        "iri": "http://purl.obolibrary.org/obo/MONDO_0019037",
+        "category": ["disease"]
+      },
+      "subject_eq": null,
+      "subject_extensions": null,
+      "object": {
+        "taxon": {
+          "id": "NCBITaxon:9606",
+          "label": "Homo sapiens"
+        },
+        "id": "HGNC:6893",
+        "label": "MAPT",
+        "iri": "https://www.genenames.org/data/gene-symbol-report/#!/hgnc_id/HGNC:6893",
+        "category": ["gene"]
+      },
+      "object_eq": null,
+      "object_extensions": null,
+      "relation": {
+        "inverse": true,
+        "id": "RO:0003304",
+        "label": "contributes to condition",
+        "iri": "http://purl.obolibrary.org/obo/RO_0003304",
+        "category": null
+      },
+      "slim": null,
+      "negated": false,
+      "qualifiers": null,
+      "evidence_graph": {
+        "nodes": [
+          {
+            "id": "dbSNP:rs8070723",
+            "lbl": "rs8070723-?",
+            "meta": {}
+          },
+          {
+            "id": "MONARCH:b480853ce4d1a34c50d5",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "MONARCH:b7b93d9141686602cb53",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "HGNC:6893",
+            "lbl": "MAPT",
+            "meta": {}
+          },
+          {
+            "id": "RO:0003304",
+            "lbl": "contributes to condition",
+            "meta": {}
+          },
+          {
+            "id": "MONDO:0019037",
+            "lbl": "progressive supranuclear palsy",
+            "meta": {}
+          },
+          {
+            "id": "ECO:0000213",
+            "lbl": "combinatorial evidence used in automatic assertion",
+            "meta": {}
+          },
+          {
+            "id": "PMID:21685912",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "PMID:31059154",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "dbSNP:rs242557",
+            "lbl": "rs242557-G",
+            "meta": {}
+          }
+        ],
+        "edges": [
+          {
+            "sub": "dbSNP:rs242557",
+            "pred": "GENO:0000418",
+            "obj": "HGNC:6893",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has_affected_feature"],
+              "equivalentOriginalNodeTarget": ["http://ensembl.org/id/ENSG00000277956"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs8070723",
+            "pred": "RO:0003304",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["contributes to condition"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:b480853ce4d1a34c50d5",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs242557",
+            "pred": "RO:0003304",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["contributes to condition"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:b7b93d9141686602cb53",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000213",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has evidence"]
+            }
+          },
+          {
+            "sub": "MONARCH:b7b93d9141686602cb53",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:b7b93d9141686602cb53",
+            "pred": "dc:source",
+            "obj": "PMID:21685912",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["source"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs8070723",
+            "pred": "GENO:0000418",
+            "obj": "HGNC:6893",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has_affected_feature"],
+              "equivalentOriginalNodeTarget": ["http://ensembl.org/id/ENSG00000186868"]
+            }
+          },
+          {
+            "sub": "MONARCH:b480853ce4d1a34c50d5",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000213",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has evidence"]
+            }
+          },
+          {
+            "sub": "MONARCH:b480853ce4d1a34c50d5",
+            "pred": "dc:source",
+            "obj": "PMID:21685912",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["source"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs8070723",
+            "pred": "GENO:0000418",
+            "obj": "HGNC:6893",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has_affected_feature"],
+              "equivalentOriginalNodeTarget": ["http://ensembl.org/id/ENSG00000277956"]
+            }
+          },
+          {
+            "sub": "MONARCH:b480853ce4d1a34c50d5",
+            "pred": "OBAN:association_has_subject",
+            "obj": "dbSNP:rs8070723",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has subject"]
+            }
+          },
+          {
+            "sub": "MONARCH:b7b93d9141686602cb53",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0003304",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has predicate"]
+            }
+          },
+          {
+            "sub": "MONARCH:b7b93d9141686602cb53",
+            "pred": "OBAN:association_has_subject",
+            "obj": "dbSNP:rs242557",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has subject"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs242557",
+            "pred": "GENO:0000418",
+            "obj": "HGNC:6893",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has_affected_feature"],
+              "equivalentOriginalNodeTarget": ["http://ensembl.org/id/ENSG00000186868"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs242557",
+            "pred": "GENO:0000418",
+            "obj": "HGNC:6893",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has_affected_feature"],
+              "equivalentOriginalNodeTarget": ["http://ensembl.org/id/ENSG00000276155"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs8070723",
+            "pred": "GENO:0000418",
+            "obj": "HGNC:6893",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has_affected_feature"],
+              "equivalentOriginalNodeTarget": ["http://ensembl.org/id/ENSG00000276155"]
+            }
+          },
+          {
+            "sub": "MONARCH:b7b93d9141686602cb53",
+            "pred": "dc:source",
+            "obj": "PMID:31059154",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["source"]
+            }
+          },
+          {
+            "sub": "MONARCH:b480853ce4d1a34c50d5",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0003304",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has predicate"]
+            }
+          }
+        ]
+      },
+      "evidence_types": [
+        {
+          "id": "ECO:0000213",
+          "label": "combinatorial evidence used in automatic assertion"
+        }
+      ],
+      "provided_by": ["https://archive.monarchinitiative.org/#gwascatalog"],
+      "publications": [
+        {
+          "id": "PMID:21685912",
+          "label": null
+        },
+        {
+          "id": "PMID:31059154",
+          "label": null
+        }
+      ]
+    },
+    {
+      "id": "19ffb69d-c358-430c-99ce-58fbe77f0606",
+      "type": null,
+      "subject": {
+        "taxon": {
+          "id": null,
+          "label": null
+        },
+        "id": "MONDO:0019037",
+        "label": "progressive supranuclear palsy",
+        "iri": "http://purl.obolibrary.org/obo/MONDO_0019037",
+        "category": ["disease"]
+      },
+      "subject_eq": null,
+      "subject_extensions": null,
+      "object": {
+        "taxon": {
+          "id": "NCBITaxon:9606",
+          "label": "Homo sapiens"
+        },
+        "id": "HGNC:16281",
+        "label": "TRIM11",
+        "iri": "https://www.genenames.org/data/gene-symbol-report/#!/hgnc_id/HGNC:16281",
+        "category": ["gene"]
+      },
+      "object_eq": null,
+      "object_extensions": null,
+      "relation": {
+        "inverse": true,
+        "id": "RO:0003304",
+        "label": "contributes to condition",
+        "iri": "http://purl.obolibrary.org/obo/RO_0003304",
+        "category": null
+      },
+      "slim": null,
+      "negated": false,
+      "qualifiers": null,
+      "evidence_graph": {
+        "nodes": [
+          {
+            "id": "HGNC:16281",
+            "lbl": "TRIM11",
+            "meta": {}
+          },
+          {
+            "id": "RO:0003304",
+            "lbl": "contributes to condition",
+            "meta": {}
+          },
+          {
+            "id": "MONDO:0019037",
+            "lbl": "progressive supranuclear palsy",
+            "meta": {}
+          },
+          {
+            "id": "ECO:0000213",
+            "lbl": "combinatorial evidence used in automatic assertion",
+            "meta": {}
+          },
+          {
+            "id": "PMID:30066433",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "MONARCH:b313d11967d1241f1a8f",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "dbSNP:rs564309",
+            "lbl": "rs564309-?",
+            "meta": {}
+          }
+        ],
+        "edges": [
+          {
+            "sub": "MONARCH:b313d11967d1241f1a8f",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:b313d11967d1241f1a8f",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000213",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has evidence"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs564309",
+            "pred": "GENO:0000418",
+            "obj": "HGNC:16281",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has_affected_feature"],
+              "equivalentOriginalNodeTarget": ["http://ensembl.org/id/ENSG00000154370"]
+            }
+          },
+          {
+            "sub": "MONARCH:b313d11967d1241f1a8f",
+            "pred": "OBAN:association_has_subject",
+            "obj": "dbSNP:rs564309",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has subject"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs564309",
+            "pred": "RO:0003304",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["contributes to condition"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:b313d11967d1241f1a8f",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0003304",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has predicate"]
+            }
+          },
+          {
+            "sub": "MONARCH:b313d11967d1241f1a8f",
+            "pred": "dc:source",
+            "obj": "PMID:30066433",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["source"]
+            }
+          }
+        ]
+      },
+      "evidence_types": [
+        {
+          "id": "ECO:0000213",
+          "label": "combinatorial evidence used in automatic assertion"
+        }
+      ],
+      "provided_by": ["https://archive.monarchinitiative.org/#gwascatalog"],
+      "publications": [
+        {
+          "id": "PMID:30066433",
+          "label": null
+        }
+      ]
+    },
+    {
+      "id": "3b920304-9d9e-48e5-ab6a-7206e10bd013",
+      "type": null,
+      "subject": {
+        "taxon": {
+          "id": null,
+          "label": null
+        },
+        "id": "MONDO:0019037",
+        "label": "progressive supranuclear palsy",
+        "iri": "http://purl.obolibrary.org/obo/MONDO_0019037",
+        "category": ["disease"]
+      },
+      "subject_eq": null,
+      "subject_extensions": null,
+      "object": {
+        "taxon": {
+          "id": "NCBITaxon:9606",
+          "label": "Homo sapiens"
+        },
+        "id": "HGNC:8973",
+        "label": "PIK3C2G",
+        "iri": "https://www.genenames.org/data/gene-symbol-report/#!/hgnc_id/HGNC:8973",
+        "category": ["gene"]
+      },
+      "object_eq": null,
+      "object_extensions": null,
+      "relation": {
+        "inverse": true,
+        "id": "RO:0003304",
+        "label": "contributes to condition",
+        "iri": "http://purl.obolibrary.org/obo/RO_0003304",
+        "category": null
+      },
+      "slim": null,
+      "negated": false,
+      "qualifiers": null,
+      "evidence_graph": {
+        "nodes": [
+          {
+            "id": "MONARCH:b947b34d45f05ce3a4a1",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "RO:0003304",
+            "lbl": "contributes to condition",
+            "meta": {}
+          },
+          {
+            "id": "MONDO:0019037",
+            "lbl": "progressive supranuclear palsy",
+            "meta": {}
+          },
+          {
+            "id": "ECO:0000213",
+            "lbl": "combinatorial evidence used in automatic assertion",
+            "meta": {}
+          },
+          {
+            "id": "PMID:30066433",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "HGNC:8973",
+            "lbl": "PIK3C2G",
+            "meta": {}
+          },
+          {
+            "id": "dbSNP:rs621042",
+            "lbl": "rs621042-?",
+            "meta": {}
+          }
+        ],
+        "edges": [
+          {
+            "sub": "MONARCH:b947b34d45f05ce3a4a1",
+            "pred": "OBAN:association_has_subject",
+            "obj": "dbSNP:rs621042",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has subject"]
+            }
+          },
+          {
+            "sub": "MONARCH:b947b34d45f05ce3a4a1",
+            "pred": "dc:source",
+            "obj": "PMID:30066433",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["source"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs621042",
+            "pred": "RO:0003304",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["contributes to condition"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:b947b34d45f05ce3a4a1",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000213",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has evidence"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs621042",
+            "pred": "GENO:0000418",
+            "obj": "HGNC:8973",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has_affected_feature"],
+              "equivalentOriginalNodeTarget": ["http://ensembl.org/id/ENSG00000139144"]
+            }
+          },
+          {
+            "sub": "MONARCH:b947b34d45f05ce3a4a1",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0003304",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has predicate"]
+            }
+          },
+          {
+            "sub": "MONARCH:b947b34d45f05ce3a4a1",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          }
+        ]
+      },
+      "evidence_types": [
+        {
+          "id": "ECO:0000213",
+          "label": "combinatorial evidence used in automatic assertion"
+        }
+      ],
+      "provided_by": ["https://archive.monarchinitiative.org/#gwascatalog"],
+      "publications": [
+        {
+          "id": "PMID:30066433",
+          "label": null
+        }
+      ]
+    },
+    {
+      "id": "05a128c1-4f3a-46fa-8b00-14c7e40b544e",
+      "type": null,
+      "subject": {
+        "taxon": {
+          "id": null,
+          "label": null
+        },
+        "id": "MONDO:0019037",
+        "label": "progressive supranuclear palsy",
+        "iri": "http://purl.obolibrary.org/obo/MONDO_0019037",
+        "category": ["disease"]
+      },
+      "subject_eq": null,
+      "subject_extensions": null,
+      "object": {
+        "taxon": {
+          "id": "NCBITaxon:9606",
+          "label": "Homo sapiens"
+        },
+        "id": "HGNC:2720",
+        "label": "ASAP1",
+        "iri": "https://www.genenames.org/data/gene-symbol-report/#!/hgnc_id/HGNC:2720",
+        "category": ["gene"]
+      },
+      "object_eq": null,
+      "object_extensions": null,
+      "relation": {
+        "inverse": true,
+        "id": "RO:0003304",
+        "label": "contributes to condition",
+        "iri": "http://purl.obolibrary.org/obo/RO_0003304",
+        "category": null
+      },
+      "slim": null,
+      "negated": false,
+      "qualifiers": null,
+      "evidence_graph": {
+        "nodes": [
+          {
+            "id": "dbSNP:rs2045091",
+            "lbl": "rs2045091-?",
+            "meta": {}
+          },
+          {
+            "id": "HGNC:2720",
+            "lbl": "ASAP1",
+            "meta": {}
+          },
+          {
+            "id": "RO:0003304",
+            "lbl": "contributes to condition",
+            "meta": {}
+          },
+          {
+            "id": "PMID:30089514",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "MONDO:0019037",
+            "lbl": "progressive supranuclear palsy",
+            "meta": {}
+          },
+          {
+            "id": "ECO:0000213",
+            "lbl": "combinatorial evidence used in automatic assertion",
+            "meta": {}
+          },
+          {
+            "id": "MONARCH:bcfb6527099eac18aad6",
+            "lbl": null,
+            "meta": {}
+          }
+        ],
+        "edges": [
+          {
+            "sub": "MONARCH:bcfb6527099eac18aad6",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0003304",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has predicate"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs2045091",
+            "pred": "RO:0003304",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["contributes to condition"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs2045091",
+            "pred": "GENO:0000418",
+            "obj": "HGNC:2720",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has_affected_feature"],
+              "equivalentOriginalNodeTarget": ["http://ensembl.org/id/ENSG00000153317"]
+            }
+          },
+          {
+            "sub": "MONARCH:bcfb6527099eac18aad6",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:bcfb6527099eac18aad6",
+            "pred": "dc:source",
+            "obj": "PMID:30089514",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["source"]
+            }
+          },
+          {
+            "sub": "MONARCH:bcfb6527099eac18aad6",
+            "pred": "OBAN:association_has_subject",
+            "obj": "dbSNP:rs2045091",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has subject"]
+            }
+          },
+          {
+            "sub": "MONARCH:bcfb6527099eac18aad6",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000213",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has evidence"]
+            }
+          }
+        ]
+      },
+      "evidence_types": [
+        {
+          "id": "ECO:0000213",
+          "label": "combinatorial evidence used in automatic assertion"
+        }
+      ],
+      "provided_by": ["https://archive.monarchinitiative.org/#gwascatalog"],
+      "publications": [
+        {
+          "id": "PMID:30089514",
+          "label": null
+        }
+      ]
+    },
+    {
+      "id": "f78c3137-3ae6-4111-96bf-3419bb5964b7",
+      "type": null,
+      "subject": {
+        "taxon": {
+          "id": null,
+          "label": null
+        },
+        "id": "MONDO:0019037",
+        "label": "progressive supranuclear palsy",
+        "iri": "http://purl.obolibrary.org/obo/MONDO_0019037",
+        "category": ["disease"]
+      },
+      "subject_eq": null,
+      "subject_extensions": null,
+      "object": {
+        "taxon": {
+          "id": "NCBITaxon:9606",
+          "label": "Homo sapiens"
+        },
+        "id": "HGNC:3255",
+        "label": "EIF2AK3",
+        "iri": "https://www.genenames.org/data/gene-symbol-report/#!/hgnc_id/HGNC:3255",
+        "category": ["gene"]
+      },
+      "object_eq": null,
+      "object_extensions": null,
+      "relation": {
+        "inverse": true,
+        "id": "RO:0003304",
+        "label": "contributes to condition",
+        "iri": "http://purl.obolibrary.org/obo/RO_0003304",
+        "category": null
+      },
+      "slim": null,
+      "negated": false,
+      "qualifiers": null,
+      "evidence_graph": {
+        "nodes": [
+          {
+            "id": "HGNC:3255",
+            "lbl": "EIF2AK3",
+            "meta": {}
+          },
+          {
+            "id": "dbSNP:rs7571971",
+            "lbl": "rs7571971-?",
+            "meta": {}
+          },
+          {
+            "id": "RO:0003304",
+            "lbl": "contributes to condition",
+            "meta": {}
+          },
+          {
+            "id": "MONDO:0019037",
+            "lbl": "progressive supranuclear palsy",
+            "meta": {}
+          },
+          {
+            "id": "ECO:0000213",
+            "lbl": "combinatorial evidence used in automatic assertion",
+            "meta": {}
+          },
+          {
+            "id": "PMID:21685912",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "MONARCH:b7793c846f45fc55317c",
+            "lbl": null,
+            "meta": {}
+          }
+        ],
+        "edges": [
+          {
+            "sub": "dbSNP:rs7571971",
+            "pred": "RO:0003304",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["contributes to condition"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs7571971",
+            "pred": "GENO:0000418",
+            "obj": "HGNC:3255",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has_affected_feature"],
+              "equivalentOriginalNodeTarget": ["http://ensembl.org/id/ENSG00000172071"]
+            }
+          },
+          {
+            "sub": "MONARCH:b7793c846f45fc55317c",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0003304",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has predicate"]
+            }
+          },
+          {
+            "sub": "MONARCH:b7793c846f45fc55317c",
+            "pred": "dc:source",
+            "obj": "PMID:21685912",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["source"]
+            }
+          },
+          {
+            "sub": "MONARCH:b7793c846f45fc55317c",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000213",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has evidence"]
+            }
+          },
+          {
+            "sub": "MONARCH:b7793c846f45fc55317c",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:b7793c846f45fc55317c",
+            "pred": "OBAN:association_has_subject",
+            "obj": "dbSNP:rs7571971",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has subject"]
+            }
+          }
+        ]
+      },
+      "evidence_types": [
+        {
+          "id": "ECO:0000213",
+          "label": "combinatorial evidence used in automatic assertion"
+        }
+      ],
+      "provided_by": ["https://archive.monarchinitiative.org/#gwascatalog"],
+      "publications": [
+        {
+          "id": "PMID:21685912",
+          "label": null
+        }
+      ]
+    },
+    {
+      "id": "04b97683-6366-4ae2-93d3-00fda16ef36d",
+      "type": null,
+      "subject": {
+        "taxon": {
+          "id": null,
+          "label": null
+        },
+        "id": "MONDO:0019037",
+        "label": "progressive supranuclear palsy",
+        "iri": "http://purl.obolibrary.org/obo/MONDO_0019037",
+        "category": ["disease"]
+      },
+      "subject_eq": null,
+      "subject_extensions": null,
+      "object": {
+        "taxon": {
+          "id": "NCBITaxon:9606",
+          "label": "Homo sapiens"
+        },
+        "id": "HGNC:1707",
+        "label": "CD8B (human)",
+        "iri": "https://www.genenames.org/data/gene-symbol-report/#!/hgnc_id/HGNC:1707",
+        "category": ["gene"]
+      },
+      "object_eq": null,
+      "object_extensions": null,
+      "relation": {
+        "inverse": true,
+        "id": "RO:0003304",
+        "label": "contributes to condition",
+        "iri": "http://purl.obolibrary.org/obo/RO_0003304",
+        "category": null
+      },
+      "slim": null,
+      "negated": false,
+      "qualifiers": null,
+      "evidence_graph": {
+        "nodes": [
+          {
+            "id": "MONARCH:b59f9ae4664cd4dab3df",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "RO:0003304",
+            "lbl": "contributes to condition",
+            "meta": {}
+          },
+          {
+            "id": "MONDO:0019037",
+            "lbl": "progressive supranuclear palsy",
+            "meta": {}
+          },
+          {
+            "id": "ECO:0000213",
+            "lbl": "combinatorial evidence used in automatic assertion",
+            "meta": {}
+          },
+          {
+            "id": "PMID:21685912",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "HGNC:1707",
+            "lbl": "CD8B (human)",
+            "meta": {}
+          },
+          {
+            "id": "dbSNP:rs6547705",
+            "lbl": "rs6547705-?",
+            "meta": {}
+          }
+        ],
+        "edges": [
+          {
+            "sub": "MONARCH:b59f9ae4664cd4dab3df",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000213",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has evidence"]
+            }
+          },
+          {
+            "sub": "MONARCH:b59f9ae4664cd4dab3df",
+            "pred": "OBAN:association_has_subject",
+            "obj": "dbSNP:rs6547705",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has subject"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs6547705",
+            "pred": "RO:0003304",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["contributes to condition"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs6547705",
+            "pred": "GENO:0000418",
+            "obj": "HGNC:1707",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has_affected_feature"],
+              "equivalentOriginalNodeTarget": ["http://ensembl.org/id/ENSG00000172116"]
+            }
+          },
+          {
+            "sub": "MONARCH:b59f9ae4664cd4dab3df",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:b59f9ae4664cd4dab3df",
+            "pred": "dc:source",
+            "obj": "PMID:21685912",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["source"]
+            }
+          },
+          {
+            "sub": "MONARCH:b59f9ae4664cd4dab3df",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0003304",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has predicate"]
+            }
+          }
+        ]
+      },
+      "evidence_types": [
+        {
+          "id": "ECO:0000213",
+          "label": "combinatorial evidence used in automatic assertion"
+        }
+      ],
+      "provided_by": ["https://archive.monarchinitiative.org/#gwascatalog"],
+      "publications": [
+        {
+          "id": "PMID:21685912",
+          "label": null
+        }
+      ]
+    },
+    {
+      "id": "170a17e2-6493-478b-8101-fb82c70560bb",
+      "type": null,
+      "subject": {
+        "taxon": {
+          "id": null,
+          "label": null
+        },
+        "id": "MONDO:0019037",
+        "label": "progressive supranuclear palsy",
+        "iri": "http://purl.obolibrary.org/obo/MONDO_0019037",
+        "category": ["disease"]
+      },
+      "subject_eq": null,
+      "subject_extensions": null,
+      "object": {
+        "taxon": {
+          "id": "NCBITaxon:9606",
+          "label": "Homo sapiens"
+        },
+        "id": "HGNC:10472",
+        "label": "RUNX2",
+        "iri": "https://www.genenames.org/data/gene-symbol-report/#!/hgnc_id/HGNC:10472",
+        "category": ["gene"]
+      },
+      "object_eq": null,
+      "object_extensions": null,
+      "relation": {
+        "inverse": true,
+        "id": "RO:0003304",
+        "label": "contributes to condition",
+        "iri": "http://purl.obolibrary.org/obo/RO_0003304",
+        "category": null
+      },
+      "slim": null,
+      "negated": false,
+      "qualifiers": null,
+      "evidence_graph": {
+        "nodes": [
+          {
+            "id": "HGNC:10472",
+            "lbl": "RUNX2",
+            "meta": {}
+          },
+          {
+            "id": "RO:0003304",
+            "lbl": "contributes to condition",
+            "meta": {}
+          },
+          {
+            "id": "PMID:30089514",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "MONDO:0019037",
+            "lbl": "progressive supranuclear palsy",
+            "meta": {}
+          },
+          {
+            "id": "ECO:0000213",
+            "lbl": "combinatorial evidence used in automatic assertion",
+            "meta": {}
+          },
+          {
+            "id": "MONARCH:b913e48d13bd6fc4cc89",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "dbSNP:rs35740963",
+            "lbl": "rs35740963-?",
+            "meta": {}
+          }
+        ],
+        "edges": [
+          {
+            "sub": "dbSNP:rs35740963",
+            "pred": "RO:0003304",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["contributes to condition"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:b913e48d13bd6fc4cc89",
+            "pred": "OBAN:association_has_subject",
+            "obj": "dbSNP:rs35740963",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has subject"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs35740963",
+            "pred": "GENO:0000418",
+            "obj": "HGNC:10472",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has_affected_feature"],
+              "equivalentOriginalNodeTarget": ["http://ensembl.org/id/ENSG00000124813"]
+            }
+          },
+          {
+            "sub": "MONARCH:b913e48d13bd6fc4cc89",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0003304",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has predicate"]
+            }
+          },
+          {
+            "sub": "MONARCH:b913e48d13bd6fc4cc89",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:b913e48d13bd6fc4cc89",
+            "pred": "dc:source",
+            "obj": "PMID:30089514",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["source"]
+            }
+          },
+          {
+            "sub": "MONARCH:b913e48d13bd6fc4cc89",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000213",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has evidence"]
+            }
+          }
+        ]
+      },
+      "evidence_types": [
+        {
+          "id": "ECO:0000213",
+          "label": "combinatorial evidence used in automatic assertion"
+        }
+      ],
+      "provided_by": ["https://archive.monarchinitiative.org/#gwascatalog"],
+      "publications": [
+        {
+          "id": "PMID:30089514",
+          "label": null
+        }
+      ]
+    },
+    {
+      "id": "3e415613-38f7-4b2b-89da-2b484c9b4950",
+      "type": null,
+      "subject": {
+        "taxon": {
+          "id": null,
+          "label": null
+        },
+        "id": "MONDO:0019037",
+        "label": "progressive supranuclear palsy",
+        "iri": "http://purl.obolibrary.org/obo/MONDO_0019037",
+        "category": ["disease"]
+      },
+      "subject_eq": null,
+      "subject_extensions": null,
+      "object": {
+        "taxon": {
+          "id": "NCBITaxon:9606",
+          "label": "Homo sapiens"
+        },
+        "id": "HGNC:11205",
+        "label": "SP1",
+        "iri": "https://www.genenames.org/data/gene-symbol-report/#!/hgnc_id/HGNC:11205",
+        "category": ["gene"]
+      },
+      "object_eq": null,
+      "object_extensions": null,
+      "relation": {
+        "inverse": true,
+        "id": "RO:0003304",
+        "label": "contributes to condition",
+        "iri": "http://purl.obolibrary.org/obo/RO_0003304",
+        "category": null
+      },
+      "slim": null,
+      "negated": false,
+      "qualifiers": null,
+      "evidence_graph": {
+        "nodes": [
+          {
+            "id": "dbSNP:rs147124286",
+            "lbl": "rs147124286-?",
+            "meta": {}
+          },
+          {
+            "id": "MONARCH:b3eb6fdfcaa183e0c0fd",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "RO:0003304",
+            "lbl": "contributes to condition",
+            "meta": {}
+          },
+          {
+            "id": "PMID:30089514",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "MONDO:0019037",
+            "lbl": "progressive supranuclear palsy",
+            "meta": {}
+          },
+          {
+            "id": "ECO:0000213",
+            "lbl": "combinatorial evidence used in automatic assertion",
+            "meta": {}
+          },
+          {
+            "id": "HGNC:11205",
+            "lbl": "SP1",
+            "meta": {}
+          }
+        ],
+        "edges": [
+          {
+            "sub": "dbSNP:rs147124286",
+            "pred": "RO:0003304",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["contributes to condition"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs147124286",
+            "pred": "GENO:0000418",
+            "obj": "HGNC:11205",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has_affected_feature"],
+              "equivalentOriginalNodeTarget": ["http://ensembl.org/id/ENSG00000185591"]
+            }
+          },
+          {
+            "sub": "MONARCH:b3eb6fdfcaa183e0c0fd",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000213",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has evidence"]
+            }
+          },
+          {
+            "sub": "MONARCH:b3eb6fdfcaa183e0c0fd",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0003304",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has predicate"]
+            }
+          },
+          {
+            "sub": "MONARCH:b3eb6fdfcaa183e0c0fd",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:b3eb6fdfcaa183e0c0fd",
+            "pred": "dc:source",
+            "obj": "PMID:30089514",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["source"]
+            }
+          },
+          {
+            "sub": "MONARCH:b3eb6fdfcaa183e0c0fd",
+            "pred": "OBAN:association_has_subject",
+            "obj": "dbSNP:rs147124286",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has subject"]
+            }
+          }
+        ]
+      },
+      "evidence_types": [
+        {
+          "id": "ECO:0000213",
+          "label": "combinatorial evidence used in automatic assertion"
+        }
+      ],
+      "provided_by": ["https://archive.monarchinitiative.org/#gwascatalog"],
+      "publications": [
+        {
+          "id": "PMID:30089514",
+          "label": null
+        }
+      ]
+    },
+    {
+      "id": "97f764b2-d694-4abf-90d7-d5c1dad93e7a",
+      "type": null,
+      "subject": {
+        "taxon": {
+          "id": null,
+          "label": null
+        },
+        "id": "MONDO:0019037",
+        "label": "progressive supranuclear palsy",
+        "iri": "http://purl.obolibrary.org/obo/MONDO_0019037",
+        "category": ["disease"]
+      },
+      "subject_eq": null,
+      "subject_extensions": null,
+      "object": {
+        "taxon": {
+          "id": "NCBITaxon:9606",
+          "label": "Homo sapiens"
+        },
+        "id": "HGNC:6119",
+        "label": "IRF4",
+        "iri": "https://www.genenames.org/data/gene-symbol-report/#!/hgnc_id/HGNC:6119",
+        "category": ["gene"]
+      },
+      "object_eq": null,
+      "object_extensions": null,
+      "relation": {
+        "inverse": true,
+        "id": "RO:0003304",
+        "label": "contributes to condition",
+        "iri": "http://purl.obolibrary.org/obo/RO_0003304",
+        "category": null
+      },
+      "slim": null,
+      "negated": false,
+      "qualifiers": null,
+      "evidence_graph": {
+        "nodes": [
+          {
+            "id": "dbSNP:rs12203592",
+            "lbl": "rs12203592-G",
+            "meta": {}
+          },
+          {
+            "id": "MONARCH:b97a59c9a610cc0b68b6",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "RO:0003304",
+            "lbl": "contributes to condition",
+            "meta": {}
+          },
+          {
+            "id": "MONDO:0019037",
+            "lbl": "progressive supranuclear palsy",
+            "meta": {}
+          },
+          {
+            "id": "ECO:0000213",
+            "lbl": "combinatorial evidence used in automatic assertion",
+            "meta": {}
+          },
+          {
+            "id": "PMID:21685912",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "HGNC:6119",
+            "lbl": "IRF4",
+            "meta": {}
+          }
+        ],
+        "edges": [
+          {
+            "sub": "dbSNP:rs12203592",
+            "pred": "RO:0003304",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["contributes to condition"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:b97a59c9a610cc0b68b6",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000213",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has evidence"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs12203592",
+            "pred": "GENO:0000418",
+            "obj": "HGNC:6119",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["has_affected_feature"],
+              "equivalentOriginalNodeTarget": ["http://ensembl.org/id/ENSG00000137265"]
+            }
+          },
+          {
+            "sub": "dbSNP:rs12203592",
+            "pred": "GENO:0000408",
+            "obj": "HGNC:6119",
+            "meta": {
+              "equivalentOriginalNodeSource": ["http://omim.org/entry/601900.0001"],
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#omim.nt"],
+              "lbl": ["is_allele_of"],
+              "equivalentOriginalNodeTarget": ["http://omim.org/entry/601900"]
+            }
+          },
+          {
+            "sub": "MONARCH:b97a59c9a610cc0b68b6",
+            "pred": "dc:source",
+            "obj": "PMID:21685912",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["source"]
+            }
+          },
+          {
+            "sub": "MONARCH:b97a59c9a610cc0b68b6",
+            "pred": "OBAN:association_has_subject",
+            "obj": "dbSNP:rs12203592",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has subject"]
+            }
+          },
+          {
+            "sub": "MONARCH:b97a59c9a610cc0b68b6",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0019037",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_683"]
+            }
+          },
+          {
+            "sub": "MONARCH:b97a59c9a610cc0b68b6",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0003304",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#gwascatalog"],
+              "lbl": ["association has predicate"]
+            }
+          }
+        ]
+      },
+      "evidence_types": [
+        {
+          "id": "ECO:0000213",
+          "label": "combinatorial evidence used in automatic assertion"
+        }
+      ],
+      "provided_by": [
+        "https://archive.monarchinitiative.org/#omim.nt",
+        "https://archive.monarchinitiative.org/#gwascatalog"
+      ],
+      "publications": [
+        {
+          "id": "PMID:21685912",
+          "label": null
+        }
+      ]
+    },
+    {
+      "id": "b0069ce2-0f48-4465-840d-09ad0f1385db",
+      "type": null,
+      "subject": {
+        "taxon": {
+          "id": null,
+          "label": null
+        },
+        "id": "MONDO:0010997",
+        "label": "classic progressive supranuclear palsy syndrome",
+        "iri": "http://purl.obolibrary.org/obo/MONDO_0010997",
+        "category": ["disease"]
+      },
+      "subject_eq": null,
+      "subject_extensions": null,
+      "object": {
+        "taxon": {
+          "id": "NCBITaxon:9606",
+          "label": "Homo sapiens"
+        },
+        "id": "HGNC:6893",
+        "label": "MAPT",
+        "iri": "https://www.genenames.org/data/gene-symbol-report/#!/hgnc_id/HGNC:6893",
+        "category": ["gene"]
+      },
+      "object_eq": null,
+      "object_extensions": null,
+      "relation": {
+        "inverse": true,
+        "id": "RO:0003303",
+        "label": "causes condition",
+        "iri": "http://purl.obolibrary.org/obo/RO_0003303",
+        "category": null
+      },
+      "slim": null,
+      "negated": false,
+      "qualifiers": null,
+      "evidence_graph": {
+        "nodes": [
+          {
+            "id": "HGNC:6893",
+            "lbl": "MAPT",
+            "meta": {}
+          },
+          {
+            "id": "MONARCH:b0059de380c22028fe8d",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "MONARCH:ba99854ec0fa3c9f9a19",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "RO:0003303",
+            "lbl": "causes condition",
+            "meta": {}
+          },
+          {
+            "id": "RO:0004015",
+            "lbl": "is causal susceptibility factor for",
+            "meta": {}
+          },
+          {
+            "id": "ECO:0000220",
+            "lbl": "sequencing assay evidence",
+            "meta": {}
+          },
+          {
+            "id": "ECO:0000322",
+            "lbl": "imported manually asserted information used in automatic assertion",
+            "meta": {}
+          },
+          {
+            "id": "MONDO:0010997",
+            "lbl": "classic progressive supranuclear palsy syndrome",
+            "meta": {}
+          }
+        ],
+        "edges": [
+          {
+            "sub": "MONARCH:b0059de380c22028fe8d",
+            "pred": "OBAN:association_has_subject",
+            "obj": "HGNC:6893",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["association has subject"]
+            }
+          },
+          {
+            "sub": "MONARCH:b0059de380c22028fe8d",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0004015",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["association has predicate"]
+            }
+          },
+          {
+            "sub": "MONARCH:ba99854ec0fa3c9f9a19",
+            "pred": "OBAN:association_has_subject",
+            "obj": "HGNC:6893",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#omim.nt"],
+              "lbl": ["association has subject"],
+              "equivalentOriginalNodeTarget": ["http://omim.org/entry/157140"]
+            }
+          },
+          {
+            "sub": "MONARCH:ba99854ec0fa3c9f9a19",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000220",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#omim.nt"],
+              "lbl": ["has evidence"]
+            }
+          },
+          {
+            "sub": "HGNC:6893",
+            "pred": "RO:0003303",
+            "obj": "MONDO:0010997",
+            "meta": {
+              "equivalentOriginalNodeSource": ["http://omim.org/entry/157140"],
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#omim.nt"],
+              "lbl": ["causes condition"],
+              "equivalentOriginalNodeTarget": ["http://omim.org/entry/601104"]
+            }
+          },
+          {
+            "sub": "MONARCH:ba99854ec0fa3c9f9a19",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0010997",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#omim.nt"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://omim.org/entry/601104"]
+            }
+          },
+          {
+            "sub": "MONARCH:ba99854ec0fa3c9f9a19",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0003303",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#omim.nt"],
+              "lbl": ["association has predicate"]
+            }
+          },
+          {
+            "sub": "HGNC:6893",
+            "pred": "RO:0004015",
+            "obj": "MONDO:0010997",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["is causal susceptibility factor for"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_240071"]
+            }
+          },
+          {
+            "sub": "MONARCH:b0059de380c22028fe8d",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000322",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["has evidence"]
+            }
+          },
+          {
+            "sub": "MONARCH:b0059de380c22028fe8d",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0010997",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_240071"]
+            }
+          }
+        ]
+      },
+      "evidence_types": [
+        {
+          "id": "ECO:0000322",
+          "label": "imported manually asserted information used in automatic assertion"
+        },
+        {
+          "id": "ECO:0000220",
+          "label": "sequencing assay evidence"
+        }
+      ],
+      "provided_by": [
+        "https://archive.monarchinitiative.org/#omim.nt",
+        "https://archive.monarchinitiative.org/#orphanet"
+      ],
+      "publications": []
+    },
+    {
+      "id": "a3399926-b498-45c1-b0ce-592675cbab27",
+      "type": null,
+      "subject": {
+        "taxon": {
+          "id": null,
+          "label": null
+        },
+        "id": "MONDO:0009839",
+        "label": "progressive supranuclear palsy-parkinsonism syndrome",
+        "iri": "http://purl.obolibrary.org/obo/MONDO_0009839",
+        "category": ["disease"]
+      },
+      "subject_eq": null,
+      "subject_extensions": null,
+      "object": {
+        "taxon": {
+          "id": "NCBITaxon:9606",
+          "label": "Homo sapiens"
+        },
+        "id": "HGNC:6893",
+        "label": "MAPT",
+        "iri": "https://www.genenames.org/data/gene-symbol-report/#!/hgnc_id/HGNC:6893",
+        "category": ["gene"]
+      },
+      "object_eq": null,
+      "object_extensions": null,
+      "relation": {
+        "inverse": true,
+        "id": "RO:0003303",
+        "label": "causes condition",
+        "iri": "http://purl.obolibrary.org/obo/RO_0003303",
+        "category": null
+      },
+      "slim": null,
+      "negated": false,
+      "qualifiers": null,
+      "evidence_graph": {
+        "nodes": [
+          {
+            "id": "MONARCH:b85bcb6cf62af8d4817c",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "MONDO:0009839",
+            "lbl": "progressive supranuclear palsy-parkinsonism syndrome",
+            "meta": {}
+          },
+          {
+            "id": "HGNC:6893",
+            "lbl": "MAPT",
+            "meta": {}
+          },
+          {
+            "id": "RO:0003303",
+            "lbl": "causes condition",
+            "meta": {}
+          },
+          {
+            "id": "MONARCH:b2154b8e8c6888e31250",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "RO:0004015",
+            "lbl": "is causal susceptibility factor for",
+            "meta": {}
+          },
+          {
+            "id": "ECO:0000220",
+            "lbl": "sequencing assay evidence",
+            "meta": {}
+          },
+          {
+            "id": "ECO:0000322",
+            "lbl": "imported manually asserted information used in automatic assertion",
+            "meta": {}
+          }
+        ],
+        "edges": [
+          {
+            "sub": "MONARCH:b85bcb6cf62af8d4817c",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000220",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#omim.nt"],
+              "lbl": ["has evidence"]
+            }
+          },
+          {
+            "sub": "MONARCH:b85bcb6cf62af8d4817c",
+            "pred": "OBAN:association_has_subject",
+            "obj": "HGNC:6893",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#omim.nt"],
+              "lbl": ["association has subject"],
+              "equivalentOriginalNodeTarget": ["http://omim.org/entry/157140"]
+            }
+          },
+          {
+            "sub": "MONARCH:b85bcb6cf62af8d4817c",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0003303",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#omim.nt"],
+              "lbl": ["association has predicate"]
+            }
+          },
+          {
+            "sub": "MONARCH:b2154b8e8c6888e31250",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0004015",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["association has predicate"]
+            }
+          },
+          {
+            "sub": "HGNC:6893",
+            "pred": "RO:0004015",
+            "obj": "MONDO:0009839",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["is causal susceptibility factor for"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_240085"]
+            }
+          },
+          {
+            "sub": "HGNC:6893",
+            "pred": "RO:0003303",
+            "obj": "MONDO:0009839",
+            "meta": {
+              "equivalentOriginalNodeSource": ["http://omim.org/entry/157140"],
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#omim.nt"],
+              "lbl": ["causes condition"],
+              "equivalentOriginalNodeTarget": ["http://omim.org/entry/260540"]
+            }
+          },
+          {
+            "sub": "MONARCH:b2154b8e8c6888e31250",
+            "pred": "OBAN:association_has_subject",
+            "obj": "HGNC:6893",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["association has subject"]
+            }
+          },
+          {
+            "sub": "MONARCH:b85bcb6cf62af8d4817c",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0009839",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#omim.nt"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://omim.org/entry/260540"]
+            }
+          },
+          {
+            "sub": "MONARCH:b2154b8e8c6888e31250",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0009839",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_240085"]
+            }
+          },
+          {
+            "sub": "MONARCH:b2154b8e8c6888e31250",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000322",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["has evidence"]
+            }
+          }
+        ]
+      },
+      "evidence_types": [
+        {
+          "id": "ECO:0000322",
+          "label": "imported manually asserted information used in automatic assertion"
+        },
+        {
+          "id": "ECO:0000220",
+          "label": "sequencing assay evidence"
+        }
+      ],
+      "provided_by": [
+        "https://archive.monarchinitiative.org/#omim.nt",
+        "https://archive.monarchinitiative.org/#orphanet"
+      ],
+      "publications": []
+    },
+    {
+      "id": "56871cfd-f69d-4436-8269-5c77c2b9b018",
+      "type": null,
+      "subject": {
+        "taxon": {
+          "id": null,
+          "label": null
+        },
+        "id": "MONDO:0016562",
+        "label": "progressive supranuclear palsy-pure akinesia with gait freezing syndrome",
+        "iri": "http://purl.obolibrary.org/obo/MONDO_0016562",
+        "category": ["disease"]
+      },
+      "subject_eq": null,
+      "subject_extensions": null,
+      "object": {
+        "taxon": {
+          "id": "NCBITaxon:9606",
+          "label": "Homo sapiens"
+        },
+        "id": "HGNC:6893",
+        "label": "MAPT",
+        "iri": "https://www.genenames.org/data/gene-symbol-report/#!/hgnc_id/HGNC:6893",
+        "category": ["gene"]
+      },
+      "object_eq": null,
+      "object_extensions": null,
+      "relation": {
+        "inverse": true,
+        "id": "RO:0004015",
+        "label": "is causal susceptibility factor for",
+        "iri": "http://purl.obolibrary.org/obo/RO_0004015",
+        "category": null
+      },
+      "slim": null,
+      "negated": false,
+      "qualifiers": null,
+      "evidence_graph": {
+        "nodes": [
+          {
+            "id": "MONDO:0016562",
+            "lbl": "progressive supranuclear palsy-pure akinesia with gait freezing syndrome",
+            "meta": {}
+          },
+          {
+            "id": "MONARCH:b5002a47e74d904319c5",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "HGNC:6893",
+            "lbl": "MAPT",
+            "meta": {}
+          },
+          {
+            "id": "RO:0004015",
+            "lbl": "is causal susceptibility factor for",
+            "meta": {}
+          },
+          {
+            "id": "ECO:0000322",
+            "lbl": "imported manually asserted information used in automatic assertion",
+            "meta": {}
+          }
+        ],
+        "edges": [
+          {
+            "sub": "MONARCH:b5002a47e74d904319c5",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0004015",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["association has predicate"]
+            }
+          },
+          {
+            "sub": "HGNC:6893",
+            "pred": "RO:0004015",
+            "obj": "MONDO:0016562",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["is causal susceptibility factor for"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_240094"]
+            }
+          },
+          {
+            "sub": "MONARCH:b5002a47e74d904319c5",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000322",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["has evidence"]
+            }
+          },
+          {
+            "sub": "MONARCH:b5002a47e74d904319c5",
+            "pred": "OBAN:association_has_subject",
+            "obj": "HGNC:6893",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["association has subject"]
+            }
+          },
+          {
+            "sub": "MONARCH:b5002a47e74d904319c5",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0016562",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_240094"]
+            }
+          }
+        ]
+      },
+      "evidence_types": [
+        {
+          "id": "ECO:0000322",
+          "label": "imported manually asserted information used in automatic assertion"
+        }
+      ],
+      "provided_by": ["https://archive.monarchinitiative.org/#orphanet"],
+      "publications": []
+    },
+    {
+      "id": "048b6bf7-74b4-434f-a2f3-503b33fe1267",
+      "type": null,
+      "subject": {
+        "taxon": {
+          "id": null,
+          "label": null
+        },
+        "id": "MONDO:0016563",
+        "label": "progressive supranuclear palsy-corticobasal syndrome",
+        "iri": "http://purl.obolibrary.org/obo/MONDO_0016563",
+        "category": ["disease"]
+      },
+      "subject_eq": null,
+      "subject_extensions": null,
+      "object": {
+        "taxon": {
+          "id": "NCBITaxon:9606",
+          "label": "Homo sapiens"
+        },
+        "id": "HGNC:6893",
+        "label": "MAPT",
+        "iri": "https://www.genenames.org/data/gene-symbol-report/#!/hgnc_id/HGNC:6893",
+        "category": ["gene"]
+      },
+      "object_eq": null,
+      "object_extensions": null,
+      "relation": {
+        "inverse": true,
+        "id": "RO:0004015",
+        "label": "is causal susceptibility factor for",
+        "iri": "http://purl.obolibrary.org/obo/RO_0004015",
+        "category": null
+      },
+      "slim": null,
+      "negated": false,
+      "qualifiers": null,
+      "evidence_graph": {
+        "nodes": [
+          {
+            "id": "HGNC:6893",
+            "lbl": "MAPT",
+            "meta": {}
+          },
+          {
+            "id": "MONARCH:b6c862704e0c46445b7c",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "RO:0004015",
+            "lbl": "is causal susceptibility factor for",
+            "meta": {}
+          },
+          {
+            "id": "MONDO:0016563",
+            "lbl": "progressive supranuclear palsy-corticobasal syndrome",
+            "meta": {}
+          },
+          {
+            "id": "ECO:0000322",
+            "lbl": "imported manually asserted information used in automatic assertion",
+            "meta": {}
+          }
+        ],
+        "edges": [
+          {
+            "sub": "MONARCH:b6c862704e0c46445b7c",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0016563",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_240103"]
+            }
+          },
+          {
+            "sub": "MONARCH:b6c862704e0c46445b7c",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0004015",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["association has predicate"]
+            }
+          },
+          {
+            "sub": "MONARCH:b6c862704e0c46445b7c",
+            "pred": "OBAN:association_has_subject",
+            "obj": "HGNC:6893",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["association has subject"]
+            }
+          },
+          {
+            "sub": "MONARCH:b6c862704e0c46445b7c",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000322",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["has evidence"]
+            }
+          },
+          {
+            "sub": "HGNC:6893",
+            "pred": "RO:0004015",
+            "obj": "MONDO:0016563",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["is causal susceptibility factor for"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_240103"]
+            }
+          }
+        ]
+      },
+      "evidence_types": [
+        {
+          "id": "ECO:0000322",
+          "label": "imported manually asserted information used in automatic assertion"
+        }
+      ],
+      "provided_by": ["https://archive.monarchinitiative.org/#orphanet"],
+      "publications": []
+    },
+    {
+      "id": "58dcad1a-3507-4a3a-86f6-a9bf337b42eb",
+      "type": null,
+      "subject": {
+        "taxon": {
+          "id": null,
+          "label": null
+        },
+        "id": "MONDO:0016564",
+        "label": "progressive supranuclear palsy-progressive non-fluent aphasia syndrome",
+        "iri": "http://purl.obolibrary.org/obo/MONDO_0016564",
+        "category": ["disease"]
+      },
+      "subject_eq": null,
+      "subject_extensions": null,
+      "object": {
+        "taxon": {
+          "id": "NCBITaxon:9606",
+          "label": "Homo sapiens"
+        },
+        "id": "HGNC:6893",
+        "label": "MAPT",
+        "iri": "https://www.genenames.org/data/gene-symbol-report/#!/hgnc_id/HGNC:6893",
+        "category": ["gene"]
+      },
+      "object_eq": null,
+      "object_extensions": null,
+      "relation": {
+        "inverse": true,
+        "id": "RO:0004015",
+        "label": "is causal susceptibility factor for",
+        "iri": "http://purl.obolibrary.org/obo/RO_0004015",
+        "category": null
+      },
+      "slim": null,
+      "negated": false,
+      "qualifiers": null,
+      "evidence_graph": {
+        "nodes": [
+          {
+            "id": "HGNC:6893",
+            "lbl": "MAPT",
+            "meta": {}
+          },
+          {
+            "id": "MONDO:0016564",
+            "lbl": "progressive supranuclear palsy-progressive non-fluent aphasia syndrome",
+            "meta": {}
+          },
+          {
+            "id": "RO:0004015",
+            "lbl": "is causal susceptibility factor for",
+            "meta": {}
+          },
+          {
+            "id": "MONARCH:b8a0e2a37c1fcdf3c9a6",
+            "lbl": null,
+            "meta": {}
+          },
+          {
+            "id": "ECO:0000322",
+            "lbl": "imported manually asserted information used in automatic assertion",
+            "meta": {}
+          }
+        ],
+        "edges": [
+          {
+            "sub": "MONARCH:b8a0e2a37c1fcdf3c9a6",
+            "pred": "OBAN:association_has_predicate",
+            "obj": "RO:0004015",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["association has predicate"]
+            }
+          },
+          {
+            "sub": "HGNC:6893",
+            "pred": "RO:0004015",
+            "obj": "MONDO:0016564",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["is causal susceptibility factor for"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_240112"]
+            }
+          },
+          {
+            "sub": "MONARCH:b8a0e2a37c1fcdf3c9a6",
+            "pred": "OBAN:association_has_object",
+            "obj": "MONDO:0016564",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["association has object"],
+              "equivalentOriginalNodeTarget": ["http://www.orpha.net/ORDO/Orphanet_240112"]
+            }
+          },
+          {
+            "sub": "MONARCH:b8a0e2a37c1fcdf3c9a6",
+            "pred": "RO:0002558",
+            "obj": "ECO:0000322",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["has evidence"]
+            }
+          },
+          {
+            "sub": "MONARCH:b8a0e2a37c1fcdf3c9a6",
+            "pred": "OBAN:association_has_subject",
+            "obj": "HGNC:6893",
+            "meta": {
+              "isDefinedBy": ["https://archive.monarchinitiative.org/#orphanet"],
+              "lbl": ["association has subject"]
+            }
+          }
+        ]
+      },
+      "evidence_types": [
+        {
+          "id": "ECO:0000322",
+          "label": "imported manually asserted information used in automatic assertion"
+        }
+      ],
+      "provided_by": ["https://archive.monarchinitiative.org/#orphanet"],
+      "publications": []
+    }
+  ],
+  "compact_associations": null,
+  "objects": null,
+  "numFound": 17,
+  "docs": null,
+  "facet_counts": {},
+  "highlighting": null
+}

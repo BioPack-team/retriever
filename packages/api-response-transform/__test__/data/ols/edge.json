@@ -1,0 +1,36 @@
+{
+  "input": "DOID:9562",
+  "query_operation": {
+    "_params": {
+      "id": "{inputs[0]}"
+    },
+    "_supportBatch": false,
+    "method": "get",
+    "_pathParams": [],
+    "_server": "https://www.ebi.ac.uk/ols/api",
+    "path": "/ontologies/doid/children",
+    "_tags": ["ontology", "translator"]
+  },
+  "association": {
+    "input_id": "DOID",
+    "input_type": "Disease",
+    "output_id": "DOID",
+    "output_type": "Disease",
+    "predicate": "has_subclass",
+    "source": "disease ontology",
+    "api_name": "Ontology Lookup Service API",
+    "smartapi": {},
+    "x-translator": {
+      "component": "KP",
+      "team": ["Service Provider"]
+    }
+  },
+  "response_mapping": {
+    "has_subclass": {
+      "DOID": "_embedded.terms.obo_id",
+      "name": "_embedded.terms.label",
+      "description": "_embedded.terms.description"
+    }
+  },
+  "tags": ["ontology", "translator"]
+}

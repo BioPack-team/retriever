@@ -1,0 +1,4650 @@
+{
+  "accession": "Q93099",
+  "id": "HGD_HUMAN",
+  "proteinExistence": "Evidence at protein level",
+  "info": {
+    "type": "Swiss-Prot",
+    "created": "1997-11-01",
+    "modified": "2021-04-07",
+    "version": 192
+  },
+  "organism": {
+    "taxonomy": 9606,
+    "names": [
+      {
+        "type": "scientific",
+        "value": "Homo sapiens"
+      },
+      {
+        "type": "common",
+        "value": "Human"
+      }
+    ],
+    "lineage": [
+      "Eukaryota",
+      "Metazoa",
+      "Chordata",
+      "Craniata",
+      "Vertebrata",
+      "Euteleostomi",
+      "Mammalia",
+      "Eutheria",
+      "Euarchontoglires",
+      "Primates",
+      "Haplorrhini",
+      "Catarrhini",
+      "Hominidae",
+      "Homo"
+    ]
+  },
+  "secondaryAccession": ["A8K417", "B2R8Z0"],
+  "protein": {
+    "recommendedName": {
+      "fullName": {
+        "value": "Homogentisate 1,2-dioxygenase"
+      },
+      "ecNumber": [
+        {
+          "value": "1.13.11.5"
+        }
+      ]
+    },
+    "alternativeName": [
+      {
+        "fullName": {
+          "value": "Homogentisate oxygenase"
+        }
+      },
+      {
+        "fullName": {
+          "value": "Homogentisic acid oxidase"
+        }
+      },
+      {
+        "fullName": {
+          "value": "Homogentisicase"
+        }
+      }
+    ]
+  },
+  "gene": [
+    {
+      "name": {
+        "value": "HGD"
+      },
+      "synonyms": [
+        {
+          "value": "HGO"
+        }
+      ]
+    }
+  ],
+  "comments": [
+    {
+      "type": "CATALYTIC_ACTIVITY",
+      "reaction": {
+        "name": "homogentisate + O2 = 4-maleylacetoacetate + H(+)",
+        "dbReferences": [
+          {
+            "type": "Rhea",
+            "id": "RHEA:15449"
+          },
+          {
+            "type": "ChEBI",
+            "id": "CHEBI:15378"
+          },
+          {
+            "type": "ChEBI",
+            "id": "CHEBI:15379"
+          },
+          {
+            "type": "ChEBI",
+            "id": "CHEBI:16169"
+          },
+          {
+            "type": "ChEBI",
+            "id": "CHEBI:17105"
+          }
+        ],
+        "ecNumber": "1.13.11.5"
+      }
+    },
+    {
+      "type": "COFACTOR",
+      "cofactors": [
+        {
+          "name": "Fe cation",
+          "dbReference": {
+            "type": "CHEBI",
+            "id": "CHEBI:24875"
+          }
+        }
+      ]
+    },
+    {
+      "type": "PATHWAY",
+      "text": [
+        {
+          "value": "Amino-acid degradation; L-phenylalanine degradation; acetoacetate and fumarate from L-phenylalanine: step 4/6"
+        }
+      ]
+    },
+    {
+      "type": "SUBUNIT",
+      "text": [
+        {
+          "value": "Homohexamer arranged as a dimer of trimers",
+          "evidences": [
+            {
+              "code": "ECO:0000269",
+              "source": {
+                "name": "PubMed",
+                "id": "10876237",
+                "url": "http://www.ncbi.nlm.nih.gov/pubmed/10876237",
+                "alternativeUrl": "https://europepmc.org/abstract/MED/10876237"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "INTERACTION",
+      "interactions": [
+        {
+          "accession1": "Q93099",
+          "accession2": "Q93099",
+          "gene": "HGD",
+          "interactor1": "EBI-3907760",
+          "interactor2": "EBI-3907760",
+          "organismDiffer": false,
+          "experiments": 4
+        },
+        {
+          "accession1": "Q93099",
+          "accession2": "Q96HA8",
+          "gene": "NTAQ1",
+          "interactor1": "EBI-3907760",
+          "interactor2": "EBI-741158",
+          "organismDiffer": false,
+          "experiments": 3
+        },
+        {
+          "accession1": "Q93099",
+          "accession2": "P54274",
+          "gene": "TERF1",
+          "interactor1": "EBI-3907760",
+          "interactor2": "EBI-710997",
+          "organismDiffer": false,
+          "experiments": 2
+        }
+      ]
+    },
+    {
+      "type": "TISSUE_SPECIFICITY",
+      "text": [
+        {
+          "value": "Highest expression in the prostate, small intestine, colon, kidney and liver"
+        }
+      ]
+    },
+    {
+      "type": "DISEASE",
+      "diseaseId": "Alkaptonuria",
+      "acronym": "AKU",
+      "dbReference": {
+        "type": "MIM",
+        "id": "203500"
+      },
+      "description": {
+        "value": "An autosomal recessive error of metabolism characterized by an increase in the level of homogentisic acid. The clinical manifestations are urine that turns dark on standing and alkalinization, black ochronotic pigmentation of cartilage and collagenous tissues, and spine arthritis.",
+        "evidences": [
+          {
+            "code": "ECO:0000269",
+            "source": {
+              "name": "PubMed",
+              "id": "10205262",
+              "url": "http://www.ncbi.nlm.nih.gov/pubmed/10205262",
+              "alternativeUrl": "https://europepmc.org/abstract/MED/10205262"
+            }
+          },
+          {
+            "code": "ECO:0000269",
+            "source": {
+              "name": "PubMed",
+              "id": "10340975",
+              "url": "http://www.ncbi.nlm.nih.gov/pubmed/10340975",
+              "alternativeUrl": "https://europepmc.org/abstract/MED/10340975"
+            }
+          },
+          {
+            "code": "ECO:0000269",
+            "source": {
+              "name": "PubMed",
+              "id": "10482952",
+              "url": "http://www.ncbi.nlm.nih.gov/pubmed/10482952",
+              "alternativeUrl": "https://europepmc.org/abstract/MED/10482952"
+            }
+          },
+          {
+            "code": "ECO:0000269",
+            "source": {
+              "name": "PubMed",
+              "id": "10594001",
+              "url": "http://www.ncbi.nlm.nih.gov/pubmed/10594001",
+              "alternativeUrl": "https://europepmc.org/abstract/MED/10594001"
+            }
+          },
+          {
+            "code": "ECO:0000269",
+            "source": {
+              "name": "PubMed",
+              "id": "19862842",
+              "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+              "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+            }
+          },
+          {
+            "code": "ECO:0000269",
+            "source": {
+              "name": "PubMed",
+              "id": "21437689",
+              "url": "http://www.ncbi.nlm.nih.gov/pubmed/21437689",
+              "alternativeUrl": "https://europepmc.org/abstract/MED/21437689"
+            }
+          },
+          {
+            "code": "ECO:0000269",
+            "source": {
+              "name": "PubMed",
+              "id": "23353776",
+              "url": "http://www.ncbi.nlm.nih.gov/pubmed/23353776",
+              "alternativeUrl": "https://europepmc.org/abstract/MED/23353776"
+            }
+          },
+          {
+            "code": "ECO:0000269",
+            "source": {
+              "name": "PubMed",
+              "id": "23430897",
+              "url": "http://www.ncbi.nlm.nih.gov/pubmed/23430897",
+              "alternativeUrl": "https://europepmc.org/abstract/MED/23430897"
+            }
+          },
+          {
+            "code": "ECO:0000269",
+            "source": {
+              "name": "PubMed",
+              "id": "25681086",
+              "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+              "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+            }
+          },
+          {
+            "code": "ECO:0000269",
+            "source": {
+              "name": "PubMed",
+              "id": "8782815",
+              "url": "http://www.ncbi.nlm.nih.gov/pubmed/8782815",
+              "alternativeUrl": "https://europepmc.org/abstract/MED/8782815"
+            }
+          },
+          {
+            "code": "ECO:0000269",
+            "source": {
+              "name": "PubMed",
+              "id": "9154114",
+              "url": "http://www.ncbi.nlm.nih.gov/pubmed/9154114",
+              "alternativeUrl": "https://europepmc.org/abstract/MED/9154114"
+            }
+          },
+          {
+            "code": "ECO:0000269",
+            "source": {
+              "name": "PubMed",
+              "id": "9529363",
+              "url": "http://www.ncbi.nlm.nih.gov/pubmed/9529363",
+              "alternativeUrl": "https://europepmc.org/abstract/MED/9529363"
+            }
+          },
+          {
+            "code": "ECO:0000269",
+            "source": {
+              "name": "PubMed",
+              "id": "9630082",
+              "url": "http://www.ncbi.nlm.nih.gov/pubmed/9630082",
+              "alternativeUrl": "https://europepmc.org/abstract/MED/9630082"
+            }
+          }
+        ]
+      },
+      "text": [
+        {
+          "value": "The disease is caused by variants affecting the gene represented in this entry"
+        }
+      ]
+    },
+    {
+      "type": "SIMILARITY",
+      "text": [
+        {
+          "value": "Belongs to the homogentisate dioxygenase family",
+          "evidences": [
+            {
+              "code": "ECO:0000305"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "features": [
+    {
+      "type": "CHAIN",
+      "category": "MOLECULE_PROCESSING",
+      "ftId": "PRO_0000220240",
+      "description": "Homogentisate 1,2-dioxygenase",
+      "begin": "1",
+      "end": "445",
+      "molecule": ""
+    },
+    {
+      "type": "METAL",
+      "category": "DOMAINS_AND_SITES",
+      "description": "Iron",
+      "begin": "335",
+      "end": "335",
+      "molecule": ""
+    },
+    {
+      "type": "METAL",
+      "category": "DOMAINS_AND_SITES",
+      "description": "Iron",
+      "begin": "341",
+      "end": "341",
+      "molecule": ""
+    },
+    {
+      "type": "METAL",
+      "category": "DOMAINS_AND_SITES",
+      "description": "Iron",
+      "begin": "371",
+      "end": "371",
+      "molecule": ""
+    },
+    {
+      "type": "MOD_RES",
+      "category": "PTM",
+      "description": "N6-acetyllysine",
+      "begin": "98",
+      "end": "98",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PubMed",
+            "id": "19608861",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19608861",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19608861"
+          }
+        }
+      ]
+    },
+    {
+      "type": "MOD_RES",
+      "category": "PTM",
+      "description": "N6-succinyllysine",
+      "begin": "414",
+      "end": "414",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000250",
+          "source": {
+            "name": "UniProtKB",
+            "id": "O09173",
+            "url": "https://www.uniprot.org/uniprot/O09173"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073076",
+      "description": "in AKU; dbSNP:rs200412910",
+      "alternativeSequence": "A",
+      "begin": "3",
+      "end": "3",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073077",
+      "description": "in AKU; dbSNP:rs1458752246",
+      "alternativeSequence": "K",
+      "begin": "13",
+      "end": "13",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073078",
+      "description": "in AKU",
+      "alternativeSequence": "N",
+      "begin": "18",
+      "end": "18",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_009618",
+      "description": "in AKU",
+      "alternativeSequence": "P",
+      "begin": "25",
+      "end": "25",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "10340975",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/10340975",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/10340975"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "10482952",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/10482952",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/10482952"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073079",
+      "description": "in AKU",
+      "alternativeSequence": "R",
+      "begin": "33",
+      "end": "33",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "23430897",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/23430897",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/23430897"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_005272",
+      "description": "in AKU; dbSNP:rs373921680",
+      "alternativeSequence": "A",
+      "begin": "42",
+      "end": "42",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "9529363",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/9529363",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/9529363"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073080",
+      "description": "in AKU; dbSNP:rs1049246177",
+      "alternativeSequence": "F",
+      "begin": "44",
+      "end": "44",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "23430897",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/23430897",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/23430897"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073081",
+      "description": "in AKU; dbSNP:rs200808744",
+      "alternativeSequence": "Q",
+      "begin": "53",
+      "end": "53",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_005273",
+      "description": "in AKU",
+      "alternativeSequence": "G",
+      "begin": "60",
+      "end": "60",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "10205262",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/10205262",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/10205262"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073082",
+      "description": "in AKU; dbSNP:rs1324654414",
+      "alternativeSequence": "P",
+      "begin": "61",
+      "end": "61",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_005274",
+      "description": "in AKU; dbSNP:rs1174584850",
+      "alternativeSequence": "C",
+      "begin": "62",
+      "end": "62",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "10205262",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/10205262",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/10205262"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073083",
+      "description": "in AKU",
+      "alternativeSequence": "L",
+      "begin": "73",
+      "end": "73",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_049353",
+      "description": "in dbSNP:rs2255543",
+      "alternativeSequence": "H",
+      "begin": "80",
+      "end": "80",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "14702039",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/14702039",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/14702039"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "15489334",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/15489334",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/15489334"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "8782815",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/8782815",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/8782815"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "9244427",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/9244427",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/9244427"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "Citation",
+            "id": "Ref.2",
+            "url": "https://www.uniprot.org/uniprot/Q93099#ref2"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "Citation",
+            "id": "Ref.6",
+            "url": "https://www.uniprot.org/uniprot/Q93099#ref6"
+          }
+        },
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PubMed",
+            "id": "24275569",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/24275569",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/24275569"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073084",
+      "description": "in AKU",
+      "alternativeSequence": "T",
+      "begin": "92",
+      "end": "92",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_005275",
+      "description": "in AKU",
+      "alternativeSequence": "G",
+      "begin": "97",
+      "end": "97",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "9529363",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/9529363",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/9529363"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073085",
+      "description": "in AKU",
+      "alternativeSequence": "R",
+      "begin": "97",
+      "end": "97",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073086",
+      "description": "in AKU; dbSNP:rs755734596",
+      "alternativeSequence": "R",
+      "begin": "115",
+      "end": "115",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "23430897",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/23430897",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/23430897"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073087",
+      "description": "in AKU; dbSNP:rs569846003",
+      "alternativeSequence": "P",
+      "begin": "116",
+      "end": "116",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "23430897",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/23430897",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/23430897"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073088",
+      "description": "in AKU; dbSNP:rs752153829",
+      "alternativeSequence": "F",
+      "begin": "120",
+      "end": "120",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073089",
+      "description": "in AKU; dbSNP:rs149165166",
+      "alternativeSequence": "W",
+      "begin": "120",
+      "end": "120",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_005276",
+      "description": "in AKU",
+      "alternativeSequence": "D",
+      "begin": "122",
+      "end": "122",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "10205262",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/10205262",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/10205262"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073090",
+      "description": "in AKU; dbSNP:rs544956641",
+      "alternativeSequence": "V",
+      "begin": "122",
+      "end": "122",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073091",
+      "description": "in AKU; dbSNP:rs374473331",
+      "alternativeSequence": "A",
+      "begin": "123",
+      "end": "123",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "23430897",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/23430897",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/23430897"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073092",
+      "description": "in AKU; dbSNP:rs564979861",
+      "alternativeSequence": "R",
+      "begin": "123",
+      "end": "123",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073093",
+      "description": "in AKU",
+      "alternativeSequence": "P",
+      "begin": "137",
+      "end": "137",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073094",
+      "description": "in AKU; dbSNP:rs1553717936",
+      "alternativeSequence": "A",
+      "begin": "152",
+      "end": "152",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "23430897",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/23430897",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/23430897"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_005277",
+      "description": "in AKU; dbSNP:rs775274569",
+      "alternativeSequence": "G",
+      "begin": "153",
+      "end": "153",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "9529363",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/9529363",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/9529363"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073095",
+      "description": "in AKU; dbSNP:rs375396766",
+      "alternativeSequence": "L",
+      "begin": "158",
+      "end": "158",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_005278",
+      "description": "in AKU; loss of activity; most prevalent mutation in Slovak and Czech patients; dbSNP:rs28941783",
+      "alternativeSequence": "R",
+      "begin": "161",
+      "end": "161",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "10482952",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/10482952",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/10482952"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "9154114",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/9154114",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/9154114"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073096",
+      "description": "in AKU; dbSNP:rs780173554",
+      "alternativeSequence": "D",
+      "begin": "168",
+      "end": "168",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_009619",
+      "description": "in AKU; loss of activity; dbSNP:rs375283568",
+      "alternativeSequence": "K",
+      "begin": "168",
+      "end": "168",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "9630082",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/9630082",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/9630082"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073097",
+      "description": "in AKU; dbSNP:rs756134838",
+      "alternativeSequence": "L",
+      "begin": "169",
+      "end": "169",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "23430897",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/23430897",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/23430897"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073098",
+      "description": "in AKU",
+      "alternativeSequence": "N",
+      "begin": "171",
+      "end": "171",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073099",
+      "description": "",
+      "alternativeSequence": "T",
+      "begin": "172",
+      "end": "172",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073100",
+      "description": "in AKU",
+      "alternativeSequence": "G",
+      "begin": "178",
+      "end": "178",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "23430897",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/23430897",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/23430897"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073101",
+      "description": "in AKU; dbSNP:rs1349543050",
+      "alternativeSequence": "R",
+      "begin": "183",
+      "end": "183",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073102",
+      "description": "in AKU; dbSNP:rs756255206",
+      "alternativeSequence": "G",
+      "begin": "187",
+      "end": "187",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_005279",
+      "description": "in AKU",
+      "alternativeSequence": "I",
+      "begin": "189",
+      "end": "189",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "9529363",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/9529363",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/9529363"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073103",
+      "description": "in AKU; dbSNP:rs1414279737",
+      "alternativeSequence": "G",
+      "begin": "197",
+      "end": "197",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "23430897",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/23430897",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/23430897"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_005280",
+      "description": "in AKU; dbSNP:rs767201131",
+      "alternativeSequence": "T",
+      "begin": "216",
+      "end": "216",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "9529363",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/9529363",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/9529363"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073104",
+      "description": "in AKU",
+      "alternativeSequence": "W",
+      "begin": "217",
+      "end": "217",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073105",
+      "description": "in AKU",
+      "alternativeSequence": "S",
+      "begin": "219",
+      "end": "219",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "23430897",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/23430897",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/23430897"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_005281",
+      "description": "in AKU; dbSNP:rs562853291",
+      "alternativeSequence": "H",
+      "begin": "225",
+      "end": "225",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "9529363",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/9529363",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/9529363"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073106",
+      "description": "in AKU",
+      "alternativeSequence": "L",
+      "begin": "225",
+      "end": "225",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073107",
+      "description": "in AKU; dbSNP:rs562853291",
+      "alternativeSequence": "P",
+      "begin": "225",
+      "end": "225",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_005282",
+      "description": "in AKU",
+      "alternativeSequence": "S",
+      "begin": "227",
+      "end": "227",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "21437689",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/21437689",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/21437689"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "9529363",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/9529363",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/9529363"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_005283",
+      "description": "in AKU; complete loss of activity; dbSNP:rs28942100",
+      "alternativeSequence": "S",
+      "begin": "230",
+      "end": "230",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "10482952",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/10482952",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/10482952"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "8782815",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/8782815",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/8782815"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_005284",
+      "description": "in AKU",
+      "alternativeSequence": "T",
+      "begin": "230",
+      "end": "230",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "10205262",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/10205262",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/10205262"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073108",
+      "description": "in AKU",
+      "alternativeSequence": "F",
+      "begin": "245",
+      "end": "245",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073109",
+      "description": "in AKU; dbSNP:rs759843592",
+      "alternativeSequence": "P",
+      "begin": "258",
+      "end": "258",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073110",
+      "description": "in AKU; dbSNP:rs756522409",
+      "alternativeSequence": "R",
+      "begin": "269",
+      "end": "269",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_009620",
+      "description": "in AKU; dbSNP:rs120074174",
+      "alternativeSequence": "R",
+      "begin": "270",
+      "end": "270",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "10482952",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/10482952",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/10482952"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073111",
+      "description": "in AKU; dbSNP:rs1160502581",
+      "alternativeSequence": "N",
+      "begin": "276",
+      "end": "276",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "23430897",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/23430897",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/23430897"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_005285",
+      "description": "in AKU; dbSNP:rs754428438",
+      "alternativeSequence": "E",
+      "begin": "291",
+      "end": "291",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "10205262",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/10205262",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/10205262"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_005286",
+      "description": "in AKU; dbSNP:rs120074170",
+      "alternativeSequence": "G",
+      "begin": "300",
+      "end": "300",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "10482952",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/10482952",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/10482952"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "8782815",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/8782815",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/8782815"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073112",
+      "description": "in AKU",
+      "alternativeSequence": "P",
+      "begin": "321",
+      "end": "321",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073113",
+      "description": "in AKU",
+      "alternativeSequence": "C",
+      "begin": "329",
+      "end": "329",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "23353776",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/23353776",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/23353776"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_008744",
+      "description": "in AKU; dbSNP:rs120074171",
+      "alternativeSequence": "S",
+      "begin": "330",
+      "end": "330",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "10594001",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/10594001",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/10594001"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073114",
+      "description": "in AKU",
+      "alternativeSequence": "D",
+      "begin": "337",
+      "end": "337",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073115",
+      "description": "in AKU; dbSNP:rs764037565",
+      "alternativeSequence": "L",
+      "begin": "359",
+      "end": "359",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073116",
+      "description": "in AKU",
+      "alternativeSequence": "A",
+      "begin": "360",
+      "end": "360",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "23430897",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/23430897",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/23430897"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073117",
+      "description": "in AKU; dbSNP:rs368717991",
+      "alternativeSequence": "R",
+      "begin": "360",
+      "end": "360",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073118",
+      "description": "in AKU; dbSNP:rs765219004",
+      "alternativeSequence": "R",
+      "begin": "361",
+      "end": "361",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "23430897",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/23430897",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/23430897"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073119",
+      "description": "in AKU",
+      "alternativeSequence": "E",
+      "begin": "362",
+      "end": "362",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_005287",
+      "description": "in AKU; loss of activity; dbSNP:rs120074173",
+      "alternativeSequence": "V",
+      "begin": "368",
+      "end": "368",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "10340975",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/10340975",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/10340975"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "10482952",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/10482952",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/10482952"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "10594001",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/10594001",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/10594001"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "9529363",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/9529363",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/9529363"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073120",
+      "description": "in AKU; dbSNP:rs765912447",
+      "alternativeSequence": "N",
+      "begin": "369",
+      "end": "369",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "21437689",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/21437689",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/21437689"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_008745",
+      "description": "in AKU; dbSNP:rs120074172",
+      "alternativeSequence": "R",
+      "begin": "371",
+      "end": "371",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "10594001",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/10594001",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/10594001"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073121",
+      "description": "in AKU; dbSNP:rs138558042",
+      "alternativeSequence": "L",
+      "begin": "373",
+      "end": "373",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073122",
+      "description": "in AKU; dbSNP:rs981454067",
+      "alternativeSequence": "H",
+      "begin": "374",
+      "end": "374",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "23430897",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/23430897",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/23430897"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25681086",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25681086",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25681086"
+          }
+        }
+      ]
+    },
+    {
+      "type": "VARIANT",
+      "category": "VARIANTS",
+      "ftId": "VAR_073123",
+      "description": "in AKU; dbSNP:rs767159114",
+      "alternativeSequence": "Q",
+      "begin": "401",
+      "end": "401",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19862842",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19862842",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19862842"
+          }
+        }
+      ]
+    },
+    {
+      "type": "CONFLICT",
+      "category": "SEQUENCE_INFORMATION",
+      "description": "in Ref. 4; BAF83471",
+      "alternativeSequence": "R",
+      "begin": "383",
+      "end": "383",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0000305"
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "6",
+      "end": "8",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "14",
+      "end": "17",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "HELIX",
+      "category": "STRUCTURAL",
+      "begin": "36",
+      "end": "38",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "40",
+      "end": "47",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "HELIX",
+      "category": "STRUCTURAL",
+      "begin": "53",
+      "end": "55",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "58",
+      "end": "65",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "HELIX",
+      "category": "STRUCTURAL",
+      "begin": "85",
+      "end": "87",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "95",
+      "end": "97",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "TURN",
+      "category": "STRUCTURAL",
+      "begin": "105",
+      "end": "107",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "TURN",
+      "category": "STRUCTURAL",
+      "begin": "112",
+      "end": "115",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "116",
+      "end": "123",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "HELIX",
+      "category": "STRUCTURAL",
+      "begin": "125",
+      "end": "127",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "131",
+      "end": "138",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "144",
+      "end": "161",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "163",
+      "end": "167",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "170",
+      "end": "174",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "178",
+      "end": "182",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "188",
+      "end": "191",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "193",
+      "end": "205",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "HELIX",
+      "category": "STRUCTURAL",
+      "begin": "214",
+      "end": "216",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "HELIX",
+      "category": "STRUCTURAL",
+      "begin": "224",
+      "end": "226",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "227",
+      "end": "230",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "238",
+      "end": "249",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "252",
+      "end": "260",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "265",
+      "end": "271",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "275",
+      "end": "278",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "HELIX",
+      "category": "STRUCTURAL",
+      "begin": "279",
+      "end": "281",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "288",
+      "end": "291",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "HELIX",
+      "category": "STRUCTURAL",
+      "begin": "295",
+      "end": "298",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "299",
+      "end": "304",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "311",
+      "end": "318",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "320",
+      "end": "323",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "326",
+      "end": "328",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "340",
+      "end": "347",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "362",
+      "end": "365",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "HELIX",
+      "category": "STRUCTURAL",
+      "begin": "375",
+      "end": "383",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "389",
+      "end": "392",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "STRAND",
+      "category": "STRUCTURAL",
+      "begin": "396",
+      "end": "404",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    },
+    {
+      "type": "HELIX",
+      "category": "STRUCTURAL",
+      "begin": "410",
+      "end": "415",
+      "molecule": "",
+      "evidences": [
+        {
+          "code": "ECO:0007744",
+          "source": {
+            "name": "PDB",
+            "id": "1EYB",
+            "url": "https://www.ebi.ac.uk/pdbe-srv/view/entry/1EYB"
+          }
+        }
+      ]
+    }
+  ],
+  "dbReferences": [
+    {
+      "type": "EMBL",
+      "id": "U63008",
+      "properties": {
+        "molecule type": "mRNA",
+        "protein sequence ID": "AAB16836.1"
+      }
+    },
+    {
+      "type": "EMBL",
+      "id": "Z75048",
+      "properties": {
+        "molecule type": "mRNA",
+        "protein sequence ID": "CAA99340.1"
+      }
+    },
+    {
+      "type": "EMBL",
+      "id": "AF000573",
+      "properties": {
+        "molecule type": "Genomic_DNA",
+        "protein sequence ID": "AAC51650.1"
+      }
+    },
+    {
+      "type": "EMBL",
+      "id": "AF045167",
+      "properties": {
+        "molecule type": "mRNA",
+        "protein sequence ID": "AAC02698.1"
+      }
+    },
+    {
+      "type": "EMBL",
+      "id": "AK290782",
+      "properties": {
+        "molecule type": "mRNA",
+        "protein sequence ID": "BAF83471.1"
+      }
+    },
+    {
+      "type": "EMBL",
+      "id": "AK313563",
+      "properties": {
+        "molecule type": "mRNA",
+        "protein sequence ID": "BAG36337.1"
+      }
+    },
+    {
+      "type": "EMBL",
+      "id": "AC126182",
+      "properties": {
+        "molecule type": "Genomic_DNA",
+        "status": "NOT_ANNOTATED_CDS"
+      }
+    },
+    {
+      "type": "EMBL",
+      "id": "AC133474",
+      "properties": {
+        "molecule type": "Genomic_DNA",
+        "status": "NOT_ANNOTATED_CDS"
+      }
+    },
+    {
+      "type": "EMBL",
+      "id": "CH471052",
+      "properties": {
+        "molecule type": "Genomic_DNA",
+        "protein sequence ID": "EAW79524.1"
+      }
+    },
+    {
+      "type": "EMBL",
+      "id": "BC071757",
+      "properties": {
+        "molecule type": "mRNA",
+        "protein sequence ID": "AAH71757.1"
+      }
+    },
+    {
+      "type": "CCDS",
+      "id": "CCDS3000.1"
+    },
+    {
+      "type": "RefSeq",
+      "id": "NP_000178.2",
+      "properties": {
+        "nucleotide sequence ID": "NM_000187.3"
+      }
+    },
+    {
+      "type": "PDB",
+      "id": "1EY2",
+      "properties": {
+        "method": "X-ray",
+        "chains": "A=1-445",
+        "resolution": "2.30 A"
+      }
+    },
+    {
+      "type": "PDB",
+      "id": "1EYB",
+      "properties": {
+        "method": "X-ray",
+        "chains": "A=1-445",
+        "resolution": "1.90 A"
+      }
+    },
+    {
+      "type": "PDBsum",
+      "id": "1EY2"
+    },
+    {
+      "type": "PDBsum",
+      "id": "1EYB"
+    },
+    {
+      "type": "SMR",
+      "id": "Q93099"
+    },
+    {
+      "type": "BioGRID",
+      "id": "109329",
+      "properties": {
+        "interactions": "7"
+      }
+    },
+    {
+      "type": "IntAct",
+      "id": "Q93099",
+      "properties": {
+        "interactions": "6"
+      }
+    },
+    {
+      "type": "MINT",
+      "id": "Q93099"
+    },
+    {
+      "type": "STRING",
+      "id": "9606.ENSP00000283871"
+    },
+    {
+      "type": "iPTMnet",
+      "id": "Q93099"
+    },
+    {
+      "type": "PhosphoSitePlus",
+      "id": "Q93099"
+    },
+    {
+      "type": "BioMuta",
+      "id": "HGD"
+    },
+    {
+      "type": "jPOST",
+      "id": "Q93099"
+    },
+    {
+      "type": "MassIVE",
+      "id": "Q93099"
+    },
+    {
+      "type": "MaxQB",
+      "id": "Q93099"
+    },
+    {
+      "type": "PaxDb",
+      "id": "Q93099"
+    },
+    {
+      "type": "PeptideAtlas",
+      "id": "Q93099"
+    },
+    {
+      "type": "PRIDE",
+      "id": "Q93099"
+    },
+    {
+      "type": "ProteomicsDB",
+      "id": "75725"
+    },
+    {
+      "type": "Antibodypedia",
+      "id": "32802",
+      "properties": {
+        "antibodies": "230 antibodies"
+      }
+    },
+    {
+      "type": "DNASU",
+      "id": "3081"
+    },
+    {
+      "type": "Ensembl",
+      "id": "ENST00000283871",
+      "properties": {
+        "gene ID": "ENSG00000113924",
+        "protein sequence ID": "ENSP00000283871"
+      }
+    },
+    {
+      "type": "GeneID",
+      "id": "3081"
+    },
+    {
+      "type": "KEGG",
+      "id": "hsa:3081"
+    },
+    {
+      "type": "UCSC",
+      "id": "uc003edw.4",
+      "properties": {
+        "organism name": "human"
+      }
+    },
+    {
+      "type": "CTD",
+      "id": "3081"
+    },
+    {
+      "type": "DisGeNET",
+      "id": "3081"
+    },
+    {
+      "type": "GeneCards",
+      "id": "HGD"
+    },
+    {
+      "type": "GeneReviews",
+      "id": "HGD"
+    },
+    {
+      "type": "HGNC",
+      "id": "HGNC:4892",
+      "properties": {
+        "gene designation": "HGD"
+      }
+    },
+    {
+      "type": "HPA",
+      "id": "ENSG00000113924",
+      "properties": {
+        "expression patterns": "Tissue enriched (liver)"
+      }
+    },
+    {
+      "type": "MalaCards",
+      "id": "HGD"
+    },
+    {
+      "type": "MIM",
+      "id": "203500",
+      "properties": {
+        "type": "phenotype"
+      }
+    },
+    {
+      "type": "MIM",
+      "id": "607474",
+      "properties": {
+        "type": "gene"
+      }
+    },
+    {
+      "type": "neXtProt",
+      "id": "NX_Q93099"
+    },
+    {
+      "type": "OpenTargets",
+      "id": "ENSG00000113924"
+    },
+    {
+      "type": "Orphanet",
+      "id": "56",
+      "properties": {
+        "disease": "Alkaptonuria"
+      }
+    },
+    {
+      "type": "PharmGKB",
+      "id": "PA29268"
+    },
+    {
+      "type": "VEuPathDB",
+      "id": "HostDB:ENSG00000113924.11"
+    },
+    {
+      "type": "eggNOG",
+      "id": "KOG1417",
+      "properties": {
+        "taxonomic scope": "Eukaryota"
+      }
+    },
+    {
+      "type": "GeneTree",
+      "id": "ENSGT00390000004601"
+    },
+    {
+      "type": "HOGENOM",
+      "id": "CLU_027174_0_0_1"
+    },
+    {
+      "type": "InParanoid",
+      "id": "Q93099"
+    },
+    {
+      "type": "OMA",
+      "id": "FESIDQG"
+    },
+    {
+      "type": "OrthoDB",
+      "id": "795654at2759"
+    },
+    {
+      "type": "PhylomeDB",
+      "id": "Q93099"
+    },
+    {
+      "type": "TreeFam",
+      "id": "TF300490"
+    },
+    {
+      "type": "BioCyc",
+      "id": "MetaCyc:HS03728-MONOMER"
+    },
+    {
+      "type": "BRENDA",
+      "id": "1.13.11.5",
+      "properties": {
+        "organism ID": "2681"
+      }
+    },
+    {
+      "type": "PathwayCommons",
+      "id": "Q93099"
+    },
+    {
+      "type": "Reactome",
+      "id": "R-HSA-8963684",
+      "properties": {
+        "pathway name": "Tyrosine catabolism"
+      }
+    },
+    {
+      "type": "UniPathway",
+      "id": "UPA00139",
+      "properties": {
+        "reaction ID": "UER00339"
+      }
+    },
+    {
+      "type": "BioGRID-ORCS",
+      "id": "3081",
+      "properties": {
+        "hits": "7 hits in 981 CRISPR screens"
+      }
+    },
+    {
+      "type": "ChiTaRS",
+      "id": "HGD",
+      "properties": {
+        "organism name": "human"
+      }
+    },
+    {
+      "type": "EvolutionaryTrace",
+      "id": "Q93099"
+    },
+    {
+      "type": "GenomeRNAi",
+      "id": "3081"
+    },
+    {
+      "type": "Pharos",
+      "id": "Q93099",
+      "properties": {
+        "development level": "Tbio"
+      }
+    },
+    {
+      "type": "PRO",
+      "id": "PR:Q93099"
+    },
+    {
+      "type": "Proteomes",
+      "id": "UP000005640",
+      "properties": {
+        "component": "Chromosome 3"
+      }
+    },
+    {
+      "type": "RNAct",
+      "id": "Q93099",
+      "properties": {
+        "molecule type": "protein"
+      }
+    },
+    {
+      "type": "Bgee",
+      "id": "ENSG00000113924",
+      "properties": {
+        "expression patterns": "Expressed in right lobe of liver and 163 other tissues"
+      }
+    },
+    {
+      "type": "ExpressionAtlas",
+      "id": "Q93099",
+      "properties": {
+        "expression patterns": "baseline and differential"
+      }
+    },
+    {
+      "type": "Genevisible",
+      "id": "Q93099",
+      "properties": {
+        "organism ID": "HS"
+      }
+    },
+    {
+      "type": "GO",
+      "id": "GO:0005737",
+      "properties": {
+        "term": "C:cytoplasm",
+        "source": "IBA:GO_Central"
+      },
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "21873635",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/21873635",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/21873635"
+          }
+        }
+      ]
+    },
+    {
+      "type": "GO",
+      "id": "GO:0005829",
+      "properties": {
+        "term": "C:cytosol",
+        "source": "TAS:Reactome"
+      }
+    },
+    {
+      "type": "GO",
+      "id": "GO:0070062",
+      "properties": {
+        "term": "C:extracellular exosome",
+        "source": "HDA:UniProtKB"
+      },
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "19056867",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/19056867",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/19056867"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "23533145",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/23533145",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/23533145"
+          }
+        }
+      ]
+    },
+    {
+      "type": "GO",
+      "id": "GO:0004411",
+      "properties": {
+        "term": "F:homogentisate 1,2-dioxygenase activity",
+        "source": "IBA:GO_Central"
+      },
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "21873635",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/21873635",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/21873635"
+          }
+        }
+      ]
+    },
+    {
+      "type": "GO",
+      "id": "GO:0042802",
+      "properties": {
+        "term": "F:identical protein binding",
+        "source": "IPI:IntAct"
+      },
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "25416956",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/25416956",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/25416956"
+          }
+        },
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "32296183",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/32296183",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/32296183"
+          }
+        }
+      ]
+    },
+    {
+      "type": "GO",
+      "id": "GO:0046872",
+      "properties": {
+        "term": "F:metal ion binding",
+        "source": "IEA:UniProtKB-KW"
+      }
+    },
+    {
+      "type": "GO",
+      "id": "GO:0006559",
+      "properties": {
+        "term": "P:L-phenylalanine catabolic process",
+        "source": "IBA:GO_Central"
+      },
+      "evidences": [
+        {
+          "code": "ECO:0000269",
+          "source": {
+            "name": "PubMed",
+            "id": "21873635",
+            "url": "http://www.ncbi.nlm.nih.gov/pubmed/21873635",
+            "alternativeUrl": "https://europepmc.org/abstract/MED/21873635"
+          }
+        }
+      ]
+    },
+    {
+      "type": "GO",
+      "id": "GO:0006572",
+      "properties": {
+        "term": "P:tyrosine catabolic process",
+        "source": "TAS:Reactome"
+      }
+    },
+    {
+      "type": "Gene3D",
+      "id": "2.60.120.10",
+      "properties": {
+        "match status": "1"
+      }
+    },
+    {
+      "type": "InterPro",
+      "id": "IPR005708",
+      "properties": {
+        "entry name": "Homogentis_dOase"
+      }
+    },
+    {
+      "type": "InterPro",
+      "id": "IPR014710",
+      "properties": {
+        "entry name": "RmlC-like_jellyroll"
+      }
+    },
+    {
+      "type": "InterPro",
+      "id": "IPR011051",
+      "properties": {
+        "entry name": "RmlC_Cupin_sf"
+      }
+    },
+    {
+      "type": "PANTHER",
+      "id": "PTHR11056",
+      "properties": {
+        "match status": "1",
+        "entry name": "PTHR11056"
+      }
+    },
+    {
+      "type": "Pfam",
+      "id": "PF04209",
+      "properties": {
+        "match status": "1",
+        "entry name": "HgmA"
+      }
+    },
+    {
+      "type": "SUPFAM",
+      "id": "SSF51182",
+      "properties": {
+        "match status": "1",
+        "entry name": "SSF51182"
+      }
+    },
+    {
+      "type": "TIGRFAMs",
+      "id": "TIGR01015",
+      "properties": {
+        "match status": "1",
+        "entry name": "hmgA"
+      }
+    }
+  ],
+  "keywords": [
+    {
+      "value": "3D-structure"
+    },
+    {
+      "value": "Acetylation"
+    },
+    {
+      "value": "Dioxygenase"
+    },
+    {
+      "value": "Disease variant"
+    },
+    {
+      "value": "Iron"
+    },
+    {
+      "value": "Metal-binding"
+    },
+    {
+      "value": "Oxidoreductase"
+    },
+    {
+      "value": "Phenylalanine catabolism"
+    },
+    {
+      "value": "Reference proteome"
+    },
+    {
+      "value": "Tyrosine catabolism"
+    }
+  ],
+  "references": [
+    {
+      "citation": {
+        "type": "journal article",
+        "publicationDate": "1996",
+        "title": "The molecular basis of alkaptonuria.",
+        "authors": [
+          "Fernandez-Canon J.M.",
+          "Granadino B.",
+          "Beltran-Valero de Bernabe D.",
+          "Renedo M.",
+          "Fernandez-Ruiz E.",
+          "Penalva M.A.",
+          "Rodriguez de Cordoba S."
+        ],
+        "publication": {
+          "journalName": "Nat. Genet."
+        },
+        "location": {
+          "volume": "14",
+          "firstPage": "19",
+          "lastPage": "24"
+        },
+        "dbReferences": [
+          {
+            "type": "PubMed",
+            "id": "8782815"
+          },
+          {
+            "type": "DOI",
+            "id": "10.1038/ng0996-19"
+          }
+        ]
+      },
+      "scope": ["NUCLEOTIDE SEQUENCE [MRNA]", "VARIANTS HIS-80; AKU SER-230 AND GLY-300"]
+    },
+    {
+      "citation": {
+        "type": "submission",
+        "publicationDate": "SEP-1996",
+        "title": "Homogentisate 1,2-dioxygenase human cDNA sequence.",
+        "authors": ["Ramos S.", "Hernandez M.", "Rozes A.", "Larruga J.", "Gonzalez P.", "Cabrera V.M."],
+        "publication": {
+          "submissionDatabase": "EMBL/GenBank/DDBJ databases"
+        }
+      },
+      "source": {
+        "tissue": [
+          {
+            "value": "Liver"
+          }
+        ]
+      },
+      "scope": ["NUCLEOTIDE SEQUENCE [MRNA]", "VARIANT HIS-80"]
+    },
+    {
+      "citation": {
+        "type": "journal article",
+        "publicationDate": "1997",
+        "title": "The human homogentisate 1,2-dioxygenase (HGO) gene.",
+        "authors": [
+          "Granadino B.",
+          "Beltran-Valero de Bernabe D.",
+          "Fernandez-Canon J.M.",
+          "Penalva M.A.",
+          "Rodriguez de Cordoba S."
+        ],
+        "publication": {
+          "journalName": "Genomics"
+        },
+        "location": {
+          "volume": "43",
+          "firstPage": "115",
+          "lastPage": "122"
+        },
+        "dbReferences": [
+          {
+            "type": "PubMed",
+            "id": "9244427"
+          },
+          {
+            "type": "DOI",
+            "id": "10.1006/geno.1997.4805"
+          }
+        ]
+      },
+      "scope": ["NUCLEOTIDE SEQUENCE [GENOMIC DNA]", "VARIANT HIS-80"]
+    },
+    {
+      "citation": {
+        "type": "journal article",
+        "publicationDate": "2004",
+        "title": "Complete sequencing and characterization of 21,243 full-length human cDNAs.",
+        "authors": [
+          "Ota T.",
+          "Suzuki Y.",
+          "Nishikawa T.",
+          "Otsuki T.",
+          "Sugiyama T.",
+          "Irie R.",
+          "Wakamatsu A.",
+          "Hayashi K.",
+          "Sato H.",
+          "Nagai K.",
+          "Kimura K.",
+          "Makita H.",
+          "Sekine M.",
+          "Obayashi M.",
+          "Nishi T.",
+          "Shibahara T.",
+          "Tanaka T.",
+          "Ishii S.",
+          "Yamamoto J.",
+          "Saito K.",
+          "Kawai Y.",
+          "Isono Y.",
+          "Nakamura Y.",
+          "Nagahari K.",
+          "Murakami K.",
+          "Yasuda T.",
+          "Iwayanagi T.",
+          "Wagatsuma M.",
+          "Shiratori A.",
+          "Sudo H.",
+          "Hosoiri T.",
+          "Kaku Y.",
+          "Kodaira H.",
+          "Kondo H.",
+          "Sugawara M.",
+          "Takahashi M.",
+          "Kanda K.",
+          "Yokoi T.",
+          "Furuya T.",
+          "Kikkawa E.",
+          "Omura Y.",
+          "Abe K.",
+          "Kamihara K.",
+          "Katsuta N.",
+          "Sato K.",
+          "Tanikawa M.",
+          "Yamazaki M.",
+          "Ninomiya K.",
+          "Ishibashi T.",
+          "Yamashita H.",
+          "Murakawa K.",
+          "Fujimori K.",
+          "Tanai H.",
+          "Kimata M.",
+          "Watanabe M.",
+          "Hiraoka S.",
+          "Chiba Y.",
+          "Ishida S.",
+          "Ono Y.",
+          "Takiguchi S.",
+          "Watanabe S.",
+          "Yosida M.",
+          "Hotuta T.",
+          "Kusano J.",
+          "Kanehori K.",
+          "Takahashi-Fujii A.",
+          "Hara H.",
+          "Tanase T.-O.",
+          "Nomura Y.",
+          "Togiya S.",
+          "Komai F.",
+          "Hara R.",
+          "Takeuchi K.",
+          "Arita M.",
+          "Imose N.",
+          "Musashino K.",
+          "Yuuki H.",
+          "Oshima A.",
+          "Sasaki N.",
+          "Aotsuka S.",
+          "Yoshikawa Y.",
+          "Matsunawa H.",
+          "Ichihara T.",
+          "Shiohata N.",
+          "Sano S.",
+          "Moriya S.",
+          "Momiyama H.",
+          "Satoh N.",
+          "Takami S.",
+          "Terashima Y.",
+          "Suzuki O.",
+          "Nakagawa S.",
+          "Senoh A.",
+          "Mizoguchi H.",
+          "Goto Y.",
+          "Shimizu F.",
+          "Wakebe H.",
+          "Hishigaki H.",
+          "Watanabe T.",
+          "Sugiyama A.",
+          "Takemoto M.",
+          "Kawakami B.",
+          "Yamazaki M.",
+          "Watanabe K.",
+          "Kumagai A.",
+          "Itakura S.",
+          "Fukuzumi Y.",
+          "Fujimori Y.",
+          "Komiyama M.",
+          "Tashiro H.",
+          "Tanigami A.",
+          "Fujiwara T.",
+          "Ono T.",
+          "Yamada K.",
+          "Fujii Y.",
+          "Ozaki K.",
+          "Hirao M.",
+          "Ohmori Y.",
+          "Kawabata A.",
+          "Hikiji T.",
+          "Kobatake N.",
+          "Inagaki H.",
+          "Ikema Y.",
+          "Okamoto S.",
+          "Okitani R.",
+          "Kawakami T.",
+          "Noguchi S.",
+          "Itoh T.",
+          "Shigeta K.",
+          "Senba T.",
+          "Matsumura K.",
+          "Nakajima Y.",
+          "Mizuno T.",
+          "Morinaga M.",
+          "Sasaki M.",
+          "Togashi T.",
+          "Oyama M.",
+          "Hata H.",
+          "Watanabe M.",
+          "Komatsu T.",
+          "Mizushima-Sugano J.",
+          "Satoh T.",
+          "Shirai Y.",
+          "Takahashi Y.",
+          "Nakagawa K.",
+          "Okumura K.",
+          "Nagase T.",
+          "Nomura N.",
+          "Kikuchi H.",
+          "Masuho Y.",
+          "Yamashita R.",
+          "Nakai K.",
+          "Yada T.",
+          "Nakamura Y.",
+          "Ohara O.",
+          "Isogai T.",
+          "Sugano S."
+        ],
+        "publication": {
+          "journalName": "Nat. Genet."
+        },
+        "location": {
+          "volume": "36",
+          "firstPage": "40",
+          "lastPage": "45"
+        },
+        "dbReferences": [
+          {
+            "type": "PubMed",
+            "id": "14702039"
+          },
+          {
+            "type": "DOI",
+            "id": "10.1038/ng1285"
+          }
+        ]
+      },
+      "source": {
+        "tissue": [
+          {
+            "value": "Kidney"
+          },
+          {
+            "value": "Prostate"
+          }
+        ]
+      },
+      "scope": ["NUCLEOTIDE SEQUENCE [LARGE SCALE MRNA]", "VARIANT HIS-80"]
+    },
+    {
+      "citation": {
+        "type": "journal article",
+        "publicationDate": "2006",
+        "title": "The DNA sequence, annotation and analysis of human chromosome 3.",
+        "authors": [
+          "Muzny D.M.",
+          "Scherer S.E.",
+          "Kaul R.",
+          "Wang J.",
+          "Yu J.",
+          "Sudbrak R.",
+          "Buhay C.J.",
+          "Chen R.",
+          "Cree A.",
+          "Ding Y.",
+          "Dugan-Rocha S.",
+          "Gill R.",
+          "Gunaratne P.",
+          "Harris R.A.",
+          "Hawes A.C.",
+          "Hernandez J.",
+          "Hodgson A.V.",
+          "Hume J.",
+          "Jackson A.",
+          "Khan Z.M.",
+          "Kovar-Smith C.",
+          "Lewis L.R.",
+          "Lozado R.J.",
+          "Metzker M.L.",
+          "Milosavljevic A.",
+          "Miner G.R.",
+          "Morgan M.B.",
+          "Nazareth L.V.",
+          "Scott G.",
+          "Sodergren E.",
+          "Song X.-Z.",
+          "Steffen D.",
+          "Wei S.",
+          "Wheeler D.A.",
+          "Wright M.W.",
+          "Worley K.C.",
+          "Yuan Y.",
+          "Zhang Z.",
+          "Adams C.Q.",
+          "Ansari-Lari M.A.",
+          "Ayele M.",
+          "Brown M.J.",
+          "Chen G.",
+          "Chen Z.",
+          "Clendenning J.",
+          "Clerc-Blankenburg K.P.",
+          "Chen R.",
+          "Chen Z.",
+          "Davis C.",
+          "Delgado O.",
+          "Dinh H.H.",
+          "Dong W.",
+          "Draper H.",
+          "Ernst S.",
+          "Fu G.",
+          "Gonzalez-Garay M.L.",
+          "Garcia D.K.",
+          "Gillett W.",
+          "Gu J.",
+          "Hao B.",
+          "Haugen E.",
+          "Havlak P.",
+          "He X.",
+          "Hennig S.",
+          "Hu S.",
+          "Huang W.",
+          "Jackson L.R.",
+          "Jacob L.S.",
+          "Kelly S.H.",
+          "Kube M.",
+          "Levy R.",
+          "Li Z.",
+          "Liu B.",
+          "Liu J.",
+          "Liu W.",
+          "Lu J.",
+          "Maheshwari M.",
+          "Nguyen B.-V.",
+          "Okwuonu G.O.",
+          "Palmeiri A.",
+          "Pasternak S.",
+          "Perez L.M.",
+          "Phelps K.A.",
+          "Plopper F.J.",
+          "Qiang B.",
+          "Raymond C.",
+          "Rodriguez R.",
+          "Saenphimmachak C.",
+          "Santibanez J.",
+          "Shen H.",
+          "Shen Y.",
+          "Subramanian S.",
+          "Tabor P.E.",
+          "Verduzco D.",
+          "Waldron L.",
+          "Wang J.",
+          "Wang J.",
+          "Wang Q.",
+          "Williams G.A.",
+          "Wong G.K.-S.",
+          "Yao Z.",
+          "Zhang J.",
+          "Zhang X.",
+          "Zhao G.",
+          "Zhou J.",
+          "Zhou Y.",
+          "Nelson D.",
+          "Lehrach H.",
+          "Reinhardt R.",
+          "Naylor S.L.",
+          "Yang H.",
+          "Olson M.",
+          "Weinstock G.",
+          "Gibbs R.A."
+        ],
+        "publication": {
+          "journalName": "Nature"
+        },
+        "location": {
+          "volume": "440",
+          "firstPage": "1194",
+          "lastPage": "1198"
+        },
+        "dbReferences": [
+          {
+            "type": "PubMed",
+            "id": "16641997"
+          },
+          {
+            "type": "DOI",
+            "id": "10.1038/nature04728"
+          }
+        ]
+      },
+      "scope": ["NUCLEOTIDE SEQUENCE [LARGE SCALE GENOMIC DNA]"]
+    },
+    {
+      "citation": {
+        "type": "submission",
+        "publicationDate": "SEP-2005",
+        "authors": [
+          "Mural R.J.",
+          "Istrail S.",
+          "Sutton G.G.",
+          "Florea L.",
+          "Halpern A.L.",
+          "Mobarry C.M.",
+          "Lippert R.",
+          "Walenz B.",
+          "Shatkay H.",
+          "Dew I.",
+          "Miller J.R.",
+          "Flanigan M.J.",
+          "Edwards N.J.",
+          "Bolanos R.",
+          "Fasulo D.",
+          "Halldorsson B.V.",
+          "Hannenhalli S.",
+          "Turner R.",
+          "Yooseph S.",
+          "Lu F.",
+          "Nusskern D.R.",
+          "Shue B.C.",
+          "Zheng X.H.",
+          "Zhong F.",
+          "Delcher A.L.",
+          "Huson D.H.",
+          "Kravitz S.A.",
+          "Mouchard L.",
+          "Reinert K.",
+          "Remington K.A.",
+          "Clark A.G.",
+          "Waterman M.S.",
+          "Eichler E.E.",
+          "Adams M.D.",
+          "Hunkapiller M.W.",
+          "Myers E.W.",
+          "Venter J.C."
+        ],
+        "publication": {
+          "submissionDatabase": "EMBL/GenBank/DDBJ databases"
+        }
+      },
+      "scope": ["NUCLEOTIDE SEQUENCE [LARGE SCALE GENOMIC DNA]", "VARIANT HIS-80"]
+    },
+    {
+      "citation": {
+        "type": "journal article",
+        "publicationDate": "2004",
+        "title": "The status, quality, and expansion of the NIH full-length cDNA project: the Mammalian Gene Collection (MGC).",
+        "consortiums": ["The MGC Project Team"],
+        "publication": {
+          "journalName": "Genome Res."
+        },
+        "location": {
+          "volume": "14",
+          "firstPage": "2121",
+          "lastPage": "2127"
+        },
+        "dbReferences": [
+          {
+            "type": "PubMed",
+            "id": "15489334"
+          },
+          {
+            "type": "DOI",
+            "id": "10.1101/gr.2596504"
+          }
+        ]
+      },
+      "scope": ["NUCLEOTIDE SEQUENCE [LARGE SCALE MRNA]", "VARIANT HIS-80"]
+    },
+    {
+      "citation": {
+        "type": "journal article",
+        "publicationDate": "2009",
+        "title": "Lysine acetylation targets protein complexes and co-regulates major cellular functions.",
+        "authors": [
+          "Choudhary C.",
+          "Kumar C.",
+          "Gnad F.",
+          "Nielsen M.L.",
+          "Rehman M.",
+          "Walther T.C.",
+          "Olsen J.V.",
+          "Mann M."
+        ],
+        "publication": {
+          "journalName": "Science"
+        },
+        "location": {
+          "volume": "325",
+          "firstPage": "834",
+          "lastPage": "840"
+        },
+        "dbReferences": [
+          {
+            "type": "PubMed",
+            "id": "19608861"
+          },
+          {
+            "type": "DOI",
+            "id": "10.1126/science.1175371"
+          }
+        ]
+      },
+      "scope": [
+        "ACETYLATION [LARGE SCALE ANALYSIS] AT LYS-98",
+        "IDENTIFICATION BY MASS SPECTROMETRY [LARGE SCALE ANALYSIS]"
+      ]
+    },
+    {
+      "citation": {
+        "type": "journal article",
+        "publicationDate": "2011",
+        "title": "Initial characterization of the human central proteome.",
+        "authors": [
+          "Burkard T.R.",
+          "Planyavsky M.",
+          "Kaupe I.",
+          "Breitwieser F.P.",
+          "Buerckstuemmer T.",
+          "Bennett K.L.",
+          "Superti-Furga G.",
+          "Colinge J."
+        ],
+        "publication": {
+          "journalName": "BMC Syst. Biol."
+        },
+        "location": {
+          "volume": "5",
+          "firstPage": "17",
+          "lastPage": "17"
+        },
+        "dbReferences": [
+          {
+            "type": "PubMed",
+            "id": "21269460"
+          },
+          {
+            "type": "DOI",
+            "id": "10.1186/1752-0509-5-17"
+          }
+        ]
+      },
+      "scope": ["IDENTIFICATION BY MASS SPECTROMETRY [LARGE SCALE ANALYSIS]"]
+    },
+    {
+      "citation": {
+        "type": "journal article",
+        "publicationDate": "2000",
+        "title": "Crystal structure of human homogentisate dioxygenase.",
+        "authors": ["Titus G.P.", "Mueller H.A.", "Burgner J.", "Rodriguez de Cordoba S.", "Penalva M.A.", "Timm D.E."],
+        "publication": {
+          "journalName": "Nat. Struct. Biol."
+        },
+        "location": {
+          "volume": "7",
+          "firstPage": "542",
+          "lastPage": "546"
+        },
+        "dbReferences": [
+          {
+            "type": "PubMed",
+            "id": "10876237"
+          },
+          {
+            "type": "DOI",
+            "id": "10.1038/76756"
+          }
+        ]
+      },
+      "scope": ["X-RAY CRYSTALLOGRAPHY (1.9 ANGSTROMS)", "METAL-BINDING SITES", "SUBUNIT"]
+    },
+    {
+      "citation": {
+        "type": "journal article",
+        "publicationDate": "1997",
+        "title": "Molecular defects in alkaptonuria.",
+        "authors": ["Gehrig A.", "Schmidt S.R.", "Mueller C.R.", "Srsen S.", "Srsnova K.", "Kress W."],
+        "publication": {
+          "journalName": "Cytogenet. Cell Genet."
+        },
+        "location": {
+          "volume": "76",
+          "firstPage": "14",
+          "lastPage": "16"
+        },
+        "dbReferences": [
+          {
+            "type": "PubMed",
+            "id": "9154114"
+          },
+          {
+            "type": "DOI",
+            "id": "10.1159/000134501"
+          }
+        ]
+      },
+      "scope": ["VARIANT AKU ARG-161"]
+    },
+    {
+      "citation": {
+        "type": "journal article",
+        "publicationDate": "1998",
+        "title": "Mutation and polymorphism analysis of the human homogentisate 1, 2-dioxygenase gene in alkaptonuria patients.",
+        "authors": [
+          "Beltran-Valero de Bernabe D.",
+          "Granadino B.",
+          "Chiarelli I.",
+          "Porfirio B.",
+          "Mayatepek E.",
+          "Aquaron R.",
+          "Moore M.M.",
+          "Festen J.J.M.",
+          "Sanmarti R.",
+          "Penalva M.A.",
+          "de Cordoba S.R."
+        ],
+        "publication": {
+          "journalName": "Am. J. Hum. Genet."
+        },
+        "location": {
+          "volume": "62",
+          "firstPage": "776",
+          "lastPage": "784"
+        },
+        "dbReferences": [
+          {
+            "type": "PubMed",
+            "id": "9529363"
+          },
+          {
+            "type": "DOI",
+            "id": "10.1086/301805"
+          }
+        ]
+      },
+      "scope": ["VARIANTS AKU ALA-42; GLY-97; GLY-153; ILE-189; THR-216; HIS-225; SER-227 AND VAL-368"]
+    },
+    {
+      "citation": {
+        "type": "journal article",
+        "publicationDate": "1998",
+        "title": "A novel point mutation associated with alkaptonuria.",
+        "authors": [
+          "Higashino K.",
+          "Liu W.",
+          "Ohkawa T.",
+          "Yamamoto T.",
+          "Fukui K.",
+          "Ohno M.",
+          "Imanishi H.",
+          "Iwasaki A.",
+          "Amuro Y.",
+          "Hada T."
+        ],
+        "publication": {
+          "journalName": "Clin. Genet."
+        },
+        "location": {
+          "volume": "53",
+          "firstPage": "228",
+          "lastPage": "229"
+        },
+        "dbReferences": [
+          {
+            "type": "PubMed",
+            "id": "9630082"
+          },
+          {
+            "type": "DOI",
+            "id": "10.1111/j.1399-0004.1998.tb02684.x"
+          }
+        ]
+      },
+      "scope": ["VARIANT AKU LYS-168"]
+    },
+    {
+      "citation": {
+        "type": "journal article",
+        "publicationDate": "1999",
+        "title": "Analysis of alkaptonuria (AKU) mutations and polymorphisms reveals that the CCC sequence motif is a mutational hot spot in the homogentisate 1,2 dioxygenase gene (HGO).",
+        "authors": ["Beltran-Valero de Bernabe D.", "Jimenez F.J.", "Aquaron R.", "Rodriguez de Cordoba S."],
+        "publication": {
+          "journalName": "Am. J. Hum. Genet."
+        },
+        "location": {
+          "volume": "64",
+          "firstPage": "1316",
+          "lastPage": "1322"
+        },
+        "dbReferences": [
+          {
+            "type": "PubMed",
+            "id": "10205262"
+          },
+          {
+            "type": "DOI",
+            "id": "10.1086/302376"
+          }
+        ]
+      },
+      "scope": ["VARIANTS AKU GLY-60; CYS-62; ASP-122; THR-230 AND GLU-291"]
+    },
+    {
+      "citation": {
+        "type": "journal article",
+        "publicationDate": "1999",
+        "title": "Ocular ochronosis in alkaptonuria patients carrying mutations in the homogentisate 1,2-dioxygenase gene.",
+        "authors": ["Felbor U.", "Mutsch Y.", "Grehn F.", "Mueller C.R.", "Kress W."],
+        "publication": {
+          "journalName": "Br. J. Ophthalmol."
+        },
+        "location": {
+          "volume": "83",
+          "firstPage": "680",
+          "lastPage": "683"
+        },
+        "dbReferences": [
+          {
+            "type": "PubMed",
+            "id": "10340975"
+          },
+          {
+            "type": "DOI",
+            "id": "10.1136/bjo.83.6.680"
+          }
+        ]
+      },
+      "source": {
+        "tissue": [
+          {
+            "value": "Leukocyte"
+          }
+        ]
+      },
+      "scope": ["VARIANTS AKU PRO-25 AND VAL-368"]
+    },
+    {
+      "citation": {
+        "type": "journal article",
+        "publicationDate": "1999",
+        "title": "Allelic heterogeneity of alkaptonuria in Central Europe.",
+        "authors": [
+          "Mueller C.R.",
+          "Fregin A.",
+          "Srsen S.",
+          "Srsnova K.",
+          "Halliger-Keller B.",
+          "Felbor U.",
+          "Seemanova E.",
+          "Kress W."
+        ],
+        "publication": {
+          "journalName": "Eur. J. Hum. Genet."
+        },
+        "location": {
+          "volume": "7",
+          "firstPage": "645",
+          "lastPage": "651"
+        },
+        "dbReferences": [
+          {
+            "type": "PubMed",
+            "id": "10482952"
+          },
+          {
+            "type": "DOI",
+            "id": "10.1038/sj.ejhg.5200343"
+          }
+        ]
+      },
+      "source": {
+        "tissue": [
+          {
+            "value": "Lymphocyte"
+          }
+        ]
+      },
+      "scope": ["VARIANTS AKU PRO-25; ARG-161; SER-230; ARG-270; GLY-300 AND VAL-368"]
+    },
+    {
+      "citation": {
+        "type": "journal article",
+        "publicationDate": "1999",
+        "title": "Mutational analysis of the HGO gene in Finnish alkaptonuria patients.",
+        "authors": [
+          "Beltran-Valero de Bernabe D.",
+          "Peterson P.",
+          "Luopajarvi K.",
+          "Matintalo P.",
+          "Alho A.",
+          "Konttinen Y.",
+          "Krohn K.",
+          "Rodriguez de Cordoba S.",
+          "Ranki A."
+        ],
+        "publication": {
+          "journalName": "J. Med. Genet."
+        },
+        "location": {
+          "volume": "36",
+          "firstPage": "922",
+          "lastPage": "923"
+        },
+        "dbReferences": [
+          {
+            "type": "PubMed",
+            "id": "10594001"
+          }
+        ]
+      },
+      "scope": ["VARIANTS AKU SER-330; VAL-368 AND ARG-371"]
+    },
+    {
+      "citation": {
+        "type": "journal article",
+        "publicationDate": "2009",
+        "title": "Mutation spectrum of homogentisic acid oxidase (HGD) in alkaptonuria.",
+        "authors": [
+          "Vilboux T.",
+          "Kayser M.",
+          "Introne W.",
+          "Suwannarat P.",
+          "Bernardini I.",
+          "Fischer R.",
+          "O'Brien K.",
+          "Kleta R.",
+          "Huizing M.",
+          "Gahl W.A."
+        ],
+        "publication": {
+          "journalName": "Hum. Mutat."
+        },
+        "location": {
+          "volume": "30",
+          "firstPage": "1611",
+          "lastPage": "1619"
+        },
+        "dbReferences": [
+          {
+            "type": "PubMed",
+            "id": "19862842"
+          },
+          {
+            "type": "DOI",
+            "id": "10.1002/humu.21120"
+          }
+        ]
+      },
+      "scope": [
+        "VARIANTS AKU ALA-3; ALA-42; GLY-60; PRO-61; CYS-62; LEU-73; THR-92; ARG-97; PHE-120; TRP-120; VAL-122; ARG-123; PRO-137; LEU-158; ARG-161; ASP-168; LYS-168; ARG-183; GLY-187; TRP-217; LEU-225; SER-230; PRO-258; ARG-269; ARG-270; GLY-300; PRO-321; LEU-359; ARG-360; GLU-362; VAL-368; LEU-373 AND GLN-401"
+      ]
+    },
+    {
+      "citation": {
+        "type": "journal article",
+        "publicationDate": "2012",
+        "title": "Identification of 11 novel homogentisate 1,2 dioxygenase variants in alkaptonuria patients and establishment of a novel LOVD-based HGD mutation database.",
+        "authors": [
+          "Zatkova A.",
+          "Sedlackova T.",
+          "Radvansky J.",
+          "Polakova H.",
+          "Nemethova M.",
+          "Aquaron R.",
+          "Dursun I.",
+          "Usher J.L.",
+          "Kadasi L."
+        ],
+        "publication": {
+          "journalName": "JIMD Rep."
+        },
+        "location": {
+          "volume": "4",
+          "firstPage": "55",
+          "lastPage": "65"
+        },
+        "dbReferences": [
+          {
+            "type": "PubMed",
+            "id": "23430897"
+          },
+          {
+            "type": "DOI",
+            "id": "10.1007/8904_2011_68"
+          }
+        ]
+      },
+      "scope": [
+        "VARIANTS AKU ARG-33; PHE-44; ARG-115; PRO-116; ALA-123; ALA-152; LEU-169; GLY-178; GLY-197; SER-219; ASN-276; ALA-360; ARG-361 AND HIS-374"
+      ]
+    },
+    {
+      "citation": {
+        "type": "journal article",
+        "publicationDate": "2012",
+        "title": "Novel mutations in the homogentisate 1,2 dioxygenase gene identified in Jordanian patients with alkaptonuria.",
+        "authors": ["Al-sbou M."],
+        "publication": {
+          "journalName": "Rheumatol. Int."
+        },
+        "location": {
+          "volume": "32",
+          "firstPage": "1741",
+          "lastPage": "1746"
+        },
+        "dbReferences": [
+          {
+            "type": "PubMed",
+            "id": "21437689"
+          },
+          {
+            "type": "DOI",
+            "id": "10.1007/s00296-011-1868-0"
+          }
+        ]
+      },
+      "scope": ["VARIANTS AKU SER-227 AND ASN-369"]
+    },
+    {
+      "citation": {
+        "type": "journal article",
+        "publicationDate": "2013",
+        "title": "First report of HGD mutations in a Chinese with alkaptonuria.",
+        "authors": [
+          "Yang Y.J.",
+          "Guo J.H.",
+          "Chen W.J.",
+          "Zhao R.",
+          "Tang J.S.",
+          "Meng X.H.",
+          "Zhao L.",
+          "Tu M.",
+          "He X.Y.",
+          "Wu L.Q.",
+          "Zhu Y.M."
+        ],
+        "publication": {
+          "journalName": "Gene"
+        },
+        "location": {
+          "volume": "518",
+          "firstPage": "467",
+          "lastPage": "469"
+        },
+        "dbReferences": [
+          {
+            "type": "PubMed",
+            "id": "23353776"
+          },
+          {
+            "type": "DOI",
+            "id": "10.1016/j.gene.2013.01.020"
+          }
+        ]
+      },
+      "scope": ["VARIANT AKU CYS-329"]
+    },
+    {
+      "citation": {
+        "type": "journal article",
+        "publicationDate": "2014",
+        "title": "An enzyme assisted RP-RPLC approach for in-depth analysis of human liver phosphoproteome.",
+        "authors": [
+          "Bian Y.",
+          "Song C.",
+          "Cheng K.",
+          "Dong M.",
+          "Wang F.",
+          "Huang J.",
+          "Sun D.",
+          "Wang L.",
+          "Ye M.",
+          "Zou H."
+        ],
+        "publication": {
+          "journalName": "J. Proteomics"
+        },
+        "location": {
+          "volume": "96",
+          "firstPage": "253",
+          "lastPage": "262"
+        },
+        "dbReferences": [
+          {
+            "type": "PubMed",
+            "id": "24275569"
+          },
+          {
+            "type": "DOI",
+            "id": "10.1016/j.jprot.2013.11.014"
+          }
+        ]
+      },
+      "source": {
+        "tissue": [
+          {
+            "value": "Liver"
+          }
+        ]
+      },
+      "scope": ["VARIANT [LARGE SCALE ANALYSIS] HIS-80", "IDENTIFICATION BY MASS SPECTROMETRY [LARGE SCALE ANALYSIS]"]
+    },
+    {
+      "citation": {
+        "type": "journal article",
+        "publicationDate": "2015",
+        "title": "Analysis of HGD gene mutations in patients with alkaptonuria from the United Kingdom: identification of novel mutations.",
+        "authors": ["Usher J.L.", "Ascher D.B.", "Pires D.E.", "Milan A.M.", "Blundell T.L.", "Ranganath L.R."],
+        "publication": {
+          "journalName": "JIMD Rep."
+        },
+        "location": {
+          "volume": "24",
+          "firstPage": "3",
+          "lastPage": "11"
+        },
+        "dbReferences": [
+          {
+            "type": "PubMed",
+            "id": "25681086"
+          },
+          {
+            "type": "DOI",
+            "id": "10.1007/8904_2014_380"
+          }
+        ]
+      },
+      "scope": [
+        "VARIANTS AKU LYS-13; ASN-18; ALA-42; GLN-53; ARG-115; PHE-120; ARG-123; ARG-161; LEU-169; ASN-171; GLY-197; SER-219; HIS-225; PRO-225; SER-230; PHE-245; ARG-270; ASN-276; GLY-300; ASP-337; LEU-359; ARG-360; ARG-361; VAL-368 AND HIS-374",
+        "VARIANT THR-172"
+      ]
+    }
+  ],
+  "sequence": {
+    "version": 2,
+    "length": 445,
+    "mass": 49964,
+    "modified": "2010-05-18",
+    "sequence": "MAELKYISGFGNECSSEDPRCPGSLPEGQNNPQVCPYNLYAEQLSGSAFTCPRSTNKRSWLYRILPSVSHKPFESIDEGQVTHNWDEVDPDPNQLRWKPFEIPKASQKKVDFVSGLHTLCGAGDIKSNNGLAIHIFLCNTSMENRCFYNSDGDFLIVPQKGNLLIYTEFGKMLVQPNEICVIQRGMRFSIDVFEETRGYILEVYGVHFELPDLGPIGANGLANPRDFLIPIAWYEDRQVPGGYTVINKYQGKLFAAKQDVSPFNVVAWHGNYTPYKYNLKNFMVINSVAFDHADPSIFTVLTAKSVRPGVAIADFVIFPPRWGVADKTFRPPYYHRNCMSEFMGLIRGHYEAKQGGFLPGGGSLHSTMTPHGPDADCFEKASKVKLAPERIADGTMAFMFESSLSLAVTKWGLKASRCLDENYHKCWEPLKSHFTPNSRNPAEPN"
+  }
+}

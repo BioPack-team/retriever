@@ -1,0 +1,1753 @@
+{
+  "_embedded": {
+    "terms": [
+      {
+        "iri": "http://purl.obolibrary.org/obo/DOID_0110596",
+        "label": "primary ciliary dyskinesia 21",
+        "description": [
+          "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with a missing Nexin link, infantile onset of chronic sinopulmonary infections, and has_material_basis_in homozygous mutation in the DRC1 gene on chromosome 2p23."
+        ],
+        "annotation": {
+          "database_cross_reference": ["ICD10CM:Q34.8", "OMIM:615294"],
+          "has_obo_namespace": ["disease_ontology"],
+          "id": ["DOID:0110596"]
+        },
+        "synonyms": ["CILD21", "primary ciliary dyskinesia 21 without situs inversus"],
+        "ontology_name": "doid",
+        "ontology_prefix": "DOID",
+        "ontology_iri": "http://purl.obolibrary.org/obo/doid.owl",
+        "is_obsolete": false,
+        "term_replaced_by": null,
+        "is_defining_ontology": true,
+        "has_children": false,
+        "is_root": false,
+        "short_form": "DOID_0110596",
+        "obo_id": "DOID:0110596",
+        "in_subset": null,
+        "obo_definition_citation": [
+          {
+            "definition": "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with a missing Nexin link, infantile onset of chronic sinopulmonary infections, and has_material_basis_in homozygous mutation in the DRC1 gene on chromosome 2p23.",
+            "oboXrefs": [
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/26998415",
+                "description": null,
+                "url": null
+              },
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/23354437",
+                "description": null,
+                "url": null
+              },
+              {
+                "database": null,
+                "id": "http://purl.obolibrary.org/obo/ECO_0007645",
+                "description": null,
+                "url": "http://purl.obolibrary.org/obo/ECO_0007645"
+              }
+            ]
+          }
+        ],
+        "obo_xref": [
+          {
+            "database": "OMIM",
+            "id": "615294",
+            "description": null,
+            "url": "https://omim.org/entry/615294"
+          },
+          {
+            "database": "ICD10CM",
+            "id": "Q34.8",
+            "description": null,
+            "url": null
+          }
+        ],
+        "obo_synonym": null,
+        "is_preferred_root": false,
+        "_links": {
+          "self": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110596"
+          },
+          "parents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110596/parents"
+          },
+          "ancestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110596/ancestors"
+          },
+          "hierarchicalParents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110596/hierarchicalParents"
+          },
+          "hierarchicalAncestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110596/hierarchicalAncestors"
+          },
+          "jstree": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110596/jstree"
+          },
+          "graph": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110596/graph"
+          }
+        }
+      },
+      {
+        "iri": "http://purl.obolibrary.org/obo/DOID_0110595",
+        "label": "Stromme syndrome",
+        "description": [
+          "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance and ciliopathy with some type of intestinal atresia, variable ocular abnormalities, microcephaly, and has_material_basis_in compound heterozygous mutation in the CENPF gene on chromosome 1q41."
+        ],
+        "annotation": {
+          "database_cross_reference": ["ICD10CM:Q87.8", "OMIM:243605"],
+          "has_obo_namespace": ["disease_ontology"],
+          "id": ["DOID:0110595"]
+        },
+        "synonyms": [
+          "CILD31",
+          "lethal fetal brain malformation-duodenal atresia-bilateral renal hypoplasia syndrome",
+          "jejunal atresia with microcephaly and ocular anomalies",
+          "primary ciliary dyskinesia 31",
+          "apple peel syndrome with microcephaly and ocular anomalies"
+        ],
+        "ontology_name": "doid",
+        "ontology_prefix": "DOID",
+        "ontology_iri": "http://purl.obolibrary.org/obo/doid.owl",
+        "is_obsolete": false,
+        "term_replaced_by": null,
+        "is_defining_ontology": true,
+        "has_children": false,
+        "is_root": false,
+        "short_form": "DOID_0110595",
+        "obo_id": "DOID:0110595",
+        "in_subset": null,
+        "obo_definition_citation": [
+          {
+            "definition": "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance and ciliopathy with some type of intestinal atresia, variable ocular abnormalities, microcephaly, and has_material_basis_in compound heterozygous mutation in the CENPF gene on chromosome 1q41.",
+            "oboXrefs": [
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/25564561",
+                "description": null,
+                "url": null
+              },
+              {
+                "database": null,
+                "id": "http://purl.obolibrary.org/obo/ECO_0007645",
+                "description": null,
+                "url": "http://purl.obolibrary.org/obo/ECO_0007645"
+              }
+            ]
+          }
+        ],
+        "obo_xref": [
+          {
+            "database": "ICD10CM",
+            "id": "Q87.8",
+            "description": null,
+            "url": null
+          },
+          {
+            "database": "OMIM",
+            "id": "243605",
+            "description": null,
+            "url": "https://omim.org/entry/243605"
+          }
+        ],
+        "obo_synonym": null,
+        "is_preferred_root": false,
+        "_links": {
+          "self": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110595"
+          },
+          "parents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110595/parents"
+          },
+          "ancestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110595/ancestors"
+          },
+          "hierarchicalParents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110595/hierarchicalParents"
+          },
+          "hierarchicalAncestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110595/hierarchicalAncestors"
+          },
+          "jstree": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110595/jstree"
+          },
+          "graph": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110595/graph"
+          }
+        }
+      },
+      {
+        "iri": "http://purl.obolibrary.org/obo/DOID_0110598",
+        "label": "primary ciliary dyskinesia 14",
+        "description": [
+          "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with inner dynein arm defect and axonemal disorganization, chronic upper and lower airway infections, and has_material_basis_in homozygous or compound heterozygous mutation in the CCDC39 gene on chromosome 3q26."
+        ],
+        "annotation": {
+          "database_cross_reference": ["ICD10CM:Q34.8", "OMIM:613807"],
+          "has_obo_namespace": ["disease_ontology"],
+          "id": ["DOID:0110598"]
+        },
+        "synonyms": ["primary ciliary dyskinesia 14 with or without situs inversus", "CILD14"],
+        "ontology_name": "doid",
+        "ontology_prefix": "DOID",
+        "ontology_iri": "http://purl.obolibrary.org/obo/doid.owl",
+        "is_obsolete": false,
+        "term_replaced_by": null,
+        "is_defining_ontology": true,
+        "has_children": false,
+        "is_root": false,
+        "short_form": "DOID_0110598",
+        "obo_id": "DOID:0110598",
+        "in_subset": null,
+        "obo_definition_citation": [
+          {
+            "definition": "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with inner dynein arm defect and axonemal disorganization, chronic upper and lower airway infections, and has_material_basis_in homozygous or compound heterozygous mutation in the CCDC39 gene on chromosome 3q26.",
+            "oboXrefs": [
+              {
+                "database": null,
+                "id": "http://purl.obolibrary.org/obo/ECO_0007645",
+                "description": null,
+                "url": "http://purl.obolibrary.org/obo/ECO_0007645"
+              },
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/26998415",
+                "description": null,
+                "url": null
+              },
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/21131972",
+                "description": null,
+                "url": null
+              }
+            ]
+          }
+        ],
+        "obo_xref": [
+          {
+            "database": "ICD10CM",
+            "id": "Q34.8",
+            "description": null,
+            "url": null
+          },
+          {
+            "database": "OMIM",
+            "id": "613807",
+            "description": null,
+            "url": "https://omim.org/entry/613807"
+          }
+        ],
+        "obo_synonym": null,
+        "is_preferred_root": false,
+        "_links": {
+          "self": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110598"
+          },
+          "parents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110598/parents"
+          },
+          "ancestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110598/ancestors"
+          },
+          "hierarchicalParents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110598/hierarchicalParents"
+          },
+          "hierarchicalAncestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110598/hierarchicalAncestors"
+          },
+          "jstree": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110598/jstree"
+          },
+          "graph": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110598/graph"
+          }
+        }
+      },
+      {
+        "iri": "http://purl.obolibrary.org/obo/DOID_0110597",
+        "label": "primary ciliary dyskinesia 22",
+        "description": [
+          "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with outer and inner dynein arm defect, recurrent respiratory infections, persistent rhinosinusitis, otitis media, chronic cough, variable presence of situs abnormalities, and has_material_basis_in homozygous or compound heterozygous mutation in the ZMYND10 gene on chromosome 3p21."
+        ],
+        "annotation": {
+          "database_cross_reference": ["OMIM:615444", "ICD10CM:Q34.8"],
+          "has_obo_namespace": ["disease_ontology"],
+          "id": ["DOID:0110597"]
+        },
+        "synonyms": ["CILD22", "primary ciliary dyskinesia 22 with or without situs inversus"],
+        "ontology_name": "doid",
+        "ontology_prefix": "DOID",
+        "ontology_iri": "http://purl.obolibrary.org/obo/doid.owl",
+        "is_obsolete": false,
+        "term_replaced_by": null,
+        "is_defining_ontology": true,
+        "has_children": false,
+        "is_root": false,
+        "short_form": "DOID_0110597",
+        "obo_id": "DOID:0110597",
+        "in_subset": null,
+        "obo_definition_citation": [
+          {
+            "definition": "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with outer and inner dynein arm defect, recurrent respiratory infections, persistent rhinosinusitis, otitis media, chronic cough, variable presence of situs abnormalities, and has_material_basis_in homozygous or compound heterozygous mutation in the ZMYND10 gene on chromosome 3p21.",
+            "oboXrefs": [
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/23891471",
+                "description": null,
+                "url": null
+              },
+              {
+                "database": null,
+                "id": "http://purl.obolibrary.org/obo/ECO_0007645",
+                "description": null,
+                "url": "http://purl.obolibrary.org/obo/ECO_0007645"
+              },
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/23891469",
+                "description": null,
+                "url": null
+              }
+            ]
+          }
+        ],
+        "obo_xref": [
+          {
+            "database": "OMIM",
+            "id": "615444",
+            "description": null,
+            "url": "https://omim.org/entry/615444"
+          },
+          {
+            "database": "ICD10CM",
+            "id": "Q34.8",
+            "description": null,
+            "url": null
+          }
+        ],
+        "obo_synonym": null,
+        "is_preferred_root": false,
+        "_links": {
+          "self": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110597"
+          },
+          "parents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110597/parents"
+          },
+          "ancestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110597/ancestors"
+          },
+          "hierarchicalParents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110597/hierarchicalParents"
+          },
+          "hierarchicalAncestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110597/hierarchicalAncestors"
+          },
+          "jstree": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110597/jstree"
+          },
+          "graph": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110597/graph"
+          },
+          "has_symptom": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110597/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252Fdoid%2523has_symptom"
+          }
+        }
+      },
+      {
+        "iri": "http://purl.obolibrary.org/obo/DOID_0110599",
+        "label": "primary ciliary dyskinesia 3",
+        "description": [
+          "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with outer dynein arm defect, ciliary akinesia and variable occurence of situs inversus and has_material_basis_in homozygous or compound heterozygous mutation in the DNAH5 gene on chromosome 5p15."
+        ],
+        "annotation": {
+          "database_cross_reference": ["ICD10CM:Q34.8", "OMIM:608644"],
+          "has_obo_namespace": ["disease_ontology"],
+          "id": ["DOID:0110599"]
+        },
+        "synonyms": ["CILD3", "primary ciliary dyskinesia 3 with or without situs inversus"],
+        "ontology_name": "doid",
+        "ontology_prefix": "DOID",
+        "ontology_iri": "http://purl.obolibrary.org/obo/doid.owl",
+        "is_obsolete": false,
+        "term_replaced_by": null,
+        "is_defining_ontology": true,
+        "has_children": false,
+        "is_root": false,
+        "short_form": "DOID_0110599",
+        "obo_id": "DOID:0110599",
+        "in_subset": null,
+        "obo_definition_citation": [
+          {
+            "definition": "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with outer dynein arm defect, ciliary akinesia and variable occurence of situs inversus and has_material_basis_in homozygous or compound heterozygous mutation in the DNAH5 gene on chromosome 5p15.",
+            "oboXrefs": [
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/11788826",
+                "description": null,
+                "url": null
+              },
+              {
+                "database": null,
+                "id": "http://purl.obolibrary.org/obo/ECO_0007645",
+                "description": null,
+                "url": "http://purl.obolibrary.org/obo/ECO_0007645"
+              },
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/26998415",
+                "description": null,
+                "url": null
+              }
+            ]
+          }
+        ],
+        "obo_xref": [
+          {
+            "database": "ICD10CM",
+            "id": "Q34.8",
+            "description": null,
+            "url": null
+          },
+          {
+            "database": "OMIM",
+            "id": "608644",
+            "description": null,
+            "url": "https://omim.org/entry/608644"
+          }
+        ],
+        "obo_synonym": null,
+        "is_preferred_root": false,
+        "_links": {
+          "self": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110599"
+          },
+          "parents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110599/parents"
+          },
+          "ancestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110599/ancestors"
+          },
+          "hierarchicalParents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110599/hierarchicalParents"
+          },
+          "hierarchicalAncestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110599/hierarchicalAncestors"
+          },
+          "jstree": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110599/jstree"
+          },
+          "graph": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110599/graph"
+          }
+        }
+      },
+      {
+        "iri": "http://purl.obolibrary.org/obo/DOID_0110594",
+        "label": "primary ciliary dyskinesia 1",
+        "description": [
+          "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with outer dynein arm defect and in about half of patients situs inversus and has_material_basis_in compound heterozygous mutation in the DNAI1 gene on chromosome 9p13."
+        ],
+        "annotation": {
+          "database_cross_reference": ["OMIM:244400", "ICD10CM:Q34.8"],
+          "has_obo_namespace": ["disease_ontology"],
+          "id": ["DOID:0110594"]
+        },
+        "synonyms": ["CILD1", "primary ciliary dyskinesia 1 with or without situs inversus"],
+        "ontology_name": "doid",
+        "ontology_prefix": "DOID",
+        "ontology_iri": "http://purl.obolibrary.org/obo/doid.owl",
+        "is_obsolete": false,
+        "term_replaced_by": null,
+        "is_defining_ontology": true,
+        "has_children": false,
+        "is_root": false,
+        "short_form": "DOID_0110594",
+        "obo_id": "DOID:0110594",
+        "in_subset": null,
+        "obo_definition_citation": [
+          {
+            "definition": "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with outer dynein arm defect and in about half of patients situs inversus and has_material_basis_in compound heterozygous mutation in the DNAI1 gene on chromosome 9p13.",
+            "oboXrefs": [
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/26998415",
+                "description": null,
+                "url": null
+              },
+              {
+                "database": null,
+                "id": "http://purl.obolibrary.org/obo/ECO_0007645",
+                "description": null,
+                "url": "http://purl.obolibrary.org/obo/ECO_0007645"
+              },
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/10577904",
+                "description": null,
+                "url": null
+              }
+            ]
+          }
+        ],
+        "obo_xref": [
+          {
+            "database": "OMIM",
+            "id": "244400",
+            "description": null,
+            "url": "https://omim.org/entry/244400"
+          },
+          {
+            "database": "ICD10CM",
+            "id": "Q34.8",
+            "description": null,
+            "url": null
+          }
+        ],
+        "obo_synonym": null,
+        "is_preferred_root": false,
+        "_links": {
+          "self": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110594"
+          },
+          "parents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110594/parents"
+          },
+          "ancestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110594/ancestors"
+          },
+          "hierarchicalParents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110594/hierarchicalParents"
+          },
+          "hierarchicalAncestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110594/hierarchicalAncestors"
+          },
+          "jstree": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110594/jstree"
+          },
+          "graph": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110594/graph"
+          }
+        }
+      },
+      {
+        "iri": "http://purl.obolibrary.org/obo/DOID_0110604",
+        "label": "primary ciliary dyskinesia 18",
+        "description": [
+          "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with outer and inner dynein arm defect, early infantile onset of recurrent sinopulmonary infections, male infertility, and variable occurence of situs inversus and has_material_basis_in homozygous mutation in the HEATR2 gene on chromosome 7p22."
+        ],
+        "annotation": {
+          "database_cross_reference": ["ICD10CM:Q34.8", "OMIM:614874"],
+          "has_obo_namespace": ["disease_ontology"],
+          "id": ["DOID:0110604"]
+        },
+        "synonyms": ["primary ciliary dyskinesia 18 with or without situs inversus", "CILD18"],
+        "ontology_name": "doid",
+        "ontology_prefix": "DOID",
+        "ontology_iri": "http://purl.obolibrary.org/obo/doid.owl",
+        "is_obsolete": false,
+        "term_replaced_by": null,
+        "is_defining_ontology": true,
+        "has_children": false,
+        "is_root": false,
+        "short_form": "DOID_0110604",
+        "obo_id": "DOID:0110604",
+        "in_subset": null,
+        "obo_definition_citation": [
+          {
+            "definition": "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with outer and inner dynein arm defect, early infantile onset of recurrent sinopulmonary infections, male infertility, and variable occurence of situs inversus and has_material_basis_in homozygous mutation in the HEATR2 gene on chromosome 7p22.",
+            "oboXrefs": [
+              {
+                "database": null,
+                "id": "http://purl.obolibrary.org/obo/ECO_0007645",
+                "description": null,
+                "url": "http://purl.obolibrary.org/obo/ECO_0007645"
+              },
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/23040496",
+                "description": null,
+                "url": null
+              },
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/26998415",
+                "description": null,
+                "url": null
+              }
+            ]
+          }
+        ],
+        "obo_xref": [
+          {
+            "database": "OMIM",
+            "id": "614874",
+            "description": null,
+            "url": "https://omim.org/entry/614874"
+          },
+          {
+            "database": "ICD10CM",
+            "id": "Q34.8",
+            "description": null,
+            "url": null
+          }
+        ],
+        "obo_synonym": null,
+        "is_preferred_root": false,
+        "_links": {
+          "self": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110604"
+          },
+          "parents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110604/parents"
+          },
+          "ancestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110604/ancestors"
+          },
+          "hierarchicalParents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110604/hierarchicalParents"
+          },
+          "hierarchicalAncestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110604/hierarchicalAncestors"
+          },
+          "jstree": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110604/jstree"
+          },
+          "graph": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110604/graph"
+          }
+        }
+      },
+      {
+        "iri": "http://purl.obolibrary.org/obo/DOID_0110603",
+        "label": "primary ciliary dyskinesia 32",
+        "description": [
+          "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with near absence of radial spokes, respiratory distress in term neonates, impaired mucociliary clearance, chronic respiratory infections, bronchiectasis, and infertility and has_material_basis_in homozygous or compound heterozygous mutation in the RSPH3 gene on chromosome 6q25."
+        ],
+        "annotation": {
+          "database_cross_reference": ["ICD10CM:Q34.8", "OMIM:616481"],
+          "has_obo_namespace": ["disease_ontology"],
+          "id": ["DOID:0110603"]
+        },
+        "synonyms": ["CILD32", "primary ciliary dyskinesia 32 without situs inversus"],
+        "ontology_name": "doid",
+        "ontology_prefix": "DOID",
+        "ontology_iri": "http://purl.obolibrary.org/obo/doid.owl",
+        "is_obsolete": false,
+        "term_replaced_by": null,
+        "is_defining_ontology": true,
+        "has_children": false,
+        "is_root": false,
+        "short_form": "DOID_0110603",
+        "obo_id": "DOID:0110603",
+        "in_subset": null,
+        "obo_definition_citation": [
+          {
+            "definition": "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with near absence of radial spokes, respiratory distress in term neonates, impaired mucociliary clearance, chronic respiratory infections, bronchiectasis, and infertility and has_material_basis_in homozygous or compound heterozygous mutation in the RSPH3 gene on chromosome 6q25.",
+            "oboXrefs": [
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/26073779",
+                "description": null,
+                "url": null
+              },
+              {
+                "database": null,
+                "id": "http://purl.obolibrary.org/obo/ECO_0007645",
+                "description": null,
+                "url": "http://purl.obolibrary.org/obo/ECO_0007645"
+              }
+            ]
+          }
+        ],
+        "obo_xref": [
+          {
+            "database": "ICD10CM",
+            "id": "Q34.8",
+            "description": null,
+            "url": null
+          },
+          {
+            "database": "OMIM",
+            "id": "616481",
+            "description": null,
+            "url": "https://omim.org/entry/616481"
+          }
+        ],
+        "obo_synonym": null,
+        "is_preferred_root": false,
+        "_links": {
+          "self": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110603"
+          },
+          "parents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110603/parents"
+          },
+          "ancestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110603/ancestors"
+          },
+          "hierarchicalParents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110603/hierarchicalParents"
+          },
+          "hierarchicalAncestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110603/hierarchicalAncestors"
+          },
+          "jstree": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110603/jstree"
+          },
+          "graph": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110603/graph"
+          }
+        }
+      },
+      {
+        "iri": "http://purl.obolibrary.org/obo/DOID_0110606",
+        "label": "primary ciliary dyskinesia 6",
+        "description": [
+          "A primary ciliary dyskinesia that is characterized by partial outer dynein arm defect and has_material_basis_in mutation in the TXNDC3 gene on the chromosome 7p14.1."
+        ],
+        "annotation": {
+          "database_cross_reference": ["ICD10CM:Q34.8", "OMIM:610852"],
+          "has_obo_namespace": ["disease_ontology"],
+          "id": ["DOID:0110606"]
+        },
+        "synonyms": ["CILD6"],
+        "ontology_name": "doid",
+        "ontology_prefix": "DOID",
+        "ontology_iri": "http://purl.obolibrary.org/obo/doid.owl",
+        "is_obsolete": false,
+        "term_replaced_by": null,
+        "is_defining_ontology": true,
+        "has_children": false,
+        "is_root": false,
+        "short_form": "DOID_0110606",
+        "obo_id": "DOID:0110606",
+        "in_subset": null,
+        "obo_definition_citation": [
+          {
+            "definition": "A primary ciliary dyskinesia that is characterized by partial outer dynein arm defect and has_material_basis_in mutation in the TXNDC3 gene on the chromosome 7p14.1.",
+            "oboXrefs": [
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/26998415",
+                "description": null,
+                "url": null
+              },
+              {
+                "database": null,
+                "id": "http://purl.obolibrary.org/obo/ECO_0007645",
+                "description": null,
+                "url": "http://purl.obolibrary.org/obo/ECO_0007645"
+              },
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/17360648",
+                "description": null,
+                "url": null
+              }
+            ]
+          }
+        ],
+        "obo_xref": [
+          {
+            "database": "ICD10CM",
+            "id": "Q34.8",
+            "description": null,
+            "url": null
+          },
+          {
+            "database": "OMIM",
+            "id": "610852",
+            "description": null,
+            "url": "https://omim.org/entry/610852"
+          }
+        ],
+        "obo_synonym": null,
+        "is_preferred_root": false,
+        "_links": {
+          "self": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110606"
+          },
+          "parents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110606/parents"
+          },
+          "ancestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110606/ancestors"
+          },
+          "hierarchicalParents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110606/hierarchicalParents"
+          },
+          "hierarchicalAncestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110606/hierarchicalAncestors"
+          },
+          "jstree": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110606/jstree"
+          },
+          "graph": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110606/graph"
+          }
+        }
+      },
+      {
+        "iri": "http://purl.obolibrary.org/obo/DOID_0110605",
+        "label": "primary ciliary dyskinesia 7",
+        "description": [
+          "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with chronic respiratory infections, chronic sinusitis, recurrent bronchitis, and pneumonia beginning in infancy or early childhood and has_material_basis_in mutation in the DNAH11 gene on chromosome 7p21."
+        ],
+        "annotation": {
+          "database_cross_reference": ["ICD10CM:Q34.8", "OMIM:611884"],
+          "has_obo_namespace": ["disease_ontology"],
+          "id": ["DOID:0110605"]
+        },
+        "synonyms": ["CILD7", "primary ciliary dyskinesia 7 with or without situs inversus"],
+        "ontology_name": "doid",
+        "ontology_prefix": "DOID",
+        "ontology_iri": "http://purl.obolibrary.org/obo/doid.owl",
+        "is_obsolete": false,
+        "term_replaced_by": null,
+        "is_defining_ontology": true,
+        "has_children": false,
+        "is_root": false,
+        "short_form": "DOID_0110605",
+        "obo_id": "DOID:0110605",
+        "in_subset": null,
+        "obo_definition_citation": [
+          {
+            "definition": "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with chronic respiratory infections, chronic sinusitis, recurrent bronchitis, and pneumonia beginning in infancy or early childhood and has_material_basis_in mutation in the DNAH11 gene on chromosome 7p21.",
+            "oboXrefs": [
+              {
+                "database": null,
+                "id": "http://purl.obolibrary.org/obo/ECO_0007645",
+                "description": null,
+                "url": "http://purl.obolibrary.org/obo/ECO_0007645"
+              },
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/18022865",
+                "description": null,
+                "url": null
+              }
+            ]
+          }
+        ],
+        "obo_xref": [
+          {
+            "database": "ICD10CM",
+            "id": "Q34.8",
+            "description": null,
+            "url": null
+          },
+          {
+            "database": "OMIM",
+            "id": "611884",
+            "description": null,
+            "url": "https://omim.org/entry/611884"
+          }
+        ],
+        "obo_synonym": null,
+        "is_preferred_root": false,
+        "_links": {
+          "self": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110605"
+          },
+          "parents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110605/parents"
+          },
+          "ancestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110605/ancestors"
+          },
+          "hierarchicalParents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110605/hierarchicalParents"
+          },
+          "hierarchicalAncestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110605/hierarchicalAncestors"
+          },
+          "jstree": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110605/jstree"
+          },
+          "graph": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110605/graph"
+          }
+        }
+      },
+      {
+        "iri": "http://purl.obolibrary.org/obo/DOID_0110608",
+        "label": "primary ciliary dyskinesia 19",
+        "description": [
+          "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with outer and inner dynein arm defect, chronic sinopulmonary infections, asthenospermia, and immotile cilia and has_material_basis_in homozygous mutation in the LRRC6 on chromosome 8q24."
+        ],
+        "annotation": {
+          "database_cross_reference": ["ICD10CM:Q34.8", "OMIM:614935"],
+          "has_obo_namespace": ["disease_ontology"],
+          "id": ["DOID:0110608"]
+        },
+        "synonyms": ["CILD19", "primary ciliary dyskinesia 19 with or without situs inversus"],
+        "ontology_name": "doid",
+        "ontology_prefix": "DOID",
+        "ontology_iri": "http://purl.obolibrary.org/obo/doid.owl",
+        "is_obsolete": false,
+        "term_replaced_by": null,
+        "is_defining_ontology": true,
+        "has_children": false,
+        "is_root": false,
+        "short_form": "DOID_0110608",
+        "obo_id": "DOID:0110608",
+        "in_subset": null,
+        "obo_definition_citation": [
+          {
+            "definition": "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with outer and inner dynein arm defect, chronic sinopulmonary infections, asthenospermia, and immotile cilia and has_material_basis_in homozygous mutation in the LRRC6 on chromosome 8q24.",
+            "oboXrefs": [
+              {
+                "database": null,
+                "id": "http://purl.obolibrary.org/obo/ECO_0007645",
+                "description": null,
+                "url": "http://purl.obolibrary.org/obo/ECO_0007645"
+              },
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/26998415",
+                "description": null,
+                "url": null
+              },
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/23122589",
+                "description": null,
+                "url": null
+              }
+            ]
+          }
+        ],
+        "obo_xref": [
+          {
+            "database": "OMIM",
+            "id": "614935",
+            "description": null,
+            "url": "https://omim.org/entry/614935"
+          },
+          {
+            "database": "ICD10CM",
+            "id": "Q34.8",
+            "description": null,
+            "url": null
+          }
+        ],
+        "obo_synonym": null,
+        "is_preferred_root": false,
+        "_links": {
+          "self": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110608"
+          },
+          "parents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110608/parents"
+          },
+          "ancestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110608/ancestors"
+          },
+          "hierarchicalParents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110608/hierarchicalParents"
+          },
+          "hierarchicalAncestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110608/hierarchicalAncestors"
+          },
+          "jstree": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110608/jstree"
+          },
+          "graph": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110608/graph"
+          }
+        }
+      },
+      {
+        "iri": "http://purl.obolibrary.org/obo/DOID_0110607",
+        "label": "primary ciliary dyskinesia 28",
+        "description": [
+          "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with outer and inner dynein arm defect, recurrent upper and lower airway disease, bronchiectasis, and decreased fertility and has_material_basis_in homozygous or compound heterozygous mutation in the SPAG1 gene on chromosome 8q22."
+        ],
+        "annotation": {
+          "database_cross_reference": ["ICD10CM:Q34.8", "OMIM:615505"],
+          "has_obo_namespace": ["disease_ontology"],
+          "id": ["DOID:0110607"]
+        },
+        "synonyms": ["primary ciliary dyskinesia 28 with or without situs inversus", "CILD28"],
+        "ontology_name": "doid",
+        "ontology_prefix": "DOID",
+        "ontology_iri": "http://purl.obolibrary.org/obo/doid.owl",
+        "is_obsolete": false,
+        "term_replaced_by": null,
+        "is_defining_ontology": true,
+        "has_children": false,
+        "is_root": false,
+        "short_form": "DOID_0110607",
+        "obo_id": "DOID:0110607",
+        "in_subset": null,
+        "obo_definition_citation": [
+          {
+            "definition": "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with outer and inner dynein arm defect, recurrent upper and lower airway disease, bronchiectasis, and decreased fertility and has_material_basis_in homozygous or compound heterozygous mutation in the SPAG1 gene on chromosome 8q22.",
+            "oboXrefs": [
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/24055112",
+                "description": null,
+                "url": null
+              },
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/26998415",
+                "description": null,
+                "url": null
+              },
+              {
+                "database": null,
+                "id": "http://purl.obolibrary.org/obo/ECO_0007645",
+                "description": null,
+                "url": "http://purl.obolibrary.org/obo/ECO_0007645"
+              }
+            ]
+          }
+        ],
+        "obo_xref": [
+          {
+            "database": "ICD10CM",
+            "id": "Q34.8",
+            "description": null,
+            "url": null
+          },
+          {
+            "database": "OMIM",
+            "id": "615505",
+            "description": null,
+            "url": "https://omim.org/entry/615505"
+          }
+        ],
+        "obo_synonym": null,
+        "is_preferred_root": false,
+        "_links": {
+          "self": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110607"
+          },
+          "parents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110607/parents"
+          },
+          "ancestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110607/ancestors"
+          },
+          "hierarchicalParents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110607/hierarchicalParents"
+          },
+          "hierarchicalAncestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110607/hierarchicalAncestors"
+          },
+          "jstree": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110607/jstree"
+          },
+          "graph": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110607/graph"
+          }
+        }
+      },
+      {
+        "iri": "http://purl.obolibrary.org/obo/DOID_0110609",
+        "label": "primary ciliary dyskinesia 23",
+        "description": [
+          "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with outer dynein arm defect, respiratory distress and recurrent upper and lower airway infections, and variable occurence of situs inversus and has_material_basis_in homozygous or compound heterozygous mutation in the ARMC4 gene on chromosome 10p."
+        ],
+        "annotation": {
+          "database_cross_reference": ["ICD10CM:Q34.8", "OMIM:615451"],
+          "has_obo_namespace": ["disease_ontology"],
+          "id": ["DOID:0110609"]
+        },
+        "synonyms": ["CILD23", "primary ciliary dyskinesia 23 with or without situs inversus"],
+        "ontology_name": "doid",
+        "ontology_prefix": "DOID",
+        "ontology_iri": "http://purl.obolibrary.org/obo/doid.owl",
+        "is_obsolete": false,
+        "term_replaced_by": null,
+        "is_defining_ontology": true,
+        "has_children": false,
+        "is_root": false,
+        "short_form": "DOID_0110609",
+        "obo_id": "DOID:0110609",
+        "in_subset": null,
+        "obo_definition_citation": [
+          {
+            "definition": "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with outer dynein arm defect, respiratory distress and recurrent upper and lower airway infections, and variable occurence of situs inversus and has_material_basis_in homozygous or compound heterozygous mutation in the ARMC4 gene on chromosome 10p.",
+            "oboXrefs": [
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/23849778",
+                "description": null,
+                "url": null
+              },
+              {
+                "database": null,
+                "id": "http://purl.obolibrary.org/obo/ECO_0007645",
+                "description": null,
+                "url": "http://purl.obolibrary.org/obo/ECO_0007645"
+              },
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/26998415",
+                "description": null,
+                "url": null
+              }
+            ]
+          }
+        ],
+        "obo_xref": [
+          {
+            "database": "OMIM",
+            "id": "615451",
+            "description": null,
+            "url": "https://omim.org/entry/615451"
+          },
+          {
+            "database": "ICD10CM",
+            "id": "Q34.8",
+            "description": null,
+            "url": null
+          }
+        ],
+        "obo_synonym": null,
+        "is_preferred_root": false,
+        "_links": {
+          "self": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110609"
+          },
+          "parents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110609/parents"
+          },
+          "ancestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110609/ancestors"
+          },
+          "hierarchicalParents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110609/hierarchicalParents"
+          },
+          "hierarchicalAncestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110609/hierarchicalAncestors"
+          },
+          "jstree": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110609/jstree"
+          },
+          "graph": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110609/graph"
+          }
+        }
+      },
+      {
+        "iri": "http://purl.obolibrary.org/obo/DOID_0110600",
+        "label": "primary ciliary dyskinesia 29",
+        "description": [
+          "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with oligocilia and early childhood onset of recurrent respiratory infections, and has_material_basis_in homozygous or compound heterozygous mutation in the CCNO gene on chromosome 5p15."
+        ],
+        "annotation": {
+          "database_cross_reference": ["OMIM:615872", "ICD10CM:Q34.8"],
+          "has_obo_namespace": ["disease_ontology"],
+          "id": ["DOID:0110600"]
+        },
+        "synonyms": ["CILD29", "primary ciliary dyskinesia 29 without situs inversus"],
+        "ontology_name": "doid",
+        "ontology_prefix": "DOID",
+        "ontology_iri": "http://purl.obolibrary.org/obo/doid.owl",
+        "is_obsolete": false,
+        "term_replaced_by": null,
+        "is_defining_ontology": true,
+        "has_children": false,
+        "is_root": false,
+        "short_form": "DOID_0110600",
+        "obo_id": "DOID:0110600",
+        "in_subset": null,
+        "obo_definition_citation": [
+          {
+            "definition": "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with oligocilia and early childhood onset of recurrent respiratory infections, and has_material_basis_in homozygous or compound heterozygous mutation in the CCNO gene on chromosome 5p15.",
+            "oboXrefs": [
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/26998415",
+                "description": null,
+                "url": null
+              },
+              {
+                "database": null,
+                "id": "http://purl.obolibrary.org/obo/ECO_0007645",
+                "description": null,
+                "url": "http://purl.obolibrary.org/obo/ECO_0007645"
+              },
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/24747639",
+                "description": null,
+                "url": null
+              }
+            ]
+          }
+        ],
+        "obo_xref": [
+          {
+            "database": "ICD10CM",
+            "id": "Q34.8",
+            "description": null,
+            "url": null
+          },
+          {
+            "database": "OMIM",
+            "id": "615872",
+            "description": null,
+            "url": "https://omim.org/entry/615872"
+          }
+        ],
+        "obo_synonym": null,
+        "is_preferred_root": false,
+        "_links": {
+          "self": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110600"
+          },
+          "parents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110600/parents"
+          },
+          "ancestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110600/ancestors"
+          },
+          "hierarchicalParents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110600/hierarchicalParents"
+          },
+          "hierarchicalAncestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110600/hierarchicalAncestors"
+          },
+          "jstree": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110600/jstree"
+          },
+          "graph": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110600/graph"
+          }
+        }
+      },
+      {
+        "iri": "http://purl.obolibrary.org/obo/DOID_0110602",
+        "label": "primary ciliary dyskinesia 11",
+        "description": [
+          "A primary ciliary dyskinesia that is characterized by reduced exercise tolerance, chronic wet cough, recurrent respiratory infections, bronchiectasis, nasal symptoms, ear obstruction with consequent hearing problems, low weight, and short stature, and has_material_basis_in homozygous or compound heterozygous mutation in the RSPH4A gene on chromosome 6q22."
+        ],
+        "annotation": {
+          "database_cross_reference": ["ICD10CM:Q34.8", "OMIM:612649"],
+          "has_obo_namespace": ["disease_ontology"],
+          "id": ["DOID:0110602"]
+        },
+        "synonyms": ["CILD11", "primary ciliary dyskinesia 11 without situs inversus"],
+        "ontology_name": "doid",
+        "ontology_prefix": "DOID",
+        "ontology_iri": "http://purl.obolibrary.org/obo/doid.owl",
+        "is_obsolete": false,
+        "term_replaced_by": null,
+        "is_defining_ontology": true,
+        "has_children": false,
+        "is_root": false,
+        "short_form": "DOID_0110602",
+        "obo_id": "DOID:0110602",
+        "in_subset": null,
+        "obo_definition_citation": [
+          {
+            "definition": "A primary ciliary dyskinesia that is characterized by reduced exercise tolerance, chronic wet cough, recurrent respiratory infections, bronchiectasis, nasal symptoms, ear obstruction with consequent hearing problems, low weight, and short stature, and has_material_basis_in homozygous or compound heterozygous mutation in the RSPH4A gene on chromosome 6q22.",
+            "oboXrefs": [
+              {
+                "database": null,
+                "id": "http://purl.obolibrary.org/obo/ECO_0007645",
+                "description": null,
+                "url": "http://purl.obolibrary.org/obo/ECO_0007645"
+              },
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/19200523",
+                "description": null,
+                "url": null
+              }
+            ]
+          }
+        ],
+        "obo_xref": [
+          {
+            "database": "ICD10CM",
+            "id": "Q34.8",
+            "description": null,
+            "url": null
+          },
+          {
+            "database": "OMIM",
+            "id": "612649",
+            "description": null,
+            "url": "https://omim.org/entry/612649"
+          }
+        ],
+        "obo_synonym": null,
+        "is_preferred_root": false,
+        "_links": {
+          "self": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110602"
+          },
+          "parents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110602/parents"
+          },
+          "ancestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110602/ancestors"
+          },
+          "hierarchicalParents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110602/hierarchicalParents"
+          },
+          "hierarchicalAncestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110602/hierarchicalAncestors"
+          },
+          "jstree": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110602/jstree"
+          },
+          "graph": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110602/graph"
+          },
+          "has_symptom": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110602/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252Fdoid%2523has_symptom"
+          }
+        }
+      },
+      {
+        "iri": "http://purl.obolibrary.org/obo/DOID_0110601",
+        "label": "primary ciliary dyskinesia 12",
+        "description": [
+          "A primary ciliary dyskinesia that is characterized by reduced exercise tolerance, chronic wet cough, recurrent respiratory infections, bronchiectasis, and nasal symptoms, and has_material_basis_in homozygous mutation in the RSPH9 gene on chromosome 6p21."
+        ],
+        "annotation": {
+          "database_cross_reference": ["OMIM:612650", "ICD10CM:Q34.8"],
+          "has_obo_namespace": ["disease_ontology"],
+          "id": ["DOID:0110601"]
+        },
+        "synonyms": ["CILD12", "primary ciliary dyskinesia 12 without situs inversus"],
+        "ontology_name": "doid",
+        "ontology_prefix": "DOID",
+        "ontology_iri": "http://purl.obolibrary.org/obo/doid.owl",
+        "is_obsolete": false,
+        "term_replaced_by": null,
+        "is_defining_ontology": true,
+        "has_children": false,
+        "is_root": false,
+        "short_form": "DOID_0110601",
+        "obo_id": "DOID:0110601",
+        "in_subset": null,
+        "obo_definition_citation": [
+          {
+            "definition": "A primary ciliary dyskinesia that is characterized by reduced exercise tolerance, chronic wet cough, recurrent respiratory infections, bronchiectasis, and nasal symptoms, and has_material_basis_in homozygous mutation in the RSPH9 gene on chromosome 6p21.",
+            "oboXrefs": [
+              {
+                "database": null,
+                "id": "http://purl.obolibrary.org/obo/ECO_0007645",
+                "description": null,
+                "url": "http://purl.obolibrary.org/obo/ECO_0007645"
+              },
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/19200523",
+                "description": null,
+                "url": null
+              }
+            ]
+          }
+        ],
+        "obo_xref": [
+          {
+            "database": "ICD10CM",
+            "id": "Q34.8",
+            "description": null,
+            "url": null
+          },
+          {
+            "database": "OMIM",
+            "id": "612650",
+            "description": null,
+            "url": "https://omim.org/entry/612650"
+          }
+        ],
+        "obo_synonym": null,
+        "is_preferred_root": false,
+        "_links": {
+          "self": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110601"
+          },
+          "parents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110601/parents"
+          },
+          "ancestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110601/ancestors"
+          },
+          "hierarchicalParents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110601/hierarchicalParents"
+          },
+          "hierarchicalAncestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110601/hierarchicalAncestors"
+          },
+          "jstree": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110601/jstree"
+          },
+          "graph": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110601/graph"
+          },
+          "has_symptom": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110601/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252Fdoid%2523has_symptom"
+          }
+        }
+      },
+      {
+        "iri": "http://purl.obolibrary.org/obo/DOID_0110615",
+        "label": "primary ciliary dyskinesia 25",
+        "description": [
+          "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with inner and outer dynein arm defect, recurrent upper and lower airway disease, bronchiectasis, decreased fertility and variable occurence of laterality defects and has_material_basis_in homozygous or compound heterozygous mutation in the DYX1C1 gene on chromosome 15q21."
+        ],
+        "annotation": {
+          "database_cross_reference": ["ICD10CM:Q34.8", "OMIM:615482"],
+          "has_obo_namespace": ["disease_ontology"],
+          "id": ["DOID:0110615"]
+        },
+        "synonyms": ["primary ciliary dyskinesia 25 with or without situs inversus", "CILD25"],
+        "ontology_name": "doid",
+        "ontology_prefix": "DOID",
+        "ontology_iri": "http://purl.obolibrary.org/obo/doid.owl",
+        "is_obsolete": false,
+        "term_replaced_by": null,
+        "is_defining_ontology": true,
+        "has_children": false,
+        "is_root": false,
+        "short_form": "DOID_0110615",
+        "obo_id": "DOID:0110615",
+        "in_subset": null,
+        "obo_definition_citation": [
+          {
+            "definition": "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with inner and outer dynein arm defect, recurrent upper and lower airway disease, bronchiectasis, decreased fertility and variable occurence of laterality defects and has_material_basis_in homozygous or compound heterozygous mutation in the DYX1C1 gene on chromosome 15q21.",
+            "oboXrefs": [
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/26998415",
+                "description": null,
+                "url": null
+              },
+              {
+                "database": null,
+                "id": "http://purl.obolibrary.org/obo/ECO_0007645",
+                "description": null,
+                "url": "http://purl.obolibrary.org/obo/ECO_0007645"
+              },
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/23872636",
+                "description": null,
+                "url": null
+              }
+            ]
+          }
+        ],
+        "obo_xref": [
+          {
+            "database": "ICD10CM",
+            "id": "Q34.8",
+            "description": null,
+            "url": null
+          },
+          {
+            "database": "OMIM",
+            "id": "615482",
+            "description": null,
+            "url": "https://omim.org/entry/615482"
+          }
+        ],
+        "obo_synonym": null,
+        "is_preferred_root": false,
+        "_links": {
+          "self": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110615"
+          },
+          "parents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110615/parents"
+          },
+          "ancestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110615/ancestors"
+          },
+          "hierarchicalParents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110615/hierarchicalParents"
+          },
+          "hierarchicalAncestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110615/hierarchicalAncestors"
+          },
+          "jstree": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110615/jstree"
+          },
+          "graph": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110615/graph"
+          }
+        }
+      },
+      {
+        "iri": "http://purl.obolibrary.org/obo/DOID_0110614",
+        "label": "primary ciliary dyskinesia 4",
+        "description": [
+          "A primary ciliary dyskinesia that is characterized by partial absence of the inner dynein arms with variable occurrence of situs inversus and has_material_basis_in variation in the chromosome region 15q13.1-q15.1."
+        ],
+        "annotation": {
+          "database_cross_reference": ["OMIM:608646", "ICD10CM:Q34.8"],
+          "has_obo_namespace": ["disease_ontology"],
+          "id": ["DOID:0110614"]
+        },
+        "synonyms": ["CILD4", "primary ciliary dyskinesia 4 with or without situs inversus"],
+        "ontology_name": "doid",
+        "ontology_prefix": "DOID",
+        "ontology_iri": "http://purl.obolibrary.org/obo/doid.owl",
+        "is_obsolete": false,
+        "term_replaced_by": null,
+        "is_defining_ontology": true,
+        "has_children": false,
+        "is_root": false,
+        "short_form": "DOID_0110614",
+        "obo_id": "DOID:0110614",
+        "in_subset": null,
+        "obo_definition_citation": [
+          {
+            "definition": "A primary ciliary dyskinesia that is characterized by partial absence of the inner dynein arms with variable occurrence of situs inversus and has_material_basis_in variation in the chromosome region 15q13.1-q15.1.",
+            "oboXrefs": [
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/14985390",
+                "description": null,
+                "url": null
+              },
+              {
+                "database": null,
+                "id": "http://purl.obolibrary.org/obo/ECO_0007645",
+                "description": null,
+                "url": "http://purl.obolibrary.org/obo/ECO_0007645"
+              }
+            ]
+          }
+        ],
+        "obo_xref": [
+          {
+            "database": "OMIM",
+            "id": "608646",
+            "description": null,
+            "url": "https://omim.org/entry/608646"
+          },
+          {
+            "database": "ICD10CM",
+            "id": "Q34.8",
+            "description": null,
+            "url": null
+          }
+        ],
+        "obo_synonym": null,
+        "is_preferred_root": false,
+        "_links": {
+          "self": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110614"
+          },
+          "parents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110614/parents"
+          },
+          "ancestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110614/ancestors"
+          },
+          "hierarchicalParents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110614/hierarchicalParents"
+          },
+          "hierarchicalAncestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110614/hierarchicalAncestors"
+          },
+          "jstree": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110614/jstree"
+          },
+          "graph": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110614/graph"
+          }
+        }
+      },
+      {
+        "iri": "http://purl.obolibrary.org/obo/DOID_0110617",
+        "label": "primary ciliary dyskinesia 5",
+        "description": [
+          "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with early onset of a progressive decline in lung function and has_material_basis_in homozygous mutation in the HYDIN gene on chromosome 16q22."
+        ],
+        "annotation": {
+          "database_cross_reference": ["OMIM:608647", "ICD10CM:Q34.8"],
+          "has_obo_namespace": ["disease_ontology"],
+          "id": ["DOID:0110617"]
+        },
+        "synonyms": ["CILD5", "primary ciliary dyskinesia 5 without situs inversus"],
+        "ontology_name": "doid",
+        "ontology_prefix": "DOID",
+        "ontology_iri": "http://purl.obolibrary.org/obo/doid.owl",
+        "is_obsolete": false,
+        "term_replaced_by": null,
+        "is_defining_ontology": true,
+        "has_children": false,
+        "is_root": false,
+        "short_form": "DOID_0110617",
+        "obo_id": "DOID:0110617",
+        "in_subset": null,
+        "obo_definition_citation": [
+          {
+            "definition": "A primary ciliary dyskinesia that is characterized by autosomal recessive inheritance with early onset of a progressive decline in lung function and has_material_basis_in homozygous mutation in the HYDIN gene on chromosome 16q22.",
+            "oboXrefs": [
+              {
+                "database": null,
+                "id": "http://purl.obolibrary.org/obo/ECO_0007645",
+                "description": null,
+                "url": "http://purl.obolibrary.org/obo/ECO_0007645"
+              },
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/23022101",
+                "description": null,
+                "url": null
+              }
+            ]
+          }
+        ],
+        "obo_xref": [
+          {
+            "database": "ICD10CM",
+            "id": "Q34.8",
+            "description": null,
+            "url": null
+          },
+          {
+            "database": "OMIM",
+            "id": "608647",
+            "description": null,
+            "url": "https://omim.org/entry/608647"
+          }
+        ],
+        "obo_synonym": null,
+        "is_preferred_root": false,
+        "_links": {
+          "self": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110617"
+          },
+          "parents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110617/parents"
+          },
+          "ancestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110617/ancestors"
+          },
+          "hierarchicalParents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110617/hierarchicalParents"
+          },
+          "hierarchicalAncestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110617/hierarchicalAncestors"
+          },
+          "jstree": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110617/jstree"
+          },
+          "graph": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110617/graph"
+          }
+        }
+      },
+      {
+        "iri": "http://purl.obolibrary.org/obo/DOID_0110616",
+        "label": "primary ciliary dyskinesia 8",
+        "description": [
+          "A primary ciliary dyskinesia that has_material_basis_in variation in the chromosome region 15q24-q25."
+        ],
+        "annotation": {
+          "database_cross_reference": ["OMIM:612274", "ICD10CM:Q34.8"],
+          "has_obo_namespace": ["disease_ontology"],
+          "id": ["DOID:0110616"]
+        },
+        "synonyms": ["CILD8", "primary ciliary dyskinesia 8 with or without situs inversus"],
+        "ontology_name": "doid",
+        "ontology_prefix": "DOID",
+        "ontology_iri": "http://purl.obolibrary.org/obo/doid.owl",
+        "is_obsolete": false,
+        "term_replaced_by": null,
+        "is_defining_ontology": true,
+        "has_children": false,
+        "is_root": false,
+        "short_form": "DOID_0110616",
+        "obo_id": "DOID:0110616",
+        "in_subset": null,
+        "obo_definition_citation": [
+          {
+            "definition": "A primary ciliary dyskinesia that has_material_basis_in variation in the chromosome region 15q24-q25.",
+            "oboXrefs": [
+              {
+                "database": null,
+                "id": "http://purl.obolibrary.org/obo/ECO_0007645",
+                "description": null,
+                "url": "http://purl.obolibrary.org/obo/ECO_0007645"
+              },
+              {
+                "database": null,
+                "id": "url:https://www.ncbi.nlm.nih.gov/pubmed/18270537",
+                "description": null,
+                "url": null
+              }
+            ]
+          }
+        ],
+        "obo_xref": [
+          {
+            "database": "ICD10CM",
+            "id": "Q34.8",
+            "description": null,
+            "url": null
+          },
+          {
+            "database": "OMIM",
+            "id": "612274",
+            "description": null,
+            "url": "https://omim.org/entry/612274"
+          }
+        ],
+        "obo_synonym": null,
+        "is_preferred_root": false,
+        "_links": {
+          "self": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110616"
+          },
+          "parents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110616/parents"
+          },
+          "ancestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110616/ancestors"
+          },
+          "hierarchicalParents": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110616/hierarchicalParents"
+          },
+          "hierarchicalAncestors": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110616/hierarchicalAncestors"
+          },
+          "jstree": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110616/jstree"
+          },
+          "graph": {
+            "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/terms/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FDOID_0110616/graph"
+          }
+        }
+      }
+    ]
+  },
+  "_links": {
+    "first": {
+      "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/children?id=DOID:9562&page=0&size=20"
+    },
+    "self": {
+      "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/children?id=DOID:9562"
+    },
+    "next": {
+      "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/children?id=DOID:9562&page=1&size=20"
+    },
+    "last": {
+      "href": "https://www.ebi.ac.uk/ols/api/ontologies/doid/children?id=DOID:9562&page=2&size=20"
+    }
+  },
+  "page": {
+    "size": 20,
+    "totalElements": 46,
+    "totalPages": 3,
+    "number": 0
+  }
+}

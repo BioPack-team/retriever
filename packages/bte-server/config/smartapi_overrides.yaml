@@ -1,0 +1,11 @@
+---
+config:
+  only_overrides: false
+apis:
+    32f36164fabed5d3abe6c2fd899c9418: https://raw.githubusercontent.com/NCATS-Tangerine/translator-api-registry/biolink-4-update/idisk/smartapi.yaml
+    b48c34df08d16311e3bca06b135b828d: https://raw.githubusercontent.com/NCATS-Tangerine/translator-api-registry/biolink-4-update/suppkg/suppkg.yaml
+    e481efd21f8e8c1deac05662439c2294: https://raw.githubusercontent.com/NCATS-Tangerine/translator-api-registry/biolink-4-update/ttd/smartapi.yaml
+    1d288b3a3caf75d541ffaae3aab386c8: https://raw.githubusercontent.com/NCATS-Tangerine/translator-api-registry/biolink-4-update/semmeddb/smartapi.yaml
+    8f08d1446e0bb9c2b323713ce83e2bd3: https://raw.githubusercontent.com/NCATS-Tangerine/translator-api-registry/biolink-4-update/mychem.info/openapi_full.yml
+    1138c3297e8e403b6ac10cff5609b319: https://raw.githubusercontent.com/NCATS-Tangerine/translator-api-registry/biolink-4-update/repodb/smartapi.yaml
+    978fe380a147a8641caf72320862697b: https://raw.githubusercontent.com/NCATS-Tangerine/translator-api-registry/treats-refactor-tmkp/text_mining/smartapi.yaml

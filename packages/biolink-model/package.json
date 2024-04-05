@@ -1,0 +1,59 @@
+{
+  "name": "biolink-model",
+  "version": "0.4.0",
+  "description": "A nodejs module to consume biolink model",
+  "main": "built/index.js",
+  "scripts": {
+    "test": "jest",
+    "test-cov": "jest --coverage",
+    "build": "tsc -b",
+    "prepare": "pnpm run build",
+    "clean": "rimraf ./built './**/tsconfig.tsbuildinfo'",
+    "build:clean": "pnpm run clean && pnpm run build",
+    "format": "prettier --check 'src/**/*.ts'",
+    "format:fix": "prettier --write 'src/**/*.ts'",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "pnpm lint --fix"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/biothings/biolink-model.js.git"
+  },
+  "keywords": [
+    "biothings-explorer",
+    "biolink",
+    "biomedical",
+    "ontology"
+  ],
+  "author": "jiwen xin",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/biothings/biolink-model.js/issues"
+  },
+  "homepage": "https://github.com/biothings/biolink-model.js#readme",
+  "devDependencies": {
+    "@types/debug": "^4.1.10",
+    "@types/jest": "^26.0.24",
+    "@types/js-yaml": "^4.0.8",
+    "@types/lodash": "^4.14.200",
+    "@types/node": "^14.18.63",
+    "@typescript-eslint/eslint-plugin": "^6.8.0",
+    "@typescript-eslint/parser": "^6.8.0",
+    "coveralls": "^3.1.1",
+    "eslint": "^8.52.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-prettier": "^5.0.1",
+    "jest": "^29.7.0",
+    "prettier": "^3.0.3",
+    "rimraf": "^3.0.2",
+    "standard-version": "^9.5.0",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.2.2"
+  },
+  "dependencies": {
+    "axios": "^0.21.4",
+    "debug": "^4.3.4",
+    "js-yaml": "^4.1.0",
+    "pascal-case": "^3.1.2"
+  }
+}
