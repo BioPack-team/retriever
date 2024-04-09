@@ -2,7 +2,6 @@ import Transformer, {
   BTEQueryObject,
   Record,
 } from "@biothings-explorer/api-response-transform";
-import BaseQueryBuilder from "./builder/base_query_builder";
 import {
   APIDefinition,
   QueryHandlerOptions,
@@ -14,6 +13,7 @@ import Debug from "debug";
 const debug = Debug("bte:call-apis:query");
 import { Telemetry, LogEntry, StampedLog } from "@biothings-explorer/utils";
 import axiosRetry from "axios-retry";
+import Subquery from "./queries/subquery";
 
 const SUBQUERY_DEFAULT_TIMEOUT = parseInt(
   process.env.SUBQUERY_DEFAULT_TIMEOUT ?? "50000",
@@ -54,7 +54,7 @@ export default class APIQueryPool {
   }
 
   getQueryConfig(
-    query: BaseQueryBuilder,
+    query: Subquery,
     unavailableAPIs: UnavailableAPITracker,
     logs: StampedLog[],
   ): {
@@ -130,12 +130,12 @@ export default class APIQueryPool {
   }
 
   async query(
-    query: BaseQueryBuilder,
+    query: Subquery,
     unavailableAPIs: UnavailableAPITracker,
     finish: (
       logs?: StampedLog[],
       records?: Record[],
-      followUp?: BaseQueryBuilder[],
+      followUp?: Subquery[],
     ) => Promise<void>,
   ) {
     // Check if pool has been stopped due to limit hit (save some computation)
@@ -144,7 +144,7 @@ export default class APIQueryPool {
       return;
     }
     const logs: StampedLog[] = [];
-    const followUp: BaseQueryBuilder[] = [];
+    const followUp: Subquery[] = [];
 
     const dryrun_only = process.env.DRYRUN === "true";
     const span = Telemetry.startSpan({ description: "apiCall" });
@@ -223,7 +223,7 @@ export default class APIQueryPool {
         edge: query.APIEdge,
       };
 
-      const queryNeedsPagination = query.needPagination(
+      const queryNeedsPagination = query.needsPagination(
         unTransformedHits.response,
       );
       if (queryNeedsPagination) {

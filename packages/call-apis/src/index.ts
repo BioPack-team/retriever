@@ -1,10 +1,8 @@
 import { LogEntry, StampedLog, RedisClient } from "@biothings-explorer/utils";
 import { APIEdge, QueryHandlerOptions, UnavailableAPITracker } from "./types";
+import SubqueryDispatcher from "./dispatcher";
 import Debug from "debug";
 const debug = Debug("bte:call-apis:query");
-import queryBuilder from "./builder/builder_factory";
-import TRAPIQueryBuilder from "./builder/trapi_query_builder";
-import SubQueryDispatcher from "./dispatcher";
 import {
   NodeNormalizerResultObj,
   Record,
@@ -17,6 +15,8 @@ import {
   resolveSRI,
   ResolvableBioEntity,
 } from "biomedical_id_resolver";
+import TrapiSubquery from "./queries/trapi_subquery";
+import subqueryFactory from "./queries/subquery_factory";
 
 export * from "./types";
 
@@ -42,11 +42,11 @@ export default class APIQueryDispatcher {
 
   _constructQueries(APIEdges: APIEdge[]) {
     return APIEdges.map(edge => {
-      const built = queryBuilder(edge);
-      if (built instanceof TRAPIQueryBuilder) {
-        built.addSubmitter?.(this.options.submitter);
+      const subQuery = subqueryFactory(edge);
+      if (subQuery instanceof TrapiSubquery) {
+        subQuery.addSubmitter?.(this.options.submitter);
       }
-      return built;
+      return subQuery;
     });
   }
 
@@ -144,7 +144,7 @@ export default class APIQueryDispatcher {
     this.logs.push(new LogEntry("DEBUG", null, message).getLog());
     const queries = this._constructQueries(this.APIEdges);
     const startTime = performance.now();
-    const subQueryDispatcher = new SubQueryDispatcher(
+    const subQueryDispatcher = new SubqueryDispatcher(
       queries,
       this.redisClient,
       unavailableAPIs,
