@@ -14,7 +14,6 @@ import { LogEntry, StampedLog } from '@biothings-explorer/utils';
 import { promises as fs } from 'fs';
 import { getDescendants } from '@biothings-explorer/node-expansion';
 import { resolveSRI, SRINodeNormFailure } from 'biomedical_id_resolver';
-import InferredQueryHandler from './inferred_mode/inferred_mode';
 import KGNode from './graph/kg_node';
 import KGEdge from './graph/kg_edge';
 import {
@@ -32,7 +31,6 @@ import { Telemetry } from '@biothings-explorer/utils';
 
 // Exports for external availability
 export * from './types';
-export { getTemplates, supportedLookups } from './inferred_mode/template_lookup';
 export { default as QEdge } from './query_edge';
 export { default as QNode } from './query_node';
 export { default as InvalidQueryGraphError } from './exceptions/invalid_query_graph_error';
@@ -433,11 +431,13 @@ export default class TRAPIQueryHandler {
 
         let log_msg: string;
         if (currentQEdge.reverse) {
-          log_msg = `qEdge ${currentQEdge.id} (reversed): ${currentQEdge.object.categories} > ${currentQEdge.predicate ? `${currentQEdge.predicate} > ` : ''
-            }${currentQEdge.subject.categories}`;
+          log_msg = `qEdge ${currentQEdge.id} (reversed): ${currentQEdge.object.categories} > ${
+            currentQEdge.predicate ? `${currentQEdge.predicate} > ` : ''
+          }${currentQEdge.subject.categories}`;
         } else {
-          log_msg = `qEdge ${currentQEdge.id}: ${currentQEdge.subject.categories} > ${currentQEdge.predicate ? `${currentQEdge.predicate} > ` : ''
-            }${currentQEdge.object.categories}`;
+          log_msg = `qEdge ${currentQEdge.id}: ${currentQEdge.subject.categories} > ${
+            currentQEdge.predicate ? `${currentQEdge.predicate} > ` : ''
+          }${currentQEdge.object.categories}`;
         }
         this.logs.push(new LogEntry('INFO', null, log_msg).getLog());
 
@@ -478,8 +478,9 @@ export default class TRAPIQueryHandler {
     });
     const qEdgesLogStr = qEdgesToLog.length > 1 ? `[${qEdgesToLog.join(', ')}]` : `${qEdgesToLog.join(', ')}`;
     if (len > 0) {
-      const terminateLog = `Query Edge${len !== 1 ? 's' : ''} ${qEdgesLogStr} ${len !== 1 ? 'have' : 'has'
-        } no MetaKG edges. Your query terminates.`;
+      const terminateLog = `Query Edge${len !== 1 ? 's' : ''} ${qEdgesLogStr} ${
+        len !== 1 ? 'have' : 'has'
+      } no MetaKG edges. Your query terminates.`;
       debug(terminateLog);
       this.logs.push(new LogEntry('WARNING', null, terminateLog).getLog());
       return false;
@@ -499,28 +500,6 @@ export default class TRAPIQueryHandler {
   _queryIsOneHop(): boolean {
     const oneHop = Object.keys(this.queryGraph.edges).length === 1;
     return oneHop;
-  }
-
-  async _handleInferredEdges(): Promise<void> {
-    if (!this._queryIsOneHop()) {
-      const message = 'Inferred Mode edges are only supported in single-edge queries. Your query terminates.';
-      debug(message);
-      this.logs.push(new LogEntry('WARNING', null, message).getLog());
-      return;
-    }
-    const inferredQueryHandler = new InferredQueryHandler(
-      this,
-      this.queryGraph,
-      this.logs,
-      this.options,
-      this.path,
-      this.predicatePath,
-      this.includeReasoner,
-    );
-    const inferredQueryResponse = await inferredQueryHandler.query();
-    if (inferredQueryResponse) {
-      this.getResponse = () => inferredQueryResponse;
-    }
   }
 
   async _checkContraints(): Promise<boolean> {
@@ -593,7 +572,8 @@ export default class TRAPIQueryHandler {
       new LogEntry(
         'INFO',
         null,
-        `Execution Summary: (${KGNodes}) nodes / (${kgEdges}) edges / (${results}) results; (${resultQueries}/${queries}) queries${cached ? ` (${cached} cached qEdges)` : ''
+        `Execution Summary: (${KGNodes}) nodes / (${kgEdges}) edges / (${results}) results; (${resultQueries}/${queries}) queries${
+          cached ? ` (${cached} cached qEdges)` : ''
         } returned results from(${sources.length}) unique API${sources.length === 1 ? 's' : ''}`,
       ).getLog(),
       new LogEntry('INFO', null, `APIs: ${sources.join(', ')} `).getLog(),
@@ -650,9 +630,9 @@ export default class TRAPIQueryHandler {
     debug(`(3) All edges created ${JSON.stringify(queryEdges)} `);
 
     if (this._queryUsesInferredMode()) {
-      const span2 = Telemetry.startSpan({ description: 'creativeExecution' });
-      await this._handleInferredEdges();
-      span2?.finish();
+      const message = 'Inferred mode is not supported. Your query terminates.'
+      this.logs.push(new LogEntry('WARNING', null, message).getLog());
+      debug(message);
       return;
     }
 

@@ -141,7 +141,7 @@ export default class BatchEdgeQueryHandler {
     if (nonCachedQEdges.length === 0) {
       queryRecords = [];
       if (global.parentPort) {
-        global.parentPort.postMessage({ threadId, cacheDone: true });
+        global.parentPort.postMessage({ threadId, type: "cacheDone", value: true });
       }
     } else {
       debug('Start to convert qEdges into APIEdges....');

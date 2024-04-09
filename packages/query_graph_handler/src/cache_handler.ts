@@ -212,12 +212,12 @@ export default class CacheHandler {
   async cacheEdges(queryRecords: Record[]): Promise<void> {
     if (this.cacheEnabled === false || process.env.INTERNAL_DISABLE_REDIS === "true") {
       if (global.parentPort) {
-        global.parentPort.postMessage({ threadId, cacheDone: true });
+        global.parentPort.postMessage({ threadId, type: "cacheDone", value: true });
       }
       return;
     }
     if (global.parentPort) {
-      global.parentPort.postMessage({ threadId, cacheInProgress: 1 });
+      global.parentPort.postMessage({ threadId, type: "cacheInProgress", value: 1 });
     }
     debug('Start to cache query records.');
     try {
@@ -229,7 +229,7 @@ export default class CacheHandler {
         // lock to prevent caching to/reading from actively caching edge
         const redisID = 'bte:edgeCache:' + hash;
         if (global.parentPort) {
-          global.parentPort.postMessage({ threadId, addCacheKey: redisID });
+          global.parentPort.postMessage({ threadId, type: "addCacheKey", value: redisID });
         }
         await redisClient.client.usingLock([`redisLock:${redisID}`, 'redisLock:EdgeCaching'], 600000, async () => {
           try {
@@ -258,7 +258,7 @@ export default class CacheHandler {
                 });
             });
             if (process.env.QEDGE_CACHE_TIME_S !== "0") {
-                await redisClient.client.expireTimeout(redisID, process.env.QEDGE_CACHE_TIME_S || 1800);
+              await redisClient.client.expireTimeout(redisID, process.env.QEDGE_CACHE_TIME_S || 1800);
             }
           } catch (error) {
             failedHashes.push(hash);
@@ -267,7 +267,7 @@ export default class CacheHandler {
             );
           } finally {
             if (global.parentPort) {
-              global.parentPort.postMessage({ threadId, completeCacheKey: redisID });
+              global.parentPort.postMessage({ threadId, type: "completeCacheKey", value: redisID });
             }
           }
         });
@@ -284,7 +284,7 @@ export default class CacheHandler {
       debug(`Caching failed due to ${error}. This does not terminate the query.`);
     } finally {
       if (global.parentPort) {
-        global.parentPort.postMessage({ threadId, cacheDone: 1 });
+        global.parentPort.postMessage({ threadId, type: "cacheDone", value: 1 });
       }
     }
   }

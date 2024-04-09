@@ -46,7 +46,7 @@ try {
   debug(error);
 }
 
-async function runTask({
+export default async function runTask({
   req,
   route,
   traceparent,
@@ -59,7 +59,7 @@ async function runTask({
   global.SCHEMA_VERSION = "1.4.0";
 
   global.parentPort = port;
-  port.postMessage({ threadId, registerId: true });
+  port.postMessage({ threadId, type: "registerId" });
   global.cachingTasks = [];
 
   global.queryInformation = {
@@ -120,5 +120,3 @@ async function runTask({
 
   return completedTask;
 }
-
-module.exports = runTask;

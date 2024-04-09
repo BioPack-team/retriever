@@ -15,9 +15,16 @@ import { Telemetry } from "@biothings-explorer/utils";
 import ErrorHandler from "../../middlewares/error";
 import { Request, Response } from "express";
 import { BullJob, PiscinaWaitTime, ThreadPool } from "../../types";
-import { TaskInfo, InnerTaskData } from "@biothings-explorer/types";
-import { DialHome, TrapiQuery, TrapiResponse } from "@biothings-explorer/types";
+import {
+  TaskInfo,
+  TrapiQuery,
+  TrapiResponse,
+  InnerTaskData,
+  QueryHandlerOptions,
+  ThreadMessage,
+} from "@biothings-explorer/types";
 import { Queue } from "bull";
+// import SubqueryRelay from "packages/call-apis/src";
 
 const SYNC_MIN_CONCURRENCY = 2;
 const ASYNC_MIN_CONCURRENCY = 3;
@@ -98,7 +105,7 @@ if (!global.threadpool && !Piscina.isWorkerThread && !(process.env.USE_THREADING
   } as ThreadPool;
 }
 
-async function queueTaskToWorkers(pool: Piscina, taskInfo: TaskInfo, route: string, job?: BullJob): Promise<DialHome> {
+async function queueTaskToWorkers(pool: Piscina, taskInfo: TaskInfo, route: string, job?: BullJob): Promise<ThreadMessage> {
   return new Promise((resolve, reject) => {
     let workerThreadID: string;
     const abortController = new AbortController();
@@ -153,34 +160,37 @@ async function queueTaskToWorkers(pool: Piscina, taskInfo: TaskInfo, route: stri
     } = {};
     const timeout = parseInt(process.env.REQUEST_TIMEOUT ?? (60 * 5).toString()) * 1000;
 
-    fromWorker.on("message", (msg: DialHome) => {
-      if (msg.cacheInProgress) {
-        // Cache handler has started caching
-        cacheInProgress += 1;
-      } else if (msg.addCacheKey) {
-        // Hashed edge id cache in progress
-        cacheKeys[msg.addCacheKey] = false;
-      } else if (msg.completeCacheKey) {
-        // Hashed edge id cache complete
-        cacheKeys[msg.completeCacheKey] = true;
-      } else if (msg.registerId) {
-        // Worker registers itself for better tracking
-        workerThreadID = String(msg.threadId);
-        if (job) {
-          void job.update({ ...job.data, threadId });
-        }
-      } else if (typeof msg.cacheDone !== "undefined") {
-        cacheInProgress = msg.cacheDone
-          ? cacheInProgress - 1 // A caching handler has finished caching
-          : 0; // Caching has been entirely cancelled
-      } else if (typeof msg.result !== "undefined") {
-        // Request has finished with a message
-        reqDone = true;
-        resolve(msg);
-      } else if (msg.err) {
-        // Request has resulted in a catchable error
-        reqDone = true;
-        reject(msg.err);
+    fromWorker.on("message", (msg: ThreadMessage) => {
+      switch (msg.type) {
+        default:
+          debug(`WARNING: received untyped message from thread {msg.threadId}`);
+          break;
+        case "result":
+          reqDone = true;
+          resolve(msg);
+          break;
+        case "error":
+          reqDone = true;
+          reject(msg.value as Error);
+          break;
+        case "cacheInProgress":
+          cacheInProgress += 1;
+          break;
+        case "addCacheKey":
+          cacheKeys[msg.value as string] = false;
+          break;
+        case "completeCacheKey":
+          cacheKeys[msg.value as string] = true;
+          break;
+        case "registerId":
+          workerThreadID = String(msg.threadId);
+          if (job) {
+            void job.update({ ...job.data, threadId });
+          }
+          break;
+        case "cacheDone":
+          cacheInProgress = msg.value ? cacheInProgress - 1 : 0;
+          break;
       }
       if (reqDone && cacheInProgress <= 0 && job) {
         void job.progress(100);
@@ -188,7 +198,6 @@ async function queueTaskToWorkers(pool: Piscina, taskInfo: TaskInfo, route: stri
     });
 
     // Handling for timeouts -- we can kill a thread in progress to free resources
-    // TODO better timeout handling for async?
     if (timeout && pool !== global.threadpool.async) {
       setTimeout(() => {
         // Clean up any incompletely cached hashes to avoid issues pulling from cache
@@ -237,7 +246,7 @@ export async function runTask(req: Request, res: Response, route: string, useBul
 
   if (process.env.USE_THREADING === "false") {
     // Threading disabled, just use the provided function in main event loop
-    const response = await tasks[route](taskInfo) as TrapiResponse;
+    const response = (await tasks[route](taskInfo)) as TrapiResponse;
     return response;
   } else if (!(queryQueue && useBullSync)) {
     // Redis unavailable or query not to sync queue such as asyncquery_status
@@ -247,13 +256,13 @@ export async function runTask(req: Request, res: Response, route: string, useBul
       route,
     );
 
-    if (typeof response.result !== "undefined") {
+    if (response.type === "result") {
       if (response.status) {
         res?.status(response.status as number);
       }
-      return response.result ? response.result : undefined; // null msg means keep response body empty
-    } else if (response.err) {
-      throw response.err;
+      return response.value ? (response.value as TrapiResponse) : undefined; // null msg means keep response body empty
+    } else if (response.type === "error") {
+      throw response.value as Error;
     } else {
       throw new Error("Threading Error: Task resolved without message");
     }
@@ -320,18 +329,18 @@ export async function runBullJob(job: BullJob, route: string, useAsync = true) {
     route,
     job,
   );
-  if (typeof response.result !== "undefined") {
-    return response.result ? response.result : undefined; // null result means keep response body empty
-  } else if (response.err) {
-    throw response.err;
+  if (response.type === "result") {
+    return response.value ? (response.value as TrapiResponse) : undefined; // null result means keep response body empty
+  } else if (response.type === "error") {
+    throw response.value as Error;
   } else {
     throw new Error("Threading Error: Task resolved without message");
   }
 }
 
-export function taskResponse<T>(response: T, status: string | number = undefined): T {
+export function taskResponse<T>(response: T, status: number = undefined): T {
   if (global.parentPort) {
-    global.parentPort.postMessage({ threadId, result: response, status: status });
+    global.parentPort.postMessage({ threadId, type: "result", value: response, status: status } satisfies ThreadMessage);
     return undefined;
   } else {
     return response;
@@ -343,14 +352,13 @@ export function taskError(error: Error): void {
     if (ErrorHandler.shouldHandleError(error)) {
       Telemetry.captureException(error);
     }
-    global.parentPort.postMessage({ threadId, err: error });
+    global.parentPort.postMessage({ threadId, type: "error", value: error });
     return undefined;
   } else {
     throw error;
   }
 }
 
-// TODO: use this usage of runBullTask to figure out runBullTask/queueTaskToWorkers' optional argument
 if (!global.queryQueue.bte_sync_query_queue && !Piscina.isWorkerThread) {
   getQueryQueue("bte_sync_query_queue");
   if (global.queryQueue.bte_sync_query_queue) {
@@ -360,7 +368,6 @@ if (!global.queryQueue.bte_sync_query_queue && !Piscina.isWorkerThread) {
   }
 }
 
-// TODO merge async into one queue
 if (!global.queryQueue.bte_query_queue && !Piscina.isWorkerThread) {
   getQueryQueue("bte_query_queue");
   if (global.queryQueue.bte_query_queue) {
