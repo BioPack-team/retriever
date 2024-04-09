@@ -2,7 +2,7 @@
   "name": "@biothings-explorer/bte-trapi",
   "version": "3.0.0",
   "description": "BioThings Explorer's TRAPI Knowledgebase Query API",
-  "main": "packages/bte-server/built/server.js",
+  "main": "packages/server/built/server.js",
   "scripts": {
     "setup": "pnpm run clone && pnpm i",
     "clone": "./scripts/clone_packages.sh",

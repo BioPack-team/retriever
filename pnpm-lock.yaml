@@ -709,6 +709,9 @@ importers:
       nunjucks:
         specifier: ^3.2.4
         version: 3.2.4
+      piscina:
+        specifier: ^3.2.0
+        version: 3.2.0
     devDependencies:
       '@commitlint/cli':
         specifier: ^11.0.0

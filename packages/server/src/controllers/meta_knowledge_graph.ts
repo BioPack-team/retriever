@@ -4,7 +4,6 @@ import path from "path";
 import PredicatesLoadingError from "../utils/errors/predicates_error";
 const debug = require("debug")("bte:biothings-explorer-trapi:metakg");
 import apiList from "../config/api_list";
-import { supportedLookups } from "@biothings-explorer/query_graph_handler";
 
 interface PredicateInfo {
   predicate: string;
@@ -171,19 +170,19 @@ export default class MetaKnowledgeGraphHandler {
             object: output,
             qualifiers: pred.qualifiers
               ? Object.entries(pred.qualifiers).map(([qual, val]) => {
-                  if (!Array.isArray(val)) {
-                    const [type_id, value] = this._modifyQualifierData(qual, val);
-                    return { qualifier_type_id: type_id, applicable_values: [value] };
-                  } else {
-                    let type_id = this._modifyPredicate(qual);
-                    let values = [];
-                    val.forEach(curVal => {
-                      const [_, value] = this._modifyQualifierData(qual, curVal);
-                      values.push(value);
-                    });
-                    return { qualifier_type_id: type_id, applicable_values: values };
-                  }
-                })
+                if (!Array.isArray(val)) {
+                  const [type_id, value] = this._modifyQualifierData(qual, val);
+                  return { qualifier_type_id: type_id, applicable_values: [value] };
+                } else {
+                  let type_id = this._modifyPredicate(qual);
+                  let values = [];
+                  val.forEach(curVal => {
+                    const [_, value] = this._modifyQualifierData(qual, curVal);
+                    values.push(value);
+                  });
+                  return { qualifier_type_id: type_id, applicable_values: values };
+                }
+              })
               : undefined,
             knowledge_types: ["lookup"],
           };
@@ -192,47 +191,6 @@ export default class MetaKnowledgeGraphHandler {
         });
       });
     });
-    if (!smartAPIID && !teamName) {
-      const has_inferred = {};
-      (await supportedLookups()).forEach(edge => {
-        const { subject, predicate, object, qualifiers } = edge;
-        if (Object.keys(edges).includes(`${subject}-${predicate}-${object}`)) {
-          if (!has_inferred[`${subject}-${predicate}-${object}`])
-            edges[`${subject}-${predicate}-${object}`].knowledge_types.push("inferred");
-          has_inferred[`${subject}-${predicate}-${object}`] = true;
-
-          const cur_edge = edges[`${subject}-${predicate}-${object}`];
-          if (qualifiers) {
-            Object.entries(qualifiers).forEach(([qual, val]) => {
-              const [type_id, value] = this._modifyQualifierData(qual, val);
-              const existing_qualifier = cur_edge.qualifiers?.find(q => q.qualifier_type_id === type_id);
-              if (existing_qualifier) {
-                if (!existing_qualifier.applicable_values.includes(value))
-                  existing_qualifier.applicable_values.push(value);
-              } else {
-                if (!cur_edge.qualifiers) cur_edge.qualifiers = [];
-                cur_edge.qualifiers.push({ qualifier_type_id: type_id, applicable_values: [value] });
-              }
-            });
-          }
-        } else {
-          edges[`${subject}-${predicate}-${object}`] = {
-            subject,
-            predicate,
-            object,
-            qualifiers: qualifiers
-              ? Object.entries(qualifiers).map(([qual, val]) => {
-                  const [type_id, value] = this._modifyQualifierData(qual, val);
-                  return { qualifier_type_id: type_id, applicable_values: [value] };
-                })
-              : undefined,
-            knowledge_types: ["inferred"],
-          };
-          knowledge_graph.edges.push(edges[`${subject}-${predicate}-${object}`]);
-          has_inferred[`${subject}-${predicate}-${object}`] = true;
-        }
-      });
-    }
     Object.keys(node_sets).map(node => {
       knowledge_graph.nodes[node] = { id_prefixes: Array.from(node_sets[node]) };
     });

@@ -4,7 +4,7 @@
 [![codecov](https://codecov.io/gh/biothings/biothings_explorer/branch/main/graph/badge.svg?token=I4A29PQQJK)](https://codecov.io/gh/biothings/biothings_explorer)
 [![ci-cd](https://github.com/biothings/biothings_explorer/actions/workflows/deploy.yml/badge.svg)](https://github.com/biothings/biothings_explorer/actions/workflows/deploy.yml)
 
-## Welcome to @biothings-explorer/bte-server 👋
+## Welcome to @biothings-explorer/server 👋
 
 The server module for the Biothings Explorer workspace.
 

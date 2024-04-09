@@ -1,4 +1,4 @@
-biothings/bte-server.git                     bte-server
+biothings/bte-server.git                     server
 biothings/api-respone-transform.js.git       api-response-transform
 biothings/call-apis.js.git                   call-apis
 biothings/smartapi-kg.js.git                 smartapi-kg

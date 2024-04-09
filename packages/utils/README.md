@@ -4,7 +4,7 @@
 [![codecov](https://codecov.io/gh/biothings/bte-utils/branch/main/graph/badge.svg?token=I4A29PQQJK)](https://codecov.io/gh/biothings/bte-utils)
 
 
-## Welcome to @biothings-explorer/bte-server 👋
+## Welcome to @biothings-explorer/server 👋
 
 The server module for the Biothings Explorer workspace.
 

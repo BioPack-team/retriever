@@ -1,5 +1,5 @@
 {
-  "name": "@biothings-explorer/bte-server",
+  "name": "@biothings-explorer/server",
   "version": "3.0.0",
   "description": "The server component of Biothings Explorer",
   "main": "built/server.js",

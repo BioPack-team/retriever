@@ -7,11 +7,11 @@ async function main() {
   const { default: cron } = await import("./controllers/cron/index");
   const PORT = Number.parseInt(process.env.PORT) || 3000;
   cron();
+  process.env.DEBUG_COLORS = "true";
   app.listen(PORT, () => {
     debug(`Instance Env: ${process.env.INSTANCE_ENV ?? "local"}`);
     console.log(`⭐⭐⭐ BioThings Explorer is ready! ⭐ Try it now @ http://localhost:${PORT} ✨`);
   });
-  process.env.DEBUG_COLORS = "true";
 }
 
 async function testRedisConnection() {
