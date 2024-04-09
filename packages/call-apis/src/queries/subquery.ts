@@ -94,6 +94,12 @@ export default class Subquery {
     }
   }
 
+  get hash(): string {
+    return crypto
+      .createHash("md5")
+      .update(stringify(this.constructAxiosRequestConfig()))
+      .digest("hex");
+  }
 
   /**
    * Construct the request config for Axios reqeust.
