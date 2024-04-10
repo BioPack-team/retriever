@@ -42,7 +42,7 @@
     "debug": "^4.3.4",
     "husky": "^4.3.8",
     "json-stable-stringify": "^1.1.1",
-    "nunjucks": "^3.2.4",
+    "nunjucks": "^3.2.4"
   },
   "devDependencies": {
     "@commitlint/cli": "^11.0.0",
