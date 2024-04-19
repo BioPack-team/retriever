@@ -410,7 +410,7 @@ export default function manageSmartApi() {
     [
       process.env.SMARTAPI_SYNC !== "false", // Shouldn't be explicitly disabled
       process.env.NODE_ENV === "production", // Should be in production mode
-      process.env.INSTANCE_ID !== "0", // Only one PM2 cluster instance should sync
+      process.env.INSTANCE_ID && process.env.INSTANCE_ID === "0", // Only one PM2 cluster instance should sync
     ].every(condition => condition);
 
   if (!should_sync) {
