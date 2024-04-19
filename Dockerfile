@@ -8,7 +8,7 @@
 # docker run -it --rm -p 3000:3000 --name bte-trapi  -e REDIS_HOST=host.docker.internal -e REDIS_PORT=6379 -e DEBUG="biomedical-id-resolver,bte*" biothings/bte-trapi
 # Log into container:
 # docker exec -ti bte-trapi sh
-FROM node:16-alpine
+FROM node:18-alpine
 ARG debug
 RUN apk add --no-cache bash
 SHELL ["/bin/bash", "-c"]
@@ -26,11 +26,7 @@ RUN apk add --no-cache curl
 COPY --chown=node:node . .
 USER node
 
-RUN export GIT_REMOTE_PROTOCOL=https \
-    && pnpm run setup \
-    && pnpm run --silent get_rev > .current_rev 
-    # && pnpm run clean_on_prod \
-    # && (pnpm i --production || true)
+RUN pnpm install
 USER root
 # clean up dependecies from the "build-deps" virtual package
 RUN apk del build-deps
