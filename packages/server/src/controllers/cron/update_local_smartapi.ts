@@ -434,7 +434,6 @@ export default function manageSmartApi() {
   updateSmartAPISpecs()
     .then(() => {
       debug("SmartAPI sync successful.");
-      process.exit(0);
     })
     .catch(err => {
       debug(`Updating local copy of SmartAPI specs failed! The error message is ${err.toString()}`);
