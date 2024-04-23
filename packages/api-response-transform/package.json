@@ -67,7 +67,7 @@
     "husky": "^8.0.3",
     "jsonata": "^1.8.6",
     "lodash": "^4.17.21",
-    "node-jq": "^4.2.2"
+    "node-jq": "^4.3.1"
   },
   "husky": {
     "hooks": {
