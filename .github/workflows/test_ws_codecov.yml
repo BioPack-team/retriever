@@ -15,7 +15,7 @@ jobs:
 
     - uses: actions/checkout@v3
       with:
-        repository: biothings/biothings_explorer
+        repository: BioPack-team/retriever
         ref: ${{ steps.branch-name.outputs.current_branch }}
 
     - name: Use Node.js 18.x
@@ -30,7 +30,6 @@ jobs:
 
     - name: pnpm install, generate coverage report
       run: |
-        pnpm run clone
         pnpm run git checkout ${{ steps.branch-name.outputs.current_branch }}
         pnpm i
         pnpm run test-cov
@@ -38,6 +37,6 @@ jobs:
     - name: Send coverage report to codecov for visualization
       uses: codecov/codecov-action@v3
       with:
-        # working-directory: ./packages/@biothings-explorer/bte-trapi
+        # working-directory: ./packages/@retriever/bte-trapi
         files: ./coverage/lcov.info
         verbose: true
