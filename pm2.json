@@ -1,7 +1,7 @@
 {
   "apps": [
     {
-      "name": "bte-trapi",
+      "name": "retriever",
       "cwd": ".",
       "script": "./packages/server/built/server.js",
       "node_args": [
@@ -39,7 +39,7 @@
         "REDIS_CLUSTER": true
       },
       "env_dev": {
-        "DEBUG": "biomedical-id-resolver,bte*",
+        "DEBUG": "DEBUG=biomedical-id-resolver,retriever*",
         "REDIS_HOST": "localhost",
         "REDIS_PORT": 6379,
         "RESULT_CACHING": false

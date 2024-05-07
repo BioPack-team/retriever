@@ -1,15 +1,15 @@
 version: '3'
 services:
-  bte:
-    container_name: bte-trapi
+  retriever:
+    container_name: retriever
     restart: on-failure
     build: .
-    image: biothings/bte-trapi
+    image: BioPack-team/retriever
     ports:
       - '3000:3000'
     env_file: .compose-env
   redis:
-    container_name: bte-redis
+    container_name: retriever-redis
     restart: on-failure
     image: "redis:alpine"
     volumes:

@@ -1,5 +1,5 @@
 REDIS_HOST=redis
 REDIS_PORT=6379
-DEBUG=biomedical-id-resolver,bte*
+DEBUG=biomedical-id-resolver,retriever*
 DEBUG_COLORS=true
 

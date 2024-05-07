@@ -1,13 +1,13 @@
 # Build (remove --squash if docker does not support it):
-# docker build --rm --force-rm --compress --squash -t biothings/bte-trapi .
+# docker build --rm --force-rm --compress --squash -t BioPack-team/retriever .
 # Run:
-# docker run -it --rm -p 3000:3000 --name bte-trapi biothings/bte-trapi
+# docker run -it --rm -p 3000:3000 --name retriever BioPack-team/retriever
 # Run with DEBUG logs enabled:
-# docker run -it --rm -p 3000:3000 --name bte-trapi -e DEBUG="biomedical-id-resolver,bte*" biothings/bte-trapi
+# docker run -it --rm -p 3000:3000 --name retriever -e DEBUG="biomedical-id-resolver,retriever*" BioPack-team/retriever
 # Run with redis-server running on host:
-# docker run -it --rm -p 3000:3000 --name bte-trapi  -e REDIS_HOST=host.docker.internal -e REDIS_PORT=6379 -e DEBUG="biomedical-id-resolver,bte*" biothings/bte-trapi
+# docker run -it --rm -p 3000:3000 --name retriever  -e REDIS_HOST=host.docker.internal -e REDIS_PORT=6379 -e DEBUG="biomedical-id-resolver,retriever*" BioPack-team/retriever
 # Log into container:
-# docker exec -ti bte-trapi sh
+# docker exec -ti retriever sh
 FROM node:18-alpine
 ARG debug
 RUN apk add --no-cache bash
@@ -35,7 +35,7 @@ RUN pm2 install pm2-logrotate
 RUN pm2 set pm2-logrotate:max_size 1G
 EXPOSE 3000
 ENV NODE_ENV production
-ENV DEBUG ${debug:+biomedical-id-resolver,bte*}
+ENV DEBUG ${debug:+biomedical-id-resolver,retriever*}
 ENV API_OVERRIDE true
 # ENV USE_THREADING ${debug:+false}
-CMD ["pm2-runtime", "bte-pm2.json", "--env prodci", "--only", "bte-trapi"]
+CMD ["pm2-runtime", "pm2.json", "--env prodci", "--only", "retriever"]
