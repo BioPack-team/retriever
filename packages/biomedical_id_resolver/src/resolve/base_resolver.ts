@@ -1,7 +1,7 @@
 import { IResolver, ResolverOutput, DBIdsObject } from '../common/types';
 import { IrresolvableBioEntity } from '../bioentity/irresolvable_bioentity';
 import Debug from 'debug';
-const debug = Debug('biomedical-id-resolver:resolver');
+const debug = Debug('retriever:biomedical-id-resolver:resolver');
 
 export default abstract class BaseResolver implements IResolver {
   protected annotateUnresolvedInputs(unresolvedInputs: DBIdsObject, currentResult: ResolverOutput): ResolverOutput {

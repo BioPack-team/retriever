@@ -1,4 +1,4 @@
-import { APIDefinition } from "@biothings-explorer/types";
+import { APIDefinition } from "@retriever/types";
 import { readFileSync } from "fs";
 import yaml from "js-yaml";
 import path = require("path");

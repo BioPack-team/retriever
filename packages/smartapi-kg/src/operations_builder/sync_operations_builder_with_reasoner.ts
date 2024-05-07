@@ -5,7 +5,7 @@ import fs from "fs";
 import { SmartAPIKGOperationObject } from "../parser/types";
 import { PredicatesMetadata } from "../types";
 import Debug from "debug";
-const debug = Debug("bte:smartapi-kg:SyncOperationsBuilderWithReasoner");
+const debug = Debug("retriever:smartapi-kg:SyncOperationsBuilderWithReasoner");
 import { SmartAPISpec } from "../parser/types";
 
 declare global {
@@ -77,9 +77,9 @@ export default class SyncOperationsBuilderWithReasoner extends BaseOperationsBui
                 path: "/query",
                 method: "post",
                 server: metadata.query_operation.server,
-                path_params: undefined,
+                pathParams: undefined,
                 params: undefined,
-                request_body: undefined,
+                requestBody: undefined,
                 supportBatch: true,
                 inputSeparator: ",",
                 tags: [...metadata.tags, ...["bte-trapi"]],

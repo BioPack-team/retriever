@@ -2,7 +2,7 @@ import AllSpecsSyncLoader from "./all_specs_sync_loader";
 import { apiListObject, SmartAPIQueryResult } from "../types";
 import { SmartAPISpec } from "../parser/types";
 import Debug from "debug";
-const debug = Debug("bte:smartapi-kg:SingleSpecSyncLoader");
+const debug = Debug("retriever:smartapi-kg:SingleSpecSyncLoader");
 
 export default class SingleSpecSyncLoader extends AllSpecsSyncLoader {
   private _smartAPIID: string;

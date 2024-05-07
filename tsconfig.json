@@ -13,8 +13,7 @@
   "exclude": [
     "**/node_modules/**",
     "**/__test__/**",
-    "**/packages/**",
-    "./packages/server/src/web-app/dist/*"
+    "**/packages/**"
   ],
   "references": []
 }

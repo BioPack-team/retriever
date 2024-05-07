@@ -1,21 +1,16 @@
-import MetaKG from '@biothings-explorer/smartapi-kg';
+import MetaKG, { SmartAPISpec } from '@retriever/smartapi-kg';
 import path from 'path';
-import QueryGraph from './query_graph';
-import KnowledgeGraph from './graph/knowledge_graph';
 import TrapiResultsAssembler from './results_assembly/query_results';
-import InvalidQueryGraphError from './exceptions/invalid_query_graph_error';
+import { InvalidQueryGraphError } from '@retriever/types';
 import Debug from 'debug';
-const debug = Debug('bte:biothings-explorer-trapi:main');
-import Graph from './graph/graph';
+const debug = Debug('retriever:main');
 import EdgeManager from './edge_manager';
 import _ from 'lodash';
 import QEdge2APIEdgeHandler from './qedge2apiedge';
-import { LogEntry, StampedLog } from '@biothings-explorer/utils';
+import { LogEntry, StampedLog } from '@retriever/utils';
 import { promises as fs } from 'fs';
-import { getDescendants } from '@biothings-explorer/node-expansion';
+import { getDescendants } from '@retriever/node-expansion';
 import { resolveSRI, SRINodeNormFailure } from 'biomedical_id_resolver';
-import KGNode from './graph/kg_node';
-import KGEdge from './graph/kg_edge';
 import {
   TrapiAuxGraphCollection,
   TrapiAuxiliaryGraph,
@@ -24,16 +19,12 @@ import {
   TrapiResponse,
   TrapiResult,
 } from './types';
-import { QueryHandlerOptions } from '@biothings-explorer/types';
-import BTEGraph from './graph/graph';
-import QEdge from './query_edge';
-import { Telemetry } from '@biothings-explorer/utils';
+import { QueryHandlerOptions } from '@retriever/types';
+import { BTEGraph, QEdge, QNode, KGNode, KGEdge, KnowledgeGraph, QueryGraph } from "@retriever/graph";
+import { Telemetry } from '@retriever/utils';
 
 // Exports for external availability
 export * from './types';
-export { default as QEdge } from './query_edge';
-export { default as QNode } from './query_node';
-export { default as InvalidQueryGraphError } from './exceptions/invalid_query_graph_error';
 export * from './qedge2apiedge';
 
 export default class TRAPIQueryHandler {
@@ -76,8 +67,7 @@ export default class TRAPIQueryHandler {
     const inforesIds: string[] = [];
     const unregisteredAPIs: string[] = [];
 
-    // TODO typing for smartapiRegistration
-    JSON.parse(smartapiRegistry).hits.forEach((smartapiRegistration) => {
+    JSON.parse(smartapiRegistry).hits.forEach((smartapiRegistration: SmartAPISpec) => {
       smartapiIds.push(smartapiRegistration._id);
       inforesIds.push(smartapiRegistration.info?.['x-translator']?.infores);
     });
@@ -97,7 +87,7 @@ export default class TRAPIQueryHandler {
     const metaKG = new MetaKG(this.path, this.predicatePath);
     debug(
       `Query options are: ${JSON.stringify({
-        ...this.options,
+        ..._.omit(this.options, "apiList"),
         schema: this.options.schema ? this.options.schema.info.version : 'not included',
       })}`,
     );
@@ -175,8 +165,8 @@ export default class TRAPIQueryHandler {
           { resource_id: source, resource_role: 'primary_knowledge_source' },
           {
             resource_id: this.options.provenanceUsesServiceProvider
-              ? 'infores:service-provider-trapi'
-              : 'infores:biothings-explorer',
+              ? 'infores:retriever-non-trapi'
+              : 'infores:retriever',
             resource_role: 'aggregator_knowledge_source',
           },
         ]);
@@ -222,8 +212,8 @@ export default class TRAPIQueryHandler {
         boundEdge.addSource([
           {
             resource_id: this.options.provenanceUsesServiceProvider
-              ? 'infores:service-provider-trapi'
-              : 'infores:biothings-explorer',
+              ? 'infores:retriever-non-trapi'
+              : 'infores:retriever',
             resource_role: 'primary_knowledge_source',
           },
         ]);
@@ -390,7 +380,7 @@ export default class TRAPIQueryHandler {
   _initializeResponse(): void {
     this.knowledgeGraph = new KnowledgeGraph(this.options?.apiList?.include);
     this.trapiResultsAssembler = new TrapiResultsAssembler(this.options);
-    this.bteGraph = new Graph();
+    this.bteGraph = new BTEGraph();
     this.bteGraph.subscribe(this.knowledgeGraph);
   }
 
@@ -572,8 +562,8 @@ export default class TRAPIQueryHandler {
       new LogEntry(
         'INFO',
         null,
-        `Execution Summary: (${KGNodes}) nodes / (${kgEdges}) edges / (${results}) results; (${resultQueries}/${queries}) queries${
-          cached ? ` (${cached} cached qEdges)` : ''
+        `Execution Summary: (${KGNodes}) nodes / (${kgEdges}) edges / (${results}) results; (${resultQueries}/${queries}) subqueries${
+          cached ? ` (${cached} cached subqueries)` : ''
         } returned results from(${sources.length}) unique API${sources.length === 1 ? 's' : ''}`,
       ).getLog(),
       new LogEntry('INFO', null, `APIs: ${sources.join(', ')} `).getLog(),

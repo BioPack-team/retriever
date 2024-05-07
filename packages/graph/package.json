@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@retriever/graph",
+  "version": "1.0.0",
+  "description": "A collection of common graph handlers used by Retriever",
+  "main": "./built/index.js",
+  "types": "./built/index.d.ts",
+  "scripts": {
+    "prepare": "npm run build",
+    "build": "tsc -b",
+    "clean": "rimraf ./built './**/tsconfig.tsbuildinfo'",
+    "build:clean": "pnpm run clean && pnpm run build",
+    "format": "prettier --check 'src/**/*.js'",
+    "format:fix": "prettier --write 'src/**/*.js'",
+    "lint": "eslint . --ext .js",
+    "lint:fix": "pnpm lint --fix",
+    "test": "jest",
+    "test-cov": "jest --coverage"
+  },
+  "keywords": [
+    "BioPack",
+    "retriever",
+    "biothings",
+    "single",
+    "hop",
+    "query"
+  ],
+  "author": "BioPack Team",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/BioPack-team/retriever/issues"
+  },
+  "homepage": "https://github.com/BioPack-team/retriever#readme",
+  "dependencies": {
+    "@retriever/smartapi-kg": "workspace:../smartapi-kg",
+    "@retriever/utils": "workspace:../utils",
+    "@retriever/types": "workspace:../types",
+    "@retriever/biomedical_id_resolver": "workspace:../biomedical_id_resolver"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12"
+  }
+}

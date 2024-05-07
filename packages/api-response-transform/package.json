@@ -1,5 +1,5 @@
 {
-  "name": "@biothings-explorer/api-response-transform",
+  "name": "@retriever/api-response-transform",
   "version": "1.12.0",
   "description": "a NodeJS library to transform API responses into biolink model",
   "main": "built/index.js",
@@ -18,20 +18,22 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/biothings/api-respone-transform.js.git"
+    "url": "git+https://github.com/BioPack-team/retriever"
   },
   "keywords": [
+    "BioPack",
+    "retriever",
     "transform",
     "biolink",
     "api",
     "json"
   ],
-  "author": "BioThings Team",
+  "author": "BioPack Team",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/biothings/api-respone-transform.js/issues"
+    "url": "https://github.com/BioPack-team/retriever/issues"
   },
-  "homepage": "https://github.com/biothings/api-respone-transform.js#readme",
+  "homepage": "https://github.com/BioPack-team/retriever#readme",
   "devDependencies": {
     "@babel/core": "^7.23.2",
     "@babel/preset-env": "^7.23.2",
@@ -58,7 +60,10 @@
     "typescript": "^5.2.2"
   },
   "dependencies": {
-    "@biothings-explorer/utils": "workspace:../utils",
+    "@retriever/utils": "workspace:../utils",
+    "@retriever/types": "workspace:../types",
+    "@retriever/graph": "workspace:../graph",
+    "@retriever/smartapi-kg": "workspace:../smartapi-kg",
     "@commitlint/cli": "^17.8.1",
     "@commitlint/config-conventional": "^11.0.0",
     "async": "^3.2.4",

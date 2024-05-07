@@ -1,7 +1,7 @@
 import path from "path";
 import fs from "fs";
 import Debug from "debug";
-const debug = Debug("bte:biothings-explorer-trapi:performance");
+const debug = Debug("retriever:performance");
 import * as utils from "../utils/common";
 import { Express } from "express";
 

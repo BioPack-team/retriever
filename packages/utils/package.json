@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "name": "@biothings-explorer/utils",
+  "name": "@retriever/utils",
   "version": "1.0.0",
-  "description": "A bundle of commonly-used utilities within other BTE modules",
+  "description": "A bundle of commonly-used utilities within other Retriever modules",
   "main": "./built/index.js",
   "types": "./built/index.d.ts",
   "scripts": {
@@ -18,22 +18,24 @@
     "lint:fix": "pnpm lint --fix"
   },
   "keywords": [
+    "BioPack",
+    "retriever",
     "api",
-    "biothings",
-    "explorer"
+    "biothings"
   ],
   "author": "Jackson Callaghan",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/biothings/bte-utils/issues"
+    "url": "https://github.com/BioPack-team/retriever#issues"
   },
-  "homepage": "https://github.com/biothings/bbte-utils#readme",
+  "homepage": "https://github.com/BioPack-team/retriever#readme",
   "devDependencies": {
     "@commitlint/cli": "^18.2.0",
     "@commitlint/config-conventional": "^11.0.0",
     "@types/debug": "^4.1.10",
     "@types/jest": "^29.5.7",
     "@types/lodash": "^4.14.200",
+    "@types/lz4": "^0.6.4",
     "@types/node": "^20.8.10",
     "@typescript-eslint/eslint-plugin": "^6.8.0",
     "@typescript-eslint/parser": "^6.8.0",
@@ -53,6 +55,8 @@
   },
   "dependencies": {
     "@opentelemetry/api": "^1.7.0",
+    "@retriever/biolink-model": "workspace:../biolink-model",
+    "@retriever/types": "workspace:../types",
     "@sentry/node": "^7.74.1",
     "debug": "^4.3.4",
     "ioredis": "^5.3.2",

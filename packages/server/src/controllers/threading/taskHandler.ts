@@ -3,7 +3,7 @@ import "../opentelemetry";
 import { isMainThread, threadId } from "worker_threads";
 import Piscina from "piscina";
 import Debug from "debug";
-const debug = Debug(`bte:biothings-explorer-trapi:worker${threadId}`);
+const debug = Debug(`retriever:worker${threadId}`);
 
 if (!isMainThread) {
   // Log thread start before BioLink model loads
@@ -15,8 +15,8 @@ import { getQueryQueue } from "../async/asyncquery_queue";
 import * as Sentry from "@sentry/node";
 import { ProfilingIntegration } from "@sentry/profiling-node";
 import OpenTelemetry, { Span } from "@opentelemetry/api";
-import { Telemetry } from "@biothings-explorer/utils";
-import { InnerTaskData } from "@biothings-explorer/types";
+import { Telemetry } from "@retriever/utils";
+import { InnerTaskData } from "@retriever/types";
 
 // use SENTRY_DSN environment variable
 try {
@@ -29,7 +29,7 @@ try {
       new Sentry.Integrations.Http({ tracing: true }),
     ],
     environment: process.env.INSTANCE_ENV,
-    debug: true,
+    debug: false,
     normalizeDepth: 6,
     maxBreadcrumbs: 500,
     // Set tracesSampleRate to 1.0 to capture 100%
@@ -51,15 +51,15 @@ export default async function runTask({
   route,
   traceparent,
   tracestate,
-  port,
+  workerSide,
   job = { jobId: undefined, queueName: undefined },
 }: InnerTaskData) {
   debug(`Worker thread ${threadId} beginning ${Piscina.workerData.queue} task.`);
 
   global.SCHEMA_VERSION = "1.4.0";
 
-  global.parentPort = port;
-  port.postMessage({ threadId, type: "registerId" });
+  global.workerSide = workerSide;
+  workerSide.postMessage({ threadId, type: "registerId" });
   global.cachingTasks = [];
 
   global.queryInformation = {
@@ -91,7 +91,7 @@ export default async function runTask({
     });
 
     span = OpenTelemetry.trace
-      .getTracer("biothings-explorer-thread")
+      .getTracer("retriever-thread")
       .startSpan(
         routeNames[route],
         undefined,

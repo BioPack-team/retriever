@@ -1,5 +1,5 @@
 {
-  "name": "@biothings-explorer/node-expansion",
+  "name": "@retriever/node-expansion",
   "version": "1.0.1",
   "description": "Module for expanding terms to children.",
   "main": "built/index.js",

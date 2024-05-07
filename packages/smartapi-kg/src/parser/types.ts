@@ -4,7 +4,7 @@ export interface XTranslatorObject {
   infores?: string;
 }
 
-interface SmartAIPInfoObject {
+export interface SmartAIPInfoObject {
   title: string;
   version: string;
   description?: string;
@@ -12,7 +12,7 @@ interface SmartAIPInfoObject {
   [propName: string]: any;
 }
 
-interface SmartAPIServerObject {
+export interface SmartAPIServerObject {
   url: string;
   description?: string;
   variables?: any;
@@ -33,20 +33,20 @@ export interface SmartAPIParameterObject {
   allowEmptyValue?: boolean;
 }
 
-interface SmartAPIMediaTypeObject {
+export interface SmartAPIMediaTypeObject {
   example?: any;
   schema?: any;
   examples?: any;
   encoding?: any;
 }
 
-interface SmartAPIRequestBodyObject {
+export interface SmartAPIRequestBodyObject {
   description?: string;
   content: SmartAPIMediaTypeObject[];
   required?: boolean;
 }
 
-interface SmartAPIResponsesObject {
+export interface SmartAPIResponsesObject {
   description: string;
   headers: any;
   content: any;
@@ -91,7 +91,7 @@ export interface SmartAPIPathsObject {
   [path: string]: SmartAPIPathItemObject;
 }
 
-interface SmartAPITagObject {
+export interface SmartAPITagObject {
   name: string;
   description?: string;
   externalDocs?: any;
@@ -173,15 +173,21 @@ export interface QueryOperationInterface {
   method: string;
   server: string;
   tags: string[];
-  path_params: string[];
+  pathParams: string[];
   params: XBTEParametersObject;
-  request_body: any;
+  requestBody: any;
   requestBodyType?: string;
   supportBatch: boolean;
   batchSize?: number;
   inputSeparator: string;
   useTemplating?: boolean;
   templateInputs?: any;
+  transformer?: {
+    jq: {
+      wrap: string;
+      pair: string;
+    };
+  };
 }
 
 export interface SmartAPIKGOperationObject {

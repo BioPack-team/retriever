@@ -21,7 +21,7 @@ import { ResolvableBioEntity } from '../../bioentity/valid_bioentity';
 import { IrresolvableBioEntity } from '../../bioentity/irresolvable_bioentity';
 import { QueryBuilder } from './base_builder';
 import Debug from 'debug';
-const debug = Debug('biomedical-id-resolver:QueryBuilder');
+const debug = Debug('retriever:biomedical-id-resolver:QueryBuilder');
 
 export class BioThingsQueryBuilder extends QueryBuilder {
   static queryTemplate: string = 'q={inputs}&scopes={scopes}&fields={fields}&dotfield=true&species=human';

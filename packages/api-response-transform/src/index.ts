@@ -7,18 +7,17 @@ import BaseTransformer from "./transformers/transformer";
 import TRAPITransformer from "./transformers/trapi_transformer";
 import EBIProteinTransformer from "./transformers/ebi_protein_transformer";
 import JQTransformer from "./transformers/jq_transformer";
-import { BTEQueryObject } from "./types";
-import { Record } from "./record";
+import { RetrieverQueryObject } from "./types";
+import { Record } from "@retriever/graph";
 import Debug from "debug";
-const debug = Debug("bte:api-response-transform:index");
-export * from "./record";
+const debug = Debug("retriever:api-response-transform:index");
 export * from "./types";
 
 export default class Transformer {
-  private data: BTEQueryObject;
+  private data: RetrieverQueryObject;
   private tf: BaseTransformer;
   config: any;
-  constructor(data: BTEQueryObject, config: any) {
+  constructor(data: RetrieverQueryObject, config: any) {
     this.data = data;
     this.config = config;
     this.route();
@@ -46,12 +45,18 @@ export default class Transformer {
     } else if (api.startsWith("SEMMED")) {
       this.tf = new SemmedTransformer(this.data, this.config);
     } else if (api === "Monarch API") {
-      this.tf = new JQTransformer(this.data, { ...this.config, type: "monarch" });
+      this.tf = new JQTransformer(this.data, {
+        ...this.config,
+        type: "monarch",
+      });
     } else if (api === "EBI Proteins API") {
       // this.tf = new EBIProteinTransformer(this.data, this.config)
       this.tf = new JQTransformer(this.data, { ...this.config, type: "ebi" });
     } else if (tags.includes("biothings")) {
-      this.tf = new JQTransformer(this.data, { ...this.config, type: "biothings" });
+      this.tf = new JQTransformer(this.data, {
+        ...this.config,
+        type: "biothings",
+      });
     } else if (tags.includes("ctd")) {
       this.tf = new JQTransformer(this.data, { ...this.config, type: "ctd" });
     } else if (tags.includes("opentarget")) {

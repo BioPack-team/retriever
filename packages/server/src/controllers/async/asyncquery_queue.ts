@@ -1,11 +1,11 @@
-import "@biothings-explorer/types";
+import "@retriever/types";
 import Queue, { Queue as BullQueue, FailedEventCallback } from "bull";
 import axios from "axios";
-import { redisClient, getNewRedisClient } from "@biothings-explorer/utils";
+import { redisClient, getNewRedisClient } from "@retriever/utils";
 import Debug from "debug";
-import { TrapiLog, TrapiQueryGraph } from "@biothings-explorer/types";
+import { TrapiLog, TrapiQueryGraph } from "@retriever/types";
 import { BullJob } from "../../types";
-const debug = Debug("bte:biothings-explorer-trapi:asyncquery_queue");
+const debug = Debug("retriever:asyncquery_queue");
 import { Redis } from "ioredis";
 import { QueryQueue } from "packages/types/src/global";
 

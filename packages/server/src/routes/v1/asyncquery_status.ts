@@ -1,5 +1,5 @@
 import path from "path";
-import { LogEntry, redisClient } from "@biothings-explorer/utils";
+import { LogEntry, redisClient } from "@retriever/utils";
 import { getQueryQueue } from "../../controllers/async/asyncquery_queue";
 import { getQueryResponse } from "../../controllers/async/asyncquery";
 import * as utils from "../../utils/common";
@@ -7,9 +7,9 @@ import * as utils from "../../utils/common";
 import swaggerValidation from "../../middlewares/validate";
 import { runTask, taskResponse, taskError } from "../../controllers/threading/threadHandler";
 import Debug from "debug";
-const debug = Debug("bte:biothings-explorer-trapi:async");
+const debug = Debug("retriever:async");
 import { Express, NextFunction, Request, RequestHandler, Response } from "express";
-import { TaskInfo, TrapiAsyncStatusResponse, TrapiLog, TrapiResponse } from "@biothings-explorer/types";
+import { TaskInfo, TrapiAsyncStatusResponse, TrapiLog, TrapiResponse } from "@retriever/types";
 import { BteRoute } from "../../types";
 import { Queue } from "bull";
 import StatusError from "../../utils/errors/status_error";

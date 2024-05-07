@@ -5,14 +5,40 @@
     "outDir": "./built",
     "rootDir": "./src",
     "paths": {
-      "@biothings-explorer/utils": ["../utils"]
+      "@retriever/utils": [
+        "../utils"
+      ],
+      "@retriever/types": [
+        "../types"
+      ],
+      "@retriever/graph": [
+        "../graph"
+      ],
+      "@retriever/smartapi_kg": [
+        "../smartapi-kg"
+      ]
     }
   },
-  "include": ["./src/**/*"],
-  "exclude": ["node_modules", "__tests__/"],
+  "include": [
+    "./src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "__tests__/"
+  ],
   "references": [
     {
       "path": "../utils"
+    },
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../graph"
+    },
+    {
+      "path": "../smartapi-kg"
     }
+
   ]
 }

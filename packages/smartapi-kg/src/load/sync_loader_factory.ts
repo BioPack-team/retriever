@@ -7,7 +7,7 @@ import APIListSpecsSyncLoader from "./api_list_specs_sync_loader";
 import { SmartAPISpec } from "../parser/types";
 import { apiListObject } from "../types";
 import Debug from "debug";
-const debug = Debug("bte:smartapi-kg:SyncLoader");
+const debug = Debug("retriever:smartapi-kg:SyncLoader");
 
 export const syncLoaderFactory = (
   smartAPIID: string = undefined,

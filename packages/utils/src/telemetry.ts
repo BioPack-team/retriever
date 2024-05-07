@@ -1,7 +1,7 @@
 import * as Sentry from "@sentry/node";
 import Debug from "debug";
 import opentelemetry, { Span as OtelSpan, Context as OtelContext, SpanStatusCode } from '@opentelemetry/api';
-const debug = Debug("bte:telemetry-interface");
+const debug = Debug("retriever:telemetry-interface");
 
 const reassurance = "This doesn't affect execution";
 
@@ -15,7 +15,7 @@ class Span {
         ?.getTransaction()
         ?.startChild(data);
 
-      this.otelSpan = opentelemetry.trace.getTracer('biothings-explorer-thread').startSpan((data as any).description ?? "", undefined, opentelemetry.trace.setSpan(opentelemetry.context.active(), Telemetry.getOtelSpan()));
+      this.otelSpan = opentelemetry.trace.getTracer('retriever-thread').startSpan((data as any).description ?? "", undefined, opentelemetry.trace.setSpan(opentelemetry.context.active(), Telemetry.getOtelSpan()));
     } catch (error) {
       debug(`Sentry span start error. ${reassurance}`);
       debug(error);
@@ -25,7 +25,7 @@ class Span {
   setData(key: string, data: unknown) {
     try {
       this.span?.setData(key, data);
-      this.otelSpan?.setAttribute(`bte.${key}`, typeof data === 'object' ? JSON.stringify(data) : data as any);
+      this.otelSpan?.setAttribute(`retriever.${key}`, typeof data === 'object' ? JSON.stringify(data) : data as any);
     } catch (error) {
       debug(`Sentry setData error. ${reassurance}`);
       debug(error);

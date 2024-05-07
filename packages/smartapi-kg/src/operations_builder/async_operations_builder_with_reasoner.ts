@@ -4,7 +4,7 @@ import { ReasonerPredicatesResponse } from "../types";
 import API from "../parser/index";
 import axios from "axios";
 import Debug from "debug";
-const debug = Debug("bte:smartapi-kg:OperationsBuilder");
+const debug = Debug("retriever:smartapi-kg:OperationsBuilder");
 
 export default class AsyncOperationsBuilderWithReasoner extends AsyncOperationsBuilder {
   private getTRAPIWithPredicatesEndpoint(specs: SmartAPISpec[]): ParsedAPIMetadataObject[] {
@@ -76,9 +76,9 @@ export default class AsyncOperationsBuilderWithReasoner extends AsyncOperationsB
                 path: "/query",
                 method: "post",
                 server: metadata.url,
-                path_params: undefined,
+                pathParams: undefined,
                 params: undefined,
-                request_body: undefined,
+                requestBody: undefined,
                 supportBatch: true,
                 inputSeparator: ",",
                 tags: [...metadata.tags, ...["bte-trapi"]],

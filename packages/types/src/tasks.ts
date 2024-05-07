@@ -57,7 +57,7 @@ export interface InnerTaskData {
   route: string;
   traceparent?: string;
   tracestate?: string;
-  port: MessagePort;
+  workerSide: MessagePort;
   job?: {
     jobId: string | number;
     queueName: string;

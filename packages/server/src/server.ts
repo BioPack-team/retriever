@@ -1,5 +1,5 @@
 import Debug from "debug";
-const debug = Debug("bte:biothings-explorer-trapi:server-start");
+const debug = Debug("retriever:server-start");
 
 async function main() {
   await testRedisConnection(); // must happen before app to avoid issues
@@ -15,7 +15,7 @@ async function main() {
 }
 
 async function testRedisConnection() {
-  const { redisClient } = await import("@biothings-explorer/utils");
+  const { redisClient } = await import("@retriever/utils");
 
   if (redisClient.clientEnabled) {
     // redis enabled

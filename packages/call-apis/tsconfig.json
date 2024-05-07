@@ -5,10 +5,12 @@
     "rootDir": "./src",
     "outDir": "./built",
     "paths": {
-      "@biothings-explorer/smartapi-kg": ["../smartapi-kg"],
-      "@biothings-explorer/api-response-transform": ["../api-response-transform"],
+      "@retriever/smartapi-kg": ["../smartapi-kg"],
+      "@retriever/api-response-transform": ["../api-response-transform"],
       "biomedical_id_resolver": ["../biomedical_id_resolver"],
-      "@biothings-explorer/utils": ["../utils"]
+      "@retriever/utils": ["../utils"],
+      "@retriever/types": ["../types"],
+      "@retriever/graph": ["../graph"]
     }
   },
   "include": ["./src/**/*"],
@@ -25,6 +27,12 @@
     },
     {
       "path": "../utils"
+    },
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../graph"
     }
   ]
 }

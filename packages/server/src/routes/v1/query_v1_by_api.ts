@@ -1,4 +1,4 @@
-import TRAPIQueryHandler from "@biothings-explorer/query_graph_handler";
+import TRAPIQueryHandler from "@retriever/query_graph_handler";
 import swaggerValidation from "../../middlewares/validate";
 import path from "path";
 const smartAPIPath = path.resolve(
@@ -13,7 +13,7 @@ import * as utils from "../../utils/common";
 import { runTask, taskResponse, taskError } from "../../controllers/threading/threadHandler";
 import apiList from "../../config/api_list";
 import { BteRoute } from "../../types";
-import { TaskInfo } from "@biothings-explorer/types";
+import { TaskInfo } from "@retriever/types";
 import { Express, NextFunction, Request, RequestHandler, Response } from "express";
 
 class V1QueryByAPI implements BteRoute {

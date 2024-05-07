@@ -3,7 +3,7 @@ import _ from "lodash";
 import { FilterCriteria, ObjectWithValueAsSet, CompactQualifiers } from "./types";
 import { SmartAPIKGOperationObject } from "./parser/types";
 // import Debug from "debug";
-// const debug = Debug("bte:smartapi-kg:Filter");
+// const debug = Debug("retriever:smartapi-kg:Filter");
 
 const getUniqueValsForEachField = (operations: SmartAPIKGOperationObject[]): ObjectWithValueAsSet => {
   const allValues = {} as ObjectWithValueAsSet;

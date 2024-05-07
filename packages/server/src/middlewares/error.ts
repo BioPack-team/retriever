@@ -1,14 +1,14 @@
 import swaggerValidation from "./validate";
-import { InvalidQueryGraphError } from "@biothings-explorer/query_graph_handler";
+import { InvalidQueryGraphError } from "@retriever/types";
 import PredicatesLoadingError from "../utils/errors/predicates_error";
 import MetaKGLoadingError from "../utils/errors/metakg_error";
 import ServerOverloadedError from "../utils/errors/server_overloaded_error";
 import Debug from "debug";
-const debug = Debug("bte:biothings-explorer-trapi:error_handler");
+const debug = Debug("retriever:error_handler");
 import * as Sentry from "@sentry/node";
 import { Express, NextFunction, Request, Response } from "express";
 import StatusError from "../utils/errors/status_error";
-import { TrapiResponse } from "@biothings-explorer/types";
+import { TrapiResponse } from "@retriever/types";
 
 class ErrorHandler {
   shouldHandleError(error: Error) {

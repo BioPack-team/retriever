@@ -1,10 +1,10 @@
-import meta_kg from "@biothings-explorer/smartapi-kg";
+import meta_kg from "@retriever/smartapi-kg";
 import fs from "fs";
 import path from "path";
 import util from "util";
 const readFile = util.promisify(fs.readFile);
 import Debug from "debug";
-const debug = Debug("bte:biothings-explorer-trapi:metakg");
+const debug = Debug("retriever:metakg");
 
 export interface AssocResult {
   subject: string;

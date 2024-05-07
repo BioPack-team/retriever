@@ -2,7 +2,7 @@ import path from "path";
 import swaggerValidation from "../../middlewares/validate";
 import { asyncquery, asyncqueryResponse } from "../../controllers/async/asyncquery";
 import * as utils from "../../utils/common";
-import TRAPIQueryHandler from "@biothings-explorer/query_graph_handler";
+import TRAPIQueryHandler from "@retriever/query_graph_handler";
 import apiList from "../../config/api_list";
 import { taskResponse } from "../../controllers/threading/threadHandler";
 const smartAPIPath = path.resolve(
@@ -14,7 +14,7 @@ const predicatesPath = path.resolve(
   process.env.STATIC_PATH ? `${process.env.STATIC_PATH}/data/predicates.json` : "../../../data/predicates.json",
 );
 import { Express, NextFunction, Request, Response } from "express";
-import { QueueData, TaskInfo } from "@biothings-explorer/types";
+import { QueueData, TaskInfo } from "@retriever/types";
 import { BteRoute } from "../../types";
 
 class V1AsyncQueryByAPI implements BteRoute {

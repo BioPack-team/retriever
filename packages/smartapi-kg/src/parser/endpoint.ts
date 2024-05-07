@@ -46,7 +46,7 @@ export default class Endpoint {
     const queryOperation = new QueryOperationObject();
     queryOperation.xBTEKGSOperation = op;
     queryOperation.method = method;
-    queryOperation.path_params = pathParams;
+    queryOperation.pathParams = pathParams;
     queryOperation.server = server;
     queryOperation.path = this.path;
     queryOperation.tags = this.apiMetadata.tags;

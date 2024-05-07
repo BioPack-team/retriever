@@ -5,12 +5,13 @@
     "outDir": "./built",
     "rootDir": "./src",
     "paths": {
-      "@biothings-explorer/call-apis": ["../call-apis"],
+      "@retriever/call-apis": ["../call-apis"],
       "biolink-model": ["../biolink-model"],
       "biomedical_id_resolver": ["../biomedical_id_resolver"],
-      "@biothings-explorer/smartapi-kg": ["../smartapi-kg"],
-      "@biothings-explorer/utils": ["../utils"],
-      "@biothings-explorer/types": ["../types"]
+      "@retriever/smartapi-kg": ["../smartapi-kg"],
+      "@retriever/utils": ["../utils"],
+      "@retriever/types": ["../types"],
+      "@retriever/graph": ["../graph"]
     }
   },
   "include": ["./src/**/*", "./src/biolink.json", "./src/smartapi_specs.json", "./src/predicates.json"],
@@ -33,6 +34,9 @@
     },
     {
       "path": "../types"
+    },
+    {
+      "path": "../graph"
     }
   ]
 }

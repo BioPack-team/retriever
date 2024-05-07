@@ -2,25 +2,22 @@
   "$schema": "http://json.schemastore.org/tsconfig",
   "compilerOptions": {
     "paths": {
-      "@biothings-explorer/api-response-transform": ["packages/api-response-transform"],
+      "@retriever/api-response-transform": ["packages/api-response-transform"],
       "biolink-model": ["packages/biolink-model"],
       "biomedical_id_resolver": ["packages/biomedical_id_resolver"],
-      "@biothings-explorer/call-apis": ["packages/biomedical_id_resolver"],
-      "@biothings-explorer/node-expansion": ["packages/node-expansion"],
-      "@biothings-explorer/query_graph_handler": ["packages/query_graph_handler"],
-      "@biothings-explorer/smartapi-kg": ["packages/smartapi-kg"],
-      "@biothings-explorer/server": ["packages/server"],
-      "@biothings-explorer/utils": ["packages/utils"],
-      "@biothings-explorer/types": ["packages/types"]
+      "@retriever/call-apis": ["packages/biomedical_id_resolver"],
+      "@retriever/node-expansion": ["packages/node-expansion"],
+      "@retriever/query_graph_handler": ["packages/query_graph_handler"],
+      "@retriever/smartapi-kg": ["packages/smartapi-kg"],
+      "@retriever/server": ["packages/server"],
+      "@retriever/utils": ["packages/utils"],
+      "@retriever/types": ["packages/types"]
     }
   },
   "files": [],
   "references": [
     {
       "path": "packages/server"
-    },
-    {
-      "paths": "packages/server/web-app"
     },
     {
       "path": "packages/biolink-model"

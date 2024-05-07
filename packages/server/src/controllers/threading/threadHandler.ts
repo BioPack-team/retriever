@@ -1,9 +1,9 @@
 import { MessageChannel, threadId } from "worker_threads";
 import Debug from "debug";
 import { context, propagation } from "@opentelemetry/api";
-const debug = Debug("bte:biothings-explorer-trapi:threading");
+const debug = Debug("retriever:threading");
 import path from "path";
-import { redisClient } from "@biothings-explorer/utils";
+import { redisClient } from "@retriever/utils";
 import Piscina from "piscina";
 import os from "os";
 import ServerOverloadedError from "../../utils/errors/server_overloaded_error";
@@ -11,7 +11,7 @@ import { customAlphabet } from "nanoid";
 import { getQueryQueue } from "../async/asyncquery_queue";
 import { tasks } from "../../routes/index";
 
-import { Telemetry } from "@biothings-explorer/utils";
+import { Telemetry } from "@retriever/utils";
 import ErrorHandler from "../../middlewares/error";
 import { Request, Response } from "express";
 import { BullJob, PiscinaWaitTime, ThreadPool } from "../../types";
@@ -22,9 +22,10 @@ import {
   InnerTaskData,
   QueryHandlerOptions,
   ThreadMessage,
-} from "@biothings-explorer/types";
+} from "@retriever/types";
 import { Queue } from "bull";
-// import SubqueryRelay from "packages/call-apis/src";
+import SubqueryRelay, { Subquery } from "@retriever/call-apis";
+import { FrozenSubquery } from "packages/call-apis/src/queries/subquery";
 
 const SYNC_MIN_CONCURRENCY = 2;
 const ASYNC_MIN_CONCURRENCY = 3;
@@ -105,11 +106,18 @@ if (!global.threadpool && !Piscina.isWorkerThread && !(process.env.USE_THREADING
   } as ThreadPool;
 }
 
-async function queueTaskToWorkers(pool: Piscina, taskInfo: TaskInfo, route: string, job?: BullJob): Promise<ThreadMessage> {
+const subqueryRelay = new SubqueryRelay();
+
+async function queueTaskToWorkers(
+  pool: Piscina,
+  taskInfo: TaskInfo,
+  route: string,
+  job?: BullJob,
+): Promise<ThreadMessage> {
   return new Promise((resolve, reject) => {
     let workerThreadID: string;
     const abortController = new AbortController();
-    const { port1: toWorker, port2: fromWorker } = new MessageChannel();
+    const { port1: workerSide, port2: parentSide } = new MessageChannel();
 
     // get otel context
 
@@ -117,11 +125,11 @@ async function queueTaskToWorkers(pool: Piscina, taskInfo: TaskInfo, route: stri
     propagation.inject(context.active(), otelData);
     const { traceparent, tracestate } = otelData;
 
-    const taskData: InnerTaskData = { req: taskInfo, route, traceparent, tracestate, port: toWorker };
+    const taskData: InnerTaskData = { req: taskInfo, route, traceparent, tracestate, workerSide };
 
     // Propagate data between task runner and bull job
     if (job) taskData.job = { jobId: job.id, queueName: job.queue.name };
-    const task = pool.run(taskData, { signal: abortController.signal, transferList: [toWorker] });
+    const task = pool.run(taskData, { signal: abortController.signal, transferList: [workerSide] });
     if (job) {
       void job.update({ ...job.data, abortController });
     }
@@ -160,7 +168,7 @@ async function queueTaskToWorkers(pool: Piscina, taskInfo: TaskInfo, route: stri
     } = {};
     const timeout = parseInt(process.env.REQUEST_TIMEOUT ?? (60 * 5).toString()) * 1000;
 
-    fromWorker.on("message", (msg: ThreadMessage) => {
+    parentSide.on("message", async (msg: ThreadMessage) => {
       switch (msg.type) {
         default:
           debug(`WARNING: received untyped message from thread {msg.threadId}`);
@@ -190,6 +198,24 @@ async function queueTaskToWorkers(pool: Piscina, taskInfo: TaskInfo, route: stri
           break;
         case "cacheDone":
           cacheInProgress = msg.value ? cacheInProgress - 1 : 0;
+          break;
+        case "subqueryRequest":
+          const { queries, options } = msg.value as {
+            queries: FrozenSubquery[];
+            options: QueryHandlerOptions;
+          };
+          debug(`Main thread receives ${queries.length} subqueries from worker.`);
+          subqueryRelay.subscribe(
+            await Promise.all(queries.map(async query => await Subquery.unfreeze(query))),
+            options,
+            ({ hash, records, logs, apiUnavailable }) => {
+              parentSide.postMessage({
+                threadId: 0,
+                type: "subQueryResult",
+                value: { hash, records, logs, apiUnavailable },
+              } satisfies ThreadMessage);
+            },
+          );
           break;
       }
       if (reqDone && cacheInProgress <= 0 && job) {
@@ -339,8 +365,13 @@ export async function runBullJob(job: BullJob, route: string, useAsync = true) {
 }
 
 export function taskResponse<T>(response: T, status: number = undefined): T {
-  if (global.parentPort) {
-    global.parentPort.postMessage({ threadId, type: "result", value: response, status: status } satisfies ThreadMessage);
+  if (global.workerSide) {
+    global.workerSide.postMessage({
+      threadId,
+      type: "result",
+      value: response,
+      status: status,
+    } satisfies ThreadMessage);
     return undefined;
   } else {
     return response;
@@ -348,11 +379,11 @@ export function taskResponse<T>(response: T, status: number = undefined): T {
 }
 
 export function taskError(error: Error): void {
-  if (global.parentPort) {
+  if (global.workerSide) {
     if (ErrorHandler.shouldHandleError(error)) {
       Telemetry.captureException(error);
     }
-    global.parentPort.postMessage({ threadId, type: "error", value: error });
+    global.workerSide.postMessage({ threadId, type: "error", value: error });
     return undefined;
   } else {
     throw error;

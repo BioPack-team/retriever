@@ -1,4 +1,4 @@
-import { TrapiLog } from '@biothings-explorer/utils';
+import { TrapiLog } from '@retriever/utils';
 
 export interface TrapiQNode {
   ids?: string[];

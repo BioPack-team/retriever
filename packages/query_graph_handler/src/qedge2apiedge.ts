@@ -1,48 +1,14 @@
 import _ from 'lodash';
-import { LogEntry, StampedLog } from '@biothings-explorer/utils';
+import { LogEntry, StampedLog } from '@retriever/utils';
 import * as config from './config';
 const CURIE_WITH_PREFIXES = ['MONDO', 'DOID', 'UBERON', 'EFO', 'HP', 'CHEBI', 'CL', 'MGI', 'NCIT'];
 import Debug from 'debug';
-import QEdge from './query_edge';
-import MetaKG from '@biothings-explorer/smartapi-kg';
-import { SmartAPIKGOperationObject } from '@biothings-explorer/smartapi-kg';
+import { APIEdge, BatchAPIEdge, MetaXEdge, NonBatchAPIEdge, QEdge, TemplateBatchAPIEdge, TemplateNonBatchAPIEdge } from '@retriever/graph';
+import MetaKG from '@retriever/smartapi-kg';
+import { SmartAPIKGOperationObject } from '@retriever/smartapi-kg';
 import { SRIBioEntity } from 'biomedical_id_resolver';
-const debug = Debug('bte:biothings-explorer-trapi:qedge2btedge');
+const debug = Debug('retriever:qedge2btedge');
 
-export interface MetaXEdge extends SmartAPIKGOperationObject {
-  reasoner_edge: QEdge;
-}
-
-export interface TemplatedInput {
-  queryInputs: string | string[];
-  [additionalAttributes: string]: string | string[];
-}
-
-export interface APIEdge extends MetaXEdge {
-  input: string | string[] | TemplatedInput;
-  input_resolved_identifiers: {
-    [curie: string]: SRIBioEntity;
-  };
-  original_input: {
-    [equivalentCurie: string]: string;
-  };
-}
-
-export interface NonBatchAPIEdge extends APIEdge {
-  input: string;
-}
-
-export interface BatchAPIEdge extends APIEdge {
-  input: string[];
-}
-
-export interface TemplateNonBatchAPIEdge extends APIEdge {
-  input: TemplatedInput;
-}
-
-export interface TemplateBatchAPIEdge extends APIEdge {
-  input: TemplatedInput;
-}
 
 export default class QEdge2APIEdgeHandler {
   qEdges: QEdge[];

@@ -3,7 +3,7 @@ import { URL } from "url";
 import yaml2json from "js-yaml";
 import fs from "fs/promises";
 import path from "path";
-import { TrapiLog, TrapiSchema, TrapiWorkflow } from "@biothings-explorer/types";
+import { TrapiLog, TrapiSchema, TrapiWorkflow } from "@retriever/types";
 import { NextFunction, Request, Response } from "express";
 
 const schema: unknown[] = [];

@@ -1,7 +1,7 @@
-import { RedisClient } from "@biothings-explorer/utils";
+import { RedisClient } from "@retriever/utils";
 import Debug from "debug";
 import Subquery from "./queries/subquery";
-const debug = Debug("bte:call-apis:query");
+const debug = Debug("retriever:call-apis:query");
 
 // Default rate limit of 100 queries per second, which shouldn't ever be reached
 // But just in case, this should keep multiple instances from overloading anyone

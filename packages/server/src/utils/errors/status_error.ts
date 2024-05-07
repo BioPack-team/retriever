@@ -1,4 +1,4 @@
-import { TrapiLog } from "@biothings-explorer/types";
+import { TrapiLog } from "@retriever/types";
 
 export default class StatusError extends Error {
   statusCode: number;

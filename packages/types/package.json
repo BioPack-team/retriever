@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "name": "@biothings-explorer/types",
+  "name": "@retriever/types",
   "version": "1.0.0",
   "description": "A collection of common types used by Biothings Explorer",
   "main": "./built/index.js",
@@ -18,20 +18,22 @@
     "test-cov": "jest --coverage"
   },
   "keywords": [
-    "bte",
+    "BioPack",
+    "retriever",
     "biothings",
     "single",
     "hop",
     "query"
   ],
-  "author": "BioThings Team",
+  "author": "BioPack Team",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/biothings/biothings_explorer/issues"
+    "url": "https://github.com/BioPack-team/retriever/issues"
   },
-  "homepage": "https://github.com/biothings/biothings_explorer#readme",
+  "homepage": "https://github.com/BioPack-team/retriever#readme",
   "dependencies": {
-    "@biothings-explorer/smartapi-kg": "workspace:../smartapi-kg"
+    "@retriever/smartapi-kg": "workspace:../smartapi-kg",
+    "@retriever/biomedical_id_resolver": "workspace:../biomedical_id_resolver"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12"

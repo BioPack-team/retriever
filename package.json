@@ -1,7 +1,7 @@
 {
-  "name": "@biothings-explorer/bte-trapi",
+  "name": "@retriever/main",
   "version": "3.0.0",
-  "description": "BioThings Explorer's TRAPI Knowledgebase Query API",
+  "description": "Retriever, a centralized subgraph-retrieval module",
   "main": "packages/server/built/server.js",
   "scripts": {
     "setup": "pnpm run clone && pnpm i",
@@ -26,7 +26,7 @@
     "start": "./scripts/start_server.sh",
     "stop": "./scripts/stop_server.sh",
     "watch": "nodemon -e js,mjs,json,ts --watch './packages/**/src/*' './packages/**/data/*' --exec 'pnpm run build && node .'",
-    "debug": "DEBUG=biomedical-id-resolver,bte* pnpm run watch"
+    "debug": "DEBUG=biomedical-id-resolver,retriever* pnpm run watch"
   },
   "engines": {
     "node": ">=18.0.0",
@@ -34,21 +34,23 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/biothings/biothings_explorer.git"
+    "url": "git+https://github.com/BioPack-team/retriever.git"
   },
   "keywords": [
-    "bte",
+    "BioPack",
+    "retriever",
     "biothings",
+    "biopack",
     "single",
     "hop",
     "query"
   ],
-  "author": "BioThings Team",
+  "author": "BioPack Team",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/biothings/biothings_explorer/issues"
+    "url": "https://github.com/BioPack-team/retriever/issues"
   },
-  "homepage": "https://github.com/biothings/biothings_explorer#readme",
+  "homepage": "https://github.com/BioPack-team/retriever#readme",
   "devDependencies": {
     "@types/node": "^20.8.7",
     "@typescript-eslint/eslint-plugin": "^6.8.0",
@@ -75,6 +77,7 @@
     "typescript": "5.2.2"
   },
   "dependencies": {
+    "@retriever/call-apis": "workspace:./packages/call-apis",
     "@bull-board/express": "^5.9.1",
     "@sentry/node": "^7.74.1",
     "@sentry/profiling-node": "^1.2.1",

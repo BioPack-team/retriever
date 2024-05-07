@@ -1,5 +1,5 @@
 import Debug from "debug";
-const debug = Debug("bte:biothings-explorer-trapi:cron");
+const debug = Debug("retriever:cron");
 import axios from "axios";
 import fs from "fs/promises";
 import path from "path";

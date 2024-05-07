@@ -1,26 +1,33 @@
-import Transformer, {
-  BTEQueryObject,
-  Record,
-} from "@biothings-explorer/api-response-transform";
+import Transformer, { RetrieverQueryObject } from "@retriever/api-response-transform";
+import { QEdge, Record, RecordPackage } from "@retriever/graph";
+import os from "os";
+import axios, { AxiosRequestConfig, AxiosResponse } from "axios";
+import Debug from "debug";
+const debug = Debug("retriever:call-apis:query-pool");
+import {
+  Telemetry,
+  LogEntry,
+  SerializableLog,
+  TrapiLog,
+} from "@retriever/utils";
+import axiosRetry from "axios-retry";
+import Subquery from "./queries/subquery";
+import _ from "lodash";
 import {
   APIDefinition,
   QueryHandlerOptions,
   UnavailableAPITracker,
-} from "./types";
-import os from "os";
-import axios, { AxiosRequestConfig, AxiosResponse } from "axios";
-import Debug from "debug";
-const debug = Debug("bte:call-apis:query");
-import { Telemetry, LogEntry, StampedLog } from "@biothings-explorer/utils";
-import axiosRetry from "axios-retry";
-import Subquery from "./queries/subquery";
+} from "@retriever/types";
+import { cacheLookup } from "@retriever/utils";
 
 const SUBQUERY_DEFAULT_TIMEOUT = parseInt(
   process.env.SUBQUERY_DEFAULT_TIMEOUT ?? "50000",
 );
 
+/* Information about a given query, mostly for logging */
 export interface QueryInfo {
   qEdgeID: string;
+  hash: string;
   url: string;
   api_name: string;
   subject: string;
@@ -29,34 +36,33 @@ export interface QueryInfo {
   ids: number;
 }
 
+/* Headers, like you'd expect, instead of Axios's Any */
 export interface headers {
-  [header: string]: string;
+  [name: string]: string;
 }
 
 export default class APIQueryPool {
   size: number;
   usage: number;
-  options: QueryHandlerOptions;
   stop: boolean;
-  constructor(options: QueryHandlerOptions) {
-    this.stop = false;
-    this.options = options;
-    this.size = os.cpus().length * 2;
+  unavailableAPIs: UnavailableAPITracker;
+  constructor() {
+    this.size = os.cpus().length * 8;
     this.usage = 0;
+    this.unavailableAPIs = {};
   }
 
-  _getTimeout(apiID: string): number {
+  _getTimeout(apiID: string, options: QueryHandlerOptions): number {
     const timeout =
-      this.options.apiList?.include.find(
-        (api: APIDefinition) => api.id === apiID,
-      )?.timeout ?? SUBQUERY_DEFAULT_TIMEOUT;
+      options.apiList?.include.find((api: APIDefinition) => api.id === apiID)
+        ?.timeout ?? SUBQUERY_DEFAULT_TIMEOUT;
     return timeout;
   }
 
   getQueryConfig(
     query: Subquery,
-    unavailableAPIs: UnavailableAPITracker,
-    logs: StampedLog[],
+    options: QueryHandlerOptions,
+    logs: TrapiLog[],
   ): {
     queryConfig: AxiosRequestConfig;
     nInputs: number;
@@ -69,13 +75,6 @@ export default class APIQueryPool {
       edgeOperation: string;
     try {
       queryConfig = query.getConfig();
-      // Skip if query API has been marked unavailable
-      if (unavailableAPIs[query.APIEdge.query_operation.server]?.skip) {
-        unavailableAPIs[
-          query.APIEdge.query_operation.server
-        ].skippedQueries += 1;
-        return undefined;
-      }
       if (Array.isArray(query.APIEdge.input)) {
         nInputs = query.APIEdge.input.length;
         // TemplatedInput
@@ -90,6 +89,7 @@ export default class APIQueryPool {
       // Put together additional shorthands
       queryInfo = {
         qEdgeID: query.APIEdge.reasoner_edge?.id,
+        hash: query.hash,
         url: queryConfig.url,
         api_name: query.APIEdge.association.api_name,
         subject: query.APIEdge.association.input_type,
@@ -104,6 +104,7 @@ export default class APIQueryPool {
       ].join(" > ");
       queryConfig.timeout = this._getTimeout(
         query.APIEdge.association.smartapi.id,
+        options,
       );
 
       return {
@@ -123,7 +124,7 @@ export default class APIQueryPool {
           ).toString()} while configuring query. Query dump: ${JSON.stringify(
             query,
           )}`,
-        ).getLog(),
+        ).getSerializeable(),
       );
       return undefined;
     }
@@ -131,45 +132,101 @@ export default class APIQueryPool {
 
   async query(
     query: Subquery,
-    unavailableAPIs: UnavailableAPITracker,
-    finish: (
-      logs?: StampedLog[],
-      records?: Record[],
-      followUp?: Subquery[],
-    ) => Promise<void>,
+    options: QueryHandlerOptions,
+    finish: ({
+      logs,
+      records,
+      fromCache,
+      followUp,
+      apiUnavailable,
+    }: {
+      logs?: SerializableLog[];
+      records?: Record[];
+      fromCache?: boolean;
+      followUp?: Subquery;
+      apiUnavailable?: boolean;
+    }) => Promise<void>,
   ) {
-    // Check if pool has been stopped due to limit hit (save some computation)
-    if (this.stop) {
-      await finish();
-      return;
-    }
-    const logs: StampedLog[] = [];
-    const followUp: Subquery[] = [];
+    const hash = query.hash;
+    const logs: SerializableLog[] = [];
+    let followUp: Subquery;
+    let apiUnavailable: boolean;
 
     const dryrun_only = process.env.DRYRUN === "true";
     const span = Telemetry.startSpan({ description: "apiCall" });
     span?.setData("apiName", query.APIEdge.association.api_name);
 
-    const queryConfigAttempt = this.getQueryConfig(
-      query,
-      unavailableAPIs,
-      logs,
-    );
+    const queryConfigAttempt = this.getQueryConfig(query, options, logs);
 
     if (!queryConfigAttempt) {
       span?.finish();
-      await finish(logs);
+      await finish({
+        logs,
+      });
       return;
     }
 
     const { queryConfig, nInputs, queryInfo, edgeOperation } =
       queryConfigAttempt;
 
-    debug(queryConfig);
+    // Skip if query API has been marked unavailable
+    if (this.unavailableAPIs[query.APIEdge.query_operation.server]?.skip) {
+      this.unavailableAPIs[
+        query.APIEdge.query_operation.server
+      ].skippedQueries += 1;
+      apiUnavailable = true;
+      const message = [
+        `Subquery ${query.APIEdge.query_operation.server}`,
+        `(${nInputs} ID${nInputs > 1 ? "s" : ""}):`,
+        `skipped as it has been temporarily marked unavailable.`,
+      ].join(" ");
+      debug(message);
+      logs.push(
+        new LogEntry("WARNING", null, message, {
+          type: "query",
+          error: true,
+          ...queryInfo
+        }).getSerializeable(),
+      );
+      await finish({ logs, apiUnavailable });
+      return;
+    }
+
+    if (options.caching ?? true) {
+      const records = await this.cacheLookup(hash, query.APIEdge.reasoner_edge);
+      if (records) {
+        span?.setData("queryBody", queryConfig.data);
+        const log_msg = [
+          `Successful cache retrieval for subquery`,
+          query.APIEdge.query_operation.server,
+          `(${nInputs} ID${nInputs > 1 ? "s" : ""}):`,
+          `${edgeOperation} (retrieved ${records.length}`,
+          `record${records.length === 1 ? "" : "s"}).`,
+        ].join(" ");
+        debug(log_msg);
+        logs.push(
+          new LogEntry("DEBUG", null, log_msg, {
+            type: "cacheHit",
+            hits: records.length,
+            ...queryInfo,
+          }).getSerializeable(),
+        );
+
+        span?.finish();
+        await finish({
+          records,
+          logs,
+          fromCache: true,
+        });
+        return;
+      }
+    }
+
+    debug(JSON.stringify({ hash, ...queryConfig }));
 
     try {
       const userAgent = [
-        `BTE/${process.env.NODE_ENV === "production" ? "prod" : "dev"}`,
+        `Retriever/${process.env.NODE_ENV === "production" ? "prod" : "dev"}`,
         `Node/${process.version}`,
         `${process.platform}`,
       ].join(" ");
@@ -193,24 +250,12 @@ export default class APIQueryPool {
         },
       });
 
-      // Check if pool has been stopped due to limit hit (save some computation)
-      if (this.stop) {
-        await finish();
-        return;
-      }
-
       const queryResponse = dryrun_only
         ? { data: [] }
         : await axios(queryConfig);
 
-      // Check if pool has been stopped due to limit hit (save some computation)
-      if (this.stop) {
-        await finish();
-        return;
-      }
-
       const finishTime = performance.now();
-      debug("query success, transforming hits->records...");
+      debug("Subquery success, transforming hits->records...");
       const timeElapsed = Math.round(
         finishTime - startTime > 1000
           ? (finishTime - startTime) / 1000
@@ -227,29 +272,24 @@ export default class APIQueryPool {
         unTransformedHits.response,
       );
       if (queryNeedsPagination) {
-        const log = `Query requires pagination, will re-query to window ${queryNeedsPagination}-${
-          queryNeedsPagination + 1000
-        }: ${query.APIEdge.query_operation.server} (${nInputs} ID${
-          nInputs > 1 ? "s" : ""
-        })`;
+        const log = `Subquery requires pagination, will re-query to window ${queryNeedsPagination}-${queryNeedsPagination + 1000
+          }: ${query.APIEdge.query_operation.server} (${nInputs} ID${nInputs > 1 ? "s" : ""
+          })`;
         debug(log);
         if (queryNeedsPagination >= 9000) {
-          const log = `Biothings query reaches 10,000 max: ${
-            query.APIEdge.query_operation.server
-          } (${nInputs} ID${nInputs > 1 ? "s" : ""})`;
+          const log = `Biothings subquery reaches 10,000 max: ${query.APIEdge.query_operation.server
+            } (${nInputs} ID${nInputs > 1 ? "s" : ""})`;
           debug(log);
-          logs.push(new LogEntry("WARNING", null, log).getLog());
+          logs.push(new LogEntry("WARNING", null, log).getSerializeable());
         }
-        followUp.push(query);
+        followUp = query;
       }
       const transformSpan = Telemetry.startSpan({
         description: "transformRecords",
       });
-      // have to go through unknown for now to avoid conversion warnings
-      // TODO eventually fix this when we pull out more types
       const transformer = new Transformer(
-        unTransformedHits as unknown as BTEQueryObject,
-        this.options,
+        unTransformedHits as RetrieverQueryObject,
+        options,
       );
       const transformedRecords = (await transformer.transform()).filter(
         record => {
@@ -258,12 +298,12 @@ export default class APIQueryPool {
       );
       transformSpan.finish();
 
-      if (global.queryInformation?.queryGraph) {
-        const globalRecords = global.queryInformation.totalRecords;
-        global.queryInformation.totalRecords = globalRecords
-          ? globalRecords + transformedRecords.length
-          : transformedRecords.length;
-      }
+      // if (global.queryInformation?.queryGraph) {
+      //   const globalRecords = global.queryInformation.totalRecords;
+      //   global.queryInformation.totalRecords = globalRecords
+      //     ? globalRecords + transformedRecords.length
+      //     : transformedRecords.length;
+      // }
       const log_msg = [
         `Successful ${queryConfig.method.toUpperCase()}`,
         query.APIEdge.query_operation.server,
@@ -279,32 +319,40 @@ export default class APIQueryPool {
           type: "query",
           hits: transformedRecords.length,
           ...queryInfo,
-        }).getLog(),
+        }).getSerializeable(),
       );
 
       // end span
       span?.finish();
-      await finish(logs, transformedRecords, followUp);
+      await finish({
+        logs,
+        records: transformedRecords,
+        followUp,
+      });
     } catch (error) {
-      // TODO add method for followup to explicitely have a delay?
       if (
         axios.isAxiosError(error) &&
         (error.response?.status >= 502 || error.code === "ECONNABORTED")
       ) {
+        // Assume API is unavailable, stop trying to reach it for 30 seconds
         const errorMessage = [
           `${query.APIEdge.query_operation.server}`,
           `appears to be unavailable. Queries to it will be skipped.`,
         ].join(" ");
         debug(errorMessage);
-        unavailableAPIs[query.APIEdge.query_operation.server] = {
+        this.unavailableAPIs[query.APIEdge.query_operation.server] = {
           skip: true,
           skippedQueries: 0,
         };
+        apiUnavailable = true;
+        setTimeout(() => {
+          delete this.unavailableAPIs[query.APIEdge.query_operation.server];
+        }, 30000);
       } else if (axios.isAxiosError(error) && error.response?.status === 429) {
         debug(
           [
             `${query.APIEdge.query_operation.server}`,
-            `has rate-limited BTE.`,
+            `has rate-limited Retriever.`,
             `Queries to it will be skipped until the provided time.`,
           ].join(" "),
         );
@@ -315,12 +363,12 @@ export default class APIQueryPool {
             : new Date(Date.now() + parseInt(retryAfter) * 1000)
           : new Date(Date.now() + 10000); // default wait for 10 seconds
 
-        followUp.push(query);
+        followUp = query;
       }
 
       debug(
         [
-          `Failed to make to following query:`,
+          `Failed to make to following subquery:`,
           `${JSON.stringify(query.config)}.`,
           `The error is ${(error as Error).toString()}`,
           `with ${(error as Error).stack}`,
@@ -331,7 +379,7 @@ export default class APIQueryPool {
           "ERROR",
           null,
           [
-            `call-apis: Failed ${queryConfig.method.toUpperCase()}`,
+            `Failed ${queryConfig.method.toUpperCase()}`,
             `${query.APIEdge.query_operation.server}`,
             `(${nInputs} ID${nInputs > 1 ? "s" : ""}):`,
             `${edgeOperation}: (${(error as Error).toString()})`,
@@ -341,7 +389,7 @@ export default class APIQueryPool {
             error: (error as Error).toString(),
             ...queryInfo,
           },
-        ).getLog(),
+        ).getSerializeable(),
       );
       if (axios.isAxiosError(error)) {
         debug(
@@ -356,13 +404,26 @@ export default class APIQueryPool {
             `Error response for above failure: ${JSON.stringify(
               error.response?.data,
             )}`,
-          ).getLog(),
+          ).getSerializeable(),
         );
       }
       Telemetry.captureException(error as Error);
 
       span?.finish();
-      await finish(logs, undefined, followUp);
+      await finish({
+        logs,
+        followUp,
+        apiUnavailable,
+      });
     }
+  }
+
+  async cacheLookup(hash: string, qEdge: QEdge): Promise<Record[] | null> {
+    debug(`Checking for cached records for subquery ${hash}...`);
+    const recordPackage = await cacheLookup(hash);
+    const records = recordPackage
+      ? Record.unpackRecords(recordPackage as RecordPackage, qEdge)
+      : null;
+    return records;
   }
 }

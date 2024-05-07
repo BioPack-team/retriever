@@ -2,7 +2,7 @@ import { NodeSDK } from "@opentelemetry/sdk-node";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import { Resource } from "@opentelemetry/resources";
 import Debug from "debug";
-const debug = Debug("bte:biothings-explorer:otel-init");
+const debug = Debug("retriever:retriever:otel-init");
 import { JaegerExporter } from "@opentelemetry/exporter-jaeger";
 
 debug("Initializing Opentelemetry instrumentation...");
@@ -13,7 +13,7 @@ const sdk = new NodeSDK({
   }),
   instrumentations: [getNodeAutoInstrumentations()],
   resource: new Resource({
-    "service.name": "biothings-explorer",
+    "service.name": "retriever",
   }),
 });
 sdk.start();

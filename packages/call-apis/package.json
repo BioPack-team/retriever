@@ -1,7 +1,7 @@
 {
-  "name": "@biothings-explorer/call-apis",
+  "name": "@retriever/call-apis",
   "version": "1.24.0",
-  "description": "A nodejs module to make api calls for biothings explorer",
+  "description": "A nodejs module to make api calls for retriever",
   "main": "built/index.js",
   "types": "built/index.d.ts",
   "scripts": {
@@ -18,9 +18,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/biothings/call-apis.js.git"
+    "url": "git+https://github.com/BioPack-team/retriever"
   },
   "keywords": [
+    "BioPack",
+    "retriever",
     "api",
     "biothings",
     "explorer"
@@ -28,14 +30,17 @@
   "author": "jiwen xin",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/biothings/call-apis.js/issues"
+    "url": "https://github.com/BioPack-team/retriever/issues"
   },
-  "homepage": "https://github.com/biothings/call-apis.js#readme",
+  "homepage": "https://github.com/BioPack-team/retriever#readme",
   "dependencies": {
-    "@biothings-explorer/api-response-transform": "workspace:../api-response-transform",
-    "@biothings-explorer/smartapi-kg": "workspace:../smartapi-kg",
-    "@biothings-explorer/utils": "workspace:../utils",
+    "@retriever/api-response-transform": "workspace:../api-response-transform",
+    "@retriever/graph": "workspace:../graph",
+    "@retriever/smartapi-kg": "workspace:../smartapi-kg",
+    "@retriever/types": "workspace:../types",
+    "@retriever/utils": "workspace:../utils",
     "@sentry/node": "^7.74.1",
+    "async": "^3.2.4",
     "axios": "^0.21.4",
     "axios-retry": "^3.8.1",
     "biomedical_id_resolver": "workspace:../biomedical_id_resolver",
@@ -47,6 +52,7 @@
   "devDependencies": {
     "@commitlint/cli": "^11.0.0",
     "@commitlint/config-conventional": "^11.0.0",
+    "@types/async": "^3.2.22",
     "@types/debug": "^4.1.10",
     "@types/jest": "^29.5.6",
     "@types/lodash": "^4.14.200",

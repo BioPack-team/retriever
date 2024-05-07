@@ -1,6 +1,6 @@
 import path from "path";
 import apiList from "../../config/api_list";
-import TRAPIQueryHandler from "@biothings-explorer/query_graph_handler";
+import TRAPIQueryHandler from "@retriever/query_graph_handler";
 import swaggerValidation from "../../middlewares/validate";
 import { asyncquery, asyncqueryResponse } from "../../controllers/async/asyncquery";
 import * as utils from "../../utils/common";
@@ -16,7 +16,7 @@ const predicatesPath = path.resolve(
 );
 
 import { Express, NextFunction, Request, RequestHandler, Response } from "express";
-import { QueueData, TaskInfo } from "@biothings-explorer/types";
+import { QueueData, TaskInfo } from "@retriever/types";
 
 class V1AsyncQueryByTeam implements BteRoute {
   setRoutes(app: Express) {

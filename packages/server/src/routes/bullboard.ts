@@ -3,8 +3,8 @@ import { createBullBoard } from "@bull-board/api";
 import { BullAdapter } from "@bull-board/api/bullAdapter";
 import { ExpressAdapter } from "@bull-board/express";
 import Debug from "debug";
-const debug = Debug("bte:biothings-explorer-trapi:bullboard");
-import { redisClient } from "@biothings-explorer/utils";
+const debug = Debug("retriever:bullboard");
+import { redisClient } from "@retriever/utils";
 import { Express, NextFunction, Request, Response } from "express";
 
 class BullBoardPage {

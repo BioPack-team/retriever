@@ -1,6 +1,6 @@
-import { redisClient } from "@biothings-explorer/utils";
+import { redisClient } from "@retriever/utils";
 import Debug from "debug";
-const debug = Debug("bte:biothings-explorer-trapi:cron");
+const debug = Debug("retriever:cron");
 import cron from "node-cron";
 
 export default function scheduleClearCache() {

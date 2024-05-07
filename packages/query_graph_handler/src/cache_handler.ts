@@ -1,17 +1,17 @@
-import { redisClient } from '@biothings-explorer/utils';
+import { redisClient } from '@retriever/utils';
 import Debug from 'debug';
-const debug = Debug('bte:biothings-explorer-trapi:cache_handler');
-import { LogEntry, StampedLog } from '@biothings-explorer/utils';
+const debug = Debug('retriever:cache_handler');
+import { LogEntry, StampedLog } from '@retriever/utils';
 import async from 'async';
 import helper from './helper';
 import lz4 from 'lz4';
 import chunker from 'stream-chunker';
 import { Readable, Transform } from 'stream';
-import { Record, RecordPackage } from '@biothings-explorer/api-response-transform';
 import { threadId } from 'worker_threads';
 import MetaKG from '../../smartapi-kg/built';
-import QEdge from './query_edge';
-import { QueryHandlerOptions } from '@biothings-explorer/types';
+import { QEdge } from '@retriever/graph';
+import { QueryHandlerOptions } from '@retriever/types';
+import { Record, RecordPackage } from '@retriever/graph';
 
 export interface RecordPacksByQedgeMetaKGHash {
   [QEdgeHash: string]: RecordPackage;
@@ -113,7 +113,7 @@ export default class CacheHandler {
   }
 
   async categorizeEdges(qEdges: QEdge[]): Promise<{ cachedRecords: Record[]; nonCachedQEdges: QEdge[] }> {
-    if (this.cacheEnabled === false || process.env.INTERNAL_DISABLE_REDIS === "true") {
+    if (this.cacheEnabled === false || process.env.INTERNAL_DISABLE_REDIS === 'true') {
       return {
         cachedRecords: [],
         nonCachedQEdges: qEdges,
@@ -210,14 +210,14 @@ export default class CacheHandler {
   }
 
   async cacheEdges(queryRecords: Record[]): Promise<void> {
-    if (this.cacheEnabled === false || process.env.INTERNAL_DISABLE_REDIS === "true") {
-      if (global.parentPort) {
-        global.parentPort.postMessage({ threadId, type: "cacheDone", value: true });
+    if (this.cacheEnabled === false || process.env.INTERNAL_DISABLE_REDIS === 'true') {
+      if (global.workerSide) {
+        global.workerSide.postMessage({ threadId, type: 'cacheDone', value: true });
       }
       return;
     }
-    if (global.parentPort) {
-      global.parentPort.postMessage({ threadId, type: "cacheInProgress", value: 1 });
+    if (global.workerSide) {
+      global.workerSide.postMessage({ threadId, type: 'cacheInProgress', value: 1 });
     }
     debug('Start to cache query records.');
     try {
@@ -228,8 +228,8 @@ export default class CacheHandler {
       await async.eachSeries(qEdgeHashes, async (hash) => {
         // lock to prevent caching to/reading from actively caching edge
         const redisID = 'bte:edgeCache:' + hash;
-        if (global.parentPort) {
-          global.parentPort.postMessage({ threadId, type: "addCacheKey", value: redisID });
+        if (global.workerSide) {
+          global.workerSide.postMessage({ threadId, type: 'addCacheKey', value: redisID });
         }
         await redisClient.client.usingLock([`redisLock:${redisID}`, 'redisLock:EdgeCaching'], 600000, async () => {
           try {
@@ -257,7 +257,7 @@ export default class CacheHandler {
                   resolve();
                 });
             });
-            if (process.env.QEDGE_CACHE_TIME_S !== "0") {
+            if (process.env.QEDGE_CACHE_TIME_S !== '0') {
               await redisClient.client.expireTimeout(redisID, process.env.QEDGE_CACHE_TIME_S || 1800);
             }
           } catch (error) {
@@ -266,8 +266,8 @@ export default class CacheHandler {
               `Failed to cache qEdge ${hash} records due to error ${error}. This does not stop other edges from caching nor terminate the query.`,
             );
           } finally {
-            if (global.parentPort) {
-              global.parentPort.postMessage({ threadId, type: "completeCacheKey", value: redisID });
+            if (global.workerSide) {
+              global.workerSide.postMessage({ threadId, type: 'completeCacheKey', value: redisID });
             }
           }
         });
@@ -283,8 +283,8 @@ export default class CacheHandler {
     } catch (error) {
       debug(`Caching failed due to ${error}. This does not terminate the query.`);
     } finally {
-      if (global.parentPort) {
-        global.parentPort.postMessage({ threadId, type: "cacheDone", value: 1 });
+      if (global.workerSide) {
+        global.workerSide.postMessage({ threadId, type: 'cacheDone', value: 1 });
       }
     }
   }

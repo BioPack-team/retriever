@@ -3,7 +3,7 @@ import { SmartAPIQueryResult } from "../types";
 import { SmartAPISpec } from "../parser/types";
 import fs from "fs";
 import Debug from "debug";
-const debug = Debug("bte:smartapi-kg:AllSpecsSyncLoader");
+const debug = Debug("retriever:smartapi-kg:AllSpecsSyncLoader");
 
 export default class AllSpecsSyncLoader extends BaseLoader {
   private _file_path: string;

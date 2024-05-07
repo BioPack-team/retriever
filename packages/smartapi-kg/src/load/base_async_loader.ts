@@ -4,7 +4,7 @@ import { SmartAPIQueryResult } from "../types";
 import { SmartAPISpec } from "../parser/types";
 import BaseLoader from "./base_loader";
 import Debug from "debug";
-const debug = Debug("bte:smartapi-kg:AsyncLoader");
+const debug = Debug("retriever:smartapi-kg:AsyncLoader");
 
 export default abstract class BaseAsyncLoader extends BaseLoader {
   protected _url: string;

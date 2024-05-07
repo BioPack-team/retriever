@@ -4,7 +4,7 @@ import query from '../query/index';
 import { ResolverOutput, IndividualResolverOutput, DBIdsObject } from '../common/types';
 import BioLinkHandlerInstance from '../biolink';
 import Debug from 'debug';
-const debug = Debug('biomedical-id-resolver:resolver');
+const debug = Debug('retriever:biomedical-id-resolver:resolver');
 
 export default class BioLinkBasedResolver extends BaseResolver {
   private _biolink: typeof BioLinkHandlerInstance;

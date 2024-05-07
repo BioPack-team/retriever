@@ -1,7 +1,6 @@
-import { JQVariable, BTEKGOperationObject } from "./types";
+import { JQVariable } from "./types";
 import Path from "path";
 import fs from "fs";
-import { toArray } from "./utils";
 
 const functions = fs.readFileSync(
   Path.resolve(`${__dirname}/../data/jq/utils.jq`),

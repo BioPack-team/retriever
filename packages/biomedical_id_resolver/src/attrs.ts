@@ -20,7 +20,7 @@ import {
 import { BioLink } from 'biolink-model';
 
 import Debug from 'debug';
-const debug = Debug('biomedical-id-resolver:AddAttributes');
+const debug = Debug('retriever:biomedical-id-resolver:AddAttributes');
 
 function groupCuriesByPrefix(curies: string[]): ObjectWithStringKeyAndArrayValues {
   const grped: ObjectWithStringKeyAndArrayValues = {};

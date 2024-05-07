@@ -1,9 +1,9 @@
 import axios from 'axios';
 import Debug from 'debug';
-const debug = Debug('bte:biothings-explorer-trapi:pfocr');
+const debug = Debug('retriever:pfocr');
 import { intersection } from '../utils';
 import _ from 'lodash';
-import { LogEntry, StampedLog } from '@biothings-explorer/utils';
+import { LogEntry, StampedLog } from '@retriever/utils';
 import { TrapiResult } from '../types';
 
 // the minimum acceptable intersection size between the CURIEs

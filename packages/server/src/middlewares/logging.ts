@@ -6,7 +6,7 @@ import { Express, Request, Response } from "express";
 class LoggingHandler {
   setRoutes(app: Express) {
     const transport = new winston.transports.DailyRotateFile({
-      filename: "BioThings-Explorer-TRAPI-%DATE%.log",
+      filename: "retriever-%DATE%.log",
       dirname: process.env.LOG || "./log",
       datePattern: "YYYY-MM-DD",
       zippedArchive: true,

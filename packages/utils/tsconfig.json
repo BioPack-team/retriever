@@ -3,8 +3,20 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "./src",
-    "outDir": "./built"
+    "outDir": "./built",
+    "paths": {
+      "@retriever/biolink-model": ["../biolink-model"],
+      "@retriever/types": ["../types"]
+    }
   },
   "include": ["./src/**/*"],
-  "exclude": ["node_modules", "__test__/"]
+  "exclude": ["node_modules", "__test__/"],
+  "references": [
+    {
+      "path": "../biolink-model"
+    },
+    {
+      "path": "../types"
+    }
+  ]
 }

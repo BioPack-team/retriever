@@ -1,7 +1,7 @@
 import Components from "./component";
 import Endpoint from "./endpoint";
 import Debug from "debug";
-const debug = Debug("bte:smartapi-kg:Parser");
+const debug = Debug("retriever:smartapi-kg:Parser");
 import { SmartAPISpec, ParsedAPIMetadataObject, SmartAPIKGOperationObject, APIClass } from "./types";
 
 export default class API implements APIClass {

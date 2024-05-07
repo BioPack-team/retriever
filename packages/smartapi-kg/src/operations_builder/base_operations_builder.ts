@@ -2,7 +2,7 @@ import { BuilderOptions } from "../types";
 import { SmartAPIKGOperationObject, SmartAPISpec } from "../parser/types";
 import API from "../parser/index";
 import Debug from "debug";
-const debug = Debug("bte:smartapi-kg:OperationsBuilder");
+const debug = Debug("retriever:smartapi-kg:OperationsBuilder");
 
 export default abstract class BaseOperationsBuilder {
   protected _options: BuilderOptions;

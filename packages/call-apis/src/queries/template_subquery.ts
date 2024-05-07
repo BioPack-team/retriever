@@ -1,11 +1,12 @@
 /**
- * Build API queries serving as input for Axios library based on BTE Edge info
+ * Build API queries serving as input for Axios library based on Retriever Edge info
  */
 import nunjucks from "nunjucks";
 import nunjucksConfig from "./nunjucks_config";
-import { BiothingsResponse, QueryParams, TemplatedInput } from "../types";
+import { BiothingsResponse, QueryParams } from "../types";
+import { TemplatedInput } from "@retriever/graph";
 import { AxiosRequestConfig } from "axios";
-import Subquery from "./subquery";
+import Subquery, { FrozenSubquery } from "./subquery";
 const env = nunjucks.configure({ autoescape: false });
 nunjucksConfig(env);
 
@@ -16,8 +17,8 @@ export default class TemplateSubquery extends Subquery {
       server = server.substring(0, server.length - 1);
     }
     let path = this.APIEdge.query_operation.path;
-    if (Array.isArray(this.APIEdge.query_operation.path_params)) {
-      this.APIEdge.query_operation.path_params.map(param => {
+    if (Array.isArray(this.APIEdge.query_operation.pathParams)) {
+      this.APIEdge.query_operation.pathParams.map(param => {
         const val = String(this.APIEdge.query_operation.params[param]);
         path = nunjucks.renderString(
           path.replace("{" + param + "}", val),
@@ -48,8 +49,8 @@ export default class TemplateSubquery extends Subquery {
     }
     Object.keys(this.APIEdge.query_operation.params).map(param => {
       if (
-        Array.isArray(this.APIEdge.query_operation.path_params) &&
-        this.APIEdge.query_operation.path_params.includes(param)
+        Array.isArray(this.APIEdge.query_operation.pathParams) &&
+        this.APIEdge.query_operation.pathParams.includes(param)
       ) {
         return;
       }
@@ -70,20 +71,25 @@ export default class TemplateSubquery extends Subquery {
    */
   get requestBody(): unknown {
     if (
-      this.APIEdge.query_operation.request_body !== undefined &&
-      "body" in this.APIEdge.query_operation.request_body
+      this.APIEdge.query_operation.requestBody !== undefined &&
+      "body" in this.APIEdge.query_operation.requestBody
     ) {
-      const body = this.APIEdge.query_operation.request_body.body;
+      const body = this.APIEdge.query_operation.requestBody.body;
       let data: unknown;
       if (this.APIEdge.query_operation.requestBodyType === "object") {
-        data = JSON.parse(nunjucks.renderString(body, this.input as TemplatedInput));
+        data = JSON.parse(
+          nunjucks.renderString(body, this.input as TemplatedInput),
+        );
       } else {
         data = Object.keys(body).reduce((accumulator, key) => {
           return (
             accumulator +
             key +
             "=" +
-            nunjucks.renderString(body[key].toString(), this.input as TemplatedInput) +
+            nunjucks.renderString(
+              body[key].toString(),
+              this.input as TemplatedInput,
+            ) +
             "&"
           );
         }, "");
@@ -141,5 +147,16 @@ export default class TemplateSubquery extends Subquery {
     }
     this.config = config;
     return config;
+  }
+
+  freeze(): FrozenSubquery {
+    return {
+      type: "template",
+      start: this.start,
+      hasNext: this.hasNext,
+      delayUntil: this.delayUntil,
+      APIEdge: this.APIEdge,
+      options: this.options,
+    };
   }
 }

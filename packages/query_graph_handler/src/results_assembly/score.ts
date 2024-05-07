@@ -1,12 +1,12 @@
 import Debug from 'debug';
 import axios from 'axios';
-const debug = Debug('bte:biothings-explorer-trapi:score');
+const debug = Debug('retriever:score');
 import os from 'os';
 import async from 'async';
 
 import _ from 'lodash';
 import { ConsolidatedSolutionRecord, RecordsByQEdgeID } from './query_results';
-import { Telemetry } from '@biothings-explorer/utils';
+import { Telemetry } from '@retriever/utils';
 
 const tuning_param = 2.0;
 

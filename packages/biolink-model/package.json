@@ -17,10 +17,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/biothings/biolink-model.js.git"
+    "url": "git+https://github.com/BioPack-team/retriever"
   },
   "keywords": [
-    "biothings-explorer",
+    "BioPack",
+    "retriever",
     "biolink",
     "biomedical",
     "ontology"
@@ -28,9 +29,9 @@
   "author": "jiwen xin",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/biothings/biolink-model.js/issues"
+    "url": "https://github.com/BioPack-team/retriever/issues"
   },
-  "homepage": "https://github.com/biothings/biolink-model.js#readme",
+  "homepage": "https://github.com/BioPack-team/retriever#readme",
   "devDependencies": {
     "@types/debug": "^4.1.10",
     "@types/jest": "^26.0.24",

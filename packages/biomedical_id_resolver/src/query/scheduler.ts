@@ -4,7 +4,7 @@ import { BioThingsQueryBuilder } from './builder/biothings_builder';
 import { DBIdsObject, Buckets } from '../common/types';
 import { MAX_CONCURRENT_QUERIES } from '../config';
 import Debug from 'debug';
-const debug = Debug('biomedical-id-resolver:Scheduler');
+const debug = Debug('retriever:biomedical-id-resolver:Scheduler');
 
 export class Scheduler {
   private validInput: DBIdsObject;

@@ -1,8 +1,8 @@
 import Piscina from "piscina";
 import Queue from "bull";
-import { TrapiQuery, TrapiResponse } from "@biothings-explorer/types";
+import { TrapiQuery, TrapiResponse } from "@retriever/types";
 import { Express, Request } from "express";
-import { TaskInfo, TaskData } from "@biothings-explorer/types";
+import { TaskInfo, TaskData } from "@retriever/types";
 
 export interface ThreadPool {
   sync: Piscina;

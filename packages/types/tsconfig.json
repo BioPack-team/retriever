@@ -5,8 +5,11 @@
     "rootDir": "./src",
     "outDir": "./built",
     "paths": {
-      "smartapi-kg": [
+      "@retriever/smartapi-kg": [
         "../smartapi-kg"
+      ],
+      "@retriever/biomedical_id_resolver": [
+        "../biomedical_id_resolver"
       ]
     }
   },
@@ -20,6 +23,9 @@
   "references": [
     {
       "path": "../smartapi-kg"
+    },
+    {
+      "path": "../biomedical_id_resolver"
     }
   ]
 }

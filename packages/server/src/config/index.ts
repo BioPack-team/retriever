@@ -7,7 +7,7 @@ import dotenv from "dotenv";
 import * as Sentry from "@sentry/node";
 import { Express } from "express";
 import Debug from "debug";
-const debug = Debug("bte:biothings-explorer-trapi:server-config");
+const debug = Debug("retriever:server-config");
 
 export default class Config {
   app: Express;

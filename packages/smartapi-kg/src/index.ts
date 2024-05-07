@@ -5,7 +5,7 @@ import { BuilderOptions, FilterCriteria } from "./types";
 import { ft } from "./filter";
 import path from "path";
 import Debug from "debug";
-const debug = Debug("bte:smartapi-kg:MetaKG");
+const debug = Debug("retriever:smartapi-kg:MetaKG");
 
 export * from "./types";
 export * from "./parser/types";

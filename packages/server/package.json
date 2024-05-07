@@ -1,7 +1,7 @@
 {
-  "name": "@biothings-explorer/server",
+  "name": "@retriever/server",
   "version": "3.0.0",
-  "description": "The server component of Biothings Explorer",
+  "description": "The server component of Retriever",
   "main": "built/server.js",
   "scripts": {
     "prepare": "npm run build",
@@ -17,21 +17,22 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/biothings/bte-server.git"
+    "url": "git+https://github.com/BioPack-team/retriever"
   },
   "keywords": [
-    "bte",
+    "BioPack",
+    "retriever",
     "biothings",
     "single",
     "hop",
     "query"
   ],
-  "author": "BioThings Team",
+  "author": "BioPack Team",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/biothings/biothings_explorer/issues"
+    "url": "https://github.com/BioPack/retriever/issues"
   },
-  "homepage": "https://github.com/biothings/biothings_explorer#readme",
+  "homepage": "https://github.com/BioPack/retriever#readme",
   "devDependencies": {
     "@jest/globals": "^29.7.0",
     "@types/async": "^3.2.22",
@@ -74,10 +75,10 @@
     "typescript": "5.2.2"
   },
   "dependencies": {
-    "@biothings-explorer/query_graph_handler": "workspace:../query_graph_handler",
-    "@biothings-explorer/smartapi-kg": "workspace:../smartapi-kg",
-    "@biothings-explorer/types": "workspace:../types",
-    "@biothings-explorer/utils": "workspace:../utils",
+    "@retriever/query_graph_handler": "workspace:../query_graph_handler",
+    "@retriever/smartapi-kg": "workspace:../smartapi-kg",
+    "@retriever/types": "workspace:../types",
+    "@retriever/utils": "workspace:../utils",
     "@bull-board/api": "^5.9.1",
     "@bull-board/express": "^5.9.1",
     "@opentelemetry/api": "^1.7.0",

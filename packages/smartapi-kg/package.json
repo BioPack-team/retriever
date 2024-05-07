@@ -1,5 +1,5 @@
 {
-  "name": "@biothings-explorer/smartapi-kg",
+  "name": "@retriever/smartapi-kg",
   "version": "4.0.0",
   "description": "create a knowledge graph based on SmartAPI Specifications",
   "main": "built/index.js",
@@ -18,11 +18,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/biothings/smartapi-kg.js.git"
+    "url": "git+https://github.com/BioPack-team/retriever"
   },
   "keywords": [
+    "BioPack",
+    "retriever",
     "smartapi",
-    "biothings-explorer",
     "network",
     "knowledge graph",
     "kg"
@@ -30,9 +31,9 @@
   "author": "Jiwen Xin",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/biothings/smartapi-kg.js/issues"
+    "url": "https://github.com/BioPack-team/retriever/issues"
   },
-  "homepage": "https://github.com/biothings/smartapi-kg.js#readme",
+  "homepage": "https://github.com/BioPack-team/retriever#readme",
   "devDependencies": {
     "@babel/cli": "^7.23.0",
     "@babel/core": "^7.23.2",

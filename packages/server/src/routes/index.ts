@@ -1,5 +1,4 @@
 import MetaKG from "./metakg";
-import FrontPage from "./frontpage";
 import Performance from "./performance";
 import V1QueryByAPI from "./v1/query_v1_by_api";
 import V1QueryByTeam from "./v1/query_v1_by_team";
@@ -16,7 +15,7 @@ import LoggingHandler from "../middlewares/logging";
 import routesBullBoardPage from "./bullboard";
 import { Express } from "express";
 import { TaskFunction } from "../types";
-import { TaskInfo } from "@biothings-explorer/types";
+import { TaskInfo } from "@retriever/types";
 
 export function setRoutes(app: Express): void {
   MetaKG.setRoutes(app);
@@ -34,7 +33,6 @@ export function setRoutes(app: Express): void {
   LoggingHandler.setRoutes(app);
   V1Query.setRoutes(app);
   ErrorHandler.setRoutes(app);
-  FrontPage.setRoutes(app);
 }
 
 interface TaskByRoute {

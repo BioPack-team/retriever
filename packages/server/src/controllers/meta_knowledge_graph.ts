@@ -1,8 +1,8 @@
-import meta_kg, { KGQualifiersObject } from "@biothings-explorer/smartapi-kg";
+import meta_kg, { KGQualifiersObject } from "@retriever/smartapi-kg";
 import { snakeCase } from "snake-case";
 import path from "path";
 import PredicatesLoadingError from "../utils/errors/predicates_error";
-const debug = require("debug")("bte:biothings-explorer-trapi:metakg");
+const debug = require("debug")("bte:retriever:metakg");
 import apiList from "../config/api_list";
 
 interface PredicateInfo {

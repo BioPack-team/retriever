@@ -1,6 +1,6 @@
 import Redis, { Cluster, RedisKey } from "ioredis";
 import Debug from "debug";
-const debug = Debug("bte:biothings-explorer-trapi:redis-client");
+const debug = Debug("retriever:redis-client");
 import Redlock, { RedlockAbortSignal } from "redlock";
 
 const prefix = `{BTEHashSlotPrefix}:`;

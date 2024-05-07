@@ -1,5 +1,5 @@
 {
-  "name": "@biothings-explorer/query_graph_handler",
+  "name": "@retriever/query_graph_handler",
   "version": "1.18.0",
   "description": "A nodejs module to query TRAPI Query Graph",
   "main": "built/index.js",
@@ -18,19 +18,21 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/biothings/bte_trapi_query_graph_handler.git"
+    "url": "git+https://github.com/BioPack-team/retriever"
   },
   "keywords": [
+    "BioPack",
+    "retriever",
     "id",
     "conversion",
     "biomedical"
   ],
-  "author": "BioThings Team",
+  "author": "BioPack Team",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/biothings/bte_trapi_query_graph_handler/issues"
+    "url": "https://github.com/BioPack-team/retriever/issues"
   },
-  "homepage": "https://github.com/biothings/bte_trapi_query_graph_handler#readme",
+  "homepage": "https://github.com/BioPack-team/retriever#readme",
   "devDependencies": {
     "@types/async": "^3.2.22",
     "@types/debug": "^4.1.10",
@@ -53,12 +55,13 @@
     "typescript": "^5.2.2"
   },
   "dependencies": {
-    "@biothings-explorer/api-response-transform": "workspace:../api-response-transform",
-    "@biothings-explorer/call-apis": "workspace:../call-apis",
-    "@biothings-explorer/node-expansion": "workspace:../node-expansion",
-    "@biothings-explorer/smartapi-kg": "workspace:../smartapi-kg",
-    "@biothings-explorer/utils": "workspace:../utils",
-    "@biothings-explorer/types": "workspace:../types",
+    "@retriever/api-response-transform": "workspace:../api-response-transform",
+    "@retriever/call-apis": "workspace:../call-apis",
+    "@retriever/node-expansion": "workspace:../node-expansion",
+    "@retriever/smartapi-kg": "workspace:../smartapi-kg",
+    "@retriever/utils": "workspace:../utils",
+    "@retriever/types": "workspace:../types",
+    "@retriever/graph": "workspace:../graph",
     "biolink-model": "workspace:../biolink-model",
     "biomedical_id_resolver": "workspace:../biomedical_id_resolver",
     "@sentry/node": "^7.74.1",

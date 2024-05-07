@@ -3,7 +3,7 @@ import { ResolverOutput, IndividualResolverOutput } from '../common/types';
 import query from '../query/index';
 import DefaultValidator from '../validate/default_validator';
 import Debug from 'debug';
-const debug = Debug('biomedical-id-resolver:resolver');
+const debug = Debug('retriever:biomedical-id-resolver:resolver');
 
 export default class DefaultResolver extends BaseResolver {
   private organizeResolvedOutputs(resolved: IndividualResolverOutput[]): ResolverOutput {

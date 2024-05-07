@@ -1,65 +1,24 @@
+import { APIEdge } from "@retriever/graph";
 import { JSONDoc } from "./json_transform/types";
+import { XBTEKGSOperationObject } from "@retriever/smartapi-kg";
 
-interface KGAssociationObject {
-  input_id?: string;
-  input_type: string;
-  output_id?: string;
-  output_type: string;
-  predicate: string;
-  source?: string;
-  api_name?: string;
-}
-
-interface XBTEParametersObject {
-  [key: string]: string | number;
-}
-
-interface TransformerObject {
+export interface TransformerObject {
   wrap?: string;
   pair?: string;
 }
 
-interface TransformerSet {
+export interface TransformerSet {
   [transformerPattern: string]: TransformerObject;
 }
 
-interface QueryOperationInterface {
-  path: string;
-  method: string;
-  server: string;
-  tags: string[];
-  path_params: string[];
-  params: XBTEParametersObject;
-  request_body: object;
-  supportBatch: boolean;
-  inputSeparator: string;
-  transformer: TransformerSet;
-}
-
-interface SmartAPIKGOperationObject {
-  association: KGAssociationObject;
-  query_operation?: QueryOperationInterface;
-  response_mapping?: any;
-  id?: string;
-  tags?: string[];
-}
-
-interface TemplatedInput {
+export interface TemplatedInput {
   queryInputs: string | string[];
   [additionalAttributes: string]: string | string[];
 }
 
-export interface BTEKGOperationObject extends SmartAPIKGOperationObject {
-  input: string | string[] | TemplatedInput;
-  reasoner_edge?: any;
-  filter?: string;
-  original_input?: object;
-  input_resolved_identifiers?: object;
-}
-
-export interface BTEQueryObject {
+export interface RetrieverQueryObject {
   response: JSONDoc | JSONDoc[] | { hits: JSONDoc[] };
-  edge: BTEKGOperationObject;
+  edge: APIEdge;
 }
 
 export interface JQVariable {

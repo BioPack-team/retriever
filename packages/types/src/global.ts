@@ -1,7 +1,7 @@
 // Cursed globals that exist for Reasons
 
 import { TrapiQueryGraph } from "./trapi";
-import { SmartAPISpec } from "@biothings-explorer/smartapi-kg";
+import { SmartAPISpec } from "@retriever/smartapi-kg";
 import { Queue } from "bull";
 import Piscina from "piscina";
 import { MessagePort } from "worker_threads";
@@ -33,7 +33,8 @@ declare global {
   var missingAPIs: SmartAPISpec[];
   var BIOLINK_VERSION: string;
   var SCHEMA_VERSION: string;
-  var parentPort: MessagePort;
+  var toParent: MessagePort;
+  var fromParent: MessagePort;
   var cachingTasks: Promise<void>[];
   var queryInformation: QueryInformation;
   var job: {

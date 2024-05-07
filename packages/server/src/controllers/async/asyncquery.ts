@@ -1,19 +1,19 @@
 import axios, { AxiosError, AxiosResponse } from "axios";
 import { customAlphabet } from "nanoid";
 import * as utils from "../../utils/common";
-import { redisClient } from "@biothings-explorer/utils";
-import { LogEntry } from "@biothings-explorer/utils";
+import { redisClient } from "@retriever/utils";
+import { LogEntry } from "@retriever/utils";
 import lz4 from "lz4";
 import { Readable } from "stream";
 import chunker from "stream-chunker";
 import { parser } from "stream-json";
 import Assembler from "stream-json/Assembler";
-import { Telemetry } from "@biothings-explorer/utils";
+import { Telemetry } from "@retriever/utils";
 import ErrorHandler from "../../middlewares/error";
 import { Request, Response, NextFunction } from "express";
 import { Queue } from "bull";
-import { QueueData, TrapiQueryGraph, TrapiResponse } from "@biothings-explorer/types";
-import TRAPIQueryHandler from "@biothings-explorer/query_graph_handler";
+import { QueueData, TrapiQueryGraph, TrapiResponse } from "@retriever/types";
+import TRAPIQueryHandler from "@retriever/query_graph_handler";
 import StatusError from "../../utils/errors/status_error";
 
 export async function asyncquery(

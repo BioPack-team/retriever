@@ -6,9 +6,9 @@
     "outDir": "./built",
     "paths": {
       "smartapi-kg": ["../smartapi-kg"],
-      "@biothings-explorer/query_graph_handler": ["../query_graph_handler"],
-      "@biothings-explorer/utils": ["../utils"],
-      "@biothings-explorer/types": ["../types"]
+      "@retriever/query_graph_handler": ["../query_graph_handler"],
+      "@retriever/utils": ["../utils"],
+      "@retriever/types": ["../types"]
     }
   },
   "include": ["./src/**/*", "./src/**/*.json"],

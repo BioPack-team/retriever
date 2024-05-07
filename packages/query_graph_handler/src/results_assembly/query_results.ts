@@ -1,10 +1,10 @@
-import { LogEntry, StampedLog } from '@biothings-explorer/utils';
+import { LogEntry, StampedLog } from '@retriever/utils';
 import { TrapiResult } from '../types';
 import Debug from 'debug';
 import { zip } from 'lodash';
-const debug = Debug('bte:biothings-explorer-trapi:QueryResult');
+const debug = Debug('retriever:QueryResult');
 import { getScores, calculateScore, ScoreCombos } from './score';
-import { Record } from '@biothings-explorer/api-response-transform';
+import { Record } from '@retriever/graph';
 import { enrichTrapiResultsWithPfocrFigures } from './pfocr';
 import * as config from '../config';
 
@@ -432,8 +432,8 @@ export default class TrapiResultsAssembler {
           analyses: [
             {
               resource_id: this.options.provenanceUsesServiceProvider
-                ? `infores:service-provider-trapi`
-                : `infores:biothings-explorer`,
+                ? `infores:retriever-non-trapi`
+                : `infores:retriever`,
               edge_bindings: {},
               score: score,
             },

@@ -1,7 +1,7 @@
 import { Scheduler } from './scheduler';
 import { DBIdsObject, IndividualResolverOutput } from '../common/types';
 import Debug from 'debug';
-const debug = Debug('biomedical-id-resolver:Query');
+const debug = Debug('retriever:biomedical-id-resolver:Query');
 
 const query = async (resolvable: DBIdsObject): Promise<IndividualResolverOutput[]> => {
   const scheduler = new Scheduler(resolvable);

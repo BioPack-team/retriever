@@ -13,7 +13,7 @@ info:
     team:
       - Exploring Agent
     biolink-version: "4.1.6"
-    infores: "infores:biothings-explorer"
+    infores: "infores:retriever"
   x-trapi:
     version: 1.4.0
     asyncquery: true

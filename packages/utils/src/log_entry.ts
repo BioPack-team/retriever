@@ -5,7 +5,7 @@ import { Telemetry } from "./telemetry";
 export interface LogData {
   type?: string;
   qEdgeID?: string;
-  error?: string | number;
+  error?: string | number | boolean;
   hits?: number;
   [additionalInformation: string]: unknown;
 }
@@ -13,6 +13,10 @@ export interface LogData {
 export interface StampedLog extends TrapiLog {
   data: LogData;
   toJSON(): TrapiLog;
+}
+
+export interface SerializableLog extends TrapiLog {
+  data: LogData;
 }
 
 export enum SentryLogSeverity {
@@ -39,21 +43,39 @@ export class LogEntry {
     this.data = data;
   }
 
-  getLog(): StampedLog {
+  getSerializeable(isNewLog = true): SerializableLog {
+    const log = this.getLog(isNewLog);
+    delete log.toJSON;
+    return log as SerializableLog;
+  }
+
+  static deserialize(logs: SerializableLog[]): StampedLog[] {
+    return logs.map(log => {
+      return {
+        ...log,
+        toJSON: () => _.omit(log, ["data", "toJSON"]) as StampedLog,
+      } as StampedLog;
+    });
+  }
+
+  getLog(isNewLog = true): StampedLog {
     const log = {
       timestamp: new Date().toISOString(),
       level: this.level,
       message: this.message,
       code: this.code,
     };
-    if (global.job) {
-      global.job.log(JSON.stringify(log, undefined, 2));
+    if (isNewLog) {
+      if (global.job) {
+        global.job.log(JSON.stringify(log, undefined, 2));
+      }
+
+      Telemetry.addBreadcrumb({
+        category: "log",
+        message: this.message,
+        level: SentryLogSeverity[this.level.toLowerCase()],
+      });
     }
-    Telemetry.addBreadcrumb({
-      category: "log",
-      message: this.message,
-      level: SentryLogSeverity[this.level.toLowerCase()],
-    });
     return {
       ...log,
       data: this.data,

@@ -1,17 +1,17 @@
-import call_api from '@biothings-explorer/call-apis';
-import { redisClient } from '@biothings-explorer/utils';
-import QEdge2APIEdgeHandler, { APIEdge } from './qedge2apiedge';
+import { constructQueries } from '@retriever/call-apis';
+import { LogEntry, SerializableLog } from '@retriever/utils';
+import QEdge2APIEdgeHandler from './qedge2apiedge';
+import { APIEdge, RecordPackage } from '@retriever/graph';
 import NodesUpdateHandler from './update_nodes';
 import Debug from 'debug';
-const debug = Debug('bte:biothings-explorer-trapi:batch_edge_query');
+const debug = Debug('retriever:batch_edge_query');
 import CacheHandler from './cache_handler';
 import { threadId } from 'worker_threads';
-import MetaKG from '@biothings-explorer/smartapi-kg';
-import { StampedLog } from '@biothings-explorer/utils';
-import { QueryHandlerOptions } from '@biothings-explorer/types';
-import QEdge from './query_edge';
+import MetaKG from '@retriever/smartapi-kg';
+import { StampedLog } from '@retriever/utils';
+import { QueryHandlerOptions, ThreadMessage } from '@retriever/types';
+import { Record, QEdge } from '@retriever/graph';
 import { UnavailableAPITracker } from './types';
-import { Record } from '@biothings-explorer/api-response-transform';
 
 export interface BatchEdgeQueryOptions extends QueryHandlerOptions {
   recordHashEdgeAttributes: string[];
@@ -25,7 +25,7 @@ export default class BatchEdgeQueryHandler {
   options: QueryHandlerOptions;
   resolveOutputIDs: boolean;
   qEdges: QEdge | QEdge[];
-  constructor(metaKG: MetaKG, resolveOutputIDs = true, options?: BatchEdgeQueryOptions) {
+  constructor(metaKG: MetaKG, options?: BatchEdgeQueryOptions) {
     this.metaKG = metaKG;
     this.logs = [];
     this.caching = options && options.caching;
@@ -33,7 +33,6 @@ export default class BatchEdgeQueryHandler {
     if (options && options.recordHashEdgeAttributes) {
       this.options.EDGE_ATTRIBUTES_USED_IN_RECORD_HASH = options.recordHashEdgeAttributes;
     }
-    this.resolveOutputIDs = resolveOutputIDs;
   }
 
   /**
@@ -61,11 +60,62 @@ export default class BatchEdgeQueryHandler {
   /**
    * @private
    */
-  async _queryAPIEdges(APIEdges: APIEdge[], unavailableAPIs: UnavailableAPITracker = {}): Promise<Record[]> {
-    const executor = new call_api(APIEdges, this.options, redisClient);
-    const records: Record[] = await executor.query(this.resolveOutputIDs, unavailableAPIs);
-    this.logs = [...this.logs, ...executor.logs];
-    return records;
+  _queryAPIEdges(APIEdges: APIEdge[], unavailableAPIs: UnavailableAPITracker = {}): Promise<Record[]> {
+    // Skip queueing queries to unavailable APIs
+    const queries = constructQueries(APIEdges, this.options).filter((query) => {
+      if (unavailableAPIs[query.APIEdge.query_operation.server]?.skip === true) {
+        unavailableAPIs[query.APIEdge.query_operation.server].skippedQueries += 1;
+        return false;
+      }
+      return true;
+    });
+
+    const queriesByHash = Object.fromEntries(queries.map((query) => [query.hash, query]));
+
+    const qEdge = APIEdges[0].reasoner_edge;
+    const message = `${queries.length} planned queries for edge ${qEdge.id}`;
+    debug(message);
+    this.logs.push(new LogEntry('INFO', null, message).getLog());
+    let finishedCount = 0;
+    const completedLogs = this.logs;
+    const completedRecords: Record[] = [];
+    return new Promise<Record[]>((resolve) => {
+      function listener(msg: ThreadMessage) {
+        if (msg.type !== 'subQueryResult') return;
+        const { hash, records, logs, apiUnavailable } = msg.value as {
+          hash: string;
+          records: RecordPackage;
+          logs: SerializableLog[];
+          apiUnavailable: boolean;
+        };
+        completedLogs.push(...LogEntry.deserialize(logs));
+        completedRecords.push(...Record.unpackRecords(records, qEdge));
+
+        // Update any APIs that were unavailable for this segment
+        const server = queriesByHash[hash].APIEdge.query_operation.server;
+        if (apiUnavailable) {
+          if (!unavailableAPIs[server]) {
+            unavailableAPIs[server] = { skip: true, skippedQueries: 0 };
+          }
+          unavailableAPIs[server].skippedQueries += 1;
+        }
+
+        finishedCount += 1;
+        if (finishedCount >= queries.length) {
+          debug(`Total number of records returned for qEdge ${qEdge.id} is ${completedRecords.length}`);
+          resolve(completedRecords);
+          global.workerSide.off('message', listener); // Clean up
+        }
+      }
+      global.workerSide.on('message', listener);
+      global.workerSide.postMessage({
+        type: 'subqueryRequest',
+        value: {
+          queries: queries.map((query) => query.freeze()),
+          options: this.options,
+        },
+      });
+    });
   }
 
   /**
@@ -100,7 +150,7 @@ export default class BatchEdgeQueryHandler {
             const equivalentAlreadyIncluded = qEdge
               .getInputNode()
               .getEquivalentIDs()
-            [curie].equivalentIDs.some((equivalentCurie) => reducedCuries.includes(equivalentCurie));
+              [curie].equivalentIDs.some((equivalentCurie) => reducedCuries.includes(equivalentCurie));
             if (!equivalentAlreadyIncluded) {
               reducedCuries.push(curie);
             } else {
@@ -112,7 +162,8 @@ export default class BatchEdgeQueryHandler {
         strippedCuries.push(...nodeStrippedCuries);
         if (nodeStrippedCuries.length > 0) {
           debug(
-            `stripped (${nodeStrippedCuries.length}) duplicate equivalent curies from ${node.id
+            `stripped (${nodeStrippedCuries.length}) duplicate equivalent curies from ${
+              node.id
             }: ${nodeStrippedCuries.join(',')}`,
           );
         }
@@ -133,40 +184,26 @@ export default class BatchEdgeQueryHandler {
     await this._rmEquivalentDuplicates(qEdges);
     debug('Node Update Success');
 
-    const cacheHandler = new CacheHandler(this.caching, this.metaKG, this.options);
-    const { cachedRecords, nonCachedQEdges } = await cacheHandler.categorizeEdges(qEdges);
-    this.logs = [...this.logs, ...cacheHandler.logs];
+    // const cacheHandler = new CacheHandler(this.caching, this.metaKG, this.options);
+    // const { cachedRecords, nonCachedQEdges } = await cacheHandler.categorizeEdges(qEdges);
+    // this.logs = [...this.logs, ...cacheHandler.logs];
     let queryRecords: Record[];
 
-    if (nonCachedQEdges.length === 0) {
-      queryRecords = [];
-      if (global.parentPort) {
-        global.parentPort.postMessage({ threadId, type: "cacheDone", value: true });
-      }
-    } else {
-      debug('Start to convert qEdges into APIEdges....');
-      const edgeConverter = new QEdge2APIEdgeHandler(nonCachedQEdges, this.metaKG);
-      const APIEdges = await edgeConverter.convert(nonCachedQEdges);
-      debug(`qEdges are successfully converted into ${APIEdges.length} APIEdges....`);
-      this.logs = [...this.logs, ...edgeConverter.logs];
-      if (APIEdges.length === 0 && cachedRecords.length === 0) {
-        return [];
-      }
-      const expanded_APIEdges = this._expandAPIEdges(APIEdges);
-      debug('Start to query APIEdges....');
-      queryRecords = await this._queryAPIEdges(expanded_APIEdges, unavailableAPIs);
-      if (queryRecords === undefined) return;
-      debug('APIEdges are successfully queried....');
-      queryRecords = await this._postQueryFilter(queryRecords);
-      debug(`Total number of records is (${queryRecords.length})`);
-      const cacheTask = cacheHandler.cacheEdges(queryRecords);
-      if (!(process.env.USE_THREADING === 'false')) {
-        global.cachingTasks?.push(cacheTask);
-      } else {
-        await cacheTask;
-      }
+    debug('Start to convert qEdges into APIEdges....');
+    const edgeConverter = new QEdge2APIEdgeHandler(qEdges, this.metaKG);
+    const APIEdges = await edgeConverter.convert(qEdges);
+    debug(`qEdges are successfully converted into ${APIEdges.length} APIEdges....`);
+    this.logs = [...this.logs, ...edgeConverter.logs];
+    if (APIEdges.length === 0) {
+      return [];
     }
-    queryRecords = [...queryRecords, ...cachedRecords];
+    const expanded_APIEdges = this._expandAPIEdges(APIEdges);
+    debug('Start to query APIEdges....');
+    queryRecords = await this._queryAPIEdges(expanded_APIEdges, unavailableAPIs);
+    if (queryRecords === undefined) return;
+    debug('APIEdges are successfully queried....');
+    queryRecords = await this._postQueryFilter(queryRecords);
+    debug(`Total number of records is (${queryRecords.length})`);
     debug('Start to update nodes...');
     nodeUpdate.update(queryRecords);
     debug('Update nodes completed!');

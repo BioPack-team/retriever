@@ -1,7 +1,7 @@
 import BaseTransformer from "./transformer";
-import { Record } from "../record";
+import { Record } from "@retriever/graph";
 import { JSONDoc } from "../json_transform/types";
-import { removeBioLinkPrefix } from "@biothings-explorer/utils";
+import { removeBioLinkPrefix } from "@retriever/utils";
 
 export default class TRAPITransformer extends BaseTransformer {
   _getUniqueEdges() {

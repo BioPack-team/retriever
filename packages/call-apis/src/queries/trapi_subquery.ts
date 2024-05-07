@@ -1,10 +1,10 @@
-import type { APIEdge, TrapiResponse } from "../types";
+import { APIEdge } from "@retriever/graph";
 import { AxiosRequestConfig, Method } from "axios";
-import { TrapiRequest } from "../types";
-import Subquery from "./subquery";
+import Subquery, { FrozenSubquery } from "./subquery";
+import { TrapiQuery, TrapiResponse } from "packages/types/src";
 
 /**
- * Build API queries serving as input for Axios library based on BTE Edge info
+ * Build API queries serving as input for Axios library based on Retriever Edge info
  */
 export default class TrapiSubquery extends Subquery {
   start: number;
@@ -18,8 +18,8 @@ export default class TrapiSubquery extends Subquery {
       server = server.substring(0, server.length - 1);
     }
     let path = this.APIEdge.query_operation.path;
-    if (Array.isArray(this.APIEdge.query_operation.path_params)) {
-      this.APIEdge.query_operation.path_params.map(param => {
+    if (Array.isArray(this.APIEdge.query_operation.pathParams)) {
+      this.APIEdge.query_operation.pathParams.map(param => {
         const val = String(this.APIEdge.query_operation.params[param]);
         path = path
           .replace("{" + param + "}", val)
@@ -35,15 +35,12 @@ export default class TrapiSubquery extends Subquery {
     return (this.APIEdge.input as string[]).sort();
   }
 
-  addSubmitter(submitter: string): void {
-    this.originalSubmitter = submitter;
-  }
 
   /**
    * Construct TRAPI request body
    */
-  get requestBody(): TrapiRequest {
-    const queryGraph: TrapiRequest = {
+  get requestBody(): TrapiQuery {
+    const queryBody: TrapiQuery = {
       message: {
         query_graph: {
           nodes: {
@@ -64,12 +61,12 @@ export default class TrapiSubquery extends Subquery {
           },
         },
       },
-      submitter: "infores:bte",
+      submitter: "infores:retriever",
     };
     const qualifierConstraints =
       this.APIEdge.reasoner_edge?.getQualifierConstraints?.();
     if (qualifierConstraints) {
-      queryGraph.message.query_graph.edges.e01.qualifier_constraints =
+      queryBody.message.query_graph.edges.e01.qualifier_constraints =
         qualifierConstraints;
     }
     const xmaturityMap = {
@@ -79,10 +76,10 @@ export default class TrapiSubquery extends Subquery {
       dev: "dev",
     };
     if (process.env.INSTANCE_ENV)
-      queryGraph.submitter += `; bte-${xmaturityMap[process.env.INSTANCE_ENV]}`;
-    if (this.originalSubmitter)
-      queryGraph.submitter += `; subquery for client "${this.originalSubmitter}"`;
-    return queryGraph;
+      queryBody.submitter += `; retriever-${xmaturityMap[process.env.INSTANCE_ENV]}`;
+    if (this.options.submitter)
+      queryBody.submitter += `; subquery for client "${this.options.submitter}"`;
+    return queryBody;
   }
 
   /**
@@ -96,12 +93,13 @@ export default class TrapiSubquery extends Subquery {
       headers: {
         "Content-Type": "application/json",
       },
+      timeout: this.timeout,
     };
     this.config = config;
     return config;
   }
 
-  needPagination(_apiResponse: TrapiResponse): number {
+  needsPagination(_apiResponse: TrapiResponse): number {
     this.hasNext = false;
     return 0;
   }
@@ -109,5 +107,16 @@ export default class TrapiSubquery extends Subquery {
   getNext(): AxiosRequestConfig {
     const config = this.constructAxiosRequestConfig();
     return config;
+  }
+
+  freeze(): FrozenSubquery {
+    return {
+      type: "trapi",
+      start: this.start,
+      hasNext: this.hasNext,
+      delayUntil: this.delayUntil,
+      APIEdge: this.APIEdge,
+      options: this.options,
+    };
   }
 }

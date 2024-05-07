@@ -5,7 +5,7 @@ import { SRIResolverOutput, ResolverInput, SRIBioEntity, SRIResponseEntity, SRIR
 import Debug from 'debug';
 import _ from 'lodash';
 import SRINodeNormFailure from './exceptions/sri_resolver_failiure';
-const debug = Debug('bte:biomedical-id-resolver:SRI');
+const debug = Debug('retriever:biomedical-id-resolver:SRI');
 
 /** sets up request retry policy (weird typescript b/c old axios version) */
 // @ts-ignore
