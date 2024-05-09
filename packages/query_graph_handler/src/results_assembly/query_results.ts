@@ -425,18 +425,21 @@ export default class TrapiResultsAssembler {
           result.node_bindings[inputQNodeID] = Array.from(inputPrimaryCuries).map((inputPrimaryCurie) => {
             return {
               id: inputPrimaryCurie,
+              attributes: [],
             };
           });
 
           result.node_bindings[outputQNodeID] = Array.from(outputPrimaryCuries).map((outputPrimaryCurie) => {
             return {
               id: outputPrimaryCurie,
+              attributes: [],
             };
           });
 
           result.analyses[0].edge_bindings[qEdgeID] = Array.from(recordHashes).map((recordHash) => {
             return {
               id: recordHash,
+              attributes: [],
             };
           });
         },

@@ -199,7 +199,7 @@ export default class TRAPIQueryHandler {
         suffix += 1;
       }
       const supportGraphID = `support${suffix}-${boundEdgeID}`;
-      auxGraphs[supportGraphID] = { edges: supportGraph };
+      auxGraphs[supportGraphID] = { edges: supportGraph, attributes: [] };
       if (!edgesIDsByAuxGraphID[supportGraphID]) {
         edgesIDsByAuxGraphID[supportGraphID] = new Set();
       }
@@ -242,7 +242,7 @@ export default class TRAPIQueryHandler {
                     boundIDs.add(binding.id);
                   }
                 } else if (!boundIDs.has(nodesToRebind[binding.id].newNode)) {
-                  newBindings.push({ id: nodesToRebind[binding.id].newNode });
+                  newBindings.push({ id: nodesToRebind[binding.id].newNode, attributes: [] });
                   boundIDs.add(nodesToRebind[binding.id].newNode);
                 }
                 return { boundIDs, newBindings };
@@ -264,7 +264,7 @@ export default class TRAPIQueryHandler {
                     boundIDs.add(binding.id);
                   }
                 } else if (!boundIDs.has(edgesToRebind[binding.id])) {
-                  newBindings.push({ id: edgesToRebind[binding.id] });
+                  newBindings.push({ id: edgesToRebind[binding.id], attributes: [] });
                   boundIDs.add(edgesToRebind[binding.id]);
                   resultBoundEdgesWithAuxGraphs.add(edgesToRebind[binding.id]);
                 }
