@@ -161,6 +161,7 @@ export interface TrapiResponseMessage {
 }
 
 export interface TrapiQuery {
+  bypass_cache?: boolean;
   message: TrapiQueryMessage;
   log_level?: string;
   workflow?: TrapiWorkflow[];

@@ -25,16 +25,19 @@ class V1AsyncQueryByTeam implements BteRoute {
       .post(swaggerValidation.validate, (async (req: Request, res: Response, next: NextFunction) => {
         const queueData: QueueData = {
           route: req.route.path,
-          queryGraph: req.body.message.query_graph,
+          queryGraph: req.body?.message.query_graph,
           teamName: req.params.team_name,
-          workflow: req.body.workflow,
-          callback_url: req.body.callback,
+          workflow: req.body?.workflow,
+          callback_url: req.body?.callback,
           options: {
-            logLevel: req.body.log_level,
-            submitter: req.body.submitter,
+            logLevel: req.body?.log_level,
+            submitter: req.body?.submitter,
             ...req.query,
           },
         };
+        if (req.body?.bypass_cache) {
+          queueData.options.caching = false;
+        }
         await asyncquery(req, res, next, queueData, global.queryQueue["bte_query_queue_by_team"]);
       }) as RequestHandler)
       .all(utils.methodNotAllowed);

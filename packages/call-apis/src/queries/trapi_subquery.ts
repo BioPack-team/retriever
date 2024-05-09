@@ -69,6 +69,9 @@ export default class TrapiSubquery extends Subquery {
       queryBody.message.query_graph.edges.e01.qualifier_constraints =
         qualifierConstraints;
     }
+    if (this.options.caching === false) {
+      queryBody.bypass_cache = true;
+    }
     const xmaturityMap = {
       ci: "staging",
       test: "test",

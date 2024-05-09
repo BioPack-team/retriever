@@ -33,15 +33,18 @@ class V1AsyncQuery implements BteRoute {
       ) => {
         const queueData: QueueData = {
           route: req.route.path,
-          queryGraph: req.body.message.query_graph,
-          workflow: req.body.workflow,
-          callback_url: req.body.callback,
+          queryGraph: req.body?.message.query_graph,
+          workflow: req.body?.workflow,
+          callback_url: req.body?.callback,
           options: {
-            logLevel: req.body.log_level,
-            submitter: req.body.submitter,
+            logLevel: req.body?.log_level,
+            submitter: req.body?.submitter,
             ...req.query,
           },
         };
+        if (req.body?.bypass_cache) {
+          queueData.options.caching = false;
+        }
         await asyncquery(req, res, next, queueData, global.queryQueue.bte_query_queue);
       }) as RequestHandler)
       .all(utils.methodNotAllowed);
