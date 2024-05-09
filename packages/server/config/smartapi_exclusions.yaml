@@ -3,3 +3,8 @@
   name: BioThings Explorer (BTE) TRAPI
 - id: 36f82f05705c317bac17ddae3a0ea2f0
   name: Service Provider TRAPI
+## temp separate registrations for TRAPI 1.5
+- id: 8d97ee37572eaaf9e74df447763fd0c5
+  name: BioThings Explorer (BTE) TRAPI
+- id: a0595049c9a250003c2eced0946d84f6
+  name: Service Provider TRAPI

@@ -56,7 +56,7 @@ export default async function runTask({
 }: InnerTaskData) {
   debug(`Worker thread ${threadId} beginning ${Piscina.workerData.queue} task.`);
 
-  global.SCHEMA_VERSION = "1.4.0";
+  global.SCHEMA_VERSION = "1.5.0";
 
   global.workerSide = workerSide;
   workerSide.postMessage({ threadId, type: "registerId" });

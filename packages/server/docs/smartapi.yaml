@@ -15,7 +15,7 @@ info:
     biolink-version: "4.1.6"
     infores: "infores:retriever"
   x-trapi:
-    version: 1.4.0
+    version: 1.5.0
     asyncquery: true
     operations:
     ## look at https://standards.ncats.io/operation.json for details.
