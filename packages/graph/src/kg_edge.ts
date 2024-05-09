@@ -1,4 +1,4 @@
-import { TrapiAttribute, TrapiSource } from '@retriever/types';
+import { TrapiAttribute, TrapiSource } from "@retriever/types";
 
 export interface KGEdgeInfo {
   object: string;
@@ -19,6 +19,7 @@ export default class KGEdge {
         resource_id: string;
         resource_role: string;
         upstream_resource_ids?: Set<string>;
+        source_record_urls?: Set<string>;
       };
     };
   };
@@ -28,7 +29,7 @@ export default class KGEdge {
   };
   attributes: {
     [attribute_type_id: string]: Set<string> | TrapiAttribute[];
-    'edge-attributes'?: TrapiAttribute[];
+    "edge-attributes"?: TrapiAttribute[];
   };
   constructor(id: string, info: KGEdgeInfo) {
     this.id = id;
@@ -44,62 +45,80 @@ export default class KGEdge {
   }
 
   addAPI(api: string | string[]): void {
-    if (typeof api === 'undefined') {
+    if (typeof api === "undefined") {
       return;
     }
     if (!Array.isArray(api)) {
       api = [api];
     }
-    api.map((item) => {
+    api.map(item => {
       this.apis.add(item);
     });
   }
 
   addInforesCurie(inforesCurie: string | string[]): void {
-    if (typeof inforesCurie === 'undefined') {
+    if (typeof inforesCurie === "undefined") {
       return;
     }
     if (!Array.isArray(inforesCurie)) {
       inforesCurie = [inforesCurie];
     }
-    inforesCurie.map((item) => {
+    inforesCurie.map(item => {
       this.inforesCuries.add(item);
     });
   }
 
   addSource(source: TrapiSource | TrapiSource[]): void {
-    if (typeof source === 'undefined') {
+    if (typeof source === "undefined") {
       return;
     }
     if (!Array.isArray(source)) {
       source = [source];
     }
-    source.forEach((item) => {
+    source.forEach(item => {
       if (!this.sources[item.resource_id]) this.sources[item.resource_id] = {};
+      if (
+        item.upstream_resource_ids &&
+        !Array.isArray(item.upstream_resource_ids)
+      ) {
+        item.upstream_resource_ids = [item.upstream_resource_ids];
+      }
+      if (item.source_record_urls && !Array.isArray(item.source_record_urls)) {
+        item.source_record_urls = [item.source_record_urls];
+      }
       if (!this.sources[item.resource_id][item.resource_role]) {
         this.sources[item.resource_id][item.resource_role] = {
           resource_id: item.resource_id,
           resource_role: item.resource_role,
-          upstream_resource_ids: item.upstream_resource_ids ? new Set(item.upstream_resource_ids) : undefined,
+          upstream_resource_ids: item.upstream_resource_ids
+            ? new Set(item.upstream_resource_ids)
+            : undefined,
+          source_record_urls: item.source_record_urls
+            ? new Set(item.source_record_urls)
+            : undefined,
         };
       }
-      if (item.upstream_resource_ids && !Array.isArray(item.upstream_resource_ids)) {
-        item.upstream_resource_ids = [item.upstream_resource_ids];
-      }
-      item.upstream_resource_ids?.forEach((upstream) =>
-        this.sources[item.resource_id][item.resource_role].upstream_resource_ids.add(upstream),
+      item.upstream_resource_ids?.forEach(upstream =>
+        this.sources[item.resource_id][
+          item.resource_role
+        ].upstream_resource_ids.add(upstream),
+      );
+      item.source_record_urls?.forEach(url =>
+        this.sources[item.resource_id][
+          item.resource_role
+        ].source_record_urls.add(url),
       );
     });
   }
 
   addPublication(publication: string | string[]): void {
-    if (typeof publication === 'undefined') {
+    if (typeof publication === "undefined") {
       return;
     }
     if (!Array.isArray(publication)) {
       publication = [publication];
     }
-    publication.map((item) => {
+    publication.map(item => {
       this.publications.add(item);
     });
   }
@@ -108,9 +127,12 @@ export default class KGEdge {
     this.qualifiers[name] = value;
   }
 
-  addAdditionalAttributes(name: string, value: string | string[] | TrapiAttribute[]): void {
+  addAdditionalAttributes(
+    name: string,
+    value: string | string[] | TrapiAttribute[],
+  ): void {
     // special handling for full edge attributes
-    if (name === 'edge-attributes') {
+    if (name === "edge-attributes") {
       this.attributes[name] = value as TrapiAttribute[];
       return;
     }
@@ -121,7 +143,7 @@ export default class KGEdge {
     if (!Array.isArray(value)) {
       value = [value];
     }
-    (value as string[]).map((item) => {
+    (value as string[]).map(item => {
       (this.attributes[name] as Set<string>).add(item);
     });
   }

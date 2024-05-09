@@ -9,3 +9,6 @@ apis:
     8f08d1446e0bb9c2b323713ce83e2bd3: https://raw.githubusercontent.com/NCATS-Tangerine/translator-api-registry/biolink-4-update/mychem.info/openapi_full.yml
     1138c3297e8e403b6ac10cff5609b319: https://raw.githubusercontent.com/NCATS-Tangerine/translator-api-registry/biolink-4-update/repodb/smartapi.yaml
     978fe380a147a8641caf72320862697b: https://raw.githubusercontent.com/NCATS-Tangerine/translator-api-registry/treats-refactor-tmkp/text_mining/smartapi.yaml
+    38e9e5169a72aee3659c9ddba956790d: https://raw.githubusercontent.com/NCATS-Tangerine/translator-api-registry/source_record_urls/bindingdb/smartapi.yaml
+    b772ebfbfa536bba37764d7fddb11d6f: https://raw.githubusercontent.com/NCATS-Tangerine/translator-api-registry/source_record_urls/ncats_rare_source/smartapi.yaml
+    59dce17363dce279d389100834e43648: https://raw.githubusercontent.com/NCATS-Tangerine/translator-api-registry/source_record_urls/mygene.info/openapi_full.yml

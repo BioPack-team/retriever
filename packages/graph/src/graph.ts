@@ -97,10 +97,10 @@ export default class BTEGraph {
         this.edges[recordHash].addAPI(record.api);
         this.edges[recordHash].addInforesCurie(record.apiInforesCurie);
         this.edges[recordHash].addPublication(record.publications);
-        Object.keys(record.mappedResponse)
+        Object.keys(record._mappedResponse)
           .filter((k) => !(bteAttributes.includes(k) || k.startsWith('$')))
           .map((item) => {
-            this.edges[recordHash].addAdditionalAttributes(item, record.mappedResponse[item]);
+            this.edges[recordHash].addAdditionalAttributes(item, record._mappedResponse[item]);
           });
         if (record.knowledge_level) {
           this.edges[recordHash].addAdditionalAttributes('biolink:knowledge_level', record.knowledge_level);

@@ -1,5 +1,6 @@
 import { SRIBioEntity } from "@retriever/biomedical_id_resolver";
 import { KGAssociationObject } from "@retriever/smartapi-kg";
+import { TrapiSource } from "@retriever/types";
 import crypto from "crypto";
 import _ from "lodash";
 
@@ -143,7 +144,7 @@ export class Record {
   object: RecordNode;
   reverseToExecution: boolean;
   _qualifiers: BulkQualifiers;
-  mappedResponse: MappedResponse;
+  _mappedResponse: MappedResponse;
 
   constructor(
     record: FrozenRecord | VerboseFrozenRecord | MinimalFrozenRecord,
@@ -164,9 +165,9 @@ export class Record {
       this.object = new RecordNode(record.object, this.qEdge.getInputNode());
     }
     this._qualifiers = record.qualifiers || this.association.qualifiers;
-    this.mappedResponse = record.mappedResponse ? record.mappedResponse : {};
-    if (!this.mappedResponse.publications) {
-      this.mappedResponse.publications = record.publications;
+    this._mappedResponse = record.mappedResponse ? record.mappedResponse : {};
+    if (!this._mappedResponse.publications) {
+      this._mappedResponse.publications = record.publications;
     }
   }
 
@@ -273,9 +274,9 @@ export class Record {
       getHashedEdgeRepresentation(): string {
         return hash(
           record.subject.semanticType +
-          record.predicate +
-          record.object.semanticType +
-          (record.subject.equivalentCuries || record.object.equivalentCuries),
+            record.predicate +
+            record.object.semanticType +
+            (record.subject.equivalentCuries || record.object.equivalentCuries),
         );
       },
     };
@@ -290,12 +291,12 @@ export class Record {
       predicate: record.predicate?.replace("biolink:", ""),
       qualifiers: record.qualifiers
         ? Object.fromEntries(
-          Object.entries(record.qualifiers).map(
-            ([qualifierType, qualifier]: [string, string]) => {
-              return [qualifierType.replace("biolink:", ""), qualifier];
-            },
-          ),
-        )
+            Object.entries(record.qualifiers).map(
+              ([qualifierType, qualifier]: [string, string]) => {
+                return [qualifierType.replace("biolink:", ""), qualifier];
+              },
+            ),
+          )
         : undefined,
       api_name: record.api,
       source: record.metaEdgeSource,
@@ -324,7 +325,7 @@ export class Record {
     const frozenRecords = [];
     const associationHashes = [];
     const associations = [];
-    records.forEach((record: Record, i: number) => {
+    records.forEach((record: Record) => {
       const frozenRecord = record.freezeMinimal();
 
       const associationHash = hash(JSON.stringify(record.association));
@@ -372,7 +373,7 @@ export class Record {
       api: this.api,
       apiInforesCurie: this.apiInforesCurie,
       metaEdgeSource: this.metaEdgeSource,
-      mappedResponse: this.mappedResponse,
+      mappedResponse: this._mappedResponse,
     };
   }
 
@@ -399,22 +400,30 @@ export class Record {
       object: this.object.freezeMinimal(),
       qualifiers: this.qualifiers,
       publications: this.publications,
-      mappedResponse: this.mappedResponse,
+      mappedResponse: this._mappedResponse,
     };
   }
 
   _getFlattenedEdgeAttributes(attributes: EdgeAttribute[]): EdgeAttribute[] {
     return attributes
       ? attributes.reduce((arr: EdgeAttribute[], attribute: EdgeAttribute) => {
-        attribute.attributes
-          ? arr.push(
-            attribute,
-            ...this._getFlattenedEdgeAttributes(attribute.attributes),
-          )
-          : arr.push(attribute);
-        return arr;
-      }, [])
+          attribute.attributes
+            ? arr.push(
+                attribute,
+                ...this._getFlattenedEdgeAttributes(attribute.attributes),
+              )
+            : arr.push(attribute);
+          return arr;
+        }, [])
       : [];
+  }
+
+  get mappedResponse() {
+    return Object.fromEntries(
+      Object.entries(this._mappedResponse).filter(([key, _val]) => {
+        return key !== "source_url";
+      }),
+    );
   }
 
   get knowledge_level(): string | undefined {
@@ -427,7 +436,7 @@ export class Record {
 
   get _configuredEdgeAttributesForHash(): string {
     return this._getFlattenedEdgeAttributes(
-      this.mappedResponse["edge-attributes"],
+      this._mappedResponse["edge-attributes"],
     )
       .filter(attribute => {
         return this.config?.EDGE_ATTRIBUTES_USED_IN_RECORD_HASH?.includes(
@@ -446,7 +455,7 @@ export class Record {
       this.predicate,
       this.object.curie,
       Object.entries(this.qualifiers)
-        .sort(([qTa, qVa], [qTb, qVb]) => qTa.localeCompare(qTb))
+        .sort(([qTa, _qVa], [qTb, _qVb]) => qTa.localeCompare(qTb))
         .reduce(
           (str, [qualifierType, qualifierValue]) =>
             `${str};${qualifierType}:${JSON.stringify(qualifierValue)}`,
@@ -511,16 +520,18 @@ export class Record {
     return this.association.source;
   }
 
-  get provenanceChain(): ProvenanceChainItem[] {
-    let returnValue: ProvenanceChainItem[] = [];
-    if (this.mappedResponse.trapi_sources) {
-      returnValue = _.cloneDeep(this.mappedResponse.trapi_sources);
+  get provenanceChain(): TrapiSource[] {
+    const source_urls = this._mappedResponse.source_url ?? undefined;
+    let returnValue: TrapiSource[] = [];
+    if (this._mappedResponse.trapi_sources) {
+      returnValue = _.cloneDeep(this._mappedResponse.trapi_sources);
     } else {
       returnValue.push({
         resource_id: this.association.apiIsPrimaryKnowledgeSource
           ? this.apiInforesCurie
           : this.metaEdgeSource,
         resource_role: "primary_knowledge_source",
+        source_record_urls: source_urls,
       });
       if (!this.association.apiIsPrimaryKnowledgeSource) {
         returnValue.push({
@@ -541,7 +552,7 @@ export class Record {
   }
 
   get publications(): string[] {
-    return this.mappedResponse.publications || [];
+    return this._mappedResponse.publications || [];
   }
 }
 
@@ -624,7 +635,7 @@ export type RecordPackage = [
 ];
 
 export interface MappedResponse {
-  trapi_sources?: ProvenanceChainItem[];
+  trapi_sources?: TrapiSource[];
   "edge-attributes"?: EdgeAttribute[];
   [mappedItems: string]: any;
 }
@@ -659,10 +670,4 @@ export interface Identifier {
 
 export interface BulkQualifiers {
   [qualifierTypeID: string]: string | string[]; // qualifierValue
-}
-
-export interface ProvenanceChainItem {
-  resource_id: string;
-  resource_role: string;
-  upstream_resource_ids?: string[];
 }
