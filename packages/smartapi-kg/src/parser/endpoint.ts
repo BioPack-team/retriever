@@ -87,6 +87,8 @@ export default class Endpoint {
           )
         : undefined,
       source: op.source,
+      knowledge_level: op.knowledge_level,
+      agent_type: op.agent_type,
       api_name: this.apiMetadata.title,
       smartapi: this.apiMetadata.smartapi,
       "x-translator": this.apiMetadata["x-translator"],

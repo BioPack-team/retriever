@@ -16,6 +16,7 @@ import KGEdge from "./kg_edge";
 import { BTEGraphUpdate } from "./graph";
 
 const debug = Debug("retriever:KnowledgeGraph");
+const NON_ARRAY_ATTRIBUTES = ['biolink:knowledge_level', 'biolink:agent_type'];
 
 export default class KnowledgeGraph {
   nodes: {
@@ -116,11 +117,14 @@ export default class KnowledgeGraph {
     }
 
     Object.entries(kgEdge.attributes).forEach(([key, value]) => {
-      if (key == "edge-attributes") return;
+      if (key === "edge-attributes") return;
       // if (key == 'edge-attributes') return;
       attributes.push({
         attribute_type_id: key,
-        value: Array.from(value as Set<string>),
+        value: // technically works for numbers as well
+          NON_ARRAY_ATTRIBUTES.includes(key)
+            ? [...(value as Set<string>)].reduce((acc, val) => acc + val)
+            : Array.from(value as Set<string>),
         //value_type_id: 'bts:' + key,
       });
     });

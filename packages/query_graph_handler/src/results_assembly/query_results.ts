@@ -3,7 +3,6 @@ import { TrapiResult } from '../types';
 import Debug from 'debug';
 import { zip } from 'lodash';
 const debug = Debug('retriever:QueryResult');
-import { getScores, calculateScore, ScoreCombos } from './score';
 import { Record } from '@retriever/graph';
 import { enrichTrapiResultsWithPfocrFigures } from './pfocr';
 import * as config from '../config';
@@ -64,7 +63,6 @@ export interface ConsolidatedSolutionRecord {
  * @typedef {
  *   node_bindings: Object.<string, NodeBinding[]>,
  *   edge_bindings: Object.<string, EdgeBinding[]>,
- *   score: number
  * } Result
  */
 
@@ -272,19 +270,8 @@ export default class TrapiResultsAssembler {
    * can safely assume every call to update contains all the records.
    *
    */
-  async update(recordsByQEdgeID: RecordsByQEdgeID, shouldScore = true): Promise<void> {
+  async update(recordsByQEdgeID: RecordsByQEdgeID): Promise<void> {
     debug(`Updating query results now!`);
-
-    let scoreCombos: ScoreCombos;
-
-    if (shouldScore) {
-      try {
-        scoreCombos = await getScores(recordsByQEdgeID);
-        debug(`Successfully got ${Object.values(scoreCombos).length} score combos.`);
-      } catch (err) {
-        debug('Error getting scores: ', err);
-      }
-    }
 
     this._results = [];
 
@@ -416,98 +403,46 @@ export default class TrapiResultsAssembler {
       },
     );
 
-    let resultsWithoutScore = 0;
-    let resultsWithScore = 0;
     /**
      * The last step is to do the minor re-formatting to turn consolidatedSolutions
      * into the desired final results.
      */
-    this._results = consolidatedSolutions
-      .map((consolidatedSolution) => {
-        const { score, scoredByNGD } = shouldScore
-          ? calculateScore(consolidatedSolution, scoreCombos)
-          : { score: undefined, scoredByNGD: false };
-        const result = {
-          node_bindings: {},
-          analyses: [
-            {
-              resource_id: this.options.provenanceUsesServiceProvider
-                ? `infores:retriever-non-trapi`
-                : `infores:retriever`,
-              edge_bindings: {},
-              score: score,
-            },
-          ],
-        };
-        if (scoredByNGD) {
-          resultsWithScore++;
-        } else {
-          resultsWithoutScore++;
-        }
-
-        if (!shouldScore) delete result.analyses[0].score;
-
-        consolidatedSolution.forEach(
-          ({ inputQNodeID, outputQNodeID, inputPrimaryCuries, outputPrimaryCuries, qEdgeID, recordHashes }) => {
-            result.node_bindings[inputQNodeID] = Array.from(inputPrimaryCuries).map((inputPrimaryCurie) => {
-              return {
-                id: inputPrimaryCurie,
-              };
-            });
-
-            result.node_bindings[outputQNodeID] = Array.from(outputPrimaryCuries).map((outputPrimaryCurie) => {
-              return {
-                id: outputPrimaryCurie,
-              };
-            });
-
-            result.analyses[0].edge_bindings[qEdgeID] = Array.from(recordHashes).map((recordHash) => {
-              return {
-                id: recordHash,
-              };
-            });
-          },
-        );
-
-        return result;
-      })
-      .sort((result1, result2) => (result2.analyses[0].score ?? 0) - (result1.analyses[0].score ?? 0)); //sort by decreasing score
-
-    if (shouldScore) {
-      try {
-        const pfocrEnrichmentLogs = await enrichTrapiResultsWithPfocrFigures(this._results);
-        this.logs.push(...pfocrEnrichmentLogs);
-      } catch (err) {
-        debug('Error enriching with PFOCR figures: ', err);
-        this.logs.push(new LogEntry('DEBUG', null, 'Error enriching with PFOCR figures: ', err).getLog());
-      }
-      debug(`Scored ${resultsWithScore} results with NGD score, scored ${resultsWithoutScore} results without NGD.`);
-      this.logs.push(
-        new LogEntry(
-          'DEBUG',
-          null,
-          `Scored ${resultsWithScore} results with NGD score, scored ${resultsWithoutScore} results without NGD.`,
+    this._results = consolidatedSolutions.map((consolidatedSolution) => {
+      const result = {
+        node_bindings: {},
+        analyses: [
           {
-            type: 'scoring',
-            scored: resultsWithScore,
-            unscored: resultsWithoutScore,
+            resource_id: this.options.provenanceUsesServiceProvider
+              ? `infores:retriever-non-trapi`
+              : `infores:retriever`,
+            edge_bindings: {},
           },
-        ).getLog(),
+        ],
+      };
+
+      consolidatedSolution.forEach(
+        ({ inputQNodeID, outputQNodeID, inputPrimaryCuries, outputPrimaryCuries, qEdgeID, recordHashes }) => {
+          result.node_bindings[inputQNodeID] = Array.from(inputPrimaryCuries).map((inputPrimaryCurie) => {
+            return {
+              id: inputPrimaryCurie,
+            };
+          });
+
+          result.node_bindings[outputQNodeID] = Array.from(outputPrimaryCuries).map((outputPrimaryCurie) => {
+            return {
+              id: outputPrimaryCurie,
+            };
+          });
+
+          result.analyses[0].edge_bindings[qEdgeID] = Array.from(recordHashes).map((recordHash) => {
+            return {
+              id: recordHash,
+            };
+          });
+        },
       );
-    } else {
-      debug(`Did not score results for this endpoint.`);
-      this.logs.push(
-        new LogEntry(
-          'DEBUG',
-          null,
-          `Scoring/PFOCR figures disabled for KP endpoints; results not scored. Use ARA endpoints (/v1/query or /v1/asyncquery) for scoring/PFOCR figures.`,
-          {
-            type: 'scoring',
-            scored: resultsWithScore,
-            unscored: resultsWithoutScore,
-          },
-        ).getLog(),
-      );
-    }
+
+      return result;
+    });
   }
 }

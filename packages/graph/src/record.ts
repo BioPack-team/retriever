@@ -273,9 +273,9 @@ export class Record {
       getHashedEdgeRepresentation(): string {
         return hash(
           record.subject.semanticType +
-            record.predicate +
-            record.object.semanticType +
-            (record.subject.equivalentCuries || record.object.equivalentCuries),
+          record.predicate +
+          record.object.semanticType +
+          (record.subject.equivalentCuries || record.object.equivalentCuries),
         );
       },
     };
@@ -290,12 +290,12 @@ export class Record {
       predicate: record.predicate?.replace("biolink:", ""),
       qualifiers: record.qualifiers
         ? Object.fromEntries(
-            Object.entries(record.qualifiers).map(
-              ([qualifierType, qualifier]: [string, string]) => {
-                return [qualifierType.replace("biolink:", ""), qualifier];
-              },
-            ),
-          )
+          Object.entries(record.qualifiers).map(
+            ([qualifierType, qualifier]: [string, string]) => {
+              return [qualifierType.replace("biolink:", ""), qualifier];
+            },
+          ),
+        )
         : undefined,
       api_name: record.api,
       source: record.metaEdgeSource,
@@ -406,15 +406,23 @@ export class Record {
   _getFlattenedEdgeAttributes(attributes: EdgeAttribute[]): EdgeAttribute[] {
     return attributes
       ? attributes.reduce((arr: EdgeAttribute[], attribute: EdgeAttribute) => {
-          attribute.attributes
-            ? arr.push(
-                attribute,
-                ...this._getFlattenedEdgeAttributes(attribute.attributes),
-              )
-            : arr.push(attribute);
-          return arr;
-        }, [])
+        attribute.attributes
+          ? arr.push(
+            attribute,
+            ...this._getFlattenedEdgeAttributes(attribute.attributes),
+          )
+          : arr.push(attribute);
+        return arr;
+      }, [])
       : [];
+  }
+
+  get knowledge_level(): string | undefined {
+    return this.association.knowledge_level;
+  }
+
+  get agent_type(): string | undefined {
+    return this.association.agent_type;
   }
 
   get _configuredEdgeAttributesForHash(): string {
@@ -610,7 +618,10 @@ export interface MinimalFrozenNode {
   [additionalProperties: string]: any; // cleanest way to handler undefined properties
 }
 
-export type RecordPackage = [associations: any[], ...frozenRecords: FrozenRecord[]];
+export type RecordPackage = [
+  associations: any[],
+  ...frozenRecords: FrozenRecord[],
+];
 
 export interface MappedResponse {
   trapi_sources?: ProvenanceChainItem[];
@@ -645,7 +656,6 @@ export interface Identifier {
   identifier: string;
   label?: string;
 }
-
 
 export interface BulkQualifiers {
   [qualifierTypeID: string]: string | string[]; // qualifierValue

@@ -20,7 +20,7 @@ import {
   TrapiResult,
 } from './types';
 import { QueryHandlerOptions } from '@retriever/types';
-import { BTEGraph, QEdge, QNode, KGNode, KGEdge, KnowledgeGraph, QueryGraph } from "@retriever/graph";
+import { BTEGraph, QEdge, QNode, KGNode, KGEdge, KnowledgeGraph, QueryGraph } from '@retriever/graph';
 import { Telemetry } from '@retriever/utils';
 
 // Exports for external availability
@@ -87,7 +87,7 @@ export default class TRAPIQueryHandler {
     const metaKG = new MetaKG(this.path, this.predicatePath);
     debug(
       `Query options are: ${JSON.stringify({
-        ..._.omit(this.options, "apiList"),
+        ..._.omit(this.options, 'apiList'),
         schema: this.options.schema ? this.options.schema.info.version : 'not included',
       })}`,
     );
@@ -161,6 +161,8 @@ export default class TRAPIQueryHandler {
         const source = Object.entries(ontologyKnowledgeSourceMapping).find(([prefix]) => {
           return expanded.includes(prefix);
         })[1];
+        subclassEdge.addAdditionalAttributes('biolink:knowledge_level', 'knowledge_assertion')
+        subclassEdge.addAdditionalAttributes('biolink:agent_type', 'manual_agent')
         subclassEdge.addSource([
           { resource_id: source, resource_role: 'primary_knowledge_source' },
           {
@@ -209,6 +211,8 @@ export default class TRAPIQueryHandler {
           object: object,
         });
         boundEdge.addAdditionalAttributes('biolink:support_graphs', [supportGraphID]);
+        boundEdge.addAdditionalAttributes('biolink:knowledge_level', 'logical_entailment')
+        boundEdge.addAdditionalAttributes('biolink:agent_type', 'automated_agent')
         boundEdge.addSource([
           {
             resource_id: this.options.provenanceUsesServiceProvider
@@ -620,7 +624,7 @@ export default class TRAPIQueryHandler {
     debug(`(3) All edges created ${JSON.stringify(queryEdges)} `);
 
     if (this._queryUsesInferredMode()) {
-      const message = 'Inferred mode is not supported. Your query terminates.'
+      const message = 'Inferred mode is not supported. Your query terminates.';
       this.logs.push(new LogEntry('WARNING', null, message).getLog());
       debug(message);
       return;
@@ -642,10 +646,7 @@ export default class TRAPIQueryHandler {
     // update query graph
     this.bteGraph.update(manager.getRecords());
     //update query results
-    await this.trapiResultsAssembler.update(
-      manager.getOrganizedRecords(),
-      !(this.options.smartAPIID || this.options.teamName),
-    );
+    await this.trapiResultsAssembler.update(manager.getOrganizedRecords());
     this.logs = [...this.logs, ...this.trapiResultsAssembler.logs];
     // fix subclassing
     this.createSubclassSupportGraphs();

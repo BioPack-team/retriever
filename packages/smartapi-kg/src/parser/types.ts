@@ -123,6 +123,8 @@ export interface XBTEKGSOperationObject {
   responseMapping?: SmartAPIReferenceObject;
   templateInputs?: object;
   batchSize?: number;
+  knowledge_level?: string;
+  agent_type?: string;
 }
 
 export interface SmartAPISpec {
@@ -166,6 +168,8 @@ export interface KGAssociationObject {
   "x-translator"?: any;
   "x-trapi"?: XTRAPIObject;
   qualifiers?: KGQualifiersObject;
+  knowledge_level?: string;
+  agent_type?: string;
 }
 
 export interface QueryOperationInterface {
