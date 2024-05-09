@@ -5,7 +5,6 @@ import { APIEdge, RecordPackage } from '@retriever/graph';
 import NodesUpdateHandler from './update_nodes';
 import Debug from 'debug';
 const debug = Debug('retriever:batch_edge_query');
-import CacheHandler from './cache_handler';
 import { threadId } from 'worker_threads';
 import MetaKG from '@retriever/smartapi-kg';
 import { StampedLog } from '@retriever/utils';
