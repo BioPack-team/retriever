@@ -10,6 +10,7 @@ export async function cacheContent(
 ): Promise<void> {
   if (!redisClient.clientEnabled) {
     debug("redis client unavailable, skipping cache step");
+    return;
   }
 
   debug(`Caching ${content.length} items for article ${hash}`);
@@ -88,6 +89,7 @@ async function cacheChunk(
 export async function cacheLookup(hash: string): Promise<unknown[] | null> {
   if (!redisClient.clientEnabled) {
     debug("redis client unavailable, skipping cache step");
+    return null;
   }
   debug(`Beginning cache lookup for article ${hash}`);
   const id = `retriever:cacheContent:${hash}`;
