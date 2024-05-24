@@ -101,8 +101,6 @@ include:
     name: Text Mining Targeted Association API
   # TRAPI (Translator standard) APIs: Automat
   # not accessible by team or api-specific endpoints
-  # Notes: We don't ingest the following:
-  # - Automat-robokop: seems to repeat a lot of data that is in the other APIs
   - id: f82c01b15c46e024212c1a3271aaef0b
     name: Automat-ctd(Trapi v1.5.0)
   - id: 673b9fc76973dfa5fe3ed151fdbfc807
@@ -129,6 +127,8 @@ include:
     name: Automat-panther(Trapi v1.5.0)
   - id: 1f057c53d42694686369f0e542f965c6
     name: Automat-pharos(Trapi v1.5.0)
+  - id: 4f9c8853b721ef1f14ecee6d92fc19b5
+    name: Automat-robokop(Trapi v1.5.0)
   - id: 2aca41fc6c3dc426ec6583d42603be02
     name: Automat-viral-proteome(Trapi v1.5.0)
   # TRAPI (Translator standard) APIs: COHD
