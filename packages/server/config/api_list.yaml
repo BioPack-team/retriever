@@ -127,4 +127,8 @@ include:
   # not accessible by team or api-specific endpoints
   - id: 23f770568b92b7a82063989b3ddd9706
     name: Connections Hypothesis Provider API
+  # TRAPI (Translator standard) APIs: MolePro
+  # not accessible by team or api-specific endpoints
+  - id: 1901bab8d33bb70b124f400ec1cfdba3
+    name: MolePro
 exclude: [] # if adding exclude remove these square brackets
