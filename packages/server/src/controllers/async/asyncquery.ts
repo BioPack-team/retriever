@@ -40,7 +40,7 @@ export async function asyncquery(
     if (queryQueue.name === "bte_query_queue_by_team") {
       jobId = `BT_${jobId}`;
     }
-    const url = `${req.protocol}://${req.header("host")}/retriever/v1/asyncquery_status/${jobId}`;
+    const url = `${req.protocol}://${req.header("host")}/v1/asyncquery_status/${jobId}`;
 
     const job = await queryQueue.add(
       { ...queueData, url: url.replace("status", "response") },
