@@ -103,6 +103,8 @@ include:
   # not accessible by team or api-specific endpoints
   ## Notes: robokop contains most of these APIs' contents
   ##        it doesn't cover: cam-kp, genome-alliance, monarch-kg, icees-kg, viral-proteome
+  - id: a9d6ee341d8ea4c7d3ae9ed0941cb274
+    name: Automat-binding-db(Trapi v1.5.0)
   - id: 7ab0209ea8590341d8e5d0166cac3d2f
     name: Automat-cam-kp(Trapi v1.5.0)
   - id: f82c01b15c46e024212c1a3271aaef0b
@@ -135,8 +137,14 @@ include:
     name: Automat-panther(Trapi v1.5.0)
   - id: 1f057c53d42694686369f0e542f965c6
     name: Automat-pharos(Trapi v1.5.0)
+  - id: 61b41c5d9b90eb8ad16e037f9a87d593
+    name: Automat-reactome(Trapi v1.5.0)
   - id: 4f9c8853b721ef1f14ecee6d92fc19b5
     name: Automat-robokop(Trapi v1.5.0)
+  - id: 7984a621a28c109c5c09f65fed0e7ea7
+    name: Automat-string-db(Trapi v1.5.0)
+  - id: dde0552a37fc136526216148ff7594a0
+    name: Automat-ubergraph(Trapi v1.5.0)
   - id: 2aca41fc6c3dc426ec6583d42603be02
     name: Automat-viral-proteome(Trapi v1.5.0)
   # TRAPI (Translator standard) APIs: COHD
