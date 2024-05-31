@@ -74,7 +74,7 @@ if (!global.threadpool && !Piscina.isWorkerThread && !(process.env.USE_THREADING
       minThreads: 2,
       maxThreads: SYNC_CONCURRENCY,
       maxQueue: 1200,
-      idleTimeout: 10 * 60 * 1000, // 10 minutes
+      idleTimeout: 60 * 60 * 1000, // 1 hour
       workerData: { queue: "sync" },
       env,
     }),
@@ -166,7 +166,7 @@ async function queueTaskToWorkers(
     const cacheKeys: {
       [cacheKey: string]: boolean;
     } = {};
-    const timeout = parseInt(process.env.REQUEST_TIMEOUT ?? (60 * 5).toString()) * 1000;
+    const timeout = parseInt(process.env.REQUEST_TIMEOUT ?? (60 * 60).toString()) * 1000;
 
     parentSide.on("message", async (msg: ThreadMessage) => {
       switch (msg.type) {
