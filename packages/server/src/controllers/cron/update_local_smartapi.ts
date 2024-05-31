@@ -217,7 +217,7 @@ function getPredicatesFromGraphData(predicate_endpoint: string, data) {
 
   const addNewPredicates = edge => {
     if (edge.knowledge_types && Array.isArray(edge.knowledge_types)) {
-      if (!edge.knowledge_types.includes("lookup")) {
+      if (!edge.knowledge_types.includes("lookup") && edge.knowledge_types.length > 0) {
         return;
       }
     }
