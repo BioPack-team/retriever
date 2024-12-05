@@ -1,3 +1,11 @@
-# Retriever
+# BioPack Retriever
 
-A Translator KP that aims to construct responses composed of knowledge from all other KPs.
+A KP intermediary handling result retrieval, KP caching, and normalization.
+
+## Install
+
+### Local instance
+
+Retriever uses Poetry for dependency management, see [the install docs](https://python-poetry.org/docs/).
+
+

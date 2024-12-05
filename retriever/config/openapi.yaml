@@ -1,0 +1,51 @@
+---
+# Note that any attribute name that would usually contain dashes instead contains underscores
+# e.g. x-translator is x_translator
+# This is due to some pydantic weirdness.
+description: Translator Knowledge Provider
+version: 0.0.1
+title: Retriever
+contact:
+  email: jcallaghan@scripps.edu
+  name: Jackson Callaghan
+  url: https://github.com/tokebe
+  x_id: tokebe
+  x_role: responsible developer
+license:
+  name: Apache 2.0
+  url: http://www.apache.org/licenses/LICENSE-2.0.html
+termsOfService: https://biothings.io/about
+tags:
+  - { name: meta_knowledge_graph }
+  - { name: query }
+  - { name: asyncquery }
+  - { name: asyncquery_status }
+  - { name: translator }
+  - { name: trapi }
+  - { name: biothings }
+x_translator:
+  component: KP
+  team: [BioPack]
+  biolink-version: 4.2.1 # Retriever will acquire the appropriate biolink release
+  infores: biopack-retriever
+  externalDocs:
+    description: >-
+      The values for component and team are restricted according to this external
+      JSON schema. See schema and examples at url
+    url: https://github.com/NCATSTranslator/translator_extensions/blob/production/x-translator/
+x_trapi:
+  version: 1.5.0
+  muticuriequery: false
+  pathfinderquery: false
+  asyncquery: true
+  operations: [lookup]
+  batch_size_limit: 300
+  rate_limit: 300
+  test_data_location:
+    default:
+      url: https://raw.githubusercontent.com/NCATS-Tangerine/translator-api-registry/master/biothings_explorer/sri-test-bte-ara.json # TODO test data & location
+  externalDocs:
+    description: >-
+      The values for version are restricted according to the regex in this external
+      JSON schema. See schema and examples at url
+    url: https://github.com/NCATSTranslator/translator_extensions/blob/production/x-trapi/
