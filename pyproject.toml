@@ -5,24 +5,117 @@ description = "A Translator KP that aims to construct responses composed of know
 authors = ["tokebe <43009413+tokebe@users.noreply.github.com>"]
 license = "Apache 2.0"
 readme = "README.md"
-
-[tool.poetry.dependencies]
-python = "^3.11"
-fastapi = "^0.111.0"
-redis = {extras = ["hiredis"], version = "^5.0.4"}
-httpx = "^0.27.0"
-reasoner-pydantic = "^5.0.4"
-saq = "^0.18.4"
-asgi-ratelimit = {extras = ["redis"], version = "^0.10.0"}
-
-
-[tool.poetry.group.dev.dependencies]
-black = "^24.4.2"
+packages = [{ include = "retriever", from = "src" }]
 
 [tool.poetry.scripts]
 retriever = 'retriever.__main__:main'
+
+
+[tool.poe.tasks]
+# Code work
+lint = 'ruff check src/retriever'
+'lint:stats' = 'poe lint --statistics'
+'lint:watch' = 'poe lint --watch'
+'lint:fix' = 'poe lint --fix'
+typecheck = 'basedpyright src/retriever'
+'typecheck:watch' = 'poe typecheck --watch'
+format = 'ruff format --diff src/retriever'
+'format:fix' = 'ruff format src/retriever'
+
+# Config work
+yamllint = 'yamllint .'
+yamlfix = 'yamlfix --exclude ".venv/**/*" .'
+
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.poetry.dependencies]
+python = "^3.12"
+redis = { extras = ["hiredis"], version = "^5.0.4" }
+httpx = "^0.28.1"
+asgi-ratelimit = { extras = ["redis"], version = "^0.10.0" }
+uvicorn = {extras = ["standard"], version = "^0.32.1"}
+fastapi = {extras = ["standard"], version = "^0.115.6"}
+pydantic = { extras = ["email"], version = "^2.10.3" }
+pydantic-settings = "^2.6.1"
+colorlog = "^6.9.0"
+loguru = "^0.7.3"
+saq = "^0.19.0"
+aiohttp = "^3.11.11"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.8.2"
+poethepoet = "^0.31.1"
+basedpyright = "^1.22.1"
+yamllint = "^1.35.1"
+yamlfix = "^1.17.0"
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+
+[tool.ruff.lint]
+select = [
+  # All of these were carefully chosen, see https://docs.astral.sh/ruff/rules
+  # Pyflakes
+  'F',
+  # Pycodestyle errors, warning
+  'E4',
+  'E7',
+  'E9',
+  'W',
+  # isort (sort imports)
+  'I',
+  # Pydocstyle (document your code!)
+  'D',
+  # Pep8 naming conventions (but slightly less pedantic)
+  'N80',
+  # Pyupgrade (use newer conventions)
+  'UP',
+  # Flake8-bugbear
+  'B',
+  # Flake8-annotations (require type annotations)
+  'ANN0',
+  'ANN2',
+  # Flake8-builtins (don't overwrite builtins)
+  'A',
+  # Flake8-comprehensions
+  'C4',
+  # Flake8-logging-format
+  'G',
+  # Flake8-simplify
+  'SIM',
+  # Flake8-use-pathlib (pathlib is just better)
+  'PTH',
+  # Pylint
+  'PL',
+  # FastAPI
+  'FAST',
+  # Perflint
+  'PERF',
+  # Refurb
+  'FURB',
+  # Ruff-specific
+  'RUF',
+]
+ignore = ['D100', 'D206', 'D300']
+
+[tool.ruff.lint.pydocstyle]
+convention = 'google'
+
+[tool.ruff.lint.flake8-comprehensions]
+allow-dict-calls-with-keyword-arguments = true
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.pyright]
+# Make any allowable. Builtings sometimes deal in Any and aren't worth the extra modeling
+reportAny = false
+reportExplicitAny = false
+reportUnusedCallResult = false # Just makes code look worse; Ususall unused results are deliberately ignored
+
+[tool.yamlfix]
+line_length = 88
