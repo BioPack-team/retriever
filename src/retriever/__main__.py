@@ -1,5 +1,3 @@
-import argparse
-
 import uvicorn
 
 from retriever.config.logging import configure_logging
