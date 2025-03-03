@@ -175,10 +175,14 @@ async def logs(
     start: datetime | None = None,
     end: datetime | None = None,
     level: LogLevel = "DEBUG",
+    all_dates: bool = False,
 ) -> StreamingResponse:
     """Get server logs."""
     if not CONFIG.log.log_to_mongo:
         raise HTTPException(404, detail="Persisted logging not enabled.")
+
+    if not start and not all_dates:
+        start = datetime.today()
     return StreamingResponse(
         MONGO_CLIENT.get_logs(start, end, level), media_type="application/json"
     )

@@ -120,7 +120,7 @@ def add_mongo_sink(queue: Queue[tuple[str, dict[str, Any]]]) -> None:
                     "name": message.record["thread"].name,
                 },
                 "time": {
-                    "repr": str(message.record["time"]),
+                    "repr": message.record["time"],
                     "timestamp": message.record["time"].timestamp(),
                 },
             },
