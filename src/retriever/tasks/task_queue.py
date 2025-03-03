@@ -14,7 +14,7 @@ from saq.queue.redis import RedisQueue
 from saq.types import Context, SettingsDict
 
 from retriever.tasks.lookup import lookup
-from retriever.types import Query
+from retriever.type_defs import Query
 from retriever.utils import telemetry
 from retriever.utils.logging import add_context_trapi_sink
 from retriever.utils.mongo import MongoClient

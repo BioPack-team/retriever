@@ -16,7 +16,7 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
 from pymongo.server_api import ServerApi
 
 from retriever.config.general import CONFIG
-from retriever.types import LogLevel
+from retriever.type_defs import LogLevel
 
 CODEC_OPTIONS = DEFAULT_CODEC_OPTIONS.with_options(tz_aware=True)
 

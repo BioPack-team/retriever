@@ -19,7 +19,7 @@ from retriever.config.general import CONFIG
 from retriever.config.openapi import TRAPI
 from retriever.tasks.task_queue import get_job_state, make_query, retriever_queue
 from retriever.tasks.worker import start_workers, stop_workers
-from retriever.types import LogLevel
+from retriever.type_defs import LogLevel
 from retriever.utils.exception_handlers import ensure_cors
 from retriever.utils.logging import add_mongo_sink
 from retriever.utils.mongo import MongoClient, MongoQueue

@@ -5,7 +5,7 @@ from loguru import logger as log
 from opentelemetry import trace
 from saq.types import Context
 
-from retriever.types import Query
+from retriever.type_defs import Query
 from retriever.utils.logging import add_job_trapi_sink
 from retriever.utils.telemetry import align_context
 
