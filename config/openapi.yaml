@@ -1,7 +1,8 @@
 ---
-# Note that any attribute name that would usually contain dashes instead contains underscores
+# Note that any attribute name that would usually contain dashes
+# instead contains underscores
 # e.g. x-translator is x_translator
-# This is due to some pydantic weirdness.
+# This is due to some pydantic weirdness, but is correct in the output.
 description: Translator Knowledge Provider
 version: 0.0.1
 title: Retriever
@@ -16,17 +17,17 @@ license:
   url: http://www.apache.org/licenses/LICENSE-2.0.html
 termsOfService: https://biothings.io/about
 tags:
-  - { name: meta_knowledge_graph }
-  - { name: query }
-  - { name: asyncquery }
-  - { name: asyncquery_status }
-  - { name: translator }
-  - { name: trapi }
-  - { name: biothings }
+  - {name: meta_knowledge_graph}
+  - {name: query}
+  - {name: asyncquery}
+  - {name: asyncquery_status}
+  - {name: translator}
+  - {name: trapi}
+  - {name: biothings}
 x_translator:
   component: KP
   team: [BioPack]
-  biolink-version: 4.2.1 # Retriever will acquire the appropriate biolink release
+  biolink-version: 4.2.1  # Retriever acquires the appropriate biolink release
   infores: biopack-retriever
   externalDocs:
     description: >-
@@ -43,7 +44,8 @@ x_trapi:
   rate_limit: 300
   test_data_location:
     default:
-      url: https://raw.githubusercontent.com/NCATS-Tangerine/translator-api-registry/master/biothings_explorer/sri-test-bte-ara.json # TODO test data & location
+      # TODO test data & location
+      url: https://raw.githubusercontent.com/NCATS-Tangerine/translator-api-registry/master/biothings_explorer/sri-test-bte-ara.json
   externalDocs:
     description: >-
       The values for version are restricted according to the regex in this external

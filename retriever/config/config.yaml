@@ -1,4 +1,0 @@
----
-rate_limit:
-  special: 36000
-  general: 600

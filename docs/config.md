@@ -1,6 +1,6 @@
 # Configuration
 
-Retriever uses [pydantic v1.10's settings management](https://docs.pydantic.dev/1.10/usage/settings/). As such, you may configure Retriever in a couple of ways.
+Retriever uses [pydantic settings management](https://docs.pydantic.dev/latest/concepts/pydantic_settings/). As such, you may configure Retriever in a couple of ways.
 
 ## YAML Configs
 

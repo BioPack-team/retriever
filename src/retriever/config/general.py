@@ -1,0 +1,154 @@
+from typing import Annotated, ClassVar, Literal, override
+
+from pydantic import AfterValidator, BaseModel
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+    YamlConfigSettingsSource,
+)
+
+
+class RateLimit(BaseModel):
+    """Rate limit settings.
+
+    Attributes:
+        special: The rate limit for priveledged user-agents, in requests/min.
+        general: The rate limit for all other user-agents, in requests/min.
+    """
+
+    priveledged_user_agents: list[str] = ["shepherd"]
+    special: int = 36_000
+    general: int = 600
+
+
+class CORSSettings(BaseModel):
+    """CORS-specific settings."""
+
+    allow_origins: list[str] = ["*"]
+    allow_credentials: bool = True
+    allow_methods: list[str] = ["*"]
+    allow_headers: list[str] = ["*"]
+
+
+class RedisSettings(BaseModel):
+    """Redis client initialization settings."""
+
+    cluster: bool = False
+    host: str = "localhost"
+    port: int = 6379
+    password: str | None = None
+    ssl_enabled: bool = False
+    attempts: int = 3
+
+
+class MongoSettings(BaseModel):
+    """Mongodb client initialization settings."""
+
+    host: str = "localhost"
+    port: int = 27017
+    username: str | None = None
+    password: str | None = None
+    authsource: str | None = None
+    attempts: int = 3
+    shutdown_timeout: int = 3
+
+
+class TelemetrySettings(BaseModel):
+    """Settings for OpenTelelemtry and Sentry."""
+
+    otel_enabled: bool = False
+    otel_host: str | None = "jaeger-otel-collector.sri"
+    otel_port: int | None = 4318
+    otel_trace_endpoint: str | None = "/v1/traces"
+
+    sentry_enabled: bool = False
+    sentry_dsn: str | None = None
+    traces_sample_rate: float = 0.1
+    profiles_sample_rate: float = 1.0
+
+
+class JobSettings(BaseModel):
+    """Settings for job handling."""
+
+    ttl: int = 2_592_000
+    ttl_max: int = 31_536_000
+
+
+class LogSettings(BaseModel):
+    """Settings for log handling."""
+
+    log_to_mongo: bool = True
+    ttl: int = 1_209_600
+
+
+def uppercase(value: str) -> str:
+    """Make a string uppercase."""
+    return value.upper()
+
+
+class GeneralConfig(BaseSettings):
+    """General application config."""
+
+    log_level: Annotated[
+        Literal[
+            "TRACE",
+            "trace",
+            "DEBUG",
+            "debug",
+            "INFO",
+            "info",
+            "SUCCESS",
+            "success",
+            "WARNING",
+            "warning",
+            "ERROR",
+            "error",
+            "CRITICAL",
+            "critical",
+        ],
+        AfterValidator(uppercase),
+    ] = "DEBUG"
+    rate_limit: RateLimit = RateLimit()
+    cors: CORSSettings = CORSSettings()
+    workers: int | None = None  # Number of workers to use
+    worker_concurrency: int = 10  # Number of concurrent jobs a worker may process
+    setup_attempts: int = 5
+
+    job: JobSettings = JobSettings()
+    log: LogSettings = LogSettings()
+
+    redis: RedisSettings = RedisSettings()
+    mongo: MongoSettings = MongoSettings()
+    telemetry: TelemetrySettings = TelemetrySettings()
+
+    model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(
+        case_sensitive=False,
+        env_nested_delimiter="__",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        yaml_file="config/config.yaml",
+        yaml_file_encoding="utf-8",
+    )
+
+    @classmethod
+    @override
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Ensure proper setting priority order."""
+        return (
+            env_settings,
+            dotenv_settings,
+            YamlConfigSettingsSource(settings_cls),
+            file_secret_settings,
+            init_settings,
+        )
+
+
+CONFIG = GeneralConfig()

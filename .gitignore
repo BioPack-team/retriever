@@ -1,2 +1,6 @@
 .venv
 __pycache__
+.ruff-cache
+.pytest_cache
+logs/*
+.DS_Store

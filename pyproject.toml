@@ -1,56 +1,121 @@
-[tool.poetry]
+[project]
 name = "retriever"
 version = "0.1.0"
 description = "A Translator KP that aims to construct responses composed of knowledge from all other KPs"
-authors = ["tokebe <43009413+tokebe@users.noreply.github.com>"]
-license = "Apache 2.0"
+authors = [
+    { name = "tokebe", email = "43009413+tokebe@users.noreply.github.com" },
+]
+requires-python = "~=3.13"
 readme = "README.md"
-packages = [{ include = "retriever", from = "src" }]
+license = "Apache-2.0"
+dependencies = [
+    "redis>=5.0.4,<6",
+    "httpx>=0.28.1,<0.29",
+    "asgi-ratelimit[redis]>=0.10.0,<0.11",
+    "uvicorn[standard]>=0.32.1,<0.33",
+    "fastapi[standard]>=0.115.6,<0.116",
+    "pydantic[email]>=2.10.3,<3",
+    "pydantic-settings>=2.6.1,<3",
+    "colorlog>=6.9.0,<7",
+    "loguru>=0.7.3,<0.8",
+    "saq[redis]>=0.20.0,<1.0.0",
+    "aiohttp>=3.11.11,<4",
+    "opentelemetry-instrumentation-fastapi>=0.50b0",
+    "opentelemetry-exporter-otlp-proto-http>=1.30.0",
+    "opentelemetry-instrumentation-httpx>=0.51b0",
+    "sentry-sdk>=2.20.0",
+    "motor>=3.7.0",
+]
 
-[tool.poetry.scripts]
-retriever = 'retriever.__main__:main'
+[project.scripts]
+retriever = "retriever.__main__:main"
 
+[dependency-groups]
+dev = [
+    "ruff>=0.8.2,<0.9",
+    "basedpyright>=1.22.1,<2",
+    "yamllint>=1.35.1,<2",
+    "yamlfix>=1.17.0,<2",
+    "taskipy>=1.14.1",
+]
 
-[tool.poe.tasks]
+[tool.taskipy.tasks]
 # Code work
 lint = 'ruff check src/retriever'
-'lint:stats' = 'poe lint --statistics'
-'lint:watch' = 'poe lint --watch'
-'lint:fix' = 'poe lint --fix'
+'lint:stats' = 'task lint --statistics'
+'lint:watch' = 'task lint --watch'
+'lint:fix' = 'task lint --fix'
+
 typecheck = 'basedpyright src/retriever'
-'typecheck:watch' = 'poe typecheck --watch'
+'typecheck:watch' = 'task typecheck --watch'
+
 format = 'ruff format --diff src/retriever'
 'format:fix' = 'ruff format src/retriever'
+
+'dragonfly:start' = """
+    echo "starting dragonfly..." \
+    && docker run \
+        --name test-dragonfly \
+        -d \
+        -p 6379:6379 \
+        --ulimit memlock=-1 \
+        docker.dragonflydb.io/dragonflydb/dragonfly
+"""
+'dragonfly:stop' = 'echo "stopping dragonfly..." && docker rm --force test-dragonfly'
+dragonfly = 'task dragonfly:stop && task dragonfly:start'
+
+'mongo:start' = 'echo "starting mongodb..." && docker run --name test-mongodb -p 27017:27017 -d mongodb/mongodb-community-server:latest'
+'mongo:stop' = 'echo "stopping mongodb..." && docker rm -f test-mongodb'
+mongo = 'task mongo:stop && task mongo:start'
+
+
+'dbs:start' = 'task dragonfly:start && task mongo:start'
+'dbs:stop' = 'task dragonfly:stop && task mongo:stop'
+dbs = 'task dbs:stop && task dbs:start'
+
+'jaeger:start' = """
+    echo "starting jaeger..." \
+    && docker run \
+        -d \
+        --name test-jaeger \
+        -p 16686:16686 \
+        -p 4317:4317 \
+        -p 4318:4318 \
+        jaegertracing/all-in-one:latest
+"""
+'jaeger:stop' = 'echo "stopping jaeger..." && docker rm --force test-jaeger'
+'jaeger:open' = 'python -m webbrowser http://localhost:16686'
+jaeger = 'task jaeger:stop && task jaeger:start'
+
+
+dev = 'task dbs && retriever'
+'dev:otel' = """
+    task jaeger \
+    && task dbs \
+    # && echo 'Waiting 1s so dbs can start (server logs should follow)...' \
+    && sleep 1 \
+    && TELEMETRY__OTEL_ENABLED=true \
+    TELEMETRY__OTEL_HOST=localhost \
+    TELEMETRY__OTEL_PORT=4318 \
+    retriever
+"""
 
 # Config work
 yamllint = 'yamllint .'
 yamlfix = 'yamlfix --exclude ".venv/**/*" .'
 
+[tool.hatch.build.targets.sdist]
+include = ["src/retriever"]
+
+[tool.hatch.build.targets.wheel]
+include = ["src/retriever"]
+
+[tool.hatch.build.targets.wheel.sources]
+"src/retriever" = "retriever"
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
-
-[tool.poetry.dependencies]
-python = "^3.12"
-redis = { extras = ["hiredis"], version = "^5.0.4" }
-httpx = "^0.28.1"
-asgi-ratelimit = { extras = ["redis"], version = "^0.10.0" }
-uvicorn = {extras = ["standard"], version = "^0.32.1"}
-fastapi = {extras = ["standard"], version = "^0.115.6"}
-pydantic = { extras = ["email"], version = "^2.10.3" }
-pydantic-settings = "^2.6.1"
-colorlog = "^6.9.0"
-loguru = "^0.7.3"
-saq = "^0.19.0"
-aiohttp = "^3.11.11"
-
-[tool.poetry.group.dev.dependencies]
-ruff = "^0.8.2"
-poethepoet = "^0.31.1"
-basedpyright = "^1.22.1"
-yamllint = "^1.35.1"
-yamlfix = "^1.17.0"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.ruff]
 line-length = 88
@@ -58,47 +123,47 @@ indent-width = 4
 
 [tool.ruff.lint]
 select = [
-  # All of these were carefully chosen, see https://docs.astral.sh/ruff/rules
-  # Pyflakes
-  'F',
-  # Pycodestyle errors, warning
-  'E4',
-  'E7',
-  'E9',
-  'W',
-  # isort (sort imports)
-  'I',
-  # Pydocstyle (document your code!)
-  'D',
-  # Pep8 naming conventions (but slightly less pedantic)
-  'N80',
-  # Pyupgrade (use newer conventions)
-  'UP',
-  # Flake8-bugbear
-  'B',
-  # Flake8-annotations (require type annotations)
-  'ANN0',
-  'ANN2',
-  # Flake8-builtins (don't overwrite builtins)
-  'A',
-  # Flake8-comprehensions
-  'C4',
-  # Flake8-logging-format
-  'G',
-  # Flake8-simplify
-  'SIM',
-  # Flake8-use-pathlib (pathlib is just better)
-  'PTH',
-  # Pylint
-  'PL',
-  # FastAPI
-  'FAST',
-  # Perflint
-  'PERF',
-  # Refurb
-  'FURB',
-  # Ruff-specific
-  'RUF',
+    # All of these were carefully chosen, see https://docs.astral.sh/ruff/rules
+    # Pyflakes
+    'F',
+    # Pycodestyle errors, warning
+    'E4',
+    'E7',
+    'E9',
+    'W',
+    # isort (sort imports)
+    'I',
+    # Pydocstyle (document your code!)
+    'D',
+    # Pep8 naming conventions (but slightly less pedantic)
+    'N80',
+    # Pyupgrade (use newer conventions)
+    'UP',
+    # Flake8-bugbear
+    'B',
+    # Flake8-annotations (require type annotations)
+    'ANN0',
+    'ANN2',
+    # Flake8-builtins (don't overwrite builtins)
+    'A',
+    # Flake8-comprehensions
+    'C4',
+    # Flake8-logging-format
+    'G',
+    # Flake8-simplify
+    'SIM',
+    # Flake8-use-pathlib (pathlib is just better)
+    'PTH',
+    # Pylint
+    'PL',
+    # FastAPI
+    'FAST',
+    # Perflint
+    'PERF',
+    # Refurb
+    'FURB',
+    # Ruff-specific
+    'RUF',
 ]
 ignore = ['D100', 'D206', 'D300']
 
