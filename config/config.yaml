@@ -14,7 +14,7 @@ job:
   ttl: 2592000  # Time in seconds for a job to remain after it was last touched
   ttl_max: 31536000  # Time in seconds for a job to remain, regardless of last touch
 log:
-  log_to_mongo: True  # Persist jobs in MongoDB
+  log_to_mongo: true  # Persist jobs in MongoDB
   ttl: 1209600  # time in seconds for logs to be kept
 redis:
   cluster: false
