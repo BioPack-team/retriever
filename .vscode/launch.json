@@ -1,0 +1,36 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Retriever",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "retriever",
+      "preLaunchTask": "Start DBs"
+    },
+    {
+      "name": "Retriever (no db reset)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "retriever"
+    },
+    {
+      "name": "Retriever (single worker)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "retriever",
+      "env": { "WORKERS": "1" },
+      "preLaunchTask": "Start DBs"
+    },
+    {
+      "name": "Retriever (single worker, no db reset)",
+      "type": "debugpy",
+      "request": "launch",
+      "env": { "WORKERS": "1", "PORT": "451" },
+      "module": "retriever"
+    }
+  ]
+}
