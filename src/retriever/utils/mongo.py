@@ -216,14 +216,16 @@ class MongoQueue:
                 try:
                     await getattr(self.client, target)(doc)
                 except Exception:
-                    print("exception")
                     log.exception(
                         f"An exception occurred in the operation {target}",
                         extra={"doc": doc, "no_mongo_log": True},
                     )
             except queue.Empty:
-                await asyncio.sleep(0.1)
-                continue
+                try:
+                    await asyncio.sleep(0.1)
+                    continue
+                except asyncio.CancelledError: # likely to be cancelled while waiting
+                    break
             except (ValueError, asyncio.CancelledError):  # Queue is closed
                 break
 
