@@ -5,7 +5,7 @@ description = "A Translator KP that aims to construct responses composed of know
 authors = [
     { name = "tokebe", email = "43009413+tokebe@users.noreply.github.com" },
 ]
-requires-python = "~=3.13"
+requires-python = "~=3.11"
 readme = "README.md"
 license = "Apache-2.0"
 dependencies = [
