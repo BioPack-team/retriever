@@ -157,6 +157,7 @@ class MongoClient:
         start: datetime | None = None,
         end: datetime | None = None,
         level: LogLevel = "DEBUG",
+        flat: bool = False,
     ) -> AsyncGenerator[str]:
         """Return a generator of all logs."""
         # Set up query
@@ -178,16 +179,37 @@ class MongoClient:
             query["record.time.repr"]["$lte"] = end
 
         logs = self.get_log_collection()
-        cursor = logs.find(query).sort("record.time.repr", 1)
-        yield "["
+        cursor = logs.find(query).sort("timestamp", 1)
+        if not flat:
+            yield "["
         first = True
         async for document in cursor:
             del document["_id"]
-            document["record"]["time"]["repr"] = str(document["record"]["time"]["repr"])
-            yield ("," if not first else "") + json.dumps(document)
+            document["record"]["time"]["repr"] = (
+                document["record"]["time"]["repr"]
+                .astimezone()
+                .isoformat(timespec="milliseconds")
+            )
+            if flat:
+                yield "{}{} {:4} {:7} {}{:80} {}".format(
+                    "\n" if not first else "",
+                    document["record"]["time"]["repr"],
+                    document["record"]["process"]["id"],
+                    document["record"]["level"]["name"],
+                    (
+                        f"{document['record']['extra']['job_id']} "
+                        if "job_id" in document["record"]["extra"]
+                        else ""
+                    ),
+                    document["record"]["message"],
+                    f"{document['record']['name']}.{document['record']['function']}:{document['record']['line']}",
+                )
+            else:
+                yield ("," if not first else "") + json.dumps(document)
             first = False
 
-        yield "]"
+        if not flat:
+            yield "]"
 
     async def close(self) -> None:
         """Clean up and close MongoDB client threads/connections."""
@@ -224,7 +246,7 @@ class MongoQueue:
                 try:
                     await asyncio.sleep(0.1)
                     continue
-                except asyncio.CancelledError: # likely to be cancelled while waiting
+                except asyncio.CancelledError:  # likely to be cancelled while waiting
                     break
             except (ValueError, asyncio.CancelledError):  # Queue is closed
                 break

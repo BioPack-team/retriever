@@ -176,6 +176,7 @@ async def logs(
     end: datetime | None = None,
     level: LogLevel = "DEBUG",
     all_dates: bool = False,
+    flat: bool = False,
 ) -> StreamingResponse:
     """Get server logs."""
     if not CONFIG.log.log_to_mongo:
@@ -185,5 +186,6 @@ async def logs(
         start = datetime.combine(datetime.today(), time.min) - timedelta(days=1)
 
     return StreamingResponse(
-        MONGO_CLIENT.get_logs(start, end, level), media_type="application/json"
+        MONGO_CLIENT.get_logs(start, end, level, flat),
+        media_type="application/json" if not flat else "text/plain",
     )
