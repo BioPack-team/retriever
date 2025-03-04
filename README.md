@@ -37,4 +37,4 @@ task dbs:stop
 
 ## Configuration
 
-See the [Configuration Documentation](docs/CONFIGURATION.md)
+See the [Configuration Documentation](docs/CONFIGURATION.md).

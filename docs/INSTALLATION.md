@@ -4,9 +4,9 @@ Retriever can be used locally either in a Docker container, or in a local worksp
 
 Either way, you'll need [Docker](https://www.docker.com/get-started/) to run local [Dragonfly](https://www.dragonflydb.io/docs) and [MongoDB](https://www.mongodb.com/products/self-managed/community-edition) containers used by Retriever. Follow their [installation instructions](https://docs.docker.com/desktop/) (or install [Colima](https://github.com/abiosoft/colima) as an alternative) to get set up.
 
-### Docker
+## Docker
 
-#### Build
+### Build
 
 Retriever can be built via its [Dockerfile](https://github.com/BioPack-team/retriever/blob/a3049af6bd33e0dc2f45f3a5809117dcc9f3cec8/Dockerfile) either manually or using docker-compose.
 
@@ -22,7 +22,7 @@ Using the Dockerfile:
 docker build --rm --force-rm --compress -t biopack-team/retriever
 ```
 
-#### Run
+### Run
 
 Retriever can be run either manually or through docker-compose.
 
@@ -47,7 +47,7 @@ docker run \
   biopack-team/retriever
 ```
 
-### Local Workspace
+## Local Workspace
 
 Retriever uses [uv](https://docs.astral.sh/uv/) for package/workspace management. See [their documentation](https://docs.astral.sh/uv/getting-started/) for more details. The quickest way to install it is through pip:
 
