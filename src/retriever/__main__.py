@@ -1,5 +1,6 @@
 import uvicorn
 
+from retriever.config.general import CONFIG
 from retriever.config.logger import configure_logging
 
 
@@ -10,8 +11,8 @@ def main() -> None:
 
     uvicorn.run(
         "retriever.server:app",
-        host="0.0.0.0",
-        port=3000,
+        host=CONFIG.host,
+        port=CONFIG.port,
         log_config=logging_config,
     )
 

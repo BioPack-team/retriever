@@ -8,6 +8,8 @@ from pydantic_settings import (
     YamlConfigSettingsSource,
 )
 
+from retriever.type_defs import LogLevel
+
 
 class RateLimit(BaseModel):
     """Rate limit settings.
@@ -91,24 +93,11 @@ class GeneralConfig(BaseSettings):
     """General application config."""
 
     log_level: Annotated[
-        Literal[
-            "TRACE",
-            "trace",
-            "DEBUG",
-            "debug",
-            "INFO",
-            "info",
-            "SUCCESS",
-            "success",
-            "WARNING",
-            "warning",
-            "ERROR",
-            "error",
-            "CRITICAL",
-            "critical",
-        ],
+        LogLevel,
         AfterValidator(uppercase),
     ] = "DEBUG"
+    host: str = "0.0.0.0"
+    port: int = 3000
     rate_limit: RateLimit = RateLimit()
     cors: CORSSettings = CORSSettings()
     workers: int | None = None  # Number of workers to use
