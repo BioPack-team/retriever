@@ -13,6 +13,7 @@ from saq import Job
 from saq.queue.redis import RedisQueue
 from saq.types import Context, SettingsDict
 
+from retriever.config.general import CONFIG
 from retriever.tasks.lookup import lookup
 from retriever.type_defs import Query
 from retriever.utils import telemetry
@@ -87,7 +88,7 @@ def before_process(ctx: Context) -> None:
     telemetry.align_context(job)
 
 
-retriever_queue = RetrieverQueue.from_url("redis://localhost")
+retriever_queue = RetrieverQueue.from_url(f"redis://{CONFIG.redis.host}")
 retriever_queue.register_before_enqueue(before_enqueue)
 
 
