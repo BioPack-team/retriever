@@ -23,7 +23,8 @@ uv sync
 Quick start:
 
 ```bash
-# Get into the Virtual Environment. Otherwise, add `uv run` in front of the following commands
+# Get into the Virtual Environment.
+# Otherwise, add `uv run` in front of the following commands
 source .venv/bin/activate
 task dev
 ```
