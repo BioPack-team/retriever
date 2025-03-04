@@ -31,7 +31,7 @@ async def lookup(ctx: Context, query: Query) -> dict[str, Any]:
                 await asyncio.sleep(3)
             job_log.info("finished waiting.")
             remove_sink()
-            raise ValueError("Some test error")
+            # raise ValueError("Some test error")
             return {
                 "job_id": job.key,
                 "status": "Complete",
