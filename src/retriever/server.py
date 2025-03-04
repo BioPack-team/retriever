@@ -29,9 +29,6 @@ from retriever.utils.telemetry import configure_telemetry
 MONGO_CLIENT = MongoClient()
 MONGO_QUEUE = MongoQueue(MONGO_CLIENT)
 
-# FIX: exceptions are not logged from workers
-# FIX: exceptions are not traced from endpoint call stack
-
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
