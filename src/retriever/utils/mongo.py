@@ -212,7 +212,6 @@ class MongoQueue:
         """Periodically poll the queue for a task and handle it accordingly."""
         while True:
             try:
-                await asyncio.sleep(0.1)
                 target, doc = self.queue.get_nowait()
                 if not hasattr(self.client, target):
                     log.error(
@@ -228,6 +227,7 @@ class MongoQueue:
                         extra={"doc": doc, "no_mongo_log": True},
                     )
             except queue.Empty:
+                await asyncio.sleep(0.1)
                 continue
             except (ValueError, asyncio.CancelledError):  # Queue is closed
                 break
