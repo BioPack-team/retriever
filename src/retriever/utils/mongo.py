@@ -61,19 +61,14 @@ class MongoClient:
         Pings to check connection, then sets up collection indices.
         """
         log.info("Checking mongodb connection...")
-        for attempt in range(CONFIG.setup_attempts):
-            try:
-                await self.client.admin.command("ping")
-                log.success("Mongodb connection successful!")
-                break
-            except Exception as error:
-                if attempt < CONFIG.setup_attempts - 1:
-                    await asyncio.sleep(0.1)
-                    continue
-                log.critical(
-                    "Connection to MongoDB failed. Ensure an instance is running and the connection config is correct."
-                )
-                raise error
+        try:
+            await self.client.admin.command("ping")
+            log.success("Mongodb connection successful!")
+        except Exception as error:
+            log.critical(
+                "Connection to MongoDB failed. Ensure an instance is running and the connection config is correct."
+            )
+            raise error
 
         job_collection = self.get_job_collection()
         await job_collection.create_index("key", unique=True, background=True)
