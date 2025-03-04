@@ -2,7 +2,7 @@ import functools
 import io
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, time, timedelta
 from typing import Any
 
 import yaml
@@ -21,13 +21,16 @@ from retriever.tasks.task_queue import get_job_state, make_query, retriever_queu
 from retriever.tasks.worker import start_workers, stop_workers
 from retriever.type_defs import LogLevel
 from retriever.utils.exception_handlers import ensure_cors
-from retriever.utils.logging import add_mongo_sink
+from retriever.utils.logs import add_mongo_sink
 from retriever.utils.mongo import MongoClient, MongoQueue
 from retriever.utils.redis import test_redis
 from retriever.utils.telemetry import configure_telemetry
 
 MONGO_CLIENT = MongoClient()
 MONGO_QUEUE = MongoQueue(MONGO_CLIENT)
+
+# FIX: exceptions are not logged from workers
+# FIX: exceptions are not traced from endpoint call stack
 
 
 @asynccontextmanager
@@ -181,8 +184,9 @@ async def logs(
     if not CONFIG.log.log_to_mongo:
         raise HTTPException(404, detail="Persisted logging not enabled.")
 
-    if not start and not all_dates:
-        start = datetime.today()
+    if not start and not all_dates:  # Get all logs since midnight yesterday
+        start = datetime.combine(datetime.today(), time.min) - timedelta(days=1)
+
     return StreamingResponse(
         MONGO_CLIENT.get_logs(start, end, level), media_type="application/json"
     )

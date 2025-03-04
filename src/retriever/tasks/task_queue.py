@@ -16,7 +16,7 @@ from saq.types import Context, SettingsDict
 from retriever.tasks.lookup import lookup
 from retriever.type_defs import Query
 from retriever.utils import telemetry
-from retriever.utils.logging import add_context_trapi_sink
+from retriever.utils.logs import add_context_trapi_sink
 from retriever.utils.mongo import MongoClient
 
 tracer = trace.get_tracer("lookup.execution.tracer")
@@ -138,7 +138,7 @@ async def make_query(
             description="Query has been queued for processing.",
             job_id=job.key,
         )
-    if mode == "sync":
+    elif mode == "sync":
         return await retriever_queue.apply(func, query=query)
 
 

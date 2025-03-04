@@ -10,10 +10,10 @@ from opentelemetry import trace
 from saq.worker import import_settings, start
 
 from retriever.config.general import CONFIG
-from retriever.config.logging import configure_logging
+from retriever.config.logger import configure_logging
 from retriever.tasks.task_queue import RetrieverQueue
 from retriever.utils import telemetry
-from retriever.utils.logging import add_mongo_sink
+from retriever.utils.logs import add_mongo_sink
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 QUEUES = ["src.retriever.tasks.task_queue.SETTINGS"]

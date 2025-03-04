@@ -65,10 +65,11 @@ def configure_logging() -> dict[str, Any]:
     logging.config.dictConfig(std_log_config)
 
     def format_stdout(record: Record) -> str:
-        header = "<cyan>{time:YYYY-MM-DDTHH:mm:ss.SSSZ}</cyan> <blue>{process.id}</blue> <level>{level:8}</level>"
-        log = "{message:80} <cyan>{name}:{function}():{line}</cyan>\n"
+        header = "<cyan>{time:YYYY-MM-DDTHH:mm:ss.SSSZ}</cyan> <blue>{process.id:4}</blue> <level>{level:8}</level>"
+        log = "{message:80} <cyan>{name}:{function}():{line}</cyan>\n{exception}"
         if "job_id" in record["extra"]:
-            return header + f"<green>job {record['extra']['job_id'][:8]}</green> " + log
+            header += f"<green>{record['extra']['job_id'][:8]}</green> "
+
         return header + log
 
     # Configure loguru
@@ -76,6 +77,7 @@ def configure_logging() -> dict[str, Any]:
     logger.add(
         sys.stdout,
         format=format_stdout,
+        # format="<cyan>{time:YYYY-MM-DDTHH:mm:ss.SSSZ}</cyan> <blue>{process.id:4}</blue> <level>{level:8}</level> {message:80} <cyan>{name}:{function}():{line}</cyan> {extra}",
         colorize=True,
         backtrace=True,
         diagnose=False,

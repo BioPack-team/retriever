@@ -1,6 +1,6 @@
 import uvicorn
 
-from retriever.config.logging import configure_logging
+from retriever.config.logger import configure_logging
 
 
 def main() -> None:
