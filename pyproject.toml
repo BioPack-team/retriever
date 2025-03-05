@@ -104,6 +104,9 @@ dev = 'task dbs && retriever'
 yamllint = 'yamllint .'
 yamlfix = 'yamlfix --exclude ".venv/**/*" .'
 
+# Cleanup
+rmlogs = "rm ./logs/* && echo 'Logs deleted.'"
+
 [tool.hatch.build.targets.sdist]
 include = ["src/retriever"]
 
