@@ -1,5 +1,14 @@
 from typing import Any, Literal, TypedDict
 
+from pydantic import BaseModel
+
+
+class ErrorDetail(BaseModel):
+    """Basic FastAPI error response body."""
+
+    detail: str
+
+
 LogLevel = Literal[
     "TRACE",
     "trace",

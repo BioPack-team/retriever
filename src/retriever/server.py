@@ -3,10 +3,10 @@ import io
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime, time, timedelta
-from typing import Any
+from typing import Annotated, Any
 
 import yaml
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi import Response as StandardResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
@@ -19,7 +19,7 @@ from retriever.config.general import CONFIG
 from retriever.config.openapi import TRAPI
 from retriever.tasks.task_queue import get_job_state, make_query, retriever_queue
 from retriever.tasks.worker import start_workers, stop_workers
-from retriever.type_defs import LogLevel
+from retriever.type_defs import ErrorDetail, LogLevel
 from retriever.utils.exception_handlers import ensure_cors
 from retriever.utils.logs import add_mongo_sink
 from retriever.utils.mongo import MongoClient, MongoQueue
@@ -112,7 +112,7 @@ def openapi_yaml() -> StandardResponse:
 
 # TODO: implement by-smartapi, possibly just by a query value
 # Or maybe an infores path param?
-@app.get("/meta_knowledge_graph")
+@app.get("/meta_knowledge_graph", tags=["meta_knowledge_graph"])
 async def meta_knowledge_graph() -> dict[str, Any]:
     """Retrieve the Meta-Knowledge Graph."""
     job = await retriever_queue.enqueue("test", timeout=300)
@@ -125,7 +125,7 @@ async def meta_knowledge_graph() -> dict[str, Any]:
     # return {"logs": list(logs)}
 
 
-@app.post("/query")
+@app.post("/query", tags=["query"])
 # TODO: replace body type with updated reasoner-pydantic types
 async def query(
     request: Request, response: Response, body: dict[str, Any]
@@ -134,7 +134,7 @@ async def query(
     return await make_query("lookup", request, response, body)
 
 
-@app.post("/asyncquery")
+@app.post("/asyncquery", tags=["asyncquery"])
 async def asyncquery(
     request: Request, response: Response, body: dict[str, Any]
 ) -> dict[str, Any]:
@@ -142,7 +142,7 @@ async def asyncquery(
     return await make_query("lookup", request, response, body, mode="async")
 
 
-@app.get("/asyncquery_status/{job_id}")
+@app.get("/asyncquery_status/{job_id}", tags=["asyncquery_status"])
 async def asyncquery_status(
     request: Request, response: Response, job_id: str
 ) -> dict[str, Any]:
@@ -162,7 +162,7 @@ async def asyncquery_status(
     return job_dict
 
 
-@app.get("/asyncquery_response/{job_id}")
+@app.get("/asyncquery_response/{job_id}", tags=["asyncquery_status"])
 async def asyncquery_response(
     request: Request, response: Response, job_id: str
 ) -> dict[str, Any]:
@@ -170,15 +170,37 @@ async def asyncquery_response(
     return await get_job_state(job_id, request, response, MONGO_CLIENT)
 
 
-@app.get("/logs")
+@app.get(
+    "/logs",
+    tags=["logs"],
+    response_description="Logs in either flat or structured JSON format.",
+    responses={404: {"model": ErrorDetail}},
+)
 async def logs(
-    start: datetime | None = None,
-    end: datetime | None = None,
+    start: Annotated[
+        datetime | None,
+        Query(
+            description="Start datetime to search logs. Defaults to yesterday at midnight if `all_dates` is not set.",
+        ),
+    ] = None,
+    end: Annotated[
+        datetime | None,
+        Query(
+            description="End datetime to search logs. Defaults to present time.",
+        ),
+    ] = None,
     level: LogLevel = "DEBUG",
-    all_dates: bool = False,
-    flat: bool = False,
+    all_dates: Annotated[
+        bool, Query(description="Retrieve all logs without filtering by date.")
+    ] = False,
+    flat: Annotated[
+        bool,
+        Query(
+            description="Respond with plaintext log lines instead of structured JSON."
+        ),
+    ] = False,
 ) -> StreamingResponse:
-    """Get server logs."""
+    """Retrieve MongoDB-saved server logs."""
     if not CONFIG.log.log_to_mongo:
         raise HTTPException(404, detail="Persisted logging not enabled.")
 
