@@ -89,6 +89,17 @@ class XTrapi(BaseModel):
     )
 
 
+class ResponseDescriptions(BaseModel):
+    """Required response description fields."""
+
+    meta_knowledge_graph: dict[str, str]
+    query: dict[str, str]
+    asyncquery: dict[str, str]
+    asyncquery_status: dict[str, str]
+    asyncquery_response: dict[str, str]
+    logs: dict[str, str]
+
+
 class OpenAPIConfig(BaseSettings):
     """OpenAPI Metadata."""
 
@@ -110,6 +121,7 @@ class OpenAPIConfig(BaseSettings):
     # Have to set openapi_ prefix for any aliased fields for...some reason
     x_translator: XTranslator = Field(default=XTranslator())
     x_trapi: XTrapi = Field(default=XTrapi())
+    response_descriptions: ResponseDescriptions
 
     model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(
         env_prefix="openapi__",
@@ -141,6 +153,9 @@ class OpenAPIConfig(BaseSettings):
         )
 
 
+OPENAPI_CONFIG = OpenAPIConfig()
+
+
 class TRAPI(FastAPI):
     """A TRAPI-spec FastAPI application."""
 
@@ -149,37 +164,33 @@ class TRAPI(FastAPI):
         if self.openapi_schema:
             return self.openapi_schema
 
-        openapi_settings = OpenAPIConfig()
-
         # Build tags
-        tags = [tag.model_dump(mode="json") for tag in openapi_settings.tags]
+        tags = [tag.model_dump(mode="json") for tag in OPENAPI_CONFIG.tags]
         if self.openapi_tags:
             tags.extend(self.openapi_tags)
 
         openapi_schema = get_openapi(
-            description=openapi_settings.description,
-            version=openapi_settings.version,
-            title=openapi_settings.title,
+            description=OPENAPI_CONFIG.description,
+            version=OPENAPI_CONFIG.version,
+            title=OPENAPI_CONFIG.title,
             contact={
                 name.replace("_", "-"): value
-                for name, value in openapi_settings.contact.model_dump(
+                for name, value in OPENAPI_CONFIG.contact.model_dump(
                     mode="json"
                 ).items()
             },
-            license_info=openapi_settings.license.model_dump(mode="json"),
-            terms_of_service=openapi_settings.termsOfService,
+            license_info=OPENAPI_CONFIG.license.model_dump(mode="json"),
+            terms_of_service=OPENAPI_CONFIG.termsOfService,
             tags=tags,
             openapi_version=self.openapi_version,
             routes=self.routes,
         )
 
-        openapi_schema["info"]["x-translator"] = (
-            openapi_settings.x_translator.model_dump(
-                mode="json",
-                by_alias=True,
-            )
+        openapi_schema["info"]["x-translator"] = OPENAPI_CONFIG.x_translator.model_dump(
+            mode="json",
+            by_alias=True,
         )
-        openapi_schema["info"]["x-trapi"] = openapi_settings.x_trapi.model_dump(
+        openapi_schema["info"]["x-trapi"] = OPENAPI_CONFIG.x_trapi.model_dump(
             mode="json", by_alias=True
         )
 

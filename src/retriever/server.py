@@ -16,7 +16,7 @@ from ratelimit.backends.simple import MemoryBackend
 from ratelimit.types import Scope
 
 from retriever.config.general import CONFIG
-from retriever.config.openapi import TRAPI
+from retriever.config.openapi import OPENAPI_CONFIG, TRAPI
 from retriever.tasks.task_queue import get_job_state, make_query, retriever_queue
 from retriever.tasks.worker import start_workers, stop_workers
 from retriever.type_defs import ErrorDetail, LogLevel
@@ -112,7 +112,13 @@ def openapi_yaml() -> StandardResponse:
 
 # TODO: implement by-smartapi, possibly just by a query value
 # Or maybe an infores path param?
-@app.get("/meta_knowledge_graph", tags=["meta_knowledge_graph"])
+@app.get(
+    "/meta_knowledge_graph",
+    tags=["meta_knowledge_graph"],
+    response_description=OPENAPI_CONFIG.response_descriptions.meta_knowledge_graph.get(
+        "200", ""
+    ),
+)
 async def meta_knowledge_graph() -> dict[str, Any]:
     """Retrieve the Meta-Knowledge Graph."""
     job = await retriever_queue.enqueue("test", timeout=300)
@@ -125,7 +131,29 @@ async def meta_knowledge_graph() -> dict[str, Any]:
     # return {"logs": list(logs)}
 
 
-@app.post("/query", tags=["query"])
+@app.post(
+    "/query",
+    tags=["query"],
+    response_description=OPENAPI_CONFIG.response_descriptions.query.get("200", ""),
+    responses={
+        400: {
+            "description": OPENAPI_CONFIG.response_descriptions.query.get("400", ""),
+            "model": str,
+        },
+        413: {
+            "description": OPENAPI_CONFIG.response_descriptions.query.get("413", ""),
+            "model": str,
+        },
+        429: {
+            "description": OPENAPI_CONFIG.response_descriptions.query.get("429", ""),
+            "model": str,
+        },
+        500: {
+            "description": OPENAPI_CONFIG.response_descriptions.query.get("500", ""),
+            "model": str,
+        },
+    },
+)
 # TODO: replace body type with updated reasoner-pydantic types
 async def query(
     request: Request, response: Response, body: dict[str, Any]
@@ -134,7 +162,29 @@ async def query(
     return await make_query("lookup", request, response, body)
 
 
-@app.post("/asyncquery", tags=["asyncquery"])
+@app.post(
+    "/asyncquery",
+    tags=["asyncquery"],
+    response_description=OPENAPI_CONFIG.response_descriptions.asyncquery.get("200", ""),
+    responses={
+        400: {
+            "description": OPENAPI_CONFIG.response_descriptions.query.get("400", ""),
+            "model": str,
+        },
+        413: {
+            "description": OPENAPI_CONFIG.response_descriptions.query.get("413", ""),
+            "model": str,
+        },
+        429: {
+            "description": OPENAPI_CONFIG.response_descriptions.query.get("429", ""),
+            "model": str,
+        },
+        500: {
+            "description": OPENAPI_CONFIG.response_descriptions.query.get("500", ""),
+            "model": str,
+        },
+    },
+)
 async def asyncquery(
     request: Request, response: Response, body: dict[str, Any]
 ) -> dict[str, Any]:
@@ -142,7 +192,26 @@ async def asyncquery(
     return await make_query("lookup", request, response, body, mode="async")
 
 
-@app.get("/asyncquery_status/{job_id}", tags=["asyncquery_status"])
+@app.get(
+    "/asyncquery_status/{job_id}",
+    tags=["asyncquery_status"],
+    response_description=OPENAPI_CONFIG.response_descriptions.asyncquery_status.get(
+        "200", ""
+    ),
+    responses={
+        404: {
+            "description": OPENAPI_CONFIG.response_descriptions.asyncquery_status.get(
+                "404", ""
+            ),
+            "model": str,
+        },
+        501: {
+            "description": OPENAPI_CONFIG.response_descriptions.asyncquery_status.get(
+                "501", ""
+            )
+        },
+    },
+)
 async def asyncquery_status(
     request: Request, response: Response, job_id: str
 ) -> dict[str, Any]:
@@ -162,7 +231,21 @@ async def asyncquery_status(
     return job_dict
 
 
-@app.get("/asyncquery_response/{job_id}", tags=["asyncquery_status"])
+@app.get(
+    "/asyncquery_response/{job_id}",
+    tags=["asyncquery_status"],
+    response_description=OPENAPI_CONFIG.response_descriptions.asyncquery_response.get(
+        "200", ""
+    ),
+    responses={
+        404: {
+            "description": OPENAPI_CONFIG.response_descriptions.asyncquery_status.get(
+                "404", ""
+            ),
+            "model": str,
+        },
+    },
+)
 async def asyncquery_response(
     request: Request, response: Response, job_id: str
 ) -> dict[str, Any]:
@@ -173,8 +256,13 @@ async def asyncquery_response(
 @app.get(
     "/logs",
     tags=["logs"],
-    response_description="Logs in either flat or structured JSON format.",
-    responses={404: {"model": ErrorDetail}},
+    response_description=OPENAPI_CONFIG.response_descriptions.logs.get("200", ""),
+    responses={
+        404: {
+            "description": OPENAPI_CONFIG.response_descriptions.logs.get("404", ""),
+            "model": ErrorDetail,
+        }
+    },
 )
 async def logs(
     start: Annotated[
