@@ -20,7 +20,7 @@ services:
     image: biopack-team/retriever
     restart: on-failure
     build: .
-    ports: [3000:3000]
+    ports: [8080:8080]
     depends_on: [mongodb, dragonfly]
     environment:
       MONGO__HOST: host.docker.internal

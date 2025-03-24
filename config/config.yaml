@@ -2,7 +2,7 @@
 # Default configuration
 log_level: debug
 host: 0.0.0.0
-port: 3000
+port: 8080
 workers:  # Number of workers, unset to use n_cpus
 worker_concurrency: 10  # Number of concurrent tasks per worker
 setup_attempts: 5  # N attempts for setup tasks, such as mongo pings

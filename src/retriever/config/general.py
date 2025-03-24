@@ -86,7 +86,7 @@ class GeneralConfig(BaseSettings):
         AfterValidator(uppercase),
     ] = "DEBUG"
     host: str = "0.0.0.0"
-    port: int = 3000
+    port: int = 8080
     cors: CORSSettings = CORSSettings()
     workers: int | None = None  # Number of workers to use
     worker_concurrency: int = 10  # Number of concurrent jobs a worker may process
