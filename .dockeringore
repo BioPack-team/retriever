@@ -1,0 +1,11 @@
+.git
+.gitignore
+.pytest_cache
+.ruff_cache
+.venv
+.vscode
+docs/*
+logs/*
+.DS_Store
+.yamllint.yaml
+REAMDME.md
