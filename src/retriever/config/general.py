@@ -11,17 +11,6 @@ from pydantic_settings import (
 from retriever.type_defs import LogLevel
 
 
-class RateLimit(BaseModel):
-    """Rate limit settings.
-
-    Attributes:
-        special: The rate limit for priveledged user-agents, in requests/min.
-        general: The rate limit for all other user-agents, in requests/min.
-    """
-
-    priveledged_user_agents: list[str] = ["shepherd"]
-    special: int = 36_000
-    general: int = 600
 
 
 class CORSSettings(BaseModel):
@@ -98,7 +87,6 @@ class GeneralConfig(BaseSettings):
     ] = "DEBUG"
     host: str = "0.0.0.0"
     port: int = 3000
-    rate_limit: RateLimit = RateLimit()
     cors: CORSSettings = CORSSettings()
     workers: int | None = None  # Number of workers to use
     worker_concurrency: int = 10  # Number of concurrent jobs a worker may process

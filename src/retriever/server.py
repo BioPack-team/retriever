@@ -11,9 +11,6 @@ from fastapi import Response as StandardResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from loguru import logger as log
-from ratelimit import RateLimitMiddleware, Rule
-from ratelimit.backends.simple import MemoryBackend
-from ratelimit.types import Scope
 
 from retriever.config.general import CONFIG
 from retriever.config.openapi import OPENAPI_CONFIG, TRAPI
@@ -70,30 +67,7 @@ async def exception_ensure_cors(request: Request, exc: Exception) -> Response:
     return await ensure_cors(app, request, exc)
 
 
-# Special rate limit handling
-async def determine_user_agent(scope: Scope) -> tuple[str, str]:
-    """Determine if the client by user-agent."""
-    user_agent = next(
-        (value for name, value in scope.get("headers", []) if name == b"user-agent"),
-        b"",
-    ).decode()
-    for agent in CONFIG.rate_limit.priveledged_user_agents:
-        if agent in user_agent:
-            return "special", "special"
-    return "other", "other"
 
-
-app.add_middleware(
-    RateLimitMiddleware,
-    authenticate=determine_user_agent,
-    backend=MemoryBackend(),
-    config={
-        r".*": [
-            Rule(group="special", minute=CONFIG.rate_limit.special),
-            Rule(group="other", minute=CONFIG.rate_limit.general),
-        ],
-    },
-)
 
 # Set up Sentry and Otel
 configure_telemetry(app)

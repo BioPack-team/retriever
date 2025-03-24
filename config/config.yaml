@@ -3,12 +3,6 @@
 log_level: debug
 host: 0.0.0.0
 port: 3000
-rate_limit:
-  priveledged_user_agents:
-    - shepherd
-  # Rate limits in req/min
-  special: 36000  # Rate limit for priveledged user-agents
-  general: 600  # Rate limit for all other user-agents
 workers:  # Number of workers, unset to use n_cpus
 worker_concurrency: 10  # Number of concurrent tasks per worker
 setup_attempts: 5  # N attempts for setup tasks, such as mongo pings

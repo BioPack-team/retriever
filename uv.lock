@@ -112,20 +112,6 @@ wheels = [
 ]
 
 [[package]]
-name = "asgi-ratelimit"
-version = "0.10.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/cd/cb/95c484467e758ba97120dccbcd039adbd30fd78d55d5bc1a0af2a62dfab3/asgi_ratelimit-0.10.0.tar.gz", hash = "sha256:f45197f93db7713c8c0ec7bd6a5d0ffc36ed9beb90f54a389b683abdfcce8d5d", size = 15959 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c4/c9/fef7c3dbbd5066f48458c2f3042d6a7c8ffc66654c4d10c91eaaa618d83b/asgi_ratelimit-0.10.0-py3-none-any.whl", hash = "sha256:7618356839242270e3c826c2b20f5a4c3184851b6a0ec61de0eff76eedcb0839", size = 16651 },
-]
-
-[package.optional-dependencies]
-redis = [
-    { name = "redis" },
-]
-
-[[package]]
 name = "asgiref"
 version = "3.8.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1210,7 +1196,6 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
-    { name = "asgi-ratelimit", extra = ["redis"] },
     { name = "colorlog" },
     { name = "fastapi", extra = ["standard"] },
     { name = "httpx" },
@@ -1239,7 +1224,6 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.11.11,<4" },
-    { name = "asgi-ratelimit", extras = ["redis"], specifier = ">=0.10.0,<0.11" },
     { name = "colorlog", specifier = ">=6.9.0,<7" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.115.6,<0.116" },
     { name = "httpx", specifier = ">=0.28.1,<0.29" },
