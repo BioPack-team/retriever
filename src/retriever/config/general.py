@@ -90,7 +90,6 @@ class GeneralConfig(BaseSettings):
     cors: CORSSettings = CORSSettings()
     workers: int | None = None  # Number of workers to use
     worker_concurrency: int = 10  # Number of concurrent jobs a worker may process
-    setup_attempts: int = 5
 
     job: JobSettings = JobSettings()
     log: LogSettings = LogSettings()

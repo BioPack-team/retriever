@@ -105,7 +105,7 @@ async def worker_shutdown(_ctx: Context) -> None:
 
 SETTINGS = SettingsDict(
     queue=retriever_queue,
-    concurrency=10,  # number of jobs worker may process concurrently
+    concurrency=CONFIG.worker_concurrency,  # number of jobs worker may process concurrently
     startup=worker_startup,
     shutdown=worker_shutdown,
     before_process=before_process,
