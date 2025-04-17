@@ -36,7 +36,7 @@ async def test_redis() -> None:
             )
             await r.initialize()
 
-        await r.ping()
+        await r.ping()  # pyright: ignore[reportUnknownMemberType] redis uses unknowns :/
         log.success("Redis connection successful!")
         await r.close()
     except (RedisClusterException, RedisConnectionError) as error:

@@ -1,4 +1,4 @@
-from typing import Annotated, ClassVar, Literal, override
+from typing import Annotated, ClassVar, override
 
 from pydantic import AfterValidator, BaseModel
 from pydantic_settings import (
@@ -9,8 +9,6 @@ from pydantic_settings import (
 )
 
 from retriever.type_defs import LogLevel
-
-
 
 
 class CORSSettings(BaseModel):
@@ -43,6 +41,7 @@ class MongoSettings(BaseModel):
     authsource: str | None = None
     attempts: int = 3
     shutdown_timeout: int = 3
+    flood_batch_size: int = 1000
 
 
 class TelemetrySettings(BaseModel):
@@ -80,6 +79,8 @@ def uppercase(value: str) -> str:
 
 class GeneralConfig(BaseSettings):
     """General application config."""
+
+    instance_env: str = "dev"
 
     log_level: Annotated[
         LogLevel,

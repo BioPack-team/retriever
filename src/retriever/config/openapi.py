@@ -92,12 +92,12 @@ class XTrapi(BaseModel):
 class ResponseDescriptions(BaseModel):
     """Required response description fields."""
 
-    meta_knowledge_graph: dict[str, str]
-    query: dict[str, str]
-    asyncquery: dict[str, str]
-    asyncquery_status: dict[str, str]
-    asyncquery_response: dict[str, str]
-    logs: dict[str, str]
+    meta_knowledge_graph: dict[str, str] = {}
+    query: dict[str, str] = {}
+    asyncquery: dict[str, str] = {}
+    asyncquery_status: dict[str, str] = {}
+    asyncquery_response: dict[str, str] = {}
+    logs: dict[str, str] = {}
 
 
 class OpenAPIConfig(BaseSettings):
@@ -121,7 +121,7 @@ class OpenAPIConfig(BaseSettings):
     # Have to set openapi_ prefix for any aliased fields for...some reason
     x_translator: XTranslator = Field(default=XTranslator())
     x_trapi: XTrapi = Field(default=XTrapi())
-    response_descriptions: ResponseDescriptions
+    response_descriptions: ResponseDescriptions = ResponseDescriptions()
 
     model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(
         env_prefix="openapi__",

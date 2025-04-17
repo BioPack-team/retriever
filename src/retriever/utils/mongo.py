@@ -1,18 +1,17 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import multiprocessing
-import queue
+from collections import deque
 from collections.abc import AsyncGenerator
 from datetime import datetime
-from multiprocessing.queues import Queue
+from threading import Lock
 from time import time
 from typing import Any
 
 from bson import DEFAULT_CODEC_OPTIONS
 from loguru import logger as log
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
+from pymongo.operations import InsertOne, ReplaceOne
 from pymongo.server_api import ServerApi
 
 from retriever.config.general import CONFIG
@@ -71,7 +70,7 @@ class MongoClient:
             raise error
 
         job_collection = self.get_job_collection()
-        await job_collection.create_index("key", unique=True, background=True)
+        await job_collection.create_index("job_id", unique=True, background=True)
         await job_collection.create_index(
             "touched", background=True, expireAfterSeconds=CONFIG.job.ttl
         )
@@ -81,69 +80,65 @@ class MongoClient:
 
         log_collection = self.get_log_collection()
         await log_collection.create_index(
-            {"record.time.repr": 1}, background=True, expireAfterSeconds=CONFIG.log.ttl
+            {"time": 1}, background=True, expireAfterSeconds=CONFIG.log.ttl
         )
 
-    async def insert(
+    async def batch_write(
         self,
-        document: dict[str, Any],
-        collection: str = "log",
-        fail_silent: bool = True,
+        operations: list[InsertOne[dict[str, Any]]] | list[ReplaceOne[dict[str, Any]]],
+        collection: AsyncIOMotorCollection[dict[str, Any]],
     ) -> None:
-        """Insert a document to a collection with no special behavior."""
-        working_collection = {
-            "log": self.get_log_collection,
-            "job": self.get_job_collection,
-        }[collection]()
+        """Do a set of write/replace operations on a given collection.
 
-        for attempt in range(1, CONFIG.mongo.attempts + 1):
-            try:
-                await working_collection.insert_one(document)
-                break
-            except Exception as e:
-                if attempt < CONFIG.mongo.attempts:
-                    await asyncio.sleep(min(0.5, 0.025 * 2**attempt))
-                    continue
-                if not fail_silent:
-                    raise e
-
-    async def update_job_doc(self, job: dict[str, Any]) -> None:
-        """Upsert a job into the database for persistent storage.
-
-        Fails silently (with log) to avoid job failure.
+        Fails silently to avoid runaway log issues.
         """
-        collection = self.get_job_collection()
-
-        update_time = datetime.now()
-        job["touched"] = update_time
-        job["completed"] = update_time
-
         for attempt in range(1, CONFIG.mongo.attempts + 1):
             try:
-                result = await collection.replace_one(
-                    {"key": job["key"]},
-                    job,
-                    upsert=True,
-                )
-                log.trace(
-                    f"Job {job['key']} state serialized to MongoDB.",
-                    extra={"mongo_result": result},
+                _ = await collection.bulk_write(  # pyright: ignore[reportUnknownMemberType] Motor uses unknowns :/
+                    operations
                 )
                 break
             except Exception:
                 if attempt < CONFIG.mongo.attempts:
                     await asyncio.sleep(min(0.5, 0.025 * 2**attempt))
-                log.exception(f"Job {job['key']} MongoDB serialization failed!")
+                    continue
+
+    async def batch_job_state(
+        self, operations: list[ReplaceOne[dict[str, Any]]]
+    ) -> None:
+        """Write a batch of jobs to mongo."""
+        collection = self.get_job_collection()
+        await self.batch_write(operations, collection)
+
+    def job_state(self, job: dict[str, Any]) -> ReplaceOne[dict[str, Any]]:
+        """Create an operation for upserting a job state doc."""
+        update_time = datetime.now()
+        job["touched"] = update_time
+        job["completed"] = update_time
+        return ReplaceOne(
+            {"job_id": job["job_id"]},
+            job,
+            upsert=True,
+        )
+
+    async def batch_log_dump(self, operations: list[InsertOne[dict[str, Any]]]) -> None:
+        """Write a batch of logs to mongo."""
+        collection = self.get_log_collection()
+        await self.batch_write(operations, collection)
+
+    def log_dump(self, log: dict[str, Any]) -> InsertOne[dict[str, Any]]:
+        """Create a write operation for a given log."""
+        return InsertOne(log)
 
     async def get_job_doc(self, job_id: str) -> dict[str, Any] | None:
         """Retrieve a job from the database."""
         collection = self.get_job_collection()
 
         job = await collection.find_one(
-            {"key": job_id},
+            {"job_id": job_id},
         )
         if job is None:
-            return job
+            return
         await collection.update_one(
             {"_id": job["_id"]},
             {"$set": {"touched": datetime.now()}},
@@ -157,9 +152,9 @@ class MongoClient:
         start: datetime | None = None,
         end: datetime | None = None,
         level: LogLevel = "DEBUG",
-        flat: bool = False,
-    ) -> AsyncGenerator[str]:
-        """Return a generator of all logs."""
+        job_id: str | None = None,
+    ) -> AsyncGenerator[dict[str, Any]]:
+        """Return a generator of a filtered set of logs."""
         # Set up query
         levels = {
             "TRACE": 5,
@@ -170,46 +165,55 @@ class MongoClient:
             "ERROR": 40,
             "CRITICAL": 50,
         }
-        query: dict[str, Any] = {"record.level.no": {"$gte": levels[level.upper()]}}
+        query: dict[str, Any] = {"level.no": {"$gte": levels[level.upper()]}}
         if start or end:
-            query["record.time.repr"] = {}
+            query["time"] = {}
         if start:
-            query["record.time.repr"]["$gte"] = start
+            query["time"]["$gte"] = start
         if end:
-            query["record.time.repr"]["$lte"] = end
+            query["time"]["$lte"] = end
+        if job_id is not None:
+            query["extra.job_id"] = job_id
 
         logs = self.get_log_collection()
         cursor = logs.find(query).sort("timestamp", 1)
-        if not flat:
-            yield "["
-        first = True
         async for document in cursor:
             del document["_id"]
-            document["record"]["time"]["repr"] = (
-                document["record"]["time"]["repr"]
+            document["time"] = (
+                document["time"]
                 .astimezone()
                 .isoformat(timespec="milliseconds")
             )
-            if flat:
-                yield "{}{} {:4} {:7} {}{:80} {}".format(
-                    "\n" if not first else "",
-                    document["record"]["time"]["repr"],
-                    document["record"]["process"]["id"],
-                    document["record"]["level"]["name"],
-                    (
-                        f"{document['record']['extra']['job_id']} "
-                        if "job_id" in document["record"]["extra"]
-                        else ""
-                    ),
-                    document["record"]["message"],
-                    f"{document['record']['name']}.{document['record']['function']}:{document['record']['line']}",
-                )
-            else:
-                yield ("," if not first else "") + json.dumps(document)
-            first = False
+            yield document
 
-        if not flat:
-            yield "]"
+    async def get_flat_logs(
+        self,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        level: LogLevel = "DEBUG",
+        job_id: str | None = None,
+    ) -> AsyncGenerator[str]:
+        """Return a generator of logs as flat strings, as they would appear in stdout."""
+        first = True
+        async for log_doc in self.get_logs(start, end, level, job_id):
+            message = log_doc["message"]
+            if log_doc.get("exception"):
+                exception = log_doc["exception"]
+                message = f"{message}\n{exception.get('traceback')}\n{exception.get('type')}: {exception.get('value')}"
+            yield "{}{} {:4} {:7} {:80} {}".format(
+                "\n" if not first else "",
+                log_doc["time"],
+                log_doc["process"]["id"],
+                log_doc["level"]["name"],
+                (
+                    f"{log_doc['extra']['job_id'][:8]} "
+                    if "job_id" in log_doc["extra"]
+                    else ""
+                )
+                + message,
+                f"{log_doc['name']}.{log_doc['function']}:{log_doc['line']}",
+            )
+            first = False
 
     async def close(self) -> None:
         """Clean up and close MongoDB client threads/connections."""
@@ -221,9 +225,13 @@ class MongoQueue:
 
     def __init__(self, client: MongoClient) -> None:
         """Initialize a mongo client and multiprocessing queue."""
-        self.queue: Queue[tuple[str, dict[str, Any]]] = multiprocessing.Queue()
+        self.queue: asyncio.Queue[tuple[str, dict[str, Any]]] = asyncio.Queue()
         self.client: MongoClient = client
-        self.process_task: asyncio.Task[None] | None = None
+        self.process_tasks: list[asyncio.Task[None]] | None = None
+        self.task_deques: dict[str, tuple[Lock, deque[Any]]] = {
+            "job_state": (Lock(), deque()),
+            "log_dump": (Lock(), deque()),
+        }
 
     async def process_queue(self) -> None:
         """Periodically poll the queue for a task and handle it accordingly."""
@@ -236,28 +244,53 @@ class MongoQueue:
                         extra={"no_mongo_log": True},
                     )
                 try:
-                    await getattr(self.client, target)(doc)
+                    task = getattr(self.client, target)(doc)
+                    lock, task_deque = self.task_deques[target]
+                    with lock:
+                        task_deque.append(task)
+                    self.queue.task_done()
                 except Exception:
                     log.exception(
                         f"An exception occurred in the operation {target}",
                         extra={"doc": doc, "no_mongo_log": True},
                     )
-            except queue.Empty:
+            except asyncio.queues.QueueEmpty:
                 try:
-                    await asyncio.sleep(0.1)
+                    await asyncio.sleep(0.05)
                     continue
                 except asyncio.CancelledError:  # likely to be cancelled while waiting
                     break
             except (ValueError, asyncio.CancelledError):  # Queue is closed
                 break
 
+    async def process_batch_tasks(self) -> None:
+        """Periodically grab a batch of mongo tasks and run them."""
+        while True:
+            try:
+                for target, (lock, task_deque) in self.task_deques.items():
+                    with lock:
+                        tasks = [
+                            task_deque.popleft()
+                            for _ in range(
+                                min(len(task_deque), CONFIG.mongo.flood_batch_size)
+                            )
+                        ]
+                    if len(tasks) == 0:
+                        continue
+                    await getattr(self.client, f"batch_{target}")(tasks)
+
+                await asyncio.sleep(0.05)
+            except (ValueError, asyncio.CancelledError):
+                break
+
     async def start_process_task(self) -> None:
         """Start a processing loop to serialize documents to MongoDB."""
-        if self.process_task is not None:
+        if self.process_tasks is not None:
             raise ValueError("Cannot start second MongoDB queue process task.")
-        self.process_task = asyncio.create_task(
-            self.process_queue(), name="mongo_process_loop"
-        )
+        self.process_tasks = [
+            asyncio.create_task(self.process_queue(), name="mongo_process_loop"),
+            asyncio.create_task(self.process_batch_tasks(), name="mongo_batch_loop"),
+        ]
         log.info("Started MongoDB serialize task.")
 
     async def stop_process_task(self) -> None:
@@ -268,14 +301,26 @@ class MongoQueue:
             if time() - start > CONFIG.mongo.shutdown_timeout:
                 break
             await asyncio.sleep(0.1)
-        self.queue.close()
-        self.queue.join_thread()
+        self.queue.shutdown()
+        await self.queue.join()
 
         try:
-            if self.process_task is None:
+            if self.process_tasks is None:
                 return
-            self.process_task.cancel()
-            await self.process_task
+            for task in self.process_tasks:
+                task.cancel()
+                await task
             log.info("Stopped MongoDB serialize task.")
         except Exception:
             log.exception("Exception occurred while stopping MongoDB serialize task.")
+
+    def put(self, task_name: str, doc: dict[str, Any]) -> None:
+        """Add a document to the queue."""
+        try:
+            self.queue.put_nowait((task_name, doc))
+        except (asyncio.queues.QueueShutDown, asyncio.queues.QueueFull):
+            return
+
+
+MONGO_CLIENT = MongoClient()
+MONGO_QUEUE = MongoQueue(MONGO_CLIENT)

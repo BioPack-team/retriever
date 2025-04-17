@@ -3,7 +3,7 @@ from multiprocessing import parent_process
 import sentry_sdk
 from fastapi import FastAPI
 from loguru import logger as log
-from opentelemetry import context, trace
+from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
@@ -11,8 +11,6 @@ from opentelemetry.propagate import set_global_textmap
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
-from saq import Job
 from sentry_sdk.integrations.opentelemetry import SentryPropagator, SentrySpanProcessor
 
 from retriever.config.general import CONFIG
@@ -51,7 +49,7 @@ def configure_telemetry(app: FastAPI | None = None) -> None:
 
         # Instrument Server
         if app:
-            FastAPIInstrumentor.instrument_app(
+            FastAPIInstrumentor.instrument_app(  # pyright: ignore[reportUnknownMemberType] Sentry uses unknowns :/
                 app,
                 http_capture_headers_server_request=["User-Agent"],
                 tracer_provider=trace_provider,
@@ -59,25 +57,6 @@ def configure_telemetry(app: FastAPI | None = None) -> None:
 
         # Instrument httpx clients
         HTTPXClientInstrumentor().instrument()
-
-
-def inject_context(job: Job) -> None:
-    """Inject Otel context into job metadata for later extraction in job execution context."""
-    if not any([CONFIG.telemetry.sentry_enabled, CONFIG.telemetry.otel_enabled]):
-        return
-    carrier = {}
-    TraceContextTextMapPropagator().inject(carrier)
-
-    job.meta["otel_context"] = carrier
-
-
-def align_context(job: Job) -> None:
-    """Extract Otel context from job metadata and add it to the current span."""
-    if not any([CONFIG.telemetry.sentry_enabled, CONFIG.telemetry.otel_enabled]):
-        return
-    carrier = job.meta["otel_context"]
-    ctx = TraceContextTextMapPropagator().extract(carrier=carrier)
-    _ = context.attach(ctx)
 
 
 def capture_exception(e: Exception) -> None:

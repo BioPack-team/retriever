@@ -1,4 +1,4 @@
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, NotRequired, TypedDict
 
 from pydantic import BaseModel
 
@@ -27,9 +27,20 @@ LogLevel = Literal[
 ]
 
 
+class TRAPILog(TypedDict):
+    """A TRAPI-formatted log object."""
+
+    level: str
+    message: str
+    timestamp: str
+    code: str | None
+    trace: NotRequired[str]
+
+
 class Query(TypedDict):
     """All information needed to understand what a client is asking for."""
 
     endpoint: str
     method: str
-    body: dict[str, Any] | None
+    body: dict[str, Any]
+    job_id: str

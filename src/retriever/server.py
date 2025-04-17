@@ -3,50 +3,56 @@ import io
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime, time, timedelta
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 import yaml
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from fastapi import Response as StandardResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
-from loguru import logger as log
 
 from retriever.config.general import CONFIG
+from retriever.config.logger import configure_logging
 from retriever.config.openapi import OPENAPI_CONFIG, TRAPI
-from retriever.tasks.task_queue import get_job_state, make_query, retriever_queue
-from retriever.tasks.worker import start_workers, stop_workers
+
+# from retriever.tasks.task_queue import get_job_state, make_query, retriever_queue
+from retriever.tasks.query import get_job_state, make_query
 from retriever.type_defs import ErrorDetail, LogLevel
 from retriever.utils.exception_handlers import ensure_cors
-from retriever.utils.logs import add_mongo_sink
-from retriever.utils.mongo import MongoClient, MongoQueue
+from retriever.utils.logs import (
+    add_mongo_sink,
+    cleanup,
+    objs_to_json,
+    structured_log_to_trapi,
+)
+
+# from retriever.utils.mongo import MongoClient, MongoQueue
+from retriever.utils.mongo import MONGO_CLIENT, MONGO_QUEUE
 from retriever.utils.redis import test_redis
 from retriever.utils.telemetry import configure_telemetry
-
-MONGO_CLIENT = MongoClient()
-MONGO_QUEUE = MongoQueue(MONGO_CLIENT)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     """Lifespan hook for any setup/shutdown behavior."""
     # Startup
+    configure_logging()
     await MONGO_CLIENT.initialize()
     await MONGO_QUEUE.start_process_task()
-    retriever_queue.mongo_queue = MONGO_QUEUE.queue
-    add_mongo_sink(MONGO_QUEUE.queue)
+    # retriever_queue.mongo_queue = MONGO_QUEUE.queue
+    add_mongo_sink()
     await test_redis()
 
-    workers = start_workers(MONGO_QUEUE.queue)
+    # workers = start_workers(MONGO_QUEUE.queue)
 
     yield  # Separates startup/shutdown phase
 
     # Shutdown
-    stop_workers(workers)
-    await retriever_queue.disconnect()
+    # stop_workers(workers)
+    # await retriever_queue.disconnect()
     await MONGO_QUEUE.stop_process_task()
     await MONGO_CLIENT.close()
-    await log.complete()  # Logging is handled in queue so wait for it to finish
+    await cleanup()
 
 
 app = TRAPI(lifespan=lifespan)
@@ -65,8 +71,6 @@ app.add_middleware(
 async def exception_ensure_cors(request: Request, exc: Exception) -> Response:
     """Ensure CORS is not lost on exception."""
     return await ensure_cors(app, request, exc)
-
-
 
 
 # Set up Sentry and Otel
@@ -93,15 +97,9 @@ def openapi_yaml() -> StandardResponse:
         "200", ""
     ),
 )
-async def meta_knowledge_graph() -> dict[str, Any]:
+async def meta_knowledge_graph(request: Request, response: Response) -> dict[str, Any]:
     """Retrieve the Meta-Knowledge Graph."""
-    job = await retriever_queue.enqueue("test", timeout=300)
-    if not job:
-        return {}
-    await job.refresh(0)
-
-    # TODO: implement
-    return job.result
+    return await make_query("metakg", request, response)
     # return {"logs": list(logs)}
 
 
@@ -134,6 +132,7 @@ async def query(
 ) -> dict[str, Any]:
     """Initiate a synchronous query."""
     return await make_query("lookup", request, response, body)
+    # return {}
 
 
 @app.post(
@@ -160,10 +159,15 @@ async def query(
     },
 )
 async def asyncquery(
-    request: Request, response: Response, body: dict[str, Any]
+    request: Request,
+    response: Response,
+    body: dict[str, Any],
+    background_tasks: BackgroundTasks,
 ) -> dict[str, Any]:
     """Initiate an asynchronous query."""
-    return await make_query("lookup", request, response, body, mode="async")
+    return await make_query(
+        "lookup", request, response, body, background_tasks=background_tasks
+    )
 
 
 @app.get(
@@ -190,14 +194,22 @@ async def asyncquery_status(
     request: Request, response: Response, job_id: str
 ) -> dict[str, Any]:
     """Get the status of an asynchronous query."""
-    job_dict = await get_job_state(job_id, request, response, MONGO_CLIENT)
+    job_dict = await get_job_state(job_id, request, response)
 
     # Remove keys not meant for asyncquery_status
     del_keys: list[str] = [
         key
         for key in job_dict
         if key
-        not in ("status", "description", "logs", "response_url", "error", "trace")
+        not in (
+            "job_id",
+            "status",
+            "description",
+            "logs",
+            "response_url",
+            "error",
+            "trace",
+        )
     ]
     for key in del_keys:
         del job_dict[key]
@@ -224,7 +236,7 @@ async def asyncquery_response(
     request: Request, response: Response, job_id: str
 ) -> dict[str, Any]:
     """Get the response of an asynchronous query."""
-    return await get_job_state(job_id, request, response, MONGO_CLIENT)
+    return await get_job_state(job_id, request, response)
 
 
 @app.get(
@@ -238,7 +250,7 @@ async def asyncquery_response(
         }
     },
 )
-async def logs(
+async def logs(  # noqa: PLR0913 Can't reduce args due to FastAPI endpoint format
     start: Annotated[
         datetime | None,
         Query(
@@ -255,21 +267,32 @@ async def logs(
     all_dates: Annotated[
         bool, Query(description="Retrieve all logs without filtering by date.")
     ] = False,
-    flat: Annotated[
-        bool,
+    job_id: str | None = None,
+    fmt: Annotated[
+        Literal["flat", "trapi", "default"],
         Query(
-            description="Respond with plaintext log lines instead of structured JSON."
+            description="Respond with a specific format. flat: plaintext log lines; trapi: TRAPI-style logs; default: default structured format"
         ),
-    ] = False,
+    ] = "default",
 ) -> StreamingResponse:
     """Retrieve MongoDB-saved server logs."""
     if not CONFIG.log.log_to_mongo:
         raise HTTPException(404, detail="Persisted logging not enabled.")
 
-    if not start and not all_dates:  # Get all logs since midnight yesterday
+    if (
+        not start and not job_id and not all_dates
+    ):  # Get all logs since midnight yesterday
         start = datetime.combine(datetime.today(), time.min) - timedelta(days=1)
 
+    if fmt == "flat":
+        logs = MONGO_CLIENT.get_flat_logs(start, end, level, job_id)
+    else:
+        logs = MONGO_CLIENT.get_logs(start, end, level, job_id)
+        if fmt == "trapi":
+            logs = structured_log_to_trapi(logs)
+        logs = objs_to_json(logs)
+
     return StreamingResponse(
-        MONGO_CLIENT.get_logs(start, end, level, flat),
-        media_type="application/json" if not flat else "text/plain",
+        logs,
+        media_type="application/json" if fmt != "flat" else "text/plain",
     )

@@ -1,5 +1,6 @@
 ---
 # Default configuration
+instance_env: dev
 log_level: debug
 host: 0.0.0.0
 port: 8080
@@ -26,6 +27,7 @@ mongo:
   authsource:
   attempts: 3  # Number of attempts to accomplish operation before considering it failed
   shutdown_timeout: 3  # Time in seconds to wait for serialize task to finish
+  flood_batch_size: 1000  # Batch size for basic mongo inserts
 telemetry:
   otel_enabled: false
   otel_host: jaeger-otel-collector.sri
