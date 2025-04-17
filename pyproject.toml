@@ -51,6 +51,16 @@ typecheck = 'basedpyright src/retriever'
 format = 'ruff format --diff src/retriever'
 'format:fix' = 'ruff format src/retriever'
 
+fixup = """
+echo 'Formatting...' &&
+task format:fix &&
+echo 'Linting...' &&
+task lint:fix &&
+echo 'Static analysis...' &&
+task typecheck &&
+echo "✅ All set!"
+"""
+
 'dragonfly:start' = """
     echo "starting dragonfly..." \
     && docker run \
@@ -179,10 +189,11 @@ allow-dict-calls-with-keyword-arguments = true
 docstring-code-format = true
 
 [tool.pyright]
-# Make any allowable. Builtings sometimes deal in Any and aren't worth the extra modeling
+# Make any allowable. Builtins sometimes deal in Any and aren't worth the extra modeling
 reportAny = false
 reportExplicitAny = false
-reportUnusedCallResult = false # Just makes code look worse; Ususall unused results are deliberately ignored
+reportUnusedCallResult = false # Just makes code look worse; Usually unused results are deliberately ignored
+reportMissingTypeStubs = false # Sometimes type stubs aren't available and auto-gen is incorrect
 
 [tool.yamlfix]
 line_length = 88
