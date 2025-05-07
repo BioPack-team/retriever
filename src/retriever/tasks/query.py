@@ -10,7 +10,7 @@ from reasoner_pydantic import MetaKnowledgeGraph as TRAPIMetaKnowledgeGraph
 from reasoner_pydantic import Query as TRAPIQuery
 from reasoner_pydantic import Response as TRAPIResponse
 
-from retriever.tasks.lookup import async_lookup, lookup
+from retriever.tasks.lookup.lookup import async_lookup, lookup
 from retriever.tasks.metakg import metakg
 from retriever.type_defs import QueryInfo
 from retriever.utils import telemetry
