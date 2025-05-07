@@ -1,13 +1,18 @@
 import traceback
 import uuid
-from typing import Any, Literal
+from typing import Any, Literal, overload
 
 from fastapi import BackgroundTasks, Request, Response
 from opentelemetry import trace
+from reasoner_pydantic import AsyncQuery as TRAPIAsyncQuery
+from reasoner_pydantic import AsyncQueryResponse as TRAPIAsyncQueryResponse
+from reasoner_pydantic import MetaKnowledgeGraph as TRAPIMetaKnowledgeGraph
+from reasoner_pydantic import Query as TRAPIQuery
+from reasoner_pydantic import Response as TRAPIResponse
 
 from retriever.tasks.lookup import async_lookup, lookup
 from retriever.tasks.metakg import metakg
-from retriever.type_defs import Query
+from retriever.type_defs import QueryInfo
 from retriever.utils import telemetry
 from retriever.utils.logs import TRAPILogger, structured_log_to_trapi
 from retriever.utils.mongo import MONGO_CLIENT, MONGO_QUEUE
@@ -15,22 +20,46 @@ from retriever.utils.mongo import MONGO_CLIENT, MONGO_QUEUE
 tracer = trace.get_tracer("lookup.execution.tracer")
 
 
-# @tracer.start_as_current_span("await_worker_execution")
+@overload
+async def make_query(
+    func: Literal["lookup"],
+    request: Request,
+    response: Response,
+    body: TRAPIQuery,
+) -> TRAPIResponse: ...
+
+
+@overload
+async def make_query(
+    func: Literal["lookup"],
+    request: Request,
+    response: Response,
+    body: TRAPIAsyncQuery,
+    background_tasks: BackgroundTasks,
+) -> TRAPIAsyncQueryResponse: ...
+
+
+@overload
+async def make_query(
+    func: Literal["metakg"],
+    request: Request,
+    response: Response,
+) -> TRAPIMetaKnowledgeGraph: ...
+
+
 async def make_query(
     func: Literal["lookup", "metakg"],
     request: Request,
     response: Response,  # Possibly used in the future
-    body: dict[str, Any] | None = None,
+    body: TRAPIQuery | TRAPIAsyncQuery | None = None,
     background_tasks: BackgroundTasks | None = None,
-) -> dict[str, Any]:
+) -> TRAPIResponse | TRAPIAsyncQueryResponse | TRAPIMetaKnowledgeGraph:
     """Process a request and await its response before returning.
 
     Unhandled errors are handled by middleware.
     """
-    if body is None:
-        body = {}
     job_id = uuid.uuid4().hex
-    query = Query(
+    query = QueryInfo(
         endpoint=request.url.path, method=request.method, body=body, job_id=job_id
     )
     query_function = {"lookup": lookup, "metakg": metakg}[func]
@@ -38,7 +67,7 @@ async def make_query(
         MONGO_QUEUE.put("job_state", {"job_id": job_id, "status": "Running"})
     if background_tasks is not None:  # Asyncquery lookup
         background_tasks.add_task(async_lookup, query=query)
-        return dict(
+        return TRAPIAsyncQueryResponse(
             status="Accepted",
             description="Query has been queued for processing.",
             job_id=job_id,

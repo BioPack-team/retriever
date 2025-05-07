@@ -3,13 +3,18 @@ import io
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime, time, timedelta
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
 import yaml
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
-from fastapi import Response as StandardResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
+from reasoner_pydantic import AsyncQuery as TRAPIAsyncQuery
+from reasoner_pydantic import AsyncQueryResponse as TRAPIAsyncQueryResponse
+from reasoner_pydantic import AsyncQueryStatusResponse as TRAPIAsyncQueryStatusResponse
+from reasoner_pydantic import MetaKnowledgeGraph as TRAPIMetaKnowledgeGraph
+from reasoner_pydantic import Query as TRAPIQuery
+from reasoner_pydantic import Response as TRAPIResponse
 
 from retriever.config.general import CONFIG
 from retriever.config.logger import configure_logging
@@ -80,12 +85,12 @@ configure_telemetry(app)
 # Add a yaml endpoint, for completeness' sake
 @app.get("/openapi.yaml", include_in_schema=False)
 @functools.lru_cache
-def openapi_yaml() -> StandardResponse:
+def openapi_yaml() -> Response:
     """Retreive the OpenAPI specs in yaml format."""
     openapi_json = app.openapi()
     yaml_str = io.StringIO()
     yaml.dump(openapi_json, yaml_str)
-    return StandardResponse(yaml_str.getvalue(), media_type="text/yaml")
+    return Response(yaml_str.getvalue(), media_type="text/yaml")
 
 
 # TODO: implement by-smartapi, possibly just by a query value
@@ -97,7 +102,9 @@ def openapi_yaml() -> StandardResponse:
         "200", ""
     ),
 )
-async def meta_knowledge_graph(request: Request, response: Response) -> dict[str, Any]:
+async def meta_knowledge_graph(
+    request: Request, response: Response
+) -> TRAPIMetaKnowledgeGraph:
     """Retrieve the Meta-Knowledge Graph."""
     return await make_query("metakg", request, response)
     # return {"logs": list(logs)}
@@ -128,8 +135,8 @@ async def meta_knowledge_graph(request: Request, response: Response) -> dict[str
 )
 # TODO: replace body type with updated reasoner-pydantic types
 async def query(
-    request: Request, response: Response, body: dict[str, Any]
-) -> dict[str, Any]:
+    request: Request, response: Response, body: TRAPIQuery
+) -> TRAPIResponse:
     """Initiate a synchronous query."""
     return await make_query("lookup", request, response, body)
     # return {}
@@ -161,9 +168,9 @@ async def query(
 async def asyncquery(
     request: Request,
     response: Response,
-    body: dict[str, Any],
+    body: TRAPIAsyncQuery,
     background_tasks: BackgroundTasks,
-) -> dict[str, Any]:
+) -> TRAPIAsyncQueryResponse:
     """Initiate an asynchronous query."""
     return await make_query(
         "lookup", request, response, body, background_tasks=background_tasks
@@ -192,7 +199,7 @@ async def asyncquery(
 )
 async def asyncquery_status(
     request: Request, response: Response, job_id: str
-) -> dict[str, Any]:
+) -> TRAPIAsyncQueryStatusResponse:
     """Get the status of an asynchronous query."""
     job_dict = await get_job_state(job_id, request, response)
 
@@ -214,7 +221,7 @@ async def asyncquery_status(
     for key in del_keys:
         del job_dict[key]
 
-    return job_dict
+    return TRAPIAsyncQueryStatusResponse.model_validate(job_dict)
 
 
 @app.get(
@@ -234,9 +241,13 @@ async def asyncquery_status(
 )
 async def asyncquery_response(
     request: Request, response: Response, job_id: str
-) -> dict[str, Any]:
+) -> TRAPIResponse | TRAPIAsyncQueryStatusResponse:
     """Get the response of an asynchronous query."""
-    return await get_job_state(job_id, request, response)
+    job_dict = await get_job_state(job_id, request, response)
+    if job_dict.get("Message") is not None:
+        return TRAPIResponse.model_validate(job_dict)
+    else:
+        return TRAPIAsyncQueryStatusResponse.model_validate(job_dict)
 
 
 @app.get(

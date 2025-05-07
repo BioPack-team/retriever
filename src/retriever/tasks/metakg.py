@@ -1,14 +1,23 @@
-from typing import Any
 
-from retriever.type_defs import Query
+from reasoner_pydantic import (
+    HashableMapping,
+    HashableSequence,
+    MetaEdge,
+    MetaKnowledgeGraph,
+    MetaNode,
+)
+
+from retriever.type_defs import QueryInfo
 
 
 async def metakg(
-    query: Query,  # pyright: ignore[reportUnusedParameter] Will be used in the future
-) -> tuple[int, dict[str, Any]]:
+    query: QueryInfo,  # pyright: ignore[reportUnusedParameter] Will be used in the future
+) -> tuple[int, MetaKnowledgeGraph]:
     """Obtain a TRAPI-formatted meta-kg.
 
     Returns:
         A tuple of HTTP status code, response body.
     """
-    return 200, {}
+    return 200, MetaKnowledgeGraph(
+        nodes=HashableMapping[str, MetaNode](), edges=HashableSequence[MetaEdge]()
+    )

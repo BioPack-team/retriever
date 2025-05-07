@@ -9,35 +9,55 @@ from typing import Any
 
 import loguru
 from loguru import logger
+from reasoner_pydantic import LogEntry
+from reasoner_pydantic import LogLevel as TRAPILogLevel
 
 from retriever.config.general import CONFIG
-from retriever.type_defs import TRAPILog
+from retriever.type_defs import LogLevel
 from retriever.utils.mongo import MONGO_QUEUE
 
 
+def log_level_to_trapi(level: LogLevel) -> TRAPILogLevel:
+    """Collapse loguru log levels into TRAPI-spec log levels."""
+    level_str = level.upper()
+    if level_str in TRAPILogLevel:
+        return TRAPILogLevel[level_str]
+    match level_str:
+        case "TRACE":
+            return TRAPILogLevel.DEBUG
+        case "SUCCESS":
+            return TRAPILogLevel.INFO
+        case "CRITICAL":
+            return TRAPILogLevel.ERROR
+        case _:
+            return TRAPILogLevel.DEBUG
+
+
 def format_trapi_log(
-    level: str,
+    level: LogLevel,
     message: str,
-    timestamp: str | None = None,
+    timestamp: datetime | None = None,
     trace: str | None = None,
-) -> TRAPILog:
+) -> LogEntry:
     """Format a loguru message into a TRAPI-spec LogEntry."""
     if timestamp is None:
-        timestamp = datetime.now().astimezone().isoformat(timespec="milliseconds")
-    log_entry: TRAPILog = {
-        "level": level.upper(),
-        "message": message,
-        "timestamp": timestamp,
-        "code": None,
-    }
+        timestamp = datetime.now().astimezone()
+    log_entry = LogEntry(
+        level=log_level_to_trapi(level),
+        message=message,
+        timestamp=timestamp,
+        code=None,
+    )
     if trace:
-        log_entry["trace"] = trace
+        log_entry.trace = (  # pyright:ignore[reportAttributeAccessIssue] It's allowed
+            trace
+        )
     return log_entry
 
 
 async def structured_log_to_trapi(
     logs: AsyncGenerator[dict[str, Any]],
-) -> AsyncGenerator[TRAPILog]:
+) -> AsyncGenerator[LogEntry]:
     """Take an async generator of structured logs and yield TRAPI logs asynchronously."""
     async for log in logs:
         trace = None
@@ -68,10 +88,10 @@ class TRAPILogger:
 
     def __init__(self, job_id: str) -> None:
         """Initialize an instance."""
-        self.log_deque: deque[TRAPILog] = deque()
+        self.log_deque: deque[LogEntry] = deque()
         self.job_id: str = job_id
 
-    def _log(self, level: str, message: str, **kwargs: Any) -> None:
+    def _log(self, level: LogLevel, message: str, **kwargs: Any) -> None:
         kwargs["job_id"] = self.job_id
 
         with logger.contextualize(**kwargs):
@@ -115,7 +135,7 @@ class TRAPILogger:
         with logger.contextualize(**kwargs):
             logger.exception(message)
 
-    def get_logs(self) -> list[TRAPILog]:
+    def get_logs(self) -> list[LogEntry]:
         """Get a generator of stored TRAPI logs."""
         return list(self.log_deque)
 
