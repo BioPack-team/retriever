@@ -1,7 +1,7 @@
 from typing import Literal
 
 from pydantic import BaseModel
-from reasoner_pydantic import AsyncQuery, Query
+from reasoner_pydantic import AsyncQuery, QEdge, Query
 
 
 class ErrorDetail(BaseModel):
@@ -35,3 +35,8 @@ class QueryInfo(BaseModel):
     method: str
     body: Query | AsyncQuery | None
     job_id: str
+
+
+AdjacencyGraph = dict[str, dict[str, QEdge]]
+
+EdgeIDMap = dict[str | QEdge, str | QEdge]

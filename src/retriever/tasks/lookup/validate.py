@@ -18,6 +18,7 @@ def validate(qg: QueryGraph | None) -> list[str]:
         node for node in qg.nodes.values() if node.ids is not None and len(node.ids) > 0
     )
 
+    node_pairs = set[str]()
     for edge_id, edge in qg.edges.items():
         if edge.subject not in qg.nodes:
             problems[
@@ -39,5 +40,12 @@ def validate(qg: QueryGraph | None) -> list[str]:
 
         if edge.knowledge_type == KnowledgeType.inferred:
             problems["Retriever does not handle inferred-type queries."] = False
+
+        if (
+            f"{edge.subject}-{edge.object}" in node_pairs
+            or f"{edge.object}-{edge.subject}" in node_pairs
+        ):
+            problems["Duplicate edges not allowed."] = False
+        node_pairs.add(f"{edge.subject}-{edge.object}")
 
     return [name for name, passed in problems.items() if not passed]

@@ -1,7 +1,6 @@
 import asyncio
 import math
 import time
-from random import random
 
 import httpx
 from loguru import logger as log
@@ -96,7 +95,8 @@ async def lookup(query: QueryInfo) -> tuple[int, Response]:
             return tracked_response(424, response)
 
         # Execute query graph
-        results, logs = await execute_query_graph(query.body)
+        results, kgraph, logs = await execute_query_graph(query.body, job_id)
+        job_log.log_deque.extend(logs)
 
         # TODO: cleanup (subclass, is_set)
 
@@ -107,9 +107,6 @@ async def lookup(query: QueryInfo) -> tuple[int, Response]:
             for i in range(10_000):
                 a += i
         job_log.info("finished working.")
-        chance_of_error = 0.01
-        if random() < chance_of_error:
-            raise ValueError("Simulated unhandled error.")
         # ^ Above is placeholder
 
         end_time = time.time()
@@ -117,6 +114,8 @@ async def lookup(query: QueryInfo) -> tuple[int, Response]:
         response.status = "Complete"
         response.description = f"Execution completed, obtained {len(results)} results in {math.ceil((end_time - start_time) * 1000):}ms."
         response.logs = HashableSequence(job_log.get_logs())
+        response.message.results = results
+        response.message.knowledge_graph = kgraph
         return tracked_response(200, response)
 
     except Exception:
