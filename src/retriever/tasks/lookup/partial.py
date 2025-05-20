@@ -1,10 +1,7 @@
 import json
 from typing import override
 
-from reasoner_pydantic import (
-    CURIE,
-    Edge,
-)
+from reasoner_pydantic import CURIE
 
 
 class Partial:
@@ -13,24 +10,31 @@ class Partial:
     def __init__(
         self,
         node_bindings: list[tuple[str, CURIE]],
-        edge_bindings: list[tuple[str, Edge]],
+        edge_bindings: list[tuple[str, CURIE, CURIE]],
     ) -> None:
         """Initialize a partial result."""
         self.node_bindings: list[tuple[str, CURIE]] = node_bindings
-        self.edge_bindings: list[tuple[str, Edge]] = edge_bindings
+        self.edge_bindings: set[tuple[str, CURIE, CURIE]] = set(edge_bindings)
 
     @override
     def __str__(self) -> str:
         return json.dumps(
             {
                 "node_bindings": {
-                    qnode: str(node) for qnode, node in self.node_bindings
+                    qnode: str(node) for qnode, node in sorted(self.node_bindings)
                 },
-                "edge_bindings": {
-                    qedge: hash(edge) for qedge, edge in self.edge_bindings
-                },
+                "edge_bindings": list[self.edge_bindings],
             }
         )
+
+    @override
+    def __hash__(self) -> int:
+        """Hash a Partial by its str representation."""
+        return hash(self.__str__())
+
+    def clone(self) -> "Partial":
+        """Return a clone of the Partial with no mutable overlap."""
+        return Partial(self.node_bindings.copy(), list(self.edge_bindings.copy()))
 
     def combine(self, other: "Partial") -> "Partial":
         """Return a new Partial that combines self and other."""

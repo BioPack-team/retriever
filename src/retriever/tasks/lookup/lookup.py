@@ -98,7 +98,7 @@ async def lookup(query: QueryInfo) -> tuple[int, Response]:
         results, kgraph, logs = await execute_query_graph(query.body, job_id)
         job_log.log_deque.extend(logs)
 
-        # TODO: cleanup (subclass, is_set)
+        # TODO: cleanup (subclass, is_set, kg prune)
 
         # v Placeholder functionality
         with tracer.start_as_current_span("intermediate_step"):

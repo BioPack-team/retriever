@@ -1,45 +1,29 @@
 import asyncio
 import itertools
-import random
-from typing import Literal, cast
+from collections.abc import AsyncGenerator
 
 from reasoner_pydantic import (
     CURIE,
     AsyncQuery,
     Edge,
-    HashableSet,
     KnowledgeGraph,
     LogEntry,
-    Node,
-    QEdge,
     Query,
-    QueryGraph,
     Result,
     Results,
 )
-from reasoner_pydantic.shared import EdgeIdentifier
 
 from retriever.tasks.lookup.branch import Branch
 from retriever.tasks.lookup.partial import Partial
-from retriever.type_defs import AdjacencyGraph, EdgeIDMap
+from retriever.tasks.lookup.subquery import mock_subquery
+from retriever.tasks.lookup.utils import (
+    get_subgraph,
+    initialize_kgraph,
+    make_mappings,
+    merge_iterators,
+)
+from retriever.type_defs import SuperpositionHop
 from retriever.utils.logs import TRAPILogger
-
-
-def make_mappings(qg: QueryGraph) -> tuple[AdjacencyGraph, EdgeIDMap]:
-    """Make an undirected QGraph representation in which edges are presented by their nodes."""
-    agraph: AdjacencyGraph = {}
-    edge_id_map: EdgeIDMap = {}
-    for edge_id, edge in qg.edges.items():
-        edge_id_map[edge_id] = edge
-        edge_id_map[edge] = edge_id
-        if edge.subject not in agraph:
-            agraph[edge.subject] = dict[str, QEdge]()
-        if edge.object not in agraph:
-            agraph[edge.object] = dict[str, QEdge]()
-        agraph[edge.subject][edge.object] = edge
-        agraph[edge.object][edge.subject] = edge
-
-    return agraph, edge_id_map
 
 
 async def execute_query_graph(
@@ -56,203 +40,251 @@ async def execute_query_graph(
 
     agraph, edge_id_map = make_mappings(qgraph)
     qedge_claims: dict[str, Branch | None] = dict.fromkeys(qgraph.edges.keys())
-    claim_lock = asyncio.Lock()
-
-    kgraph_dict = {
-        "nodes": {},
-        "edges": {},
+    locks = {
+        "claim": asyncio.Lock(),
+        "start": asyncio.Lock(),
     }
 
-    # Add qgraph nodes to kgraph
-    for qnode in qgraph.nodes.values():
-        if qnode.ids is None:
-            continue
-        for curie in qnode.ids:
-            kgraph_dict["nodes"][curie] = {
-                "categories": qnode.categories or [],
-                "attributes": [],
-            }
+    # Initialize Knowledge Graph
+    kgraph = initialize_kgraph(qgraph)
 
-    kgraph = KnowledgeGraph.model_validate(kgraph_dict)
+    # For more detailed tracking
+    # Each key represents an input superposition for a given branch
+    # (branch's input curie and current edge)
+    kedges_by_input = dict[SuperpositionHop, list[Edge]]()
+    kedges_agraph = dict[tuple[str, CURIE, CURIE], list[Edge]]()
 
-    # TODO: async yielding, have to do slightly different stop conditions
-    # have to know ahead that branch will stop due to claim or leaf
+    # TODO for basically anything being accessed above here, we need a lock
+
+    # TODO: Error handling in the merge_iterators. Currently errors cause forever-execution
+    # TODO: broken chain handling
     # TODO: move as much logic out as possible so this function is clean
-    async def qdfs(branch: Branch) -> list[Partial] | Literal[False]:
-        edge_id = branch.current_edge
+    async def qdfs(
+        current_branch: Branch,
+    ) -> AsyncGenerator[tuple[Branch, Partial | None]]:
+        qedge_id = current_branch.current_edge
 
-        async with claim_lock:
-            if qedge_claims[edge_id] is not None and qedge_claims[edge_id] != branch:
-                job_log.debug(
-                    f"{branch.superposition_name}: Stopping, edge {edge_id} is claimed by {qedge_claims[edge_id].superposition_name}"
-                )
-                return False
-            qedge_claims[edge_id] = branch
+        # Check that this branch may proceed (target edge is unclaimed/claimed for this branch)
+        if not await current_branch.has_claim(qedge_claims, locks["claim"]):
+            yield current_branch, None
+            return
 
-        # Test some random time jitter
-        # await asyncio.sleep(random.random())
-
-        if qgraph.nodes[branch.end_node].ids:
-            curies = list(qgraph.nodes[branch.end_node].ids or [])
-        else:
-            curies = [
-                CURIE(f"curie:test{random.random()}")
-                for i in range(random.randint(1, 3))
-            ]
-        current_edge = cast(QEdge, edge_id_map[edge_id])
-        edges = {
-            curie: Edge(
-                subject=(
-                    branch.curies[-1]
-                    if branch.nodes[-1] == current_edge.object
-                    else curie
-                ),
-                predicate=(current_edge.predicates or ["biolink:related_to"])[0],
-                object=(
-                    curie
-                    if branch.nodes[-1] == current_edge.object
-                    else branch.curies[-1]
-                ),
-                sources=HashableSet(),
-                attributes=HashableSet(),
-            )
-            for curie in curies
-        }
-
-        # Update KG
-        for curie in curies:
-            kgraph.nodes[curie] = Node(
-                categories=HashableSet(
-                    set(qgraph.nodes[branch.end_node].categories or [])
-                ),
-                attributes=HashableSet(),
-            )
-        for edge in edges.values():
-            kgraph.edges[EdgeIdentifier(str(hash(edge)))] = edge
-
-        next_steps = branch.get_next_steps(curies)
-        job_log.debug(
-            f"{branch.superposition_name}: Found {len(next_steps)} next step(s)"
+        kedge_in_key = (
+            current_branch.input_curie,
+            current_branch.current_edge,
         )
-        if len(next_steps) == 0:
-            return [
-                Partial([(branch.nodes[-1], curie)], [(edge_id, edge)])
-                for curie, edge in edges.items()
-            ]
 
-        partials = dict[CURIE, dict[str, list[Partial]]]()
-        for next_branch in next_steps:  # Have to run once ahead to build partials dict
-            curie = next_branch.curies[-1]
-            next_edge = cast(str, edge_id_map[next_branch.current_edge])
+        async with locks["start"]:
+            if kedge_in_key in kedges_by_input:
+                job_log.debug(
+                    f"{current_branch.input_curie}-{current_branch.current_edge} already executed, skipping..."
+                )
+                update_kgraph = False
+                subquery_tasks = [
+                    asyncio.create_task(get_subgraph(current_branch, kedge_in_key, kedges_by_input, kgraph))
+                    for _ in range(2)
+                ]
+            else:
+                # Simulate finding a variable number of operations to perform
+                update_kgraph = True
+                subquery_tasks = [
+                    asyncio.create_task(mock_subquery(current_branch, qgraph, edge_id_map))
+                    # for _ in range(random.randint(0, 3))
+                    for _ in range(2)
+                ]
 
-            if curie not in partials:
-                partials[curie] = dict[str, list[Partial]]()
-            if next_edge not in partials[curie]:
-                partials[curie][next_edge] = list[Partial]()
-        reconciled_partials = list[Partial]()
+        branch_tasks = list[AsyncGenerator[tuple[Branch, Partial | None]]]()
 
+        next_branches = set[int]()
         skip_branches = set[int]()
-        for next_branch in next_steps:
-            curie = next_branch.curies[-1]
-            next_edge = cast(str, edge_id_map[next_branch.current_edge])
-            next_branch_hash = hash(next_branch)
+        yielded_partials = 0
+        # Each key represents an output superposition for this branch
+        # (output curie for this branch and this branch's edge)
+        # Each sub dict is then partials by the respective edge their branch executed
+        # this allows partials to be branch-reconciled while avoiding
+        # reconciling partials of different superpositions on the same branch
+        partials = dict[SuperpositionHop, dict[str, list[Partial]]]()
+        edges_this_hop = dict[CURIE, list[Edge]]()
 
-            if next_branch_hash in skip_branches:
-                continue
+        # Create next steps as edges come back from subqueries
+        for task in asyncio.as_completed(subquery_tasks):
+            new_kgraph = await task
+            if len(new_kgraph.edges) == 0:
+                # TODO: one part of broken chain handling
+                pass
 
-            new_parts = await qdfs(next_branch)
+            if update_kgraph:
+                kgraph.update(new_kgraph)
 
-            if new_parts is False:
-                # Branch was made invalid by another branch's edge claim
-                skip_branches.add(next_branch_hash)
-                continue
+            if kedge_in_key not in kedges_by_input:
+                kedges_by_input[kedge_in_key] = list[Edge]()
 
-            partials[curie][next_edge].extend(new_parts)
-            for new in new_parts:
-                new.node_bindings.append((branch.end_node, next_branch.curies[-1]))
-                new.edge_bindings.append((edge_id, edges[next_branch.curies[-1]]))
+            kedges_by_input[kedge_in_key].extend(new_kgraph.edges.values())
+            for edge in new_kgraph.edges.values():
+                key = qedge_id, edge.subject, edge.object
+                if key not in kedges_agraph:
+                    kedges_agraph[key] = list[Edge]()
+                kedges_agraph[key].append(edge)
 
-            if len(partials[curie]) == 1:  # If there's no reconciliation to be done
-                reconciled_partials.extend(new_parts)
-                continue
-            others = itertools.chain(
-                *(parts for edge, parts in partials[curie].items() if edge != next_edge)
+            next_steps = current_branch.get_next_steps(new_kgraph.nodes.keys())
+            job_log.debug(
+                f"{current_branch.superposition_name}: found {len(next_steps)} next steps for curies {list(new_kgraph.nodes.keys())}."
             )
-            for new, old in itertools.product(new_parts, others):
-                if combined := new.combine(old):
-                    reconciled_partials.append(combined)
 
-        if len(skip_branches) == len(next_steps):
-            return [
-                Partial([(branch.nodes[-1], curie)], [(edge_id, edge)])
-                for curie, edge in edges.items()
-            ]
-        return reconciled_partials
+            if len(next_steps) == 0:
+                job_log.debug(
+                    f"{current_branch.superposition_name}: found no next steps for curies {list(new_kgraph.nodes.keys())}. Returning {len(new_kgraph.nodes)} Partial results."
+                )
+                for curie in new_kgraph.nodes:
+                    key = qedge_id, current_branch.input_curie, curie
+                    yield (
+                        current_branch,
+                        Partial([(current_branch.output_node, curie)], [key]),
+                    )
+                    yielded_partials += 1
+                continue
 
-        # node_tasks = []
-        # superpositions = []
+            # Build partial dict and fire off next branch tasks
+            for next_branch in next_steps:
+                partial_key = (next_branch.input_curie, current_branch.current_edge)
+
+                if partial_key not in partials:
+                    partials[partial_key] = dict[str, list[Partial]]()
+                if next_branch.current_edge not in partials[partial_key]:
+                    partials[partial_key][next_branch.current_edge] = list[Partial]()
+
+                next_branch_hash = hash(next_branch)
+                next_branches.add(next_branch_hash)
+                if next_branch_hash in skip_branches:
+                    continue
+
+                branch_tasks.append(qdfs(next_branch))
+
+        if len(next_branches) == 0:
+            job_log.debug(
+                f"{current_branch.superposition_name}: Found no next steps for any curies. {yielded_partials} partials have been returned."
+            )
+            return
+
+        # PERF: Next branch tasks currently only fire after all current subquery tasks complete
+        # We want them happening simultaneously.
+        # Probably fixable just by making them into tasks?
+
+        # Get new partial results from branch tasks and reconcile on the fly
+        async for next_branch, partial in merge_iterators(*branch_tasks):
+            if partial is None:
+                # Branch was made invalid by another branch's edge claim
+                skip_branches.add(hash(partial))
+                continue
+
+            partials_key = (next_branch.input_curie, current_branch.current_edge)
+            partial.node_bindings.append(
+                (current_branch.output_node, next_branch.input_curie)
+            )
+            partial.edge_bindings.add(
+                (qedge_id, current_branch.input_curie, next_branch.input_curie)
+            )
+            partials[partials_key][next_branch.current_edge].append(partial)
+
+            if (
+                len(partials[partials_key]) == 1
+            ):  # If there's no reconciliation to be done
+                yield current_branch, partial
+                yielded_partials += 1
+                continue
+
+            others = itertools.chain(
+                *(
+                    parts
+                    for edge, parts in partials[partials_key].items()
+                    if edge != next_branch.current_edge
+                )
+            )
+            for new, old in itertools.product([partial], others):
+                yield current_branch, new.combine(old)
+                yielded_partials += 1
+
+        if len(skip_branches) == len(next_branches):
+            for curie in edges_this_hop:
+                key = qedge_id, current_branch.input_curie, curie
+                yield (
+                    current_branch,
+                    Partial(
+                        [(current_branch.output_node, curie)],
+                        [key],
+                    ),
+                )
+                yielded_partials += 1
+            job_log.debug(
+                f"{current_branch.superposition_name}: All next steps are claimed by other branches. Returning {yielded_partials} partial results."
+            )
+        return
+
+    # ^ def qdfs()
 
     starting_branches = Branch.get_start_branches(qgraph, agraph, edge_id_map)
     job_log.debug(
         f"Found {len(starting_branches)} starting branches: {', '.join(branch.superposition_name for branch in starting_branches)}"
     )
 
-    partials = {hash(branch): list[Partial]() for branch in starting_branches}
+    partials = {
+        branch.superposition_name: list[Partial]() for branch in starting_branches
+    }
+    reconciled = set[Partial]()
+    branch_tasks = list[AsyncGenerator[tuple[Branch, Partial | None]]]()
     for branch in starting_branches:
-        node_id = branch.start_node
-        curie = branch.curies[0]
-        edge = cast(str, edge_id_map[branch.current_edge])
-        branch_hash = hash(branch)
+        branch_tasks.append(qdfs(branch))
 
-        parts = await qdfs(branch)
-        if parts is False:
-            partials.pop(branch_hash, None)
+    async for branch, partial in merge_iterators(*branch_tasks):
+        branch_name = branch.superposition_name
+        if partial is None:
+            job_log.debug(f"{branch_name}: Starting branch cancelled.")
+            partials.pop(branch_name, None)
             continue
-        for part in parts:
-            part.node_bindings.append((node_id, curie))
-            partials[branch_hash].append(part)
-
-    job_log.debug(
-        f"Got {sum(len(parts) for parts in partials.values())} partial results to reconcile."
-    )
-
-    reconciled = list[Partial]()
-    for edge, parts in partials.items():
-        if len(partials) == 1:  # If there's no reconciliation to be done
-            reconciled.extend(parts)
-            continue
+        partial.node_bindings.append((branch.start_node, branch.curies[0]))
+        partials[branch_name].append(partial)
         others = itertools.chain(
-            *(parts for edge_id, parts in partials.items() if edge_id != edge)
+            *(
+                parts
+                for other_bname, parts in partials.items()
+                if other_bname != branch_name
+            )
         )
-        for a, b in itertools.product(parts, others):
-            if combined := a.reconcile(b):
-                reconciled.append(combined)
+        for other in others:
+            if combined := partial.reconcile(other):
+                reconciled.add(combined)
+
+    if len(partials) == 1:  # No reconciliation to be done
+        reconciled = list(itertools.chain(*partials.values()))
+
+    job_log.info(
+        f"Reconciled {sum(len(parts) for parts in partials.values())} partial results into {len(reconciled)} results."
+    )
+    if len(reconciled) == 0:
+        job_log.info("Failed to reconcile any results out of partials.")
 
     results = Results()
-    for raw_result in reconciled:
+    for filled_partial in reconciled:
         result_dict = {
             "node_bindings": {
                 qnode: [{"id": curie, "attributes": []}]
-                for qnode, curie in raw_result.node_bindings
+                for qnode, curie in filled_partial.node_bindings
             },
             "analyses": [
                 {
                     "resource_id": "infores:retriever",
                     "edge_bindings": {
-                        qedge: [{"id": str(hash(edge)), "attributes": []}]
-                        for qedge, edge in raw_result.edge_bindings
+                        kedge_key[0]: [
+                            {"id": str(hash(kedge)), "attributes": []}
+                            for kedge in kedges_agraph[kedge_key]
+                        ]
+                        for kedge_key in filled_partial.edge_bindings
                     },
                 }
             ],
         }
         results.append(Result.model_validate(result_dict))
 
-    for result in results:
-        job_log.info(f"Got result {result}")
-    # TODO: QDFS should async yield things, this should combine iterators for each call
-    # tasks = [qdfs(edge, edge_id) for edge_id, edge in starting_edges]
-
-    # branches = asyncio.gather(tasks)
-    # results = reconcile_branches(branches)
+    job_log.info(f"Got {len(results)} results.")
 
     return results, kgraph, job_log.get_logs()
