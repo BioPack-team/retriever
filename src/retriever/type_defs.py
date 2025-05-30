@@ -1,7 +1,7 @@
 from typing import Literal
 
 from pydantic import BaseModel
-from reasoner_pydantic import CURIE, AsyncQuery, QEdge, Query
+from reasoner_pydantic import CURIE, AsyncQuery, Edge, QEdge, Query
 
 
 class ErrorDetail(BaseModel):
@@ -39,7 +39,9 @@ class QueryInfo(BaseModel):
 
 AdjacencyGraph = dict[str, dict[str, QEdge]]
 
-EdgeIDMap = dict[str | QEdge, str | QEdge]
+KAdjacencyGraph = dict[str, dict[CURIE, dict[CURIE, list[Edge]]]]
+
+QEdgeIDMap = dict[QEdge, str]
 
 # A pair of Qnode and CURIE, used to uniquely identify partial results
 QNodeCURIEPair = tuple[str, CURIE]

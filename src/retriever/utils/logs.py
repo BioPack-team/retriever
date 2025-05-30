@@ -192,6 +192,7 @@ def add_mongo_sink() -> None:
         backtrace=True,
         diagnose=True,
         serialize=True,
+        enqueue=True,
         filter=lambda record: not record["extra"].get("no_mongo_log", False),
     )
 

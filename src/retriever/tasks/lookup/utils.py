@@ -7,6 +7,7 @@ from reasoner_pydantic import (
     Edge,
     HashableMapping,
     KnowledgeGraph,
+    LogEntry,
     Node,
     QEdge,
     QueryGraph,
@@ -16,7 +17,7 @@ from reasoner_pydantic.shared import EdgeIdentifier
 from retriever.tasks.lookup.branch import Branch
 from retriever.type_defs import (
     AdjacencyGraph,
-    EdgeIDMap,
+    QEdgeIDMap,
     SuperpositionHop,
 )
 
@@ -37,12 +38,11 @@ def initialize_kgraph(qgraph: QueryGraph) -> KnowledgeGraph:
     return kgraph
 
 
-def make_mappings(qg: QueryGraph) -> tuple[AdjacencyGraph, EdgeIDMap]:
+def make_mappings(qg: QueryGraph) -> tuple[AdjacencyGraph, QEdgeIDMap]:
     """Make an undirected QGraph representation in which edges are presented by their nodes."""
     agraph: AdjacencyGraph = {}
-    edge_id_map: EdgeIDMap = {}
+    edge_id_map: QEdgeIDMap = {}
     for edge_id, edge in qg.edges.items():
-        edge_id_map[edge_id] = edge
         edge_id_map[edge] = edge_id
         if edge.subject not in agraph:
             agraph[edge.subject] = dict[str, QEdge]()
@@ -94,15 +94,16 @@ async def merge_iterators[T](*iterators: AsyncIterator[T]) -> AsyncIterable[T]:
                 backmap[next_task] = iterator
 
 
-async def amap[InputType, **ArgType, OutputType](
-    iterable: AsyncIterable[InputType],
-    func: Callable[Concatenate[InputType, ArgType], Awaitable[OutputType]],
-    *args: ArgType.args,
-    **kwargs: ArgType.kwargs,
-) -> AsyncGenerator[OutputType]:
-    """Apply the given func to every output of the given async iterable, yielding the results."""
-    async for item in iterable:
-        yield await func(item, *args, **kwargs)
+# Probably not used, remove if so
+# async def amap[InputType, **ArgType, OutputType](
+#     iterable: AsyncIterable[InputType],
+#     func: Callable[Concatenate[InputType, ArgType], Awaitable[OutputType]],
+#     *args: ArgType.args,
+#     **kwargs: ArgType.kwargs,
+# ) -> AsyncGenerator[OutputType]:
+#     """Apply the given func to every output of the given async iterable, yielding the results."""
+#     async for item in iterable:
+#         yield await func(item, *args, **kwargs)
 
 
 async def get_subgraph(
@@ -110,7 +111,7 @@ async def get_subgraph(
     key: tuple[CURIE, str],
     kedges: dict[SuperpositionHop, list[Edge]],
     kgraph: KnowledgeGraph,
-) -> KnowledgeGraph:
+) -> tuple[KnowledgeGraph, list[LogEntry]]:
     """Get a subgraph from a given set of kedges.
 
     Used to replace subquerying when a given hop has already been completed.
@@ -123,9 +124,11 @@ async def get_subgraph(
         else:
             curies.append(edge.subject)
 
-    return KnowledgeGraph(
+    kg = KnowledgeGraph(
         edges=HashableMapping(
             {EdgeIdentifier(str(hash(edge))): edge for edge in edges}
         ),
         nodes=HashableMapping({curie: kgraph.nodes[curie] for curie in curies}),
     )
+
+    return kg, list[LogEntry]()

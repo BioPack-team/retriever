@@ -1,6 +1,8 @@
 import asyncio
+from collections.abc import Iterable
+from functools import cached_property
 from itertools import zip_longest
-from typing import Iterable, cast, override
+from typing import override
 
 from reasoner_pydantic import (
     CURIE,
@@ -8,7 +10,7 @@ from reasoner_pydantic import (
     QueryGraph,
 )
 
-from retriever.type_defs import AdjacencyGraph, EdgeIDMap
+from retriever.type_defs import AdjacencyGraph, QEdgeIDMap
 
 
 class Branch:
@@ -23,7 +25,7 @@ class Branch:
         self,
         qgraph: QueryGraph,
         agraph: AdjacencyGraph,
-        edge_id_map: EdgeIDMap,
+        edge_id_map: QEdgeIDMap,
         starting_node: str,
         starting_curie: CURIE,
     ) -> None:
@@ -33,11 +35,13 @@ class Branch:
         """
         self.qgraph: QueryGraph = qgraph
         self.agraph: AdjacencyGraph = agraph
-        self.edge_id_map: EdgeIDMap = edge_id_map
+        self.edge_id_map: QEdgeIDMap = edge_id_map
         self.nodes: list[str] = [starting_node]
         self.curies: list[CURIE] = [starting_curie]
         self.edges: list[str] = []
         self.reversed: bool = False  # executing reversed relative to current_edge
+        self.next_steps: set[str] = set()
+        self.skipped_steps: set[str] = set()
 
     @override
     def __eq__(self, other: object) -> bool:
@@ -54,7 +58,7 @@ class Branch:
         """
         return hash(self.branch_name)
 
-    @property
+    @cached_property
     def branch_name(self) -> str:
         """Return the branch name.
 
@@ -65,7 +69,7 @@ class Branch:
             for node, edge in zip_longest(self.nodes, self.edges, fillvalue="")
         )
 
-    @property
+    @cached_property
     def superposition_name(self) -> str:
         """Return the superposition name.
 
@@ -76,6 +80,18 @@ class Branch:
             for node, curie, edge in zip_longest(
                 self.nodes, self.curies, self.edges, fillvalue=""
             )
+        )
+
+    @cached_property
+    def hop_name(self) -> tuple[CURIE, str]:
+        """Return a name representing the branch's input superposition.
+
+        Used to identify the specific curie-qedge hop, which might be executed by
+        other superpositions.
+        """
+        return (
+            self.input_curie,
+            self.current_edge,
         )
 
     @property
@@ -112,6 +128,15 @@ class Branch:
         """
         return self.nodes[-1]
 
+    @cached_property
+    def next_edges(self) -> dict[str, QEdge]:
+        """Return the next potential edges adjacent to the current edge."""
+        return {
+            qnode_id: qedge
+            for qnode_id, qedge in self.agraph[self.output_node].items()
+            if qnode_id != self.input_node
+        }
+
     def advance(
         self,
         edge: str,
@@ -140,20 +165,20 @@ class Branch:
         """
         next_steps = list[Branch]()
 
-        current_edge = cast(QEdge, self.edge_id_map[self.current_edge])
-        for curie in curies:
-            for next_node, next_edge in self.agraph[self.output_node].items():
-                if next_edge is current_edge:
-                    continue
+        current_edge = self.qgraph.edges[self.current_edge]
+        for next_node_id, next_edge in self.next_edges.items():
+            if self.edge_id_map[next_edge] == self.edge_id_map[current_edge]:
+                continue
+            for curie in curies:
 
-                next_edge_id = cast(str, self.edge_id_map[next_edge])
+                next_edge_id = self.edge_id_map[next_edge]
 
                 next_steps.append(
                     self.advance(
                         next_edge_id,
-                        next_node,
+                        next_node_id,
                         curie,
-                        reverse=next_edge.subject == next_node,
+                        reverse=next_edge.subject == next_node_id,
                     )
                 )
 
@@ -179,7 +204,7 @@ class Branch:
 
     @staticmethod
     def get_start_branches(
-        qg: QueryGraph, ag: AdjacencyGraph, em: EdgeIDMap
+        qg: QueryGraph, ag: AdjacencyGraph, em: QEdgeIDMap
     ) -> list["Branch"]:
         """Get starting edges from a query graph.
 
@@ -191,7 +216,7 @@ class Branch:
                 continue
             for curie in node.ids:
                 for edge in ag[node_id].values():
-                    edge_id = cast(str, em[edge])
+                    edge_id = em[edge]
                     next_node = edge.object if edge.subject == node_id else edge.subject
                     reverse = edge.object == node_id
                     start.append(

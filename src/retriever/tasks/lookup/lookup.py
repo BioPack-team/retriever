@@ -16,7 +16,7 @@ from reasoner_pydantic import (
 )
 
 from retriever.config.openapi import OPENAPI_CONFIG
-from retriever.tasks.lookup.qgx import execute_query_graph
+from retriever.tasks.lookup.qgx import QueryGraphExecutor
 from retriever.tasks.lookup.validate import validate
 from retriever.type_defs import QueryInfo
 from retriever.utils.calls import BASIC_CLIENT
@@ -95,18 +95,20 @@ async def lookup(query: QueryInfo) -> tuple[int, Response]:
             return tracked_response(424, response)
 
         # Execute query graph
-        results, kgraph, logs = await execute_query_graph(query.body, job_id)
-        job_log.log_deque.extend(logs)
+        with tracer.start_as_current_span("execute_query_graph"):
+            qgx = QueryGraphExecutor(query.body, job_id)
+            results, kgraph, logs = await qgx.execute()
+            job_log.log_deque.extend(logs)
 
         # TODO: cleanup (subclass, is_set, kg prune)
 
         # v Placeholder functionality
-        with tracer.start_as_current_span("intermediate_step"):
-            a = 0
-            await asyncio.sleep(0.1)
-            for i in range(10_000):
-                a += i
-        job_log.info("finished working.")
+        # with tracer.start_as_current_span("intermediate_step"):
+        #     a = 0
+        #     await asyncio.sleep(0.1)
+        #     for i in range(10_000):
+        #         a += i
+        # job_log.info("finished working.")
         # ^ Above is placeholder
 
         end_time = time.time()

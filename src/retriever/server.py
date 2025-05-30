@@ -44,17 +44,13 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     configure_logging()
     await MONGO_CLIENT.initialize()
     await MONGO_QUEUE.start_process_task()
-    # retriever_queue.mongo_queue = MONGO_QUEUE.queue
     add_mongo_sink()
     await test_redis()
 
-    # workers = start_workers(MONGO_QUEUE.queue)
 
     yield  # Separates startup/shutdown phase
 
     # Shutdown
-    # stop_workers(workers)
-    # await retriever_queue.disconnect()
     await MONGO_QUEUE.stop_process_task()
     await MONGO_CLIENT.close()
     await cleanup()
@@ -133,7 +129,6 @@ async def meta_knowledge_graph(
         },
     },
 )
-# TODO: replace body type with updated reasoner-pydantic types
 async def query(
     request: Request, response: Response, body: TRAPIQuery
 ) -> TRAPIResponse:

@@ -25,6 +25,7 @@ dependencies = [
     "uvloop>=0.21.0",
     "loguru>=0.7.3",
     "reasoner-pydantic",
+    "httptools>=0.6.4",
 ]
 
 [project.scripts]
@@ -104,7 +105,6 @@ dev = 'task dbs && retriever'
 'dev:otel' = """
     task jaeger \
     && task dbs \
-    # && echo 'Waiting 1s so dbs can start (server logs should follow)...' \
     && sleep 1 \
     && TELEMETRY__OTEL_ENABLED=true \
     TELEMETRY__OTEL_HOST=localhost \
