@@ -79,11 +79,11 @@ async def make_query(
 
 
 async def get_job_state(
-    job_id: str, _request: Request, response: Response
+    job_id: str, request: Request, response: Response
 ) -> dict[str, Any]:
     """Retrieve job information from MongoDB.
 
-    Returns whole job response so it can be used by either asyncquery_status or asyncquery_response.
+    Returns whole job response so it can be used by either `/asyncquery_status` or `/response`.
     """
     job: dict[str, Any] | None = None
     error: Exception | None = None
@@ -140,5 +140,6 @@ async def get_job_state(
 
     return {
         **job,
+        "response_url": f"{request.base_url}response/{job_id}",
         "logs": job.get("logs", list(ctx_log.get_logs())),
     }

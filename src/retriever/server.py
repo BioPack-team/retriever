@@ -220,9 +220,9 @@ async def asyncquery_status(
 
 
 @app.get(
-    "/asyncquery_response/{job_id}",
+    "/response/{job_id}",
     tags=["asyncquery_status"],
-    response_description=OPENAPI_CONFIG.response_descriptions.asyncquery_response.get(
+    response_description=OPENAPI_CONFIG.response_descriptions.response.get(
         "200", ""
     ),
     responses={
@@ -234,7 +234,7 @@ async def asyncquery_status(
         },
     },
 )
-async def asyncquery_response(
+async def response(
     request: Request, response: Response, job_id: str
 ) -> TRAPIResponse | TRAPIAsyncQueryStatusResponse:
     """Get the response of an asynchronous query."""

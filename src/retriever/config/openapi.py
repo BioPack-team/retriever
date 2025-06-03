@@ -96,7 +96,7 @@ class ResponseDescriptions(BaseModel):
     query: dict[str, str] = {}
     asyncquery: dict[str, str] = {}
     asyncquery_status: dict[str, str] = {}
-    asyncquery_response: dict[str, str] = {}
+    response: dict[str, str] = {}
     logs: dict[str, str] = {}
 
 

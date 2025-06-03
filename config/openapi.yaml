@@ -84,7 +84,7 @@ response_descriptions:
       MUST implement /asyncquery_status/{job_id}, but those that
       do not implement /asyncquery SHOULD NOT implement
       /asyncquery_status.
-  asyncquery_response:
+  response:
     '200': >-
       Returns either the status and logs, or if complete, the complete response  of a previously
       submitted asyncquery.
