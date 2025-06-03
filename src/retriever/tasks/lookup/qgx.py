@@ -160,14 +160,12 @@ class QueryGraphExecutor:
                 await asyncio.sleep(0)
                 results.append(await part.as_result(self.k_agraph))
 
-        with tracer.start_as_current_span("prune_kg"):
-            await self.prune_kg(results)
+        await self.prune_kg(results)
 
         self.job_log.info(f"Got {len(results)} results.")
 
         return results, self.kgraph, self.job_log.get_logs()
 
-    @tracer.start_as_current_span("branch")
     async def qdfs(
         self, current_branch: Branch
     ) -> AsyncGenerator[tuple[Branch, Partial | None]]:
@@ -242,6 +240,7 @@ class QueryGraphExecutor:
 
         return
 
+    @tracer.start_as_current_span("create_subqueries")
     async def get_subquery_tasks(
         self,
         current_branch: Branch,
@@ -369,6 +368,7 @@ class QueryGraphExecutor:
 
             self.k_agraph[qedge_id][in_node][out_node].append(edge)
 
+    @tracer.start_as_current_span("prepare_branch_tasks")
     async def prepare_new_branch_tasks(
         self,
         current_branch: Branch,
@@ -412,6 +412,7 @@ class QueryGraphExecutor:
 
         return new_branch_tasks
 
+    @tracer.start_as_current_span("reconcile_branches")
     async def reconcile_branches(
         self,
         current_branch: Branch,
@@ -461,6 +462,7 @@ class QueryGraphExecutor:
 
         return task_partials
 
+    @tracer.start_as_current_span("prune_kg")
     async def prune_kg(self, results: Results) -> None:
         """Use finished results to prune the knowledge graph to only bound knowledge."""
         bound_edges = set[str]()
