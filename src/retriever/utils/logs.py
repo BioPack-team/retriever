@@ -33,6 +33,11 @@ def log_level_to_trapi(level: LogLevel) -> TRAPILogLevel:
             return TRAPILogLevel.DEBUG
 
 
+def trapi_level_to_int(level: TRAPILogLevel) -> int:
+    """Convert a given TRAPI log level to the equivalent loguru level number."""
+    return logger.level(level).no
+
+
 def format_trapi_log(
     level: LogLevel,
     message: str,

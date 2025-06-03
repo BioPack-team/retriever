@@ -10,6 +10,7 @@ from reasoner_pydantic import (
     HashableSequence,
     KnowledgeGraph,
     LogEntry,
+    LogLevel,
     Message,
     Response,
     Results,
@@ -20,7 +21,7 @@ from retriever.tasks.lookup.qgx import QueryGraphExecutor
 from retriever.tasks.lookup.validate import validate
 from retriever.type_defs import QueryInfo
 from retriever.utils.calls import BASIC_CLIENT
-from retriever.utils.logs import TRAPILogger
+from retriever.utils.logs import TRAPILogger, trapi_level_to_int
 from retriever.utils.mongo import MONGO_QUEUE
 
 tracer = trace.get_tracer("lookup.execution.tracer")
@@ -113,9 +114,16 @@ async def lookup(query: QueryInfo) -> tuple[int, Response]:
 
         end_time = time.time()
 
+        desired_log_level = trapi_level_to_int(query.body.log_level or LogLevel.DEBUG)
         response.status = "Complete"
         response.description = f"Execution completed, obtained {len(results)} results in {math.ceil((end_time - start_time) * 1000):}ms."
-        response.logs = HashableSequence(job_log.get_logs())
+        response.logs = HashableSequence(  # Filter for desired log_level
+            [
+                log
+                for log in job_log.get_logs()
+                if trapi_level_to_int(log.level or LogLevel.DEBUG) >= desired_log_level
+            ]
+        )
         response.message.results = results
         response.message.knowledge_graph = kgraph
         return tracked_response(200, response)
@@ -142,7 +150,7 @@ async def async_lookup(query: QueryInfo) -> None:
         job_log.debug(f"Sending callback to `{query.body.callback}`...")
         try:
             callback_response = await BASIC_CLIENT.put(
-                url=str(query.body.callback), json=response
+                url=str(query.body.callback), json=response.model_dump()
             )
             callback_response.raise_for_status()
             job_log.debug("Request sent successfully.")
