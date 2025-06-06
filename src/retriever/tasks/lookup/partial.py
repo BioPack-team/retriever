@@ -101,4 +101,37 @@ class Partial:
                 }
             ],
         }
+        # return Result.model_construct(
+        #     node_bindings=HashableMapping(
+        #         {
+        #             qnode: HashableSet(
+        #                 {NodeBinding(id=curie, attributes=HashableSet())}
+        #             )
+        #             for qnode, curie in self.node_bindings
+        #         }
+        #     ),
+        #     analyses=HashableSet(
+        #         {
+        #             Analysis(
+        #                 resource_id=CURIE("infores:retriever"),
+        #                 edge_bindings=HashableMapping(
+        #                     {
+        #                         kedge_key[0]: HashableSet(
+        #                             {
+        #                                 EdgeBinding(
+        #                                     id=EdgeIdentifier(str(hash(kedge))),
+        #                                     attributes=HashableSet(),
+        #                                 )
+        #                                 for kedge in k_agraph[kedge_key[0]][
+        #                                     kedge_key[1]
+        #                                 ][kedge_key[2]]
+        #                             }
+        #                         )
+        #                         for kedge_key in self.edge_bindings
+        #                     }
+        #                 ),
+        #             )
+        #         }
+        #     ),
+        # )
         return Result.model_validate(result_dict)

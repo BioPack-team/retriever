@@ -1,4 +1,5 @@
 import asyncio
+import itertools
 from collections.abc import Iterable
 from functools import cached_property
 from itertools import zip_longest
@@ -129,13 +130,14 @@ class Branch:
         return self.nodes[-1]
 
     @cached_property
-    def next_edges(self) -> dict[str, QEdge]:
+    def next_edges(self) -> dict[str, list[QEdge]]:
         """Return the next potential edges adjacent to the current edge."""
-        return {
-            qnode_id: qedge
-            for qnode_id, qedge in self.agraph[self.output_node].items()
-            if qnode_id != self.input_node
-        }
+        edges = dict[str, list[QEdge]]()
+        for qnode_id, qedge in self.agraph[self.output_node].items():
+            if qnode_id not in edges:
+                edges[qnode_id] = list[QEdge]()
+            edges[qnode_id].extend(qedge)
+        return edges
 
     def advance(
         self,
@@ -157,7 +159,12 @@ class Branch:
             branch.reversed = True
         return branch
 
-    def get_next_steps(self, curies: Iterable[CURIE]) -> list["Branch"]:
+    async def get_next_steps(
+        self,
+        curies: Iterable[CURIE],
+        qedge_claims: dict[str, "Branch | None"],
+        lock: asyncio.Lock,
+    ) -> list["Branch"]:
         """Find next possible edges to execute.
 
         Returns:
@@ -166,20 +173,26 @@ class Branch:
         next_steps = list[Branch]()
 
         current_edge = self.qgraph.edges[self.current_edge]
-        for next_node_id, next_edge in self.next_edges.items():
-            if self.edge_id_map[next_edge] == self.edge_id_map[current_edge]:
-                continue
-            for curie in curies:
-                next_edge_id = self.edge_id_map[next_edge]
+        for next_node_id, edges in self.next_edges.items():
+            for next_edge in edges:
+                if self.edge_id_map[next_edge] == self.edge_id_map[current_edge]:
+                    continue
 
-                next_steps.append(
-                    self.advance(
+                claim_checked = False
+                for curie in curies:
+                    next_edge_id = self.edge_id_map[next_edge]
+                    branch = self.advance(
                         next_edge_id,
                         next_node_id,
                         curie,
                         reverse=next_edge.subject == next_node_id,
                     )
-                )
+                    if not claim_checked and not await branch.has_claim(
+                        qedge_claims, lock
+                    ):
+                        break
+                    claim_checked = True
+                    next_steps.append(branch)
 
         return next_steps
 
@@ -202,8 +215,12 @@ class Branch:
             return True
 
     @staticmethod
-    def get_start_branches(
-        qg: QueryGraph, ag: AdjacencyGraph, em: QEdgeIDMap
+    async def get_start_branches(
+        qg: QueryGraph,
+        ag: AdjacencyGraph,
+        em: QEdgeIDMap,
+        qedge_claims: dict[str, "Branch | None"],
+        lock: asyncio.Lock,
     ) -> list["Branch"]:
         """Get starting edges from a query graph.
 
@@ -214,13 +231,13 @@ class Branch:
             if node.ids is None:  # Only start on nodes with curies
                 continue
             for curie in node.ids:
-                for edge in ag[node_id].values():
+                for edge in itertools.chain(*ag[node_id].values()):
                     edge_id = em[edge]
                     next_node = edge.object if edge.subject == node_id else edge.subject
                     reverse = edge.object == node_id
-                    start.append(
-                        Branch(qg, ag, em, node_id, curie).advance(
-                            edge_id, next_node, reverse=reverse
-                        )
+                    branch = Branch(qg, ag, em, node_id, curie).advance(
+                        edge_id, next_node, reverse=reverse
                     )
+                    if await branch.has_claim(qedge_claims, lock):
+                        start.append(branch)
         return start

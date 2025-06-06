@@ -71,7 +71,7 @@ class LookupArtifacts(NamedTuple):
     logs: list[LogEntry]
 
 
-AdjacencyGraph = dict[str, dict[str, QEdge]]
+AdjacencyGraph = dict[str, dict[str, list[QEdge]]]
 
 KAdjacencyGraph = dict[str, dict[CURIE, dict[CURIE, list[Edge]]]]
 

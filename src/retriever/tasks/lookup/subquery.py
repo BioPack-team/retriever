@@ -77,8 +77,8 @@ async def mock_subquery(
             [
                 # MOCKUP_NODES[category][CHOICES[category].popleft()]
                 random.choice(MOCKUP_NODES[category])
-                for _ in range(random.randint(0, 3))
-                # for _ in range(2)
+                for _ in range(random.randint(0, 10))
+                # for _ in range(10)
             ]
             # if category != "biolink:Disease"
             # else []

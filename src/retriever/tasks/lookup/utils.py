@@ -54,11 +54,15 @@ def make_mappings(qg: QueryGraph) -> tuple[AdjacencyGraph, QEdgeIDMap]:
     for edge_id, edge in qg.edges.items():
         edge_id_map[edge] = edge_id
         if edge.subject not in agraph:
-            agraph[edge.subject] = dict[str, QEdge]()
+            agraph[edge.subject] = dict[str, list[QEdge]]()
         if edge.object not in agraph:
-            agraph[edge.object] = dict[str, QEdge]()
-        agraph[edge.subject][edge.object] = edge
-        agraph[edge.object][edge.subject] = edge
+            agraph[edge.object] = dict[str, list[QEdge]]()
+        if edge.object not in agraph[edge.subject]:
+            agraph[edge.subject][edge.object] = list[QEdge]()
+        if edge.subject not in agraph[edge.object]:
+            agraph[edge.object][edge.subject] = list[QEdge]()
+        agraph[edge.subject][edge.object].append(edge)
+        agraph[edge.object][edge.subject].append(edge)
 
     return agraph, edge_id_map
 
