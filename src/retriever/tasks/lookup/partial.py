@@ -1,17 +1,10 @@
 import json
-from typing import Any, override
+from typing import override
 
 from reasoner_pydantic import (
     CURIE,
-    Analysis,
-    Attribute,
-    EdgeBinding,
-    HashableMapping,
-    HashableSet,
-    NodeBinding,
     Result,
 )
-from reasoner_pydantic.shared import EdgeIdentifier
 
 from retriever.type_defs import KAdjacencyGraph
 

@@ -1,14 +1,18 @@
 import asyncio
-from collections.abc import AsyncIterable, AsyncIterator
-from typing import AsyncGenerator, Awaitable, Callable, Concatenate
+from collections.abc import (
+    AsyncIterable,
+    AsyncIterator,
+)
 
+import bmt
 from reasoner_pydantic import (
     CURIE,
+    BiolinkEntity,
     Edge,
     HashableMapping,
+    HashableSequence,
     KnowledgeGraph,
     LogEntry,
-    Node,
     QEdge,
     QueryGraph,
 )
@@ -20,22 +24,27 @@ from retriever.type_defs import (
     QEdgeIDMap,
     SuperpositionHop,
 )
+from retriever.utils.logs import TRAPILogger
+
+biolink = bmt.Toolkit()
 
 
-def initialize_kgraph(qgraph: QueryGraph) -> KnowledgeGraph:
-    """Initialize a knowledge graph, using nodes from the query graph."""
-    kgraph = KnowledgeGraph()
-    for qnode in qgraph.nodes.values():
-        if qnode.ids is None:
-            continue
-        for curie in qnode.ids:
-            kgraph.nodes[curie] = Node.model_validate(
-                {
-                    "categories": qnode.categories or [],
-                    "attributes": [],
-                }
+def expand_qnode_categories(qg: QueryGraph, job_log: TRAPILogger) -> QueryGraph:
+    """Ensure all nodes in qgraph have all descendent categories."""
+    for qnode_id, qnode in qg.nodes.items():
+        if qnode.categories is None or len(qnode.categories) == 0:
+            qnode.categories = HashableSequence[BiolinkEntity](["biolink:NamedThing"])
+        categories = set(qnode.categories)
+        for category in set(qnode.categories):
+            categories.update(biolink.get_descendants(category, formatted=True))
+
+        if new_categories := categories.difference(set(qnode.categories)):
+            job_log.debug(
+                f"QNode {qnode_id}: Added descendent categories {new_categories}"
             )
-    return kgraph
+        qnode.categories = HashableSequence[BiolinkEntity](list(categories))
+
+    return qg
 
 
 def make_mappings(qg: QueryGraph) -> tuple[AdjacencyGraph, QEdgeIDMap]:

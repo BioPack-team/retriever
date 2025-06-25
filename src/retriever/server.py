@@ -1,5 +1,6 @@
 import functools
 import io
+import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime, time, timedelta
@@ -22,7 +23,7 @@ from retriever.config.openapi import OPENAPI_CONFIG, TRAPI
 
 # from retriever.tasks.task_queue import get_job_state, make_query, retriever_queue
 from retriever.tasks.query import get_job_state, make_query
-from retriever.type_defs import ErrorDetail, LogLevel
+from retriever.type_defs import APIInfo, ErrorDetail, LogLevel, TierNumber
 from retriever.utils.exception_handlers import ensure_cors
 from retriever.utils.logs import (
     add_mongo_sink,
@@ -46,7 +47,7 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     await MONGO_QUEUE.start_process_task()
     add_mongo_sink()
     await test_redis()
-
+    os.environ["PYTHONHASHSEED"] = "0"  # So reasoner_pydantic hashing is deterministic
 
     yield  # Separates startup/shutdown phase
 
@@ -99,10 +100,18 @@ def openapi_yaml() -> Response:
     ),
 )
 async def meta_knowledge_graph(
-    request: Request, response: Response
+    request: Request,
+    response: Response,
+    tier: Annotated[
+        list[TierNumber],
+        Query(
+            description="Comma-delimited list of Data Tiers to use.",
+            default_factory=lambda: [0],
+        ),
+    ],
 ) -> TRAPIMetaKnowledgeGraph:
     """Retrieve the Meta-Knowledge Graph."""
-    return await make_query("metakg", request, response)
+    return await make_query("metakg", APIInfo(request, response), tier)
     # return {"logs": list(logs)}
 
 
@@ -130,10 +139,19 @@ async def meta_knowledge_graph(
     },
 )
 async def query(
-    request: Request, response: Response, body: TRAPIQuery
+    request: Request,
+    response: Response,
+    body: TRAPIQuery,
+    tier: Annotated[
+        list[TierNumber],
+        Query(
+            description="Comma-delimited list of Data Tiers to use.",
+            default_factory=lambda: [0],
+        ),
+    ],
 ) -> TRAPIResponse:
     """Initiate a synchronous query."""
-    return await make_query("lookup", request, response, body)
+    return await make_query("lookup", APIInfo(request, response), tier, body)
     # return {}
 
 
@@ -165,10 +183,17 @@ async def asyncquery(
     response: Response,
     body: TRAPIAsyncQuery,
     background_tasks: BackgroundTasks,
+    tier: Annotated[
+        list[TierNumber],
+        Query(
+            description="Comma-delimited list of Data Tiers to use.",
+            default_factory=lambda: [0],
+        ),
+    ],
 ) -> TRAPIAsyncQueryResponse:
     """Initiate an asynchronous query."""
     return await make_query(
-        "lookup", request, response, body, background_tasks=background_tasks
+        "lookup", APIInfo(request, response, background_tasks), tier, body
     )
 
 
@@ -222,9 +247,7 @@ async def asyncquery_status(
 @app.get(
     "/response/{job_id}",
     tags=["asyncquery_status"],
-    response_description=OPENAPI_CONFIG.response_descriptions.response.get(
-        "200", ""
-    ),
+    response_description=OPENAPI_CONFIG.response_descriptions.response.get("200", ""),
     responses={
         404: {
             "description": OPENAPI_CONFIG.response_descriptions.asyncquery_status.get(

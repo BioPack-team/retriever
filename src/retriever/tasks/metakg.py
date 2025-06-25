@@ -1,4 +1,3 @@
-
 from reasoner_pydantic import (
     HashableMapping,
     HashableSequence,
@@ -18,6 +17,7 @@ async def metakg(
     Returns:
         A tuple of HTTP status code, response body.
     """
+    # TODO: Actual metakg checking, take into account query.tier
     return 200, MetaKnowledgeGraph(
         nodes=HashableMapping[str, MetaNode](), edges=HashableSequence[MetaEdge]()
     )

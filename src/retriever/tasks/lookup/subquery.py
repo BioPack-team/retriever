@@ -4,6 +4,7 @@ import random
 import time
 import uuid
 from collections import deque
+from typing import cast
 
 from opentelemetry import trace
 from reasoner_pydantic import (
@@ -29,6 +30,8 @@ CATEGORIES = [
     "biolink:PhenotypicFeature",
     "biolink:Pathway",
     "biolink:NamedThing",
+    "biolink:ClinicalFinding",
+    "biolink:BehavioralFeature",
 ]
 NODE_COUNT = 10
 
@@ -69,7 +72,7 @@ async def mock_subquery(
     if node.ids:
         curies = list(node.ids)
     else:
-        category = (node.categories or ["biolink:NamedThing"])[0]
+        category = cast(str, (node.categories or ["biolink:NamedThing"])[0])
         curies = (
             [
                 # MOCKUP_NODES[category][CHOICES[category].popleft()]
@@ -94,7 +97,7 @@ async def mock_subquery(
     edges = [
         Edge(
             subject=(branch.input_curie if not branch.reversed else curie),
-            predicate=(current_edge.predicates or ["biolink:related_to"])[0],
+            predicate=cast(str, (current_edge.predicates or ["biolink:related_to"])[0]),
             object=(curie if not branch.reversed else branch.input_curie),
             sources=HashableSet(
                 {

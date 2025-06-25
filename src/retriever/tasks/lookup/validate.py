@@ -2,15 +2,13 @@ from reasoner_pydantic import QueryGraph
 from reasoner_pydantic.shared import KnowledgeType
 
 
-def validate(qg: QueryGraph | None) -> list[str]:
+def validate(qg: QueryGraph) -> list[str]:
     """Check that a given query graph is valid.
 
     Returns:
         A list of messages detailing validation problems.
         If the list is empty, the graph passes validation.
     """
-    if qg is None:
-        return ["Message must contain a query graph."]
     problems: dict[str, bool] = {}
     problems["Query graph must have at least one node"] = len(qg.nodes.values()) > 0
     problems["Query graph must have at least one edge"] = len(qg.edges.values()) > 0
@@ -18,7 +16,7 @@ def validate(qg: QueryGraph | None) -> list[str]:
         node for node in qg.nodes.values() if node.ids is not None and len(node.ids) > 0
     )
 
-    node_pairs = set[str]()
+    # node_pairs = set[str]()
     for edge_id, edge in qg.edges.items():
         if edge.subject not in qg.nodes:
             problems[
@@ -41,11 +39,11 @@ def validate(qg: QueryGraph | None) -> list[str]:
         if edge.knowledge_type == KnowledgeType.inferred:
             problems["Retriever does not handle inferred-type queries."] = False
 
-        if (
-            f"{edge.subject}-{edge.object}" in node_pairs
-            or f"{edge.object}-{edge.subject}" in node_pairs
-        ):
-            problems["Duplicate edges not allowed."] = False
-        node_pairs.add(f"{edge.subject}-{edge.object}")
+        # if (
+        #     f"{edge.subject}-{edge.object}" in node_pairs
+        #     or f"{edge.object}-{edge.subject}" in node_pairs
+        # ):
+        #     problems["Duplicate edges not allowed."] = False
+        # node_pairs.add(f"{edge.subject}-{edge.object}")
 
     return [name for name, passed in problems.items() if not passed]

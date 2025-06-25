@@ -1,42 +1,39 @@
 import asyncio
 import itertools
+import math
 import random
+import time
 from asyncio.tasks import Task
 from collections.abc import AsyncGenerator, Hashable
-from typing import cast
 
 from opentelemetry import trace
 from reasoner_pydantic import (
     CURIE,
-    AsyncQuery,
-    Attribute,
     AuxiliaryGraphs,
     Edge,
-    HashableMapping,
     KnowledgeGraph,
     LogEntry,
-    Query,
     QueryGraph,
     Results,
 )
-from reasoner_pydantic.shared import EdgeIdentifier
 
 from retriever.tasks.lookup.branch import Branch
 from retriever.tasks.lookup.partial import Partial
 from retriever.tasks.lookup.subquery import mock_subquery
 from retriever.tasks.lookup.utils import (
     get_subgraph,
-    initialize_kgraph,
     make_mappings,
     merge_iterators,
 )
 from retriever.type_defs import (
     AdjacencyGraph,
     KAdjacencyGraph,
+    LookupArtifacts,
     QEdgeIDMap,
     SuperpositionHop,
 )
 from retriever.utils.logs import TRAPILogger
+from retriever.utils.trapi import initialize_kgraph
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 
@@ -59,15 +56,12 @@ tracer = trace.get_tracer("lookup.execution.tracer")
 class QueryGraphExecutor:
     """Handler class for running the QGX algorithm."""
 
-    def __init__(self, query: Query | AsyncQuery, job_id: str) -> None:
+    def __init__(self, qgraph: QueryGraph, job_id: str, tier: set[int]) -> None:
         """Initialize a QueryGraphExecutor, setting up information shared by methods."""
-        self.query: Query | AsyncQuery = query
+        self.tier: set[int] = tier
+        self.qgraph: QueryGraph = qgraph
         self.job_id: str = job_id
         self.job_log: TRAPILogger = TRAPILogger(job_id)
-
-        if query.message.query_graph is None:  # This should not occur.
-            raise ValueError("Cannot execute nonexistent graph.")
-        self.qgraph: QueryGraph = query.message.query_graph
 
         agraph, qedge_map = make_mappings(self.qgraph)
         self.agraph: AdjacencyGraph = agraph
@@ -98,11 +92,16 @@ class QueryGraphExecutor:
             "kgraph": asyncio.Lock(),
         }
 
-    async def execute(self) -> tuple[Results, KnowledgeGraph, list[LogEntry]]:
+    @tracer.start_as_current_span("qgx_execute")
+    async def execute(self) -> LookupArtifacts:
         """Execute query graph using a quantum-metaphor asynchronous approach.
 
         Note that this algorithm assumes that between any two nodes, there is at most one edge.
         """
+        start_time = time.time()
+        self.job_log.info(
+            f"Starting lookup against Tier {', '.join(str(t) for t in self.tier if t > 0)}..."
+        )
         starting_branches = Branch.get_start_branches(
             self.qgraph, self.agraph, self.qedge_map
         )
@@ -160,11 +159,15 @@ class QueryGraphExecutor:
                 await asyncio.sleep(0)
                 results.append(await part.as_result(self.k_agraph))
 
-        await self.prune_kg(results)
+        end_time = time.time()
+        duration_ms = math.ceil((end_time - start_time) * 1000)
+        self.job_log.info(
+            f"Tier {', '.join(str(t) for t in self.tier if t > 0)}: Got {len(results)} results in {duration_ms:}ms."
+        )
 
-        self.job_log.info(f"Got {len(results)} results.")
-
-        return results, self.kgraph, self.job_log.get_logs()
+        return LookupArtifacts(
+            results, self.kgraph, self.aux_graphs, self.job_log.get_logs()
+        )
 
     async def qdfs(
         self, current_branch: Branch
@@ -461,56 +464,3 @@ class QueryGraphExecutor:
                     task_partials.append(new.combine(old))
 
         return task_partials
-
-    @tracer.start_as_current_span("prune_kg")
-    async def prune_kg(self, results: Results) -> None:
-        """Use finished results to prune the knowledge graph to only bound knowledge."""
-        bound_edges = set[str]()
-        bound_nodes = set[str]()
-        for result in results:
-            # await asyncio.sleep(0)
-            for node_binding_set in result.node_bindings.values():
-                bound_nodes.update([str(binding.id) for binding in node_binding_set])
-            # Only ever one analysis so we can use next(iter())
-            for edge_binding_set in next(iter(result.analyses)).edge_bindings.values():
-                bound_edges.update([str(binding.id) for binding in edge_binding_set])
-
-        edges_to_check = list(bound_edges)
-        while len(edges_to_check) > 0:
-            # await asyncio.sleep(0)
-            edge = self.kgraph.edges[EdgeIdentifier(edges_to_check.pop())]
-            bound_edges.add(str(hash(edge)))
-            bound_nodes.add(str(edge.subject))
-            bound_nodes.add(str(edge.object))
-
-            aux_graphs = next(
-                (
-                    attr
-                    for attr in (edge.attributes or set[Attribute]())
-                    if attr.attribute_type_id == CURIE("biolink:support_graphs")
-                ),
-                None,
-            )
-            if aux_graphs is None:
-                continue
-            for aux_graph_id in cast(list[str], aux_graphs.value):
-                edges_to_check.extend(
-                    str(edge) for edge in self.aux_graphs[aux_graph_id].edges
-                )
-
-        prior_edge_count = len(self.kgraph.edges)
-        prior_node_count = len(self.kgraph.nodes)
-
-        self.kgraph.edges = HashableMapping(
-            {EdgeIdentifier(edge_id): self.kgraph.edges[EdgeIdentifier(edge_id)] for edge_id in bound_edges}
-        )
-        self.kgraph.nodes = HashableMapping(
-            {CURIE(curie): self.kgraph.nodes[CURIE(curie)] for curie in bound_nodes}
-        )
-
-        pruned_edges = prior_edge_count - len(self.kgraph.edges)
-        pruned_nodes = prior_node_count - len(self.kgraph.nodes)
-
-        self.job_log.debug(
-            f"KG Pruning: {len(self.kgraph.edges)} (-{pruned_edges}) edges and {len(self.kgraph.nodes)} (-{pruned_nodes}) nodes remain."
-        )

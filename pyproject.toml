@@ -24,8 +24,11 @@ dependencies = [
     "motor>=3.7.0",
     "uvloop>=0.21.0",
     "loguru>=0.7.3",
-    "reasoner-pydantic",
     "httptools>=0.6.4",
+    "bmt>=1.4.4",
+    "reasoner-transpiler>=2.3.5",
+    "reasoner-pydantic",
+    "kuzu==0.8.2",
 ]
 
 [project.scripts]
@@ -34,12 +37,12 @@ retriever = "retriever.__main__:main"
 [dependency-groups]
 dev = [
     "ruff>=0.8.2,<0.9",
-    "basedpyright>=1.22.1,<2",
     "yamllint>=1.35.1,<2",
     "yamlfix>=1.17.0,<2",
     "taskipy>=1.14.1",
     "locust>=2.33.2",
     "pyinstrument>=5.0.1",
+    "basedpyright>=1.29.4",
 ]
 
 [tool.taskipy.tasks]
@@ -201,5 +204,8 @@ reportMissingTypeStubs = false # Sometimes type stubs aren't available and auto-
 [tool.yamlfix]
 line_length = 88
 
+[tool.uv]
+config-settings = { editable_mode = "compat" }
+
 [tool.uv.sources]
-reasoner-pydantic = { git = "https://github.com/tokebe/reasoner-pydantic" }
+reasoner-pydantic = { path = "../reasoner-pydantic", editable = true }

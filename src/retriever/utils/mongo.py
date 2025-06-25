@@ -180,9 +180,7 @@ class MongoClient:
         async for document in cursor:
             del document["_id"]
             document["time"] = (
-                document["time"]
-                .astimezone()
-                .isoformat(timespec="milliseconds")
+                document["time"].astimezone().isoformat(timespec="milliseconds")
             )
             yield document
 

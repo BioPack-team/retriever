@@ -170,7 +170,6 @@ class Branch:
             if self.edge_id_map[next_edge] == self.edge_id_map[current_edge]:
                 continue
             for curie in curies:
-
                 next_edge_id = self.edge_id_map[next_edge]
 
                 next_steps.append(
