@@ -1,7 +1,6 @@
 import asyncio
 import itertools
 import math
-import random
 import time
 from asyncio.tasks import Task
 from collections.abc import AsyncGenerator, Hashable
@@ -9,7 +8,6 @@ from collections.abc import AsyncGenerator, Hashable
 from opentelemetry import trace
 from reasoner_pydantic import (
     CURIE,
-    AsyncQuery,
     AuxiliaryGraphs,
     Edge,
     KnowledgeGraph,

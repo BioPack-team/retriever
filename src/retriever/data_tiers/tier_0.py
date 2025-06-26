@@ -49,8 +49,7 @@ class Tier0Query:
         with kuzu.Connection(kuzu_db) as conn:
             result = conn.execute(query_cypher)
             for item in result:
-                print(result)
-
+                print(item)
 
         await asyncio.sleep(random.random() * 0.5)
 
