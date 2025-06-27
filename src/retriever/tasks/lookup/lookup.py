@@ -217,8 +217,8 @@ async def run_tiered_lookups(
 
     query_tasks = list[asyncio.Task[LookupArtifacts]]()
 
+    # FIX: error separation. One task erroring shouldn't fail the other task
     handlers = (Tier0Query, QueryGraphExecutor)
-    # FIX: not happening in parallel
     for i, called_for in enumerate(
         (0 in query.tier, not set(query.tier).isdisjoint({1, 2}))
     ):
@@ -234,7 +234,6 @@ async def run_tiered_lookups(
 
         for task in done:
             findings = await task
-            print(len(findings.results))
             results.update(findings.results)
             kgraph.update(findings.kgraph)
             aux_graphs.update(findings.aux_graphs)

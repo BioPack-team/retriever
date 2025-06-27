@@ -31,6 +31,11 @@ biolink = bmt.Toolkit()
 
 def expand_qnode_categories(qg: QueryGraph, job_log: TRAPILogger) -> QueryGraph:
     """Ensure all nodes in qgraph have all descendent categories."""
+    """Ensure all nodes in qgraph have all descendent categories.
+
+    See https://biolink.github.io/biolink-model/categories.html
+    """
+    # TODO: add LRU cache to biolink descendent expansion
     for qnode_id, qnode in qg.nodes.items():
         if qnode.categories is None or len(qnode.categories) == 0:
             qnode.categories = HashableSequence[BiolinkEntity](["biolink:NamedThing"])

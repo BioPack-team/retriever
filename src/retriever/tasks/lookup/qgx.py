@@ -44,13 +44,6 @@ tracer = trace.get_tracer("lookup.execution.tracer")
 # Time limits
 # Set interpretation
 
-# PERF: Optimization steps
-# There are a few big culprits, and a few smaller additive ones
-# The biggest one is Partial.as_result (25% of slowdown)
-# But looking at the flamegraph...a bunch of hashing is going on all the time that can probably be reduced
-# So another thing that could be done is reducing use of sets and hashing generally
-# Also look for data structure use that's inefficient
-
 
 class QueryGraphExecutor:
     """Handler class for running the QGX algorithm."""
@@ -159,7 +152,8 @@ class QueryGraphExecutor:
         )
 
         # PERF: Converting results presently takes a decent amount of time
-        # About 1ms per result, and may cause slowdown due to not being entirely async
+        # About 0.5ms per result, and may cause slowdown due to not being entirely async
+        # TODO: change this so we're returning raw dictionaries
         with tracer.start_as_current_span("convert_results"):
             results = Results()
             for part in reconciled:
@@ -270,6 +264,8 @@ class QueryGraphExecutor:
             # )
             update_kgraph = False
             async with self.locks["kgraph"]:
+                # TODO: Probably don't need to do this twice
+                # Also leave a better explaining comment
                 subquery_tasks = [
                     asyncio.create_task(
                         get_subgraph(
@@ -279,10 +275,11 @@ class QueryGraphExecutor:
                             self.kgraph,
                         )
                     )
-                    for _ in range(2)
+                    # for _ in range(2)
                 ]
         else:
             # Simulate finding a variable number of operations to perform
+            # TODO: replace this with looking up operations from the metakg
             update_kgraph = True
             subquery_tasks = [
                 asyncio.create_task(
@@ -304,6 +301,7 @@ class QueryGraphExecutor:
         new_branch_tasks: list[Task[list[Partial]]],
     ) -> AsyncGenerator[tuple[Branch, Partial]]:
         """Consume either a subquery task or a branch task, handling appropriately."""
+        # TODO: branch this out to two methods for consuming each task type
         qedge_id = current_branch.current_edge
         task_result = await task
         if isinstance(task_result, tuple):
