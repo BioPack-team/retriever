@@ -125,7 +125,7 @@ class QueryGraphExecutor:
 
                 if len(partials) == 1:  # No reconciliation to be done
                     reconciled.append(partial)
-                    # self.job_log.debug(f"RESULT: {hash(partial)}")
+                    # self.job_log.trace(f"RESULT: {hash(partial)}")
                     continue
 
                 # Only attempt reconciliation if all branches have representatives
@@ -133,10 +133,10 @@ class QueryGraphExecutor:
                     parts for s_name, parts in partials.items() if s_name != super_name
                 ]
                 if any(len(parts) == 0 for parts in other_branches):
-                    # self.job_log.debug("No other branches ready.")
+                    self.job_log.trace("No other branches ready.")
                     continue
 
-                # self.job_log.debug("Reconciliation started!")
+                self.job_log.trace("Reconciliation started!")
                 # Find valid reconciliations of each branch combined
                 for combo in itertools.product(*other_branches):
                     reconcile_attempt = partial
@@ -146,15 +146,12 @@ class QueryGraphExecutor:
                             break
                     if reconcile_attempt is not None:
                         reconciled.append(reconcile_attempt)
-                # self.job_log.debug("Reconciliation finished!")
+                self.job_log.trace("Reconciliation finished!")
 
         self.job_log.debug(
             f"Reconciled {sum(len(parts) for parts in partials.values())} partials into {len(reconciled)} results."
         )
 
-        # PERF: Converting results presently takes a decent amount of time
-        # About 0.5ms per result, and may cause slowdown due to not being entirely async
-        # TODO: change this so we're returning typed dictionaries
         with tracer.start_as_current_span("convert_results"):
             results = list[ResultDict]()
             for part in reconciled:
@@ -179,12 +176,7 @@ class QueryGraphExecutor:
         Yields:
             A tuple of the branch which was executed, and a partial result backtracking on that branch.
         """
-        # # Check that this branch may proceed (target edge is unclaimed/claimed for this branch)
-        # if not await current_branch.has_claim(self.qedge_claims, self.locks["claim"]):
-        #     yield current_branch, None
-        #     return
-
-        # self.job_log.debug(f"{current_branch.superposition_name}")
+        self.job_log.trace(f"{current_branch.superposition_name}")
 
         # Ensure this SuperpositionHop has a lock to work with
         async with self.locks["hop_check"]:
@@ -260,9 +252,9 @@ class QueryGraphExecutor:
         specific hop.
         """
         if current_branch.hop_name in self.kedges_by_input:
-            # self.job_log.debug(
-            #     f"{current_branch.input_curie}-{current_branch.current_edge}: Already executed, referring to KG..."
-            # )
+            self.job_log.trace(
+                f"{current_branch.input_curie}-{current_branch.current_edge}: Already executed, referring to KG..."
+            )
             update_kgraph = False
             # If another superposition has already executed this hop, we don't want to
             # do it again, so instead of running a subquery just grab the subgraph represented by this hop
@@ -315,14 +307,14 @@ class QueryGraphExecutor:
                 new_kgraph.nodes.keys(), self.qedge_claims, self.locks["claim"]
             )
 
-            # self.job_log.debug(
-            #     f"{current_branch.superposition_name}: found {len(next_steps)} next steps for curies {list(new_kgraph.nodes.keys())}."
-            # )
+            self.job_log.trace(
+                f"{current_branch.superposition_name}: found {len(next_steps)} next steps for curies {list(new_kgraph.nodes.keys())}."
+            )
 
             if len(next_steps) == 0:
-                # self.job_log.debug(
-                #     f"{current_branch.superposition_name}: Returning {len(new_kgraph.nodes)} Partial results."
-                # )
+                self.job_log.trace(
+                    f"{current_branch.superposition_name}: Returning {len(new_kgraph.nodes)} Partial results."
+                )
                 for curie in new_kgraph.nodes:
                     # await asyncio.sleep(0)
                     key = qedge_id, current_branch.input_curie, curie
@@ -332,9 +324,9 @@ class QueryGraphExecutor:
                         if path_name in self.complete_paths:
                             continue  # Prevent yielding duplicate partials
                         self.complete_paths.add(path_name)
-                        # self.job_log.debug(
-                        #     f"{current_branch.superposition_name[:-2]}{curie}]"
-                        # )
+                        self.job_log.trace(
+                            f"{current_branch.superposition_name[:-2]}{curie}]"
+                        )
                         yield (
                             current_branch,
                             Partial([(current_branch.output_node, curie)], [key]),
@@ -445,9 +437,9 @@ class QueryGraphExecutor:
 
             if partial is None:
                 # Branch was made invalid by another branch's edge claim
-                # self.job_log.debug(
-                #     f"{current_branch.superposition_name[:-2]}{next_branch.input_curie}]"
-                # )
+                self.job_log.trace(
+                    f"{current_branch.superposition_name[:-2]}{next_branch.input_curie}]"
+                )
                 current_branch.skipped_steps.add(next_branch.branch_name)
                 task_partials.append(Partial([node_bind], [edge_bind]))
                 continue

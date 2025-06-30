@@ -23,7 +23,7 @@ def log_level_to_trapi(level: LogLevel) -> TRAPILogLevel:
     if level_str in TRAPILogLevel:
         return TRAPILogLevel[level_str]
     match level_str:
-        case "TRACE":
+        case "TRACE":  # Should never occur since trace logs are left out of TRAPI
             return TRAPILogLevel.DEBUG
         case "SUCCESS":
             return TRAPILogLevel.INFO
@@ -100,7 +100,10 @@ class TRAPILogger:
 
         with logger.contextualize(**kwargs):
             logger.log(level, message)
-        self.log_deque.append(format_trapi_log(level, message))
+        # Implicitly drop TRACE logs from TRAPI logs.
+        # These should only be used in extensive debugging on a local instance.
+        if level.lower() != "trace":
+            self.log_deque.append(format_trapi_log(level, message))
 
     def trace(self, message: str, **kwargs: Any) -> None:
         """Log at trace level."""
@@ -198,6 +201,7 @@ def add_mongo_sink() -> None:
         serialize=True,
         enqueue=True,
         filter=lambda record: not record["extra"].get("no_mongo_log", False),
+        level=CONFIG.log_level,
     )
 
 
