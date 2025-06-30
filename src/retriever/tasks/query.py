@@ -5,14 +5,13 @@ from typing import Any, Literal, overload
 from fastapi import Request, Response
 from opentelemetry import trace
 from reasoner_pydantic import AsyncQuery as TRAPIAsyncQuery
-from reasoner_pydantic import AsyncQueryResponse as TRAPIAsyncQueryResponse
 from reasoner_pydantic import MetaKnowledgeGraph as TRAPIMetaKnowledgeGraph
 from reasoner_pydantic import Query as TRAPIQuery
-from reasoner_pydantic import Response as TRAPIResponse
 
 from retriever.tasks.lookup.lookup import async_lookup, lookup
 from retriever.tasks.metakg import metakg
-from retriever.type_defs import APIInfo, QueryInfo, TierNumber
+from retriever.types.general import APIInfo, QueryInfo, TierNumber
+from retriever.types.trapi import AsyncQueryResponseDict, ResponseDict
 from retriever.utils import telemetry
 from retriever.utils.logs import TRAPILogger, structured_log_to_trapi
 from retriever.utils.mongo import MONGO_CLIENT, MONGO_QUEUE
@@ -26,7 +25,7 @@ async def make_query(
     ctx: APIInfo,
     tier: list[int],
     body: TRAPIQuery,
-) -> TRAPIResponse: ...
+) -> ResponseDict: ...
 
 
 @overload
@@ -35,7 +34,7 @@ async def make_query(
     ctx: APIInfo,
     tier: list[int],
     body: TRAPIAsyncQuery,
-) -> TRAPIAsyncQueryResponse: ...
+) -> AsyncQueryResponseDict: ...
 
 
 @overload
@@ -51,7 +50,7 @@ async def make_query(
     ctx: APIInfo,
     tier: list[TierNumber],  # Guaranteed to be 0 <= x <= 2
     body: TRAPIQuery | TRAPIAsyncQuery | None = None,
-) -> TRAPIResponse | TRAPIAsyncQueryResponse | TRAPIMetaKnowledgeGraph:
+) -> ResponseDict | AsyncQueryResponseDict | TRAPIMetaKnowledgeGraph:
     """Process a request and await its response before returning.
 
     Unhandled errors are handled by middleware.
@@ -73,7 +72,7 @@ async def make_query(
         MONGO_QUEUE.put("job_state", {"job_id": job_id, "status": "Running"})
     if ctx.background_tasks is not None:  # Asyncquery lookup
         ctx.background_tasks.add_task(async_lookup, query=query)
-        return TRAPIAsyncQueryResponse(
+        return AsyncQueryResponseDict(
             status="Accepted",
             description="Query has been queued for processing.",
             job_id=job_id,

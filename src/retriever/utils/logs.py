@@ -9,11 +9,11 @@ from typing import Any
 
 import loguru
 from loguru import logger
-from reasoner_pydantic import LogEntry
 from reasoner_pydantic import LogLevel as TRAPILogLevel
 
 from retriever.config.general import CONFIG
-from retriever.type_defs import LogLevel
+from retriever.types.general import LogLevel
+from retriever.types.trapi import LogEntryDict
 from retriever.utils.mongo import MONGO_QUEUE
 
 
@@ -43,15 +43,14 @@ def format_trapi_log(
     message: str,
     timestamp: datetime | None = None,
     trace: str | None = None,
-) -> LogEntry:
+) -> LogEntryDict:
     """Format a loguru message into a TRAPI-spec LogEntry."""
     if timestamp is None:
         timestamp = datetime.now().astimezone()
-    log_entry = LogEntry(
+    log_entry = LogEntryDict(
         level=log_level_to_trapi(level),
         message=message,
-        timestamp=timestamp,
-        code=None,
+        timestamp=timestamp.isoformat(timespec="milliseconds"),
     )
     if trace:
         log_entry.trace = (  # pyright:ignore[reportAttributeAccessIssue] It's allowed
@@ -62,7 +61,7 @@ def format_trapi_log(
 
 async def structured_log_to_trapi(
     logs: AsyncGenerator[dict[str, Any]],
-) -> AsyncGenerator[LogEntry]:
+) -> AsyncGenerator[LogEntryDict]:
     """Take an async generator of structured logs and yield TRAPI logs asynchronously."""
     async for log in logs:
         trace = None
@@ -93,7 +92,7 @@ class TRAPILogger:
 
     def __init__(self, job_id: str) -> None:
         """Initialize an instance."""
-        self.log_deque: deque[LogEntry] = deque()
+        self.log_deque: deque[LogEntryDict] = deque()
         self.job_id: str = job_id
 
     def _log(self, level: LogLevel, message: str, **kwargs: Any) -> None:
@@ -140,7 +139,7 @@ class TRAPILogger:
         with logger.contextualize(**kwargs):
             logger.exception(message)
 
-    def get_logs(self) -> list[LogEntry]:
+    def get_logs(self) -> list[LogEntryDict]:
         """Get a generator of stored TRAPI logs."""
         return list(self.log_deque)
 

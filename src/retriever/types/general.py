@@ -6,13 +6,13 @@ from reasoner_pydantic import (
     CURIE,
     AsyncQuery,
     AuxiliaryGraphs,
-    Edge,
     KnowledgeGraph,
-    LogEntry,
     QEdge,
     Query,
-    Results,
 )
+from reasoner_pydantic.shared import EdgeIdentifier
+
+from retriever.types.trapi import LogEntryDict, ResultDict
 
 TierNumber = Annotated[int, Field(ge=0, le=2)]
 
@@ -65,15 +65,15 @@ class LookupArtifacts(NamedTuple):
     (results, kg, logs)
     """
 
-    results: Results
+    results: list[ResultDict]
     kgraph: KnowledgeGraph
     aux_graphs: AuxiliaryGraphs
-    logs: list[LogEntry]
+    logs: list[LogEntryDict]
 
 
 AdjacencyGraph = dict[str, dict[str, list[QEdge]]]
 
-KAdjacencyGraph = dict[str, dict[CURIE, dict[CURIE, list[Edge]]]]
+KAdjacencyGraph = dict[str, dict[CURIE, dict[CURIE, list[EdgeIdentifier]]]]
 
 QEdgeIDMap = dict[QEdge, str]
 

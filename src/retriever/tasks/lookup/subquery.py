@@ -13,7 +13,6 @@ from reasoner_pydantic import (
     HashableMapping,
     HashableSet,
     KnowledgeGraph,
-    LogEntry,
     Node,
     QueryGraph,
     RetrievalSource,
@@ -21,6 +20,7 @@ from reasoner_pydantic import (
 from reasoner_pydantic.shared import EdgeIdentifier, ResourceRoleEnum
 
 from retriever.tasks.lookup.branch import Branch
+from retriever.types.trapi import LogEntryDict
 from retriever.utils.logs import TRAPILogger
 
 CATEGORIES = [
@@ -53,7 +53,7 @@ tracer = trace.get_tracer("lookup.execution.tracer")
 @tracer.start_as_current_span("subquery")
 async def mock_subquery(
     job_id: str, branch: Branch, qg: QueryGraph
-) -> tuple[KnowledgeGraph, list[LogEntry]]:
+) -> tuple[KnowledgeGraph, list[LogEntryDict]]:
     """Placeholder subquery function to mockup its overall behavior.
 
     Assumptions:
@@ -75,10 +75,10 @@ async def mock_subquery(
         category = cast(str, (node.categories or ["biolink:NamedThing"])[0])
         curies = (
             [
-                # MOCKUP_NODES[category][CHOICES[category].popleft()]
-                random.choice(MOCKUP_NODES[category])
-                for _ in range(random.randint(0, 10))
-                # for _ in range(10)
+                MOCKUP_NODES[category][CHOICES[category].popleft()]
+                # random.choice(MOCKUP_NODES[category])
+                # for _ in range(random.randint(0, 10))
+                for _ in range(10)
             ]
             # if category != "biolink:Disease"
             # else []

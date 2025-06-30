@@ -8,7 +8,7 @@ from pydantic_settings import (
     YamlConfigSettingsSource,
 )
 
-from retriever.type_defs import LogLevel
+from retriever.types.general import LogLevel
 
 
 class CORSSettings(BaseModel):

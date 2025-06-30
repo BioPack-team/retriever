@@ -12,30 +12,28 @@ from reasoner_pydantic import (
     HashableMapping,
     HashableSequence,
     KnowledgeGraph,
-    LogEntry,
     QEdge,
     QueryGraph,
 )
 from reasoner_pydantic.shared import EdgeIdentifier
 
 from retriever.tasks.lookup.branch import Branch
-from retriever.type_defs import (
+from retriever.types.general import (
     AdjacencyGraph,
     QEdgeIDMap,
     SuperpositionHop,
 )
+from retriever.types.trapi import LogEntryDict
 from retriever.utils.logs import TRAPILogger
 
 biolink = bmt.Toolkit()
 
 
 def expand_qnode_categories(qg: QueryGraph, job_log: TRAPILogger) -> QueryGraph:
-    """Ensure all nodes in qgraph have all descendent categories."""
     """Ensure all nodes in qgraph have all descendent categories.
 
     See https://biolink.github.io/biolink-model/categories.html
     """
-    # TODO: add LRU cache to biolink descendent expansion
     for qnode_id, qnode in qg.nodes.items():
         if qnode.categories is None or len(qnode.categories) == 0:
             qnode.categories = HashableSequence[BiolinkEntity](["biolink:NamedThing"])
@@ -129,7 +127,7 @@ async def get_subgraph(
     key: tuple[CURIE, str],
     kedges: dict[SuperpositionHop, list[Edge]],
     kgraph: KnowledgeGraph,
-) -> tuple[KnowledgeGraph, list[LogEntry]]:
+) -> tuple[KnowledgeGraph, list[LogEntryDict]]:
     """Get a subgraph from a given set of kedges.
 
     Used to replace subquerying when a given hop has already been completed.
@@ -149,4 +147,4 @@ async def get_subgraph(
         nodes=HashableMapping({curie: kgraph.nodes[curie] for curie in curies}),
     )
 
-    return kg, list[LogEntry]()
+    return kg, list[LogEntryDict]()

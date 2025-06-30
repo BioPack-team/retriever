@@ -14,7 +14,7 @@ from reasoner_transpiler.cypher import (
     get_query,  # pyright:ignore[reportUnknownVariableType] Not strongly typed for now
 )
 
-from retriever.type_defs import LookupArtifacts
+from retriever.types.general import LookupArtifacts
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.trapi import initialize_kgraph
 

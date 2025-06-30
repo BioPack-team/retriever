@@ -11,10 +11,10 @@ from reasoner_pydantic import (
     AuxiliaryGraphs,
     Edge,
     KnowledgeGraph,
-    LogEntry,
     QueryGraph,
     Results,
 )
+from reasoner_pydantic.shared import EdgeIdentifier
 
 from retriever.tasks.lookup.branch import Branch
 from retriever.tasks.lookup.partial import Partial
@@ -24,13 +24,14 @@ from retriever.tasks.lookup.utils import (
     make_mappings,
     merge_iterators,
 )
-from retriever.type_defs import (
+from retriever.types.general import (
     AdjacencyGraph,
     KAdjacencyGraph,
     LookupArtifacts,
     QEdgeIDMap,
     SuperpositionHop,
 )
+from retriever.types.trapi import LogEntryDict, ResultDict
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.trapi import initialize_kgraph
 
@@ -69,7 +70,7 @@ class QueryGraphExecutor:
         # (branch's input curie and current edge)
         self.kedges_by_input: dict[SuperpositionHop, list[Edge]] = {}
         self.k_agraph: KAdjacencyGraph = {
-            qedge_id: dict[CURIE, dict[CURIE, list[Edge]]]()
+            qedge_id: dict[CURIE, dict[CURIE, list[EdgeIdentifier]]]()
             for qedge_id in self.qgraph.edges
         }
 
@@ -153,9 +154,9 @@ class QueryGraphExecutor:
 
         # PERF: Converting results presently takes a decent amount of time
         # About 0.5ms per result, and may cause slowdown due to not being entirely async
-        # TODO: change this so we're returning raw dictionaries
+        # TODO: change this so we're returning typed dictionaries
         with tracer.start_as_current_span("convert_results"):
-            results = Results()
+            results = list[ResultDict]()
             for part in reconciled:
                 await asyncio.sleep(0)
                 results.append(await part.as_result(self.k_agraph))
@@ -198,7 +199,7 @@ class QueryGraphExecutor:
 
             branch_tasks = list[asyncio.Task[list[Partial]]]()
             parallel_tasks = list[
-                asyncio.Task[tuple[KnowledgeGraph, list[LogEntry]]]
+                asyncio.Task[tuple[KnowledgeGraph, list[LogEntryDict]]]
                 | asyncio.Task[list[Partial]]
             ](subquery_tasks)
 
@@ -252,7 +253,7 @@ class QueryGraphExecutor:
     async def get_subquery_tasks(
         self,
         current_branch: Branch,
-    ) -> tuple[list[asyncio.Task[tuple[KnowledgeGraph, list[LogEntry]]]], bool]:
+    ) -> tuple[list[asyncio.Task[tuple[KnowledgeGraph, list[LogEntryDict]]]], bool]:
         """Create tasks for the subqueries the current branch will generate.
 
         Avoids creating duplicate tasks when some superposition is already executing the
@@ -263,9 +264,9 @@ class QueryGraphExecutor:
             #     f"{current_branch.input_curie}-{current_branch.current_edge}: Already executed, referring to KG..."
             # )
             update_kgraph = False
+            # If another superposition has already executed this hop, we don't want to
+            # do it again, so instead of running a subquery just grab the subgraph represented by this hop
             async with self.locks["kgraph"]:
-                # TODO: Probably don't need to do this twice
-                # Also leave a better explaining comment
                 subquery_tasks = [
                     asyncio.create_task(
                         get_subgraph(
@@ -275,7 +276,6 @@ class QueryGraphExecutor:
                             self.kgraph,
                         )
                     )
-                    # for _ in range(2)
                 ]
         else:
             # Simulate finding a variable number of operations to perform
@@ -293,7 +293,7 @@ class QueryGraphExecutor:
 
     async def consume_parallel_task(
         self,
-        task: asyncio.Task[tuple[KnowledgeGraph, list[LogEntry]]]
+        task: asyncio.Task[tuple[KnowledgeGraph, list[LogEntryDict]]]
         | asyncio.Task[list[Partial]],
         current_branch: Branch,
         partials: dict[SuperpositionHop, dict[str, list[Partial]]],
@@ -369,7 +369,7 @@ class QueryGraphExecutor:
         self.kedges_by_input[current_branch.hop_name].extend(new_kgraph.edges.values())
 
         # Update the k_agraph
-        for edge in new_kgraph.edges.values():
+        for edge_id, edge in new_kgraph.edges.items():
             # await asyncio.sleep(0)
             in_node, out_node = (
                 (edge.subject, edge.object)
@@ -377,11 +377,11 @@ class QueryGraphExecutor:
                 else (edge.object, edge.subject)
             )
             if in_node not in self.k_agraph[qedge_id]:
-                self.k_agraph[qedge_id][in_node] = dict[CURIE, list[Edge]]()
+                self.k_agraph[qedge_id][in_node] = dict[CURIE, list[EdgeIdentifier]]()
             if out_node not in self.k_agraph[qedge_id][in_node]:
-                self.k_agraph[qedge_id][in_node][out_node] = list[Edge]()
+                self.k_agraph[qedge_id][in_node][out_node] = list[EdgeIdentifier]()
 
-            self.k_agraph[qedge_id][in_node][out_node].append(edge)
+            self.k_agraph[qedge_id][in_node][out_node].append(edge_id)
 
     @tracer.start_as_current_span("prepare_branch_tasks")
     async def prepare_new_branch_tasks(

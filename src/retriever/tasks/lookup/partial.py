@@ -3,10 +3,15 @@ from typing import override
 
 from reasoner_pydantic import (
     CURIE,
-    Result,
 )
 
-from retriever.type_defs import KAdjacencyGraph
+from retriever.types.general import KAdjacencyGraph
+from retriever.types.trapi import (
+    AnalysisDict,
+    EdgeBindingDict,
+    NodeBindingDict,
+    ResultDict,
+)
 
 
 class Partial:
@@ -79,28 +84,28 @@ class Partial:
             list(combined_nodes.items()), [*self.edge_bindings, *other.edge_bindings]
         )
 
-    async def as_result(self, k_agraph: KAdjacencyGraph) -> Result:
+    async def as_result(self, k_agraph: KAdjacencyGraph) -> ResultDict:
         """Return a result generated from the Partial's node and edge bindings."""
-        result_dict = {
-            "node_bindings": {
-                qnode: [{"id": curie, "attributes": list[None]()}]
+        return ResultDict(
+            node_bindings={
+                qnode: [NodeBindingDict(id=curie, attributes=[])]
                 for qnode, curie in self.node_bindings
             },
-            "analyses": [
-                {
-                    "resource_id": "infores:retriever",
-                    "edge_bindings": {
+            analyses=[
+                AnalysisDict(
+                    resource_id="infores:retriever",
+                    edge_bindings={
                         kedge_key[0]: [
-                            {"id": str(hash(kedge)), "attributes": list[None]()}
-                            for kedge in k_agraph[kedge_key[0]][kedge_key[1]][
+                            EdgeBindingDict(id=kedge_id, attributes=[])
+                            for kedge_id in k_agraph[kedge_key[0]][kedge_key[1]][
                                 kedge_key[2]
                             ]
                         ]
                         for kedge_key in self.edge_bindings
                     },
-                }
+                )
             ],
-        }
+        )
         # return Result.model_construct(
         #     node_bindings=HashableMapping(
         #         {
@@ -134,4 +139,4 @@ class Partial:
         #         }
         #     ),
         # )
-        return Result.model_validate(result_dict)
+        # return Result.model_validate(result_dict)

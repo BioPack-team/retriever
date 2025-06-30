@@ -11,7 +11,7 @@ from reasoner_pydantic import (
     QueryGraph,
 )
 
-from retriever.type_defs import AdjacencyGraph, QEdgeIDMap
+from retriever.types.general import AdjacencyGraph, QEdgeIDMap
 
 
 class Branch:

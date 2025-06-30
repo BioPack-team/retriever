@@ -6,7 +6,7 @@ from reasoner_pydantic import (
     MetaNode,
 )
 
-from retriever.type_defs import QueryInfo
+from retriever.types.general import QueryInfo
 
 
 async def metakg(

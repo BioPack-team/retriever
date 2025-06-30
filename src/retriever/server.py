@@ -9,9 +9,8 @@ from typing import Annotated, Literal
 import yaml
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from reasoner_pydantic import AsyncQuery as TRAPIAsyncQuery
-from reasoner_pydantic import AsyncQueryResponse as TRAPIAsyncQueryResponse
 from reasoner_pydantic import AsyncQueryStatusResponse as TRAPIAsyncQueryStatusResponse
 from reasoner_pydantic import MetaKnowledgeGraph as TRAPIMetaKnowledgeGraph
 from reasoner_pydantic import Query as TRAPIQuery
@@ -23,7 +22,7 @@ from retriever.config.openapi import OPENAPI_CONFIG, TRAPI
 
 # from retriever.tasks.task_queue import get_job_state, make_query, retriever_queue
 from retriever.tasks.query import get_job_state, make_query
-from retriever.type_defs import APIInfo, ErrorDetail, LogLevel, TierNumber
+from retriever.types.general import APIInfo, ErrorDetail, LogLevel, TierNumber
 from retriever.utils.exception_handlers import ensure_cors
 from retriever.utils.logs import (
     add_mongo_sink,
@@ -118,6 +117,7 @@ async def meta_knowledge_graph(
 @app.post(
     "/query",
     tags=["query"],
+    response_model=TRAPIResponse,
     response_description=OPENAPI_CONFIG.response_descriptions.query.get("200", ""),
     responses={
         400: {
@@ -149,9 +149,10 @@ async def query(
             default_factory=lambda: [0],
         ),
     ],
-) -> TRAPIResponse:
+) -> JSONResponse:
     """Initiate a synchronous query."""
-    return await make_query("lookup", APIInfo(request, response), tier, body)
+    response_dict = await make_query("lookup", APIInfo(request, response), tier, body)
+    return JSONResponse(response_dict)
     # return {}
 
 
@@ -190,11 +191,12 @@ async def asyncquery(
             default_factory=lambda: [0],
         ),
     ],
-) -> TRAPIAsyncQueryResponse:
+) -> JSONResponse:
     """Initiate an asynchronous query."""
-    return await make_query(
+    response_dict = await make_query(
         "lookup", APIInfo(request, response, background_tasks), tier, body
     )
+    return JSONResponse(response_dict)
 
 
 @app.get(
@@ -219,7 +221,7 @@ async def asyncquery(
 )
 async def asyncquery_status(
     request: Request, response: Response, job_id: str
-) -> TRAPIAsyncQueryStatusResponse:
+) -> JSONResponse:
     """Get the status of an asynchronous query."""
     job_dict = await get_job_state(job_id, request, response)
 
@@ -241,12 +243,13 @@ async def asyncquery_status(
     for key in del_keys:
         del job_dict[key]
 
-    return TRAPIAsyncQueryStatusResponse.model_validate(job_dict)
+    return JSONResponse(job_dict)
 
 
 @app.get(
     "/response/{job_id}",
     tags=["asyncquery_status"],
+    response_model=TRAPIResponse | TRAPIAsyncQueryStatusResponse,
     response_description=OPENAPI_CONFIG.response_descriptions.response.get("200", ""),
     responses={
         404: {
@@ -257,15 +260,10 @@ async def asyncquery_status(
         },
     },
 )
-async def response(
-    request: Request, response: Response, job_id: str
-) -> TRAPIResponse | TRAPIAsyncQueryStatusResponse:
+async def response(request: Request, response: Response, job_id: str) -> JSONResponse:
     """Get the response of an asynchronous query."""
     job_dict = await get_job_state(job_id, request, response)
-    if job_dict.get("Message") is not None:
-        return TRAPIResponse.model_validate(job_dict)
-    else:
-        return TRAPIAsyncQueryStatusResponse.model_validate(job_dict)
+    return JSONResponse(job_dict)
 
 
 @app.get(

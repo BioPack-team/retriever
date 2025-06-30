@@ -6,13 +6,14 @@ from reasoner_pydantic import (
     Attribute,
     AuxiliaryGraphs,
     HashableMapping,
+    HashableSequence,
     KnowledgeGraph,
     Node,
     QueryGraph,
-    Results,
 )
 from reasoner_pydantic.shared import EdgeIdentifier
 
+from retriever.types.trapi import AttributeDict, NodeBindingDict, ResultDict
 from retriever.utils.logs import TRAPILogger
 
 tracer = trace.get_tracer("lookup.execution.tracer")
@@ -34,9 +35,43 @@ def initialize_kgraph(qgraph: QueryGraph) -> KnowledgeGraph:
     return kgraph
 
 
+def hash_attribute(attr: AttributeDict) -> int:
+    """Get a hash of an AttributeDict instance."""
+    return hash(tuple(attr.values()))
+
+
+def hash_node_binding(binding: NodeBindingDict) -> int:
+    """Get a hash of a NodeBindingDict instance."""
+    return hash(
+        (
+            binding["id"],
+            binding.get("query_id"),
+            *(hash_attribute(attr) for attr in binding["attributes"]),
+        )
+    )
+
+
+@tracer.start_as_current_span("merge_results")
+def merge_results(current: dict[int, ResultDict], new: list[ResultDict]) -> None:
+    """Merge ResultDicts in a dict of results by hash."""
+    for result in new:
+        key = hash(
+            tuple(
+                (qnode_id, *(hash_node_binding(binding) for binding in bindings))
+                for qnode_id, bindings in result["node_bindings"].items()
+            )
+        )
+        if key not in current:
+            current[key] = result
+            continue
+        # Otherwise, need to merge results
+        # We're gonna do a lazy style: no deep analysis merge
+        current[key]["analyses"].extend(result["analyses"])
+
+
 @tracer.start_as_current_span("prune_kg")
 def prune_kg(
-    results: Results,
+    results: list[ResultDict],
     kgraph: KnowledgeGraph,
     aux_graphs: AuxiliaryGraphs,
     job_log: TRAPILogger,
@@ -45,11 +80,13 @@ def prune_kg(
     bound_edges = set[str]()
     bound_nodes = set[str]()
     for result in results:
-        for node_binding_set in result.node_bindings.values():
-            bound_nodes.update([str(binding.id) for binding in node_binding_set])
+        for node_binding_set in result["node_bindings"].values():
+            bound_nodes.update([str(binding["id"]) for binding in node_binding_set])
         # Only ever one analysis so we can use next(iter())
-        for edge_binding_set in next(iter(result.analyses)).edge_bindings.values():
-            bound_edges.update([str(binding.id) for binding in edge_binding_set])
+        for edge_binding_set in next(iter(result["analyses"]))[
+            "edge_bindings"
+        ].values():
+            bound_edges.update([str(binding["id"]) for binding in edge_binding_set])
 
     edges_to_check = list(bound_edges)
     while len(edges_to_check) > 0:
@@ -68,7 +105,7 @@ def prune_kg(
         )
         if edge_aux_graphs is None:
             continue
-        for aux_graph_id in cast(list[str], edge_aux_graphs.value):
+        for aux_graph_id in cast(HashableSequence[str], edge_aux_graphs.value):
             edges_to_check.extend(str(edge) for edge in aux_graphs[aux_graph_id].edges)
 
     prior_edge_count = len(kgraph.edges)

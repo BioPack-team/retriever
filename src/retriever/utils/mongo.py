@@ -15,7 +15,7 @@ from pymongo.operations import InsertOne, ReplaceOne
 from pymongo.server_api import ServerApi
 
 from retriever.config.general import CONFIG
-from retriever.type_defs import LogLevel
+from retriever.types.general import LogLevel
 
 CODEC_OPTIONS = DEFAULT_CODEC_OPTIONS.with_options(tz_aware=True)
 
