@@ -35,17 +35,14 @@ class Tier0Query:
         try:
             start_time = time.time()
             self.job_log.info("Starting lookup against Tier 0...")
-            results = list[ResultDict]()
-
-            # query_cypher = get_query(self.qgraph.model_dump())
-            # self.job_log.debug(query_cypher)
 
             await asyncio.sleep(random.random())
+            results = await self.get_results()
 
             end_time = time.time()
             duration_ms = math.ceil((end_time - start_time) * 1000)
             self.job_log.info(
-                f"Tier 0: Retrieved {len(results)} results / {len(self.kgraph.nodes)} nodes / {len(self.kgraph.edges)} edges in {len(results)}ms."
+                f"Tier 0: Retrieved {len(results)} results / {len(self.kgraph.nodes)} nodes / {len(self.kgraph.edges)} edges in {duration_ms}ms."
             )
 
             return LookupArtifacts(
@@ -58,3 +55,7 @@ class Tier0Query:
             return LookupArtifacts(
                 [], self.kgraph, self.aux_graphs, self.job_log.get_logs(), error=True
             )
+
+    async def get_results(self) -> list[ResultDict]:
+        """Interface with the Tier 0 backend and retrieve results, converting to ResultDict."""
+        raise NotImplementedError("Implemented in subclasses of Tier0Query.")

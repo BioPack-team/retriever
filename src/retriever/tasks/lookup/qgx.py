@@ -37,12 +37,9 @@ from retriever.utils.trapi import initialize_kgraph
 tracer = trace.get_tracer("lookup.execution.tracer")
 
 # TODO:
-# Remaining handling to implement in order of priority:
-# DONE: Locks to make access safe
-# DONE: Turns out broken chain detection is an emergent behavior of the algorithm and can't be made more efficient
-# DONE: KG Pruning
 # Time limits
 # Set interpretation
+# Subclassing
 
 
 class QueryGraphExecutor:
@@ -129,6 +126,8 @@ class QueryGraphExecutor:
                     duration_ms,
                 )
             )
+
+            # TODO: cleanup (subclass, is_set)
 
             return LookupArtifacts(
                 results, self.kgraph, self.aux_graphs, self.job_log.get_logs()

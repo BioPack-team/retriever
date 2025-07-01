@@ -92,7 +92,6 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
         )
         job_log.log_deque.extend(logs)
 
-        # TODO: cleanup (subclass, is_set)
         job_log.info(f"Collected {len(results)} results from query tasks.")
         prune_kg(results, kgraph, aux_graphs, job_log)
 
