@@ -12,7 +12,6 @@ from reasoner_pydantic import (
     Edge,
     KnowledgeGraph,
     QueryGraph,
-    Results,
 )
 from reasoner_pydantic.shared import EdgeIdentifier
 
@@ -49,9 +48,9 @@ tracer = trace.get_tracer("lookup.execution.tracer")
 class QueryGraphExecutor:
     """Handler class for running the QGX algorithm."""
 
-    def __init__(self, qgraph: QueryGraph, job_id: str, tier: set[int]) -> None:
+    def __init__(self, qgraph: QueryGraph, job_id: str, tiers: set[int]) -> None:
         """Initialize a QueryGraphExecutor, setting up information shared by methods."""
-        self.tier: set[int] = tier
+        self.tiers: set[int] = tiers
         self.qgraph: QueryGraph = qgraph
         self.job_id: str = job_id
         self.job_log: TRAPILogger = TRAPILogger(job_id)
@@ -91,82 +90,101 @@ class QueryGraphExecutor:
 
         Note that this algorithm assumes that between any two nodes, there is at most one edge.
         """
-        start_time = time.time()
-        self.job_log.info(
-            f"Starting lookup against Tier {', '.join(str(t) for t in self.tier if t > 0)}..."
-        )
-        starting_branches = await Branch.get_start_branches(
-            self.qgraph,
-            self.agraph,
-            self.qedge_map,
-            self.qedge_claims,
-            self.locks["claim"],
-        )
-        self.job_log.debug(
-            f"Found {len(starting_branches)} starting branches: {', '.join(branch.superposition_name for branch in starting_branches)}"
-        )
+        try:
+            start_time = time.time()
+            self.job_log.info(
+                f"Starting lookup against Tier {', '.join(str(t) for t in self.tiers if t > 0)}..."
+            )
+            starting_branches = await Branch.get_start_branches(
+                self.qgraph,
+                self.agraph,
+                self.qedge_map,
+                self.qedge_claims,
+                self.locks["claim"],
+            )
+            self.job_log.debug(
+                f"Found {len(starting_branches)} starting branches: {', '.join(branch.superposition_name for branch in starting_branches)}"
+            )
 
-        collected_partials = 0
+            partials, reconciled = await self.run_starting_branches(starting_branches)
+
+            self.job_log.debug(
+                f"Reconciled {sum(len(parts) for parts in partials.values())} partials into {len(reconciled)} results."
+            )
+
+            with tracer.start_as_current_span("convert_results"):
+                results = list[ResultDict]()
+                for part in reconciled:
+                    await asyncio.sleep(0)
+                    results.append(await part.as_result(self.k_agraph))
+
+            end_time = time.time()
+            duration_ms = math.ceil((end_time - start_time) * 1000)
+            self.job_log.info(
+                "Tier {}: Retrieved {} results / {} nodes / {} edges in {}ms.".format(
+                    ", ".join(str(t) for t in self.tiers if t > 0),
+                    len(self.kgraph.nodes),
+                    len(self.kgraph.edges),
+                    len(results),
+                    duration_ms,
+                )
+            )
+
+            return LookupArtifacts(
+                results, self.kgraph, self.aux_graphs, self.job_log.get_logs()
+            )
+        except Exception:
+            self.job_log.exception(
+                f"Unhandled exception occured in QGX while processing Tier {', '.join(str(t) for t in self.tiers)}. See logs for details."
+            )
+            return LookupArtifacts(
+                [], self.kgraph, self.aux_graphs, self.job_log.get_logs(), error=True
+            )
+
+    @tracer.start_as_current_span("run_branches")
+    async def run_starting_branches(
+        self, starting_branches: list[Branch]
+    ) -> tuple[dict[str, list[Partial]], list[Partial]]:
+        """Run a given set of starting branches and reconcile the partial results they return."""
         partials = {
             branch.superposition_name: list[Partial]() for branch in starting_branches
         }
         reconciled = list[Partial]()
-        results = Results()
 
         branch_tasks = [self.execute_branch(branch) for branch in starting_branches]
 
-        with tracer.start_as_current_span("run_branches"):
-            async for branch, partial in merge_iterators(*branch_tasks):
-                # await asyncio.sleep(0)
-                super_name = branch.superposition_name
-                partial.node_bindings.append((branch.start_node, branch.curies[0]))
-                partials[super_name].append(partial)
-                collected_partials += 1
+        async for branch, partial in merge_iterators(*branch_tasks):
+            # await asyncio.sleep(0)
+            super_name = branch.superposition_name
+            partial.node_bindings.append((branch.start_node, branch.curies[0]))
+            partials[super_name].append(partial)
 
-                if len(partials) == 1:  # No reconciliation to be done
-                    reconciled.append(partial)
-                    # self.job_log.trace(f"RESULT: {hash(partial)}")
-                    continue
+            if len(partials) == 1:  # No reconciliation to be done
+                reconciled.append(partial)
+                # self.job_log.trace(f"RESULT: {hash(partial)}")
+                continue
 
-                # Only attempt reconciliation if all branches have representatives
-                other_branches = [
-                    parts for s_name, parts in partials.items() if s_name != super_name
-                ]
-                if any(len(parts) == 0 for parts in other_branches):
-                    self.job_log.trace("No other branches ready.")
-                    continue
+            # Only attempt reconciliation if all branches have representatives
+            other_branches = [
+                parts for s_name, parts in partials.items() if s_name != super_name
+            ]
+            if any(len(parts) == 0 for parts in other_branches):
+                self.job_log.trace("No other branches ready.")
+                continue
 
-                self.job_log.trace("Reconciliation started!")
-                # Find valid reconciliations of each branch combined
-                for combo in itertools.product(*other_branches):
-                    reconcile_attempt = partial
-                    for part in combo:
-                        reconcile_attempt = reconcile_attempt.reconcile(part)
-                        if reconcile_attempt is None:
-                            break
-                    if reconcile_attempt is not None:
-                        reconciled.append(reconcile_attempt)
-                self.job_log.trace("Reconciliation finished!")
+            self.job_log.trace("Reconciliation started!")
+            # Find valid reconciliations of each branch combined
+            for combo in itertools.product(*other_branches):
+                reconcile_attempt = partial
+                for part in combo:
+                    reconcile_attempt = reconcile_attempt.reconcile(part)
+                    if reconcile_attempt is None:
+                        break
+                if reconcile_attempt is not None:
+                    reconciled.append(reconcile_attempt)
+            self.job_log.trace("Reconciliation finished!")
 
-        self.job_log.debug(
-            f"Reconciled {sum(len(parts) for parts in partials.values())} partials into {len(reconciled)} results."
-        )
-
-        with tracer.start_as_current_span("convert_results"):
-            results = list[ResultDict]()
-            for part in reconciled:
-                await asyncio.sleep(0)
-                results.append(await part.as_result(self.k_agraph))
-
-        end_time = time.time()
-        duration_ms = math.ceil((end_time - start_time) * 1000)
-        self.job_log.info(
-            f"Tier {', '.join(str(t) for t in self.tier if t > 0)}: Got {len(results)} results in {duration_ms:}ms."
-        )
-
-        return LookupArtifacts(
-            results, self.kgraph, self.aux_graphs, self.job_log.get_logs()
-        )
+        return partials, reconciled
 
     async def execute_branch(
         self, current_branch: Branch
@@ -228,17 +246,6 @@ class QueryGraphExecutor:
                 branch_tasks.extend(new_branch_tasks)
                 parallel_tasks = [*pending, *new_branch_tasks]
 
-            # if len(current_branch.next_steps) > 0 and len(
-            #     current_branch.skipped_steps
-            # ) == len(current_branch.next_steps):
-            #     self.job_log.debug(
-            #         f"{current_branch.superposition_name}: All next steps are claimed by other branches. Yielded {yielded_partials} partials."
-            #     )
-            # elif len(current_branch.next_steps) == 0:
-            #     self.job_log.debug(
-            #         f"{current_branch.superposition_name}: Found no next steps for any curies. Yielded {yielded_partials} partials."
-            #     )
-
         return
 
     @tracer.start_as_current_span("create_subqueries")
@@ -293,59 +300,74 @@ class QueryGraphExecutor:
         new_branch_tasks: list[Task[list[Partial]]],
     ) -> AsyncGenerator[tuple[Branch, Partial]]:
         """Consume either a subquery task or a branch task, handling appropriately."""
-        # TODO: branch this out to two methods for consuming each task type
-        qedge_id = current_branch.current_edge
         task_result = await task
-        if isinstance(task_result, tuple):
-            new_kgraph, logs = task_result
-
-            async with self.locks["kgraph"]:
-                self.job_log.log_deque.extend(logs)
-                await self.update_knowledge(current_branch, new_kgraph, update_kgraph)
-
-            next_steps = await current_branch.get_next_steps(
-                new_kgraph.nodes.keys(), self.qedge_claims, self.locks["claim"]
-            )
-
-            self.job_log.trace(
-                f"{current_branch.superposition_name}: found {len(next_steps)} next steps for curies {list(new_kgraph.nodes.keys())}."
-            )
-
-            if len(next_steps) == 0:
-                self.job_log.trace(
-                    f"{current_branch.superposition_name}: Returning {len(new_kgraph.nodes)} Partial results."
-                )
-                for curie in new_kgraph.nodes:
-                    # await asyncio.sleep(0)
-                    key = qedge_id, current_branch.input_curie, curie
-
-                    path_name = f"{current_branch.superposition_name[:-2]}{curie}"
-                    async with self.locks["partial_sync"]:
-                        if path_name in self.complete_paths:
-                            continue  # Prevent yielding duplicate partials
-                        self.complete_paths.add(path_name)
-                        self.job_log.trace(
-                            f"{current_branch.superposition_name[:-2]}{curie}]"
-                        )
-                        yield (
-                            current_branch,
-                            Partial([(current_branch.output_node, curie)], [key]),
-                        )
-                return
-
-            # Build partial dict and fire off next branch tasks
-            new_branch_tasks.extend(
-                await self.prepare_new_branch_tasks(
-                    current_branch,
-                    next_steps,
-                    partials,
-                )
-            )
-        else:
+        if isinstance(
+            task_result, tuple
+        ):  # Task is a subquery task returning new knowledge
+            async for partial in self.consume_subquery_task(
+                task_result, current_branch, partials, update_kgraph, new_branch_tasks
+            ):
+                yield current_branch, partial
+        else:  # Task is a branch task returning partials
             new_partials = task_result
             for partial in new_partials:
                 yield current_branch, partial
         return
+
+    async def consume_subquery_task(
+        self,
+        task_result: tuple[KnowledgeGraph, list[LogEntryDict]],
+        current_branch: Branch,
+        partials: dict[SuperpositionHop, dict[str, list[Partial]]],
+        update_kgraph: bool,
+        new_branch_tasks: list[Task[list[Partial]]],
+    ) -> AsyncGenerator[Partial]:
+        """Consume the result of a subquery task.
+
+        Updates the kgraph and fires off next steps, yielding partials if there are none.
+        """
+        qedge_id = current_branch.current_edge
+        new_kgraph, logs = task_result
+
+        async with self.locks["kgraph"]:
+            self.job_log.log_deque.extend(logs)
+            await self.update_knowledge(current_branch, new_kgraph, update_kgraph)
+
+        next_steps = await current_branch.get_next_steps(
+            new_kgraph.nodes.keys(), self.qedge_claims, self.locks["claim"]
+        )
+
+        self.job_log.trace(
+            f"{current_branch.superposition_name}: found {len(next_steps)} next steps for curies {list(new_kgraph.nodes.keys())}."
+        )
+
+        if len(next_steps) == 0:
+            self.job_log.trace(
+                f"{current_branch.superposition_name}: Returning {len(new_kgraph.nodes)} Partial results."
+            )
+            for curie in new_kgraph.nodes:
+                # await asyncio.sleep(0)
+                key = qedge_id, current_branch.input_curie, curie
+
+                path_name = f"{current_branch.superposition_name[:-2]}{curie}"
+                async with self.locks["partial_sync"]:
+                    if path_name in self.complete_paths:
+                        continue  # Prevent yielding duplicate partials
+                    self.complete_paths.add(path_name)
+                    self.job_log.trace(
+                        f"{current_branch.superposition_name[:-2]}{curie}]"
+                    )
+                    yield Partial([(current_branch.output_node, curie)], [key])
+            return
+
+        # Build partial dict and fire off next branch tasks
+        new_branch_tasks.extend(
+            await self.prepare_new_branch_tasks(
+                current_branch,
+                next_steps,
+                partials,
+            )
+        )
 
     async def update_knowledge(
         self, current_branch: Branch, new_kgraph: KnowledgeGraph, update_kgraph: bool
@@ -402,10 +424,11 @@ class QueryGraphExecutor:
             if next_branch.branch_name in current_branch.skipped_steps:
                 continue
 
-            # TODO needs a lock probably
-            if next_branch.superposition_name in self.active_superpositions:
-                continue
-            self.active_superpositions.add(next_branch.superposition_name)
+            # Check if superposition has already been created by some other branch
+            async with self.locks["hop_check"]:
+                if next_branch.superposition_name in self.active_superpositions:
+                    continue
+                self.active_superpositions.add(next_branch.superposition_name)
 
             new_branch_tasks.append(
                 asyncio.create_task(

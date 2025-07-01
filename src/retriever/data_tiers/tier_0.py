@@ -3,24 +3,19 @@ import math
 import random
 import time
 
-import kuzu
 from opentelemetry import trace
 from reasoner_pydantic import (
     AuxiliaryGraphs,
+    KnowledgeGraph,
     QueryGraph,
-    Results,
-)
-from reasoner_transpiler.cypher import (
-    get_query,  # pyright:ignore[reportUnknownVariableType] Not strongly typed for now
 )
 
 from retriever.types.general import LookupArtifacts
+from retriever.types.trapi import ResultDict
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.trapi import initialize_kgraph
 
 tracer = trace.get_tracer("lookup.execution.tracer")
-
-kuzu_db = kuzu.Database("dbs/kuzu_rtx_kg2", read_only=True)
 
 
 class Tier0Query:
@@ -31,31 +26,35 @@ class Tier0Query:
         self.qgraph: QueryGraph = qgraph
         self.job_id: str = job_id
         self.job_log: TRAPILogger = TRAPILogger(job_id)
+        self.kgraph: KnowledgeGraph = initialize_kgraph(self.qgraph)
+        self.aux_graphs: AuxiliaryGraphs = AuxiliaryGraphs()
 
     @tracer.start_as_current_span("tier0_execute")
     async def execute(self) -> LookupArtifacts:
         """Execute a lookup against Tier 0 and return what is found."""
-        start_time = time.time()
-        self.job_log.info("Starting lookup against Tier 0...")
-        results = Results()
-        kgraph = initialize_kgraph(self.qgraph)
-        aux_graphs = AuxiliaryGraphs()
+        try:
+            start_time = time.time()
+            self.job_log.info("Starting lookup against Tier 0...")
+            results = list[ResultDict]()
 
-        query_cypher = get_query(self.qgraph.model_dump())
-        self.job_log.debug(query_cypher)
+            # query_cypher = get_query(self.qgraph.model_dump())
+            # self.job_log.debug(query_cypher)
 
-        # TODO: so, this either happens in a thread or you update kuzu to get async...which breaks db compatibility
-        # Oh and transpiler is highly specific to the neo4j schema and plugins
-        with kuzu.Connection(kuzu_db) as conn:
-            result = conn.execute(query_cypher)
-            for item in result:
-                print(item)
+            await asyncio.sleep(random.random())
 
-        await asyncio.sleep(random.random() * 0.5)
+            end_time = time.time()
+            duration_ms = math.ceil((end_time - start_time) * 1000)
+            self.job_log.info(
+                f"Tier 0: Retrieved {len(results)} results / {len(self.kgraph.nodes)} nodes / {len(self.kgraph.edges)} edges in {len(results)}ms."
+            )
 
-        end_time = time.time()
-        duration_ms = math.ceil((end_time - start_time) * 1000)
-        self.job_log.info(
-            f"Tier 0: Retrieved {len(results)} results / {len(kgraph.nodes)} nodes / {len(kgraph.edges)} edges in {duration_ms:}ms."
-        )
-        return LookupArtifacts(results, kgraph, aux_graphs, self.job_log.get_logs())
+            return LookupArtifacts(
+                results, self.kgraph, self.aux_graphs, self.job_log.get_logs()
+            )
+        except Exception:
+            self.job_log.exception(
+                "Unhandled exception occurred while processing Tier 0. See logs for details."
+            )
+            return LookupArtifacts(
+                [], self.kgraph, self.aux_graphs, self.job_log.get_logs(), error=True
+            )

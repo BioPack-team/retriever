@@ -18,7 +18,7 @@ from reasoner_pydantic import (
 from retriever.config.openapi import OPENAPI_CONFIG
 from retriever.data_tiers.tier_0 import Tier0Query
 from retriever.tasks.lookup.qgx import QueryGraphExecutor
-from retriever.tasks.lookup.utils import expand_qnode_categories
+from retriever.tasks.lookup.utils import expand_qgraph
 from retriever.tasks.lookup.validate import validate
 from retriever.types.general import LookupArtifacts, QueryInfo
 from retriever.types.trapi import (
@@ -40,19 +40,22 @@ biolink = bmt.Toolkit()
 
 async def async_lookup(query: QueryInfo) -> None:
     """Handle running lookup as an async query where the client receives a callback."""
+    if not isinstance(query.body, AsyncQuery):
+        raise TypeError(f"Expected AsyncQuery, received {type(query.body)}.")
+
     job_id = query.job_id
     job_log = log.bind(job_id=job_id)
     _, response = await lookup(query)
-    if isinstance(query.body, AsyncQuery):
-        job_log.debug(f"Sending callback to `{query.body.callback}`...")
-        try:
-            callback_response = await BASIC_CLIENT.post(
-                url=str(query.body.callback), json=response
-            )
-            callback_response.raise_for_status()
-            job_log.debug("Request sent successfully.")
-        except httpx.HTTPError:
-            job_log.exception("Failed to make callback for async query.")
+
+    job_log.debug(f"Sending callback to `{query.body.callback}`...")
+    try:
+        callback_response = await BASIC_CLIENT.post(
+            url=str(query.body.callback), json=response
+        )
+        callback_response.raise_for_status()
+        job_log.debug("Request sent successfully.")
+    except httpx.HTTPError:
+        job_log.exception("Failed to make callback for async query.")
 
 
 async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
@@ -64,9 +67,7 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
         A tuple of HTTP status code, response body.
     """
     if query.body is None:
-        raise TypeError(
-            "Received body of type None, should have received Query or AsyncQuery."
-        )
+        raise TypeError("Query body is None, should have received Query or AsyncQuery.")
     job_id, job_log, response = initialize_lookup(query)
 
     try:
@@ -81,12 +82,12 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
         if not passes_validation(qgraph, response, job_log):
             return tracked_response(422, response)
 
-        expanded_qgraph = expand_qnode_categories(qgraph.model_copy(), job_log)
+        expanded_qgraph = expand_qgraph(qgraph.model_copy(), job_log)
 
         if not await qgraph_supported(expanded_qgraph, response, job_log):
             return tracked_response(424, response)
 
-        results, kgraph, aux_graphs, logs = await run_tiered_lookups(
+        results, kgraph, aux_graphs, logs, _ = await run_tiered_lookups(
             query, expanded_qgraph
         )
         job_log.log_deque.extend(logs)
@@ -95,23 +96,15 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
         job_log.info(f"Collected {len(results)} results from query tasks.")
         prune_kg(results, kgraph, aux_graphs, job_log)
 
-        # v Placeholder functionality
-        # with tracer.start_as_current_span("intermediate_step"):
-        #     a = 0
-        #     await asyncio.sleep(0.1)
-        #     for i in range(10_000):
-        #         a += i
-        # job_log.info("finished working.")
-        # ^ Above is placeholder
-
         end_time = time.time()
         finish_msg = f"Execution completed, obtained {len(results)} results in {math.ceil((end_time - start_time) * 1000):}ms."
         job_log.info(finish_msg)
 
-        desired_log_level = trapi_level_to_int(query.body.log_level or LogLevel.DEBUG)
         response["status"] = "Complete"
         response["description"] = finish_msg
-        response["logs"] = [  # Filter for desired log_level
+        # Filter for desired log_level
+        desired_log_level = trapi_level_to_int(query.body.log_level or LogLevel.DEBUG)
+        response["logs"] = [
             log
             for log in job_log.get_logs()
             if trapi_level_to_int(log.get("level", LogLevel.DEBUG)) >= desired_log_level
@@ -226,30 +219,33 @@ async def run_tiered_lookups(
     logs = list[LogEntryDict]()
 
     query_tasks = list[asyncio.Task[LookupArtifacts]]()
+    job_log = TRAPILogger(query.job_id)
 
-    # FIX: error separation. One task erroring shouldn't fail the other task
     handlers = (Tier0Query, QueryGraphExecutor)
     for i, called_for in enumerate(
-        (0 in query.tier, not set(query.tier).isdisjoint({1, 2}))
+        (0 in query.tiers, not set(query.tiers).isdisjoint({1, 2}))
     ):
         if not called_for:
             continue
-        query_handler = handlers[i](expanded_qgraph, query.job_id, query.tier)
+        query_handler = handlers[i](expanded_qgraph, query.job_id, query.tiers)
         query_tasks.append(asyncio.create_task(query_handler.execute()))
 
-    while query_tasks:
-        done, pending = await asyncio.wait(
-            query_tasks, return_when=asyncio.FIRST_COMPLETED
-        )
-
-        for task in done:
+    async for task in asyncio.as_completed(query_tasks):
+        try:
             findings = await task
-            merge_results(results, findings.results)
-            kgraph.update(findings.kgraph)
-            aux_graphs.update(findings.aux_graphs)
             logs.extend(findings.logs)
-
-        query_tasks = pending
+            if not findings.error:
+                merge_results(results, findings.results)
+                kgraph.update(findings.kgraph)
+                aux_graphs.update(findings.aux_graphs)
+        except Exception:
+            # This is a bad exception to get because we lose detail about which tier.
+            # Idealy the Tier handler will catch almost any unhandled exception and
+            # report it with more detail.
+            job_log.exception(
+                "Unhandled exception while running Tier lookup. See other logs for details."
+            )
+            logs.append(job_log.log_deque.popleft())
 
     return LookupArtifacts(list(results.values()), kgraph, aux_graphs, logs)
 

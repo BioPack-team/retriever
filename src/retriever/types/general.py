@@ -56,7 +56,7 @@ class QueryInfo(NamedTuple):
     method: str
     body: Query | AsyncQuery | None
     job_id: str
-    tier: set[TierNumber]
+    tiers: set[TierNumber]
 
 
 class LookupArtifacts(NamedTuple):
@@ -69,6 +69,7 @@ class LookupArtifacts(NamedTuple):
     kgraph: KnowledgeGraph
     aux_graphs: AuxiliaryGraphs
     logs: list[LogEntryDict]
+    error: bool | None = None
 
 
 AdjacencyGraph = dict[str, dict[str, list[QEdge]]]

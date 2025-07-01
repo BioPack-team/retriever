@@ -8,6 +8,7 @@ import bmt
 from reasoner_pydantic import (
     CURIE,
     BiolinkEntity,
+    BiolinkPredicate,
     Edge,
     HashableMapping,
     HashableSequence,
@@ -29,23 +30,42 @@ from retriever.utils.logs import TRAPILogger
 biolink = bmt.Toolkit()
 
 
-def expand_qnode_categories(qg: QueryGraph, job_log: TRAPILogger) -> QueryGraph:
+def expand_qgraph(qg: QueryGraph, job_log: TRAPILogger) -> QueryGraph:
     """Ensure all nodes in qgraph have all descendent categories.
 
     See https://biolink.github.io/biolink-model/categories.html
     """
+    # biolink functions are already LRU cached :)
     for qnode_id, qnode in qg.nodes.items():
-        if qnode.categories is None or len(qnode.categories) == 0:
-            qnode.categories = HashableSequence[BiolinkEntity](["biolink:NamedThing"])
-        categories = set(qnode.categories)
-        for category in set(qnode.categories):
-            categories.update(biolink.get_descendants(category, formatted=True))
+        categories = set(qnode.categories or {})
+        new_categories = set[BiolinkEntity]()
+        if len(categories) == 0:
+            categories.add("biolink:NamedThing")
+        # Can probably handle this in subquery dispatcher/abstraction layers
+        # for category in categories:
+        #     new_categories.update(biolink.get_descendants(category, formatted=True))
 
-        if new_categories := categories.difference(set(qnode.categories)):
-            job_log.debug(
-                f"QNode {qnode_id}: Added descendent categories {new_categories}"
+        if len(new_categories):
+            job_log.info(
+                f"QNode {qnode_id}: Added descendent categories {new_categories}."
             )
-        qnode.categories = HashableSequence[BiolinkEntity](list(categories))
+        qnode.categories = HashableSequence[BiolinkEntity](
+            [*categories, *new_categories]
+        )
+
+    for qedge_id, qedge in qg.edges.items():
+        predicates = set(qedge.predicates or {})
+        new_predicates = set[BiolinkPredicate]()
+        if len(predicates) == 0:
+            predicates.add("biolink:related_to")
+        # Can probably handle this in subquery dispatcher/abstraction layers
+        # for predicate in predicates:
+        #     new_predicates.update(biolink.get_descendants(predicate, formatted=True))
+
+        if len(new_predicates):
+            job_log.info(
+                f"QEdge {qedge_id}: Added descendent predicates {new_predicates}."
+            )
 
     return qg
 

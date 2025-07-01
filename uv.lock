@@ -940,31 +940,6 @@ wheels = [
 ]
 
 [[package]]
-name = "kuzu"
-version = "0.8.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/67/20/db6604dc5cb2bc286623d9949b5817dba231191d82c5f0106ee1a55e5f10/kuzu-0.8.2.tar.gz", hash = "sha256:68ad72b3ef6a32a41ecfa955fa4ca9ca0c8a36d3a1bc13e34cc70c971b2b8ca7", size = 4726180, upload-time = "2025-02-24T16:22:34.701Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/27/08/ebcde26bf768a08a08a2d9e5b7ddca2a9186fa0b53952155c8273934a8cc/kuzu-0.8.2-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:6c1694c6d1b19c46ad5d416cac429ccf1fe91aca4d367664e3aa0afa59800f93", size = 3685637, upload-time = "2025-02-24T16:21:16.648Z" },
-    { url = "https://files.pythonhosted.org/packages/d4/07/cbf0fc1950ab01bf96d9f21ebdba3dea85139c8845ee6a922786a1718f5e/kuzu-0.8.2-cp311-cp311-macosx_11_0_x86_64.whl", hash = "sha256:00156c64523a1377ffced998bdb031709336f90543da69544c0ab4b40d533692", size = 4163429, upload-time = "2025-02-24T16:21:18.511Z" },
-    { url = "https://files.pythonhosted.org/packages/d8/93/12640770b907def8dbb410c9736f873a700a1c2ff1d20772fd9b38fe8129/kuzu-0.8.2-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:bc75f26afe8815b046cfb0d931303da6c36ce3afb49d4ae18a3899f23e62020f", size = 6059678, upload-time = "2025-02-24T16:21:20.499Z" },
-    { url = "https://files.pythonhosted.org/packages/8f/9f/6130bac975719ea88f55bcfdc63b87a5ebcc2b3de64a96ac87941942adbd/kuzu-0.8.2-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:5f0de6910724a74cc492354e903cf76db78b6353eef1e2edfa0b79d600c3c572", size = 6841900, upload-time = "2025-02-24T16:21:22.666Z" },
-    { url = "https://files.pythonhosted.org/packages/ea/7d/33bed3c22388c884203b03754208437d06caa75cfa5ab100df91e5e8fe53/kuzu-0.8.2-cp311-cp311-win_amd64.whl", hash = "sha256:56e99c39a725943aa7ad96ada8f29706da3d53cc98385f2c663b8ea026f0dce3", size = 4152856, upload-time = "2025-02-24T16:21:24.553Z" },
-    { url = "https://files.pythonhosted.org/packages/e2/74/92f86e5f6b74013e098c9154bf6dc9d3772ed51799d49a92c18f4fea91c4/kuzu-0.8.2-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:adcc250b34963a6eea62b59d47a091018d83e61fb2e95552795ab61f103052be", size = 3686303, upload-time = "2025-02-24T16:21:26.519Z" },
-    { url = "https://files.pythonhosted.org/packages/eb/37/83e06ca9429ce736f42e798a066ea9ebf03d417f584e1afe30946387562e/kuzu-0.8.2-cp312-cp312-macosx_11_0_x86_64.whl", hash = "sha256:f72036924466143675980baed02a26c0fca15b6254c11de9a9c18d28fe66247e", size = 4165552, upload-time = "2025-02-24T16:21:28.694Z" },
-    { url = "https://files.pythonhosted.org/packages/90/46/2552eecb57630fd3d575bee8970f4cfbf088344f95677b759dd0add3495c/kuzu-0.8.2-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:a2fd7895fdfd9df880091d32bfb79c148f849659c67e2b9e185f952a6bde9139", size = 6060338, upload-time = "2025-02-24T16:21:31.87Z" },
-    { url = "https://files.pythonhosted.org/packages/1c/47/e5c41235edf2761aeffb6621cc2e24e28a64d207cfd0a154dc67f772ac8c/kuzu-0.8.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:68486e291aa8a61264be7e31233ec34eeb6da2402f4b980c3f2b67f9ccbbea3a", size = 6839327, upload-time = "2025-02-24T16:21:34.408Z" },
-    { url = "https://files.pythonhosted.org/packages/5b/16/2db5b0e141801378b4f1a563c04172d0a90d48fd86cba1c72a586c9807a1/kuzu-0.8.2-cp312-cp312-win_amd64.whl", hash = "sha256:7cce7d06e6f09cd488c62be7cafe78752b037ed9e6585ed3da9df029104b1987", size = 4153607, upload-time = "2025-02-24T16:21:36.959Z" },
-    { url = "https://files.pythonhosted.org/packages/48/63/b721083ffc4ef9104422a9d85c15f528961899b85ebed4daa7b7780783cb/kuzu-0.8.2-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:aa0495f856f2e5f5067e281dab3fbc170aba0721d1f56156a8cd9fa50e706f91", size = 3686406, upload-time = "2025-02-24T16:21:38.69Z" },
-    { url = "https://files.pythonhosted.org/packages/e3/80/452f583f054baf700501f0578dfabe791118cbbfb5571e196e3ebe671e89/kuzu-0.8.2-cp313-cp313-macosx_11_0_x86_64.whl", hash = "sha256:823577b472ba63c3b36e5ff81e2b744736f9eaf0b71585c247f3defc9d268f53", size = 4165732, upload-time = "2025-02-24T16:21:40.506Z" },
-    { url = "https://files.pythonhosted.org/packages/49/c5/0cf153a33fe2da3c0c798744cbe4017990682aab4899900ff222bac74ba3/kuzu-0.8.2-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:bde76f38d293f49ad283a4831bd32d41f185b93a75d388d67f9b8996678203e9", size = 6060261, upload-time = "2025-02-24T16:21:42.569Z" },
-    { url = "https://files.pythonhosted.org/packages/a8/15/7fa963c11eb1147c68c6a1ca01c5ced8f1541f09b5a9687ed86fc8aaac08/kuzu-0.8.2-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:cdb189012613ecd26630096796e3817c260deea85782e764309cd36b2c39dac5", size = 6838575, upload-time = "2025-02-24T16:21:44.577Z" },
-    { url = "https://files.pythonhosted.org/packages/42/3f/5553a6ea992f6f8ee5c5c446169bbcad27c92191eff43c44b5c76ce2b588/kuzu-0.8.2-cp313-cp313-win_amd64.whl", hash = "sha256:71fb98721f9c46f960a5c3baea6b083026485c4b9a3e74ab01418243e29e3753", size = 4153578, upload-time = "2025-02-24T16:21:47.762Z" },
-    { url = "https://files.pythonhosted.org/packages/cf/75/bd2af3282b1f0d168f008660a557726dc06fef54b037e169dcfe458ecaaf/kuzu-0.8.2-cp313-cp313t-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:8e12726af2cb552ab7b60e2b4312469359bb3b4b45ddbcfb75220def4be6f566", size = 6065843, upload-time = "2025-02-24T16:21:49.665Z" },
-    { url = "https://files.pythonhosted.org/packages/1e/d5/b2dd9c31fa76d48c778b6baf3df3de8d792d24688d15814783fb43854cee/kuzu-0.8.2-cp313-cp313t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:055f2cd9741bf39161f9ccff80428f8fb80b1910b2450b05bbe848487ba694f5", size = 6843688, upload-time = "2025-02-24T16:21:52.412Z" },
-]
-
-[[package]]
 name = "linkml-runtime"
 version = "1.9.3"
 source = { registry = "https://pypi.org/simple" }
@@ -2034,7 +2009,6 @@ dependencies = [
     { name = "fastapi", extra = ["standard"] },
     { name = "httptools" },
     { name = "httpx" },
-    { name = "kuzu" },
     { name = "loguru" },
     { name = "motor" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
@@ -2069,7 +2043,6 @@ requires-dist = [
     { name = "fastapi", extras = ["standard"], specifier = ">=0.115.6,<0.116" },
     { name = "httptools", specifier = ">=0.6.4" },
     { name = "httpx", specifier = ">=0.28.1,<0.29" },
-    { name = "kuzu", specifier = "==0.8.2" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "motor", specifier = ">=3.7.0" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.30.0" },

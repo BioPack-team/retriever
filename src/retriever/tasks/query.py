@@ -23,7 +23,7 @@ tracer = trace.get_tracer("lookup.execution.tracer")
 async def make_query(
     func: Literal["lookup"],
     ctx: APIInfo,
-    tier: list[int],
+    tiers: list[TierNumber],
     body: TRAPIQuery,
 ) -> ResponseDict: ...
 
@@ -32,7 +32,7 @@ async def make_query(
 async def make_query(
     func: Literal["lookup"],
     ctx: APIInfo,
-    tier: list[int],
+    tiers: list[TierNumber],
     body: TRAPIAsyncQuery,
 ) -> AsyncQueryResponseDict: ...
 
@@ -41,36 +41,35 @@ async def make_query(
 async def make_query(
     func: Literal["metakg"],
     ctx: APIInfo,
-    tier: list[int],
+    tiers: list[TierNumber],
 ) -> TRAPIMetaKnowledgeGraph: ...
 
 
 async def make_query(
     func: Literal["lookup", "metakg"],
     ctx: APIInfo,
-    tier: list[TierNumber],  # Guaranteed to be 0 <= x <= 2
+    tiers: list[TierNumber],  # Guaranteed to be 0 <= x <= 2
     body: TRAPIQuery | TRAPIAsyncQuery | None = None,
 ) -> ResponseDict | AsyncQueryResponseDict | TRAPIMetaKnowledgeGraph:
     """Process a request and await its response before returning.
 
     Unhandled errors are handled by middleware.
     """
-    # TODO: Data tier selection
-    # For lookup, this should control which tiers to use:
-    #   0 is fired off independently, while 1/2 are just used in metakg checks in QGX
-    # For metakg, this should control reporting metakg relative to tiers
     job_id = uuid.uuid4().hex
     query = QueryInfo(
         endpoint=ctx.request.url.path,
         method=ctx.request.method,
         body=body,
         job_id=job_id,
-        tier=set(tier),
+        tiers=set(tiers),
     )
+
     query_function = {"lookup": lookup, "metakg": metakg}[func]
     if func == "lookup":
         MONGO_QUEUE.put("job_state", {"job_id": job_id, "status": "Running"})
-    if ctx.background_tasks is not None:  # Asyncquery lookup
+
+    # TRAPI Async vs Sync query (client wants callback vs. will wait)
+    if ctx.background_tasks is not None:  # TRAPI Asyncquery lookup
         ctx.background_tasks.add_task(async_lookup, query=query)
         return AsyncQueryResponseDict(
             status="Accepted",

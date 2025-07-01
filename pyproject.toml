@@ -28,7 +28,6 @@ dependencies = [
     "bmt>=1.4.4",
     "reasoner-transpiler>=2.3.5",
     "reasoner-pydantic",
-    "kuzu==0.8.2",
 ]
 
 [project.scripts]

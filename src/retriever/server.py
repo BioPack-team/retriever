@@ -19,8 +19,6 @@ from reasoner_pydantic import Response as TRAPIResponse
 from retriever.config.general import CONFIG
 from retriever.config.logger import configure_logging
 from retriever.config.openapi import OPENAPI_CONFIG, TRAPI
-
-# from retriever.tasks.task_queue import get_job_state, make_query, retriever_queue
 from retriever.tasks.query import get_job_state, make_query
 from retriever.types.general import APIInfo, ErrorDetail, LogLevel, TierNumber
 from retriever.utils.exception_handlers import ensure_cors
@@ -30,13 +28,12 @@ from retriever.utils.logs import (
     objs_to_json,
     structured_log_to_trapi,
 )
-
-# from retriever.utils.mongo import MongoClient, MongoQueue
 from retriever.utils.mongo import MONGO_CLIENT, MONGO_QUEUE
 from retriever.utils.redis import test_redis
 from retriever.utils.telemetry import configure_telemetry
 
 
+# Lifespan handling for each FastAPI worker (not main process, see __main__.py)
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     """Lifespan hook for any setup/shutdown behavior."""
@@ -58,7 +55,7 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
 
 app = TRAPI(lifespan=lifespan)
 
-# Set up CORS
+# Set up CORS / exception handling
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CONFIG.cors.allow_origins,
@@ -89,8 +86,6 @@ def openapi_yaml() -> Response:
     return Response(yaml_str.getvalue(), media_type="text/yaml")
 
 
-# TODO: implement by-smartapi, possibly just by a query value
-# Or maybe an infores path param?
 @app.get(
     "/meta_knowledge_graph",
     tags=["meta_knowledge_graph"],
