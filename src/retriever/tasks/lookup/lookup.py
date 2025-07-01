@@ -208,7 +208,7 @@ async def qgraph_supported(
     return True
 
 
-@tracer.start_as_current_span("execute_query_graph")
+@tracer.start_as_current_span("execute_lookup")
 async def run_tiered_lookups(
     query: QueryInfo, expanded_qgraph: QueryGraph
 ) -> LookupArtifacts:
