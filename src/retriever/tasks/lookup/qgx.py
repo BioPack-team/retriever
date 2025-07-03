@@ -120,9 +120,9 @@ class QueryGraphExecutor:
             self.job_log.info(
                 "Tier {}: Retrieved {} results / {} nodes / {} edges in {}ms.".format(
                     ", ".join(str(t) for t in self.tiers if t > 0),
+                    len(results),
                     len(self.kgraph.nodes),
                     len(self.kgraph.edges),
-                    len(results),
                     duration_ms,
                 )
             )
