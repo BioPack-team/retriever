@@ -7,6 +7,7 @@ port: 8080
 workers:  # Number of workers, unset to use n_cpus
 worker_concurrency: 10  # Number of concurrent tasks per worker
 job:
+  timeout: -1  # Time in seconds before a job should time out, set to -1 to disable
   ttl: 2592000  # Time in seconds for a job to remain after it was last touched
   ttl_max: 31536000  # Time in seconds for a job to remain, regardless of last touch
 log:

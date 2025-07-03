@@ -15,6 +15,7 @@ from reasoner_pydantic import (
 )
 from reasoner_pydantic.shared import EdgeIdentifier
 
+from retriever.config.general import CONFIG
 from retriever.tasks.lookup.branch import Branch
 from retriever.tasks.lookup.partial import Partial
 from retriever.tasks.lookup.subquery import mock_subquery
@@ -81,6 +82,9 @@ class QueryGraphExecutor:
             "kgraph": asyncio.Lock(),
         }
 
+        self.terminate: bool = False
+        self.start_time: float = 0  # replaced on execute start
+
     @tracer.start_as_current_span("qgx_execute")
     async def execute(self) -> LookupArtifacts:
         """Execute query graph using a quantum-metaphor asynchronous approach.
@@ -88,7 +92,8 @@ class QueryGraphExecutor:
         Note that this algorithm assumes that between any two nodes, there is at most one edge.
         """
         try:
-            start_time = time.time()
+            self.start_time = time.time()
+            timeout_task = asyncio.create_task(self.timeout())
             self.job_log.info(
                 f"Starting lookup against Tier {', '.join(str(t) for t in self.tiers if t > 0)}..."
             )
@@ -115,8 +120,9 @@ class QueryGraphExecutor:
                     await asyncio.sleep(0)
                     results.append(await part.as_result(self.k_agraph))
 
+            timeout_task.cancel()
             end_time = time.time()
-            duration_ms = math.ceil((end_time - start_time) * 1000)
+            duration_ms = math.ceil((end_time - self.start_time) * 1000)
             self.job_log.info(
                 "Tier {}: Retrieved {} results / {} nodes / {} edges in {}ms.".format(
                     ", ".join(str(t) for t in self.tiers if t > 0),
@@ -224,9 +230,20 @@ class QueryGraphExecutor:
             # - Create next steps as edges come back from subqueries
             # - Yield partials from next steps as they complete
             while parallel_tasks:
-                done, pending = await asyncio.wait(
-                    parallel_tasks, return_when=asyncio.FIRST_COMPLETED
+                timeout = (
+                    max(CONFIG.job.timeout - (time.time() - self.start_time) - 0.5, 0)
+                    if CONFIG.job.timeout >= 0
+                    else None
                 )
+                done, pending = await asyncio.wait(
+                    parallel_tasks,
+                    timeout=timeout,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                if len(done) == 0 or self.terminate:  # Timed out, cancel subqueries
+                    for task in pending:
+                        if task.get_name() == "subquery":
+                            task.cancel()
 
                 new_branch_tasks = list[asyncio.Task[list[Partial]]]()
 
@@ -272,16 +289,20 @@ class QueryGraphExecutor:
                             current_branch.hop_name,
                             self.kedges_by_input,
                             self.kgraph,
-                        )
+                        ),
+                        name="get_subgraph",
                     )
                 ]
         else:
+            update_kgraph = True
+            if self.terminate:
+                return [], update_kgraph
             # Simulate finding a variable number of operations to perform
             # TODO: replace this with looking up operations from the metakg
-            update_kgraph = True
             subquery_tasks = [
                 asyncio.create_task(
-                    mock_subquery(self.job_id, current_branch, self.qgraph)
+                    mock_subquery(self.job_id, current_branch, self.qgraph),
+                    name="subquery",
                 )
                 # for _ in range(random.randint(0, 3))
                 for _ in range(2)
@@ -494,3 +515,14 @@ class QueryGraphExecutor:
                     task_partials.append(combined)
 
         return task_partials
+
+    async def timeout(self) -> None:
+        """Set work to terminate after the configured timeout."""
+        try:
+            if CONFIG.job.timeout < 0:
+                return
+            await asyncio.sleep(max(CONFIG.job.timeout - 0.5, 0))
+            self.job_log.error("QGX hit timeout, attempting wrapup...")
+            self.terminate = True
+        except asyncio.CancelledError:
+            return

@@ -4,7 +4,7 @@ Retriever uses [pydantic settings management](https://docs.pydantic.dev/latest/c
 
 ## YAML Configs
 
-`retriever/config` contains a variety of yaml files. These files separate Retriever's configuration options into topics, for instance, if you wish to configure the SmartAPI/OpenAPI specification, you'd use `retriever/config/openapi.yaml`. These configuration files will contain comments to explain the purpose and effect of each option.
+`/config` contains a variety of yaml files. These files separate Retriever's configuration options into topics, for instance, if you wish to configure the SmartAPI/OpenAPI specification, you'd use `/config/openapi.yaml`. These configuration files will contain comments to explain the purpose and effect of each option.
 
 ## Environment Variables
 

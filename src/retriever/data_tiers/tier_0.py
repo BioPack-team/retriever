@@ -10,6 +10,7 @@ from reasoner_pydantic import (
     QueryGraph,
 )
 
+from retriever.config.general import CONFIG
 from retriever.types.general import LookupArtifacts
 from retriever.types.trapi import ResultDict
 from retriever.utils.logs import TRAPILogger
@@ -36,8 +37,13 @@ class Tier0Query:
             start_time = time.time()
             self.job_log.info("Starting lookup against Tier 0...")
 
-            await asyncio.sleep(random.random())
-            results = await self.get_results()
+            try:
+                timeout = None if CONFIG.job.timeout < 0 else CONFIG.job.timeout - 0.5
+                async with asyncio.timeout(timeout):
+                    results = await self.get_results()
+            except TimeoutError:
+                self.job_log.error("Tier 0 operation timed out.")
+                results = []
 
             end_time = time.time()
             duration_ms = math.ceil((end_time - start_time) * 1000)

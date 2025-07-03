@@ -61,6 +61,7 @@ class TelemetrySettings(BaseModel):
 class JobSettings(BaseModel):
     """Settings for job handling."""
 
+    timeout: int = 300
     ttl: int = 2_592_000
     ttl_max: int = 31_536_000
 

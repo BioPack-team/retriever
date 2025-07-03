@@ -59,67 +59,72 @@ async def mock_subquery(
     Assumptions:
         Returns KEdges in the direction of the QEdge
     """
-    job_log: TRAPILogger = TRAPILogger(job_id)
-    start = time.time()
+    try:
+        job_log: TRAPILogger = TRAPILogger(job_id)
+        start = time.time()
 
-    # Test some random time jitter
-    await asyncio.sleep(random.random() * 0.1)
+        # Test some random time jitter
+        await asyncio.sleep(random.random() * 0.2)
 
-    edge_id = branch.current_edge
-    current_edge = qg.edges[edge_id]
-    node = qg.nodes[branch.output_node]
+        edge_id = branch.current_edge
+        current_edge = qg.edges[edge_id]
+        node = qg.nodes[branch.output_node]
 
-    if node.ids:
-        curies = list(node.ids)
-    else:
-        category = cast(str, (node.categories or ["biolink:NamedThing"])[0])
-        curies = (
-            [
-                MOCKUP_NODES[category][CHOICES[category].popleft()]
-                # random.choice(MOCKUP_NODES[category])
-                # for _ in range(random.randint(0, 10))
-                for _ in range(10)
-            ]
-            # if category != "biolink:Disease"
-            # else []
+        if node.ids:
+            curies = list(node.ids)
+        else:
+            category = cast(str, (node.categories or ["biolink:NamedThing"])[0])
+            curies = (
+                [
+                    MOCKUP_NODES[category][CHOICES[category].popleft()]
+                    # random.choice(MOCKUP_NODES[category])
+                    # for _ in range(random.randint(0, 10))
+                    for _ in range(10)
+                ]
+                # if category != "biolink:Disease"
+                # else []
+            )
+        nodes = HashableMapping(
+            {
+                curie: Node(
+                    categories=HashableSet(
+                        set(qg.nodes[branch.output_node].categories or [])
+                    ),
+                    attributes=HashableSet(),
+                )
+                for curie in curies
+            }
         )
-    nodes = HashableMapping(
-        {
-            curie: Node(
-                categories=HashableSet(
-                    set(qg.nodes[branch.output_node].categories or [])
+        edges = [
+            Edge(
+                subject=(branch.input_curie if not branch.reversed else curie),
+                predicate=cast(
+                    str, (current_edge.predicates or ["biolink:related_to"])[0]
+                ),
+                object=(curie if not branch.reversed else branch.input_curie),
+                sources=HashableSet(
+                    {
+                        RetrievalSource(
+                            resource_id=CURIE(f"SOURCE:{uuid.uuid4().hex}"),
+                            resource_role=ResourceRoleEnum.primary_knowledge_source,
+                        )
+                    }
                 ),
                 attributes=HashableSet(),
             )
             for curie in curies
-        }
-    )
-    edges = [
-        Edge(
-            subject=(branch.input_curie if not branch.reversed else curie),
-            predicate=cast(str, (current_edge.predicates or ["biolink:related_to"])[0]),
-            object=(curie if not branch.reversed else branch.input_curie),
-            sources=HashableSet(
-                {
-                    RetrievalSource(
-                        resource_id=CURIE(f"SOURCE:{uuid.uuid4().hex}"),
-                        resource_role=ResourceRoleEnum.primary_knowledge_source,
-                    )
-                }
-            ),
-            attributes=HashableSet(),
+        ]
+
+        end = time.time()
+        job_log.info(
+            f"Subquery mock got {len(edges)} records in {math.ceil((end - start) * 1000)}ms"
         )
-        for curie in curies
-    ]
 
-    end = time.time()
-    job_log.info(
-        f"Subquery mock got {len(edges)} records in {math.ceil((end - start) * 1000)}ms"
-    )
-
-    return KnowledgeGraph(
-        nodes=nodes,
-        edges=HashableMapping(
-            {EdgeIdentifier(str(hash(edge))): edge for edge in edges}
-        ),
-    ), job_log.get_logs()
+        return KnowledgeGraph(
+            nodes=nodes,
+            edges=HashableMapping(
+                {EdgeIdentifier(str(hash(edge))): edge for edge in edges}
+            ),
+        ), job_log.get_logs()
+    except asyncio.CancelledError:
+        return (KnowledgeGraph(nodes=HashableMapping(), edges=HashableMapping()), [])
