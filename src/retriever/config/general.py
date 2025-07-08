@@ -153,4 +153,3 @@ class GeneralConfig(BaseSettings, secrets_dir="config/secrets"):
 
 
 CONFIG = GeneralConfig()
-print(CONFIG.model_dump())
