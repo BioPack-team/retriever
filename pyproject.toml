@@ -28,6 +28,7 @@ dependencies = [
     "bmt>=1.4.4",
     "reasoner-transpiler>=2.3.5",
     "reasoner-pydantic",
+    "pyinstrument>=5.0.1",
 ]
 
 [project.scripts]

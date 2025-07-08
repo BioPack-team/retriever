@@ -1,7 +1,7 @@
 import functools
 import io
 import os
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, time, timedelta
 from typing import Annotated, Literal
@@ -73,6 +73,26 @@ async def exception_ensure_cors(request: Request, exc: Exception) -> Response:
 
 # Set up Sentry and Otel
 configure_telemetry(app)
+
+# Configure profiling middleware
+if CONFIG.allow_profiler:
+    from pyinstrument import Profiler
+    from pyinstrument.renderers import SpeedscopeRenderer
+
+    @app.middleware("http")
+    async def profile_request(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        """Profile the api call when query parameter `profile` is set to True."""
+        profile = request.query_params.get("profile", "false")
+        if profile and profile != "false":
+            profiler = Profiler(interval=0.1, async_mode="enabled")
+            profiler.start()
+            await call_next(request)
+            profiler.stop()
+            speedscope_results = profiler.output(renderer=SpeedscopeRenderer())
+            return Response(content=speedscope_results, media_type="application/json")
+        return await call_next(request)
 
 
 # Add a yaml endpoint, for completeness' sake

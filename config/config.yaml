@@ -6,6 +6,7 @@ host: 0.0.0.0
 port: 8080
 workers:  # Number of workers, unset to use n_cpus
 worker_concurrency: 10  # Number of concurrent tasks per worker
+allow_profiler: true  # Allow all queries to enable profiling with a query parameter
 job:
   timeout: -1  # Time in seconds before a job should time out, set to -1 to disable
   ttl: 2592000  # Time in seconds for a job to remain after it was last touched
