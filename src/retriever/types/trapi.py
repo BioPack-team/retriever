@@ -3,11 +3,13 @@
 More performant than reasoner-pydantic, but doesn't offer validation or other utility.
 To be used only for TRAPI constructed by Retriever, that doesn't need validation.
 This way we get the performance of pure dict, with static type checking.
+(Note that we're using TypedDict over Dataclass because they're less finicky
+and more compatible with dependencies which return pure dicts)
 
 A few notes:
     - Individual class docstrings solely refer to their name in the TRAPI Spec.
     - Because this is only for internal use, some items that are reducible to strings
-      (e.g. CURIES, etc.) are simply annotated as `str`
+      are simply annotated as `str`
 """
 
 from __future__ import annotations
@@ -70,7 +72,7 @@ class MessageDict(TypedDict):
     results: NotRequired[list[ResultDict]]
     query_graph: NotRequired[QueryGraphDict]
     knowledge_graph: NotRequired[KnowledgeGraphDict]
-    auxiliary_graphs: NotRequired[AuxGraphDict]
+    auxiliary_graphs: NotRequired[dict[AuxGraphID, AuxGraphDict]]
 
 
 class LogEntryDict(TypedDict):
@@ -85,25 +87,25 @@ class LogEntryDict(TypedDict):
 class ResultDict(TypedDict):
     """Result."""
 
-    node_bindings: dict[str, list[NodeBindingDict]]
+    node_bindings: dict[QNodeID, list[NodeBindingDict]]
     analyses: list[AnalysisDict]
 
 
 class NodeBindingDict(TypedDict):
     """NodeBinding."""
 
-    id: str
-    query_id: NotRequired[str]
+    id: CURIE
+    query_id: NotRequired[QNodeID]
     attributes: list[AttributeDict]
 
 
 class AnalysisDict(TypedDict):
     """Analysis."""
 
-    resource_id: str
+    resource_id: Infores
     score: NotRequired[float]
-    edge_bindings: dict[str, list[EdgeBindingDict]]
-    support_graphs: NotRequired[list[str]]
+    edge_bindings: dict[QEdgeID, list[EdgeBindingDict]]
+    support_graphs: NotRequired[list[AuxGraphID]]
     scoring_method: NotRequired[str]
     attributes: NotRequired[list[AttributeDict]]
 
@@ -111,38 +113,38 @@ class AnalysisDict(TypedDict):
 class EdgeBindingDict(TypedDict):
     """EdgeBinding."""
 
-    id: str
+    id: EdgeIdentifier
     attributes: list[AttributeDict]
 
 
 class AuxGraphDict(TypedDict):
     """AuxiliaryGraph."""
 
-    edges: list[str]
+    edges: list[EdgeIdentifier]
     attributes: list[AttributeDict]
 
 
 class KnowledgeGraphDict(TypedDict):
     """KnowledgeGraph."""
 
-    nodes: dict[str, NodeDict]
-    edges: dict[str, EdgeDict]
+    nodes: dict[CURIE, NodeDict]
+    edges: dict[EdgeIdentifier, EdgeDict]
 
 
 class QueryGraphDict(TypedDict):
     """QueryGraph."""
 
-    nodes: dict[str, QNodeDict]
-    edges: dict[str, QEdgeDict]
+    nodes: dict[QNodeID, QNodeDict]
+    edges: dict[QEdgeID, QEdgeDict]
 
 
 class QNodeDict(TypedDict):
     """QNode."""
 
-    ids: NotRequired[list[str]]
-    categories: NotRequired[list[str]]
+    ids: NotRequired[list[CURIE]]
+    categories: NotRequired[list[BiolinkCategory]]
     set_interpretation: NotRequired[SetInterpretationEnum]
-    member_ids: NotRequired[list[str]]
+    member_ids: NotRequired[list[CURIE]]
     constraints: list[AttributeConstraintDict]
 
 
@@ -150,9 +152,9 @@ class QEdgeDict(TypedDict):
     """QEdge."""
 
     knowledge_type: NotRequired[str]
-    predicates: NotRequired[str]
-    subject: str
-    object: str
+    predicates: NotRequired[BiolinkPredicate]
+    subject: CURIE
+    object: CURIE
     attribute_constraints: list[AttributeConstraintDict]
     qualifier_constraints: list[QualifierConstraintDict]
 
@@ -161,7 +163,7 @@ class NodeDict(TypedDict):
     """Node."""
 
     name: NotRequired[str]
-    categories: list[str]
+    categories: list[BiolinkCategory]
     attributes: list[AttributeDict]
     is_set: NotRequired[bool]
 
@@ -181,9 +183,9 @@ class AttributeDict(TypedDict):
 class EdgeDict(TypedDict):
     """Edge."""
 
-    predicate: str
-    subject: str
-    object: str
+    predicate: BiolinkPredicate
+    subject: CURIE
+    object: CURIE
     attributes: NotRequired[list[AttributeDict]]
     qualifiers: NotRequired[list[QualifierDict]]
     sources: list[RetrievalSourceDict]
@@ -205,8 +207,8 @@ class QualifierConstraintDict(TypedDict):
 class MetaKnowledgeGraphDict(TypedDict):
     """MetaKnowledgeGraph."""
 
-    nodes: dict[str, MetaNodeDict]
-    edges: dict[str, MetaEdgeDict]
+    nodes: dict[BiolinkCategory, MetaNodeDict]
+    edges: dict[BiolinkPredicate, MetaEdgeDict]
 
 
 class MetaNodeDict(TypedDict):
@@ -219,9 +221,9 @@ class MetaNodeDict(TypedDict):
 class MetaEdgeDict(TypedDict):
     """MetaEdge."""
 
-    subject: str
-    predicate: str
-    object: str
+    subject: BiolinkCategory
+    predicate: BiolinkPredicate
+    object: BiolinkCategory
     knowledge_types: NotRequired[list[str]]
     attributes: NotRequired[list[MetaAttributeDict]]
     qualifiers: NotRequired[list[MetaQualifierDict]]
@@ -262,7 +264,18 @@ AttributeConstraintDict = TypedDict(
 class RetrievalSourceDict(TypedDict):
     """RetrievalSource."""
 
-    resource_id: str
+    resource_id: Infores
     resource_role: str
-    upstream_resource_ids: NotRequired[list[str]]
+    upstream_resource_ids: NotRequired[list[Infores]]
     source_record_urls: NotRequired[list[str]]
+
+
+# These don't offer any special behavior, but make type annotation less confusable
+CURIE = str
+EdgeIdentifier = str
+BiolinkCategory = str
+BiolinkPredicate = str
+AuxGraphID = str
+QNodeID = str
+QEdgeID = str
+Infores = str

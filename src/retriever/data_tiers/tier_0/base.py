@@ -1,18 +1,15 @@
 import asyncio
 import math
-import random
 import time
 
 from opentelemetry import trace
 from reasoner_pydantic import (
-    AuxiliaryGraphs,
-    KnowledgeGraph,
     QueryGraph,
 )
 
 from retriever.config.general import CONFIG
 from retriever.types.general import LookupArtifacts
-from retriever.types.trapi import ResultDict
+from retriever.types.trapi import AuxGraphDict, KnowledgeGraphDict, ResultDict
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.trapi import initialize_kgraph
 
@@ -27,8 +24,8 @@ class Tier0Query:
         self.qgraph: QueryGraph = qgraph
         self.job_id: str = job_id
         self.job_log: TRAPILogger = TRAPILogger(job_id)
-        self.kgraph: KnowledgeGraph = initialize_kgraph(self.qgraph)
-        self.aux_graphs: AuxiliaryGraphs = AuxiliaryGraphs()
+        self.kgraph: KnowledgeGraphDict = initialize_kgraph(self.qgraph)
+        self.aux_graphs: dict[str, AuxGraphDict] = {}
 
     @tracer.start_as_current_span("tier0_execute")
     async def execute(self) -> LookupArtifacts:
@@ -48,7 +45,7 @@ class Tier0Query:
             end_time = time.time()
             duration_ms = math.ceil((end_time - start_time) * 1000)
             self.job_log.info(
-                f"Tier 0: Retrieved {len(results)} results / {len(self.kgraph.nodes)} nodes / {len(self.kgraph.edges)} edges in {duration_ms}ms."
+                f"Tier 0: Retrieved {len(results)} results / {len(self.kgraph['nodes'])} nodes / {len(self.kgraph['edges'])} edges in {duration_ms}ms."
             )
 
             return LookupArtifacts(

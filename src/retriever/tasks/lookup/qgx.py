@@ -8,12 +8,8 @@ from collections.abc import AsyncGenerator, Hashable
 from opentelemetry import trace
 from reasoner_pydantic import (
     CURIE,
-    AuxiliaryGraphs,
-    Edge,
-    KnowledgeGraph,
     QueryGraph,
 )
-from reasoner_pydantic.shared import EdgeIdentifier
 
 from retriever.config.general import CONFIG
 from retriever.tasks.lookup.branch import Branch
@@ -31,9 +27,16 @@ from retriever.types.general import (
     QEdgeIDMap,
     SuperpositionHop,
 )
-from retriever.types.trapi import LogEntryDict, ResultDict
+from retriever.types.trapi import (
+    AuxGraphDict,
+    EdgeDict,
+    EdgeIdentifier,
+    KnowledgeGraphDict,
+    LogEntryDict,
+    ResultDict,
+)
 from retriever.utils.logs import TRAPILogger
-from retriever.utils.trapi import initialize_kgraph
+from retriever.utils.trapi import initialize_kgraph, update_kgraph
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 
@@ -60,12 +63,12 @@ class QueryGraphExecutor:
             self.qgraph.edges.keys()
         )
 
-        self.kgraph: KnowledgeGraph = initialize_kgraph(self.qgraph)
-        self.aux_graphs: AuxiliaryGraphs = AuxiliaryGraphs()
+        self.kgraph: KnowledgeGraphDict = initialize_kgraph(self.qgraph)
+        self.aux_graphs: dict[str, AuxGraphDict] = {}
         # For more detailed tracking
         # Each key represents an input superposition for a given branch
         # (branch's input curie and current edge)
-        self.kedges_by_input: dict[SuperpositionHop, list[Edge]] = {}
+        self.kedges_by_input: dict[SuperpositionHop, list[EdgeDict]] = {}
         self.k_agraph: KAdjacencyGraph = {
             qedge_id: dict[CURIE, dict[CURIE, list[EdgeIdentifier]]]()
             for qedge_id in self.qgraph.edges
@@ -127,8 +130,8 @@ class QueryGraphExecutor:
                 "Tier {}: Retrieved {} results / {} nodes / {} edges in {}ms.".format(
                     ", ".join(str(t) for t in self.tiers if t > 0),
                     len(results),
-                    len(self.kgraph.nodes),
-                    len(self.kgraph.edges),
+                    len(self.kgraph["nodes"]),
+                    len(self.kgraph["edges"]),
                     duration_ms,
                 )
             )
@@ -214,7 +217,7 @@ class QueryGraphExecutor:
 
             branch_tasks = list[asyncio.Task[list[Partial]]]()
             parallel_tasks = list[
-                asyncio.Task[tuple[KnowledgeGraph, list[LogEntryDict]]]
+                asyncio.Task[tuple[KnowledgeGraphDict, list[LogEntryDict]]]
                 | asyncio.Task[list[Partial]]
             ](subquery_tasks)
 
@@ -268,7 +271,7 @@ class QueryGraphExecutor:
     async def get_subquery_tasks(
         self,
         current_branch: Branch,
-    ) -> tuple[list[asyncio.Task[tuple[KnowledgeGraph, list[LogEntryDict]]]], bool]:
+    ) -> tuple[list[asyncio.Task[tuple[KnowledgeGraphDict, list[LogEntryDict]]]], bool]:
         """Create tasks for the subqueries the current branch will generate.
 
         Avoids creating duplicate tasks when some superposition is already executing the
@@ -312,7 +315,7 @@ class QueryGraphExecutor:
 
     async def consume_parallel_task(
         self,
-        task: asyncio.Task[tuple[KnowledgeGraph, list[LogEntryDict]]]
+        task: asyncio.Task[tuple[KnowledgeGraphDict, list[LogEntryDict]]]
         | asyncio.Task[list[Partial]],
         current_branch: Branch,
         partials: dict[SuperpositionHop, dict[str, list[Partial]]],
@@ -336,7 +339,7 @@ class QueryGraphExecutor:
 
     async def consume_subquery_task(
         self,
-        task_result: tuple[KnowledgeGraph, list[LogEntryDict]],
+        task_result: tuple[KnowledgeGraphDict, list[LogEntryDict]],
         current_branch: Branch,
         partials: dict[SuperpositionHop, dict[str, list[Partial]]],
         update_kgraph: bool,
@@ -354,18 +357,18 @@ class QueryGraphExecutor:
             await self.update_knowledge(current_branch, new_kgraph, update_kgraph)
 
         next_steps = await current_branch.get_next_steps(
-            new_kgraph.nodes.keys(), self.qedge_claims, self.locks["claim"]
+            new_kgraph["nodes"].keys(), self.qedge_claims, self.locks["claim"]
         )
 
         self.job_log.trace(
-            f"{current_branch.superposition_name}: found {len(next_steps)} next steps for curies {list(new_kgraph.nodes.keys())}."
+            f"{current_branch.superposition_name}: found {len(next_steps)} next steps for curies {list(new_kgraph['nodes'].keys())}."
         )
 
         if len(next_steps) == 0:
             self.job_log.trace(
-                f"{current_branch.superposition_name}: Returning {len(new_kgraph.nodes)} Partial results."
+                f"{current_branch.superposition_name}: Returning {len(new_kgraph['nodes'])} Partial results."
             )
-            for curie in new_kgraph.nodes:
+            for curie in new_kgraph["nodes"]:
                 # await asyncio.sleep(0)
                 key = qedge_id, current_branch.input_curie, curie
 
@@ -390,25 +393,30 @@ class QueryGraphExecutor:
         )
 
     async def update_knowledge(
-        self, current_branch: Branch, new_kgraph: KnowledgeGraph, update_kgraph: bool
+        self,
+        current_branch: Branch,
+        new_kgraph: KnowledgeGraphDict,
+        do_update_kgraph: bool,
     ) -> None:
         """Update knowledge tracking with a new knowledge graph."""
         qedge_id = current_branch.current_edge
 
-        if update_kgraph:
-            self.kgraph.update(new_kgraph)
+        if do_update_kgraph:
+            update_kgraph(self.kgraph, new_kgraph)
 
         if current_branch.hop_name not in self.kedges_by_input:
-            self.kedges_by_input[current_branch.hop_name] = list[Edge]()
-        self.kedges_by_input[current_branch.hop_name].extend(new_kgraph.edges.values())
+            self.kedges_by_input[current_branch.hop_name] = list[EdgeDict]()
+        self.kedges_by_input[current_branch.hop_name].extend(
+            new_kgraph["edges"].values()
+        )
 
         # Update the k_agraph
-        for edge_id, edge in new_kgraph.edges.items():
+        for edge_id, edge in new_kgraph["edges"].items():
             # await asyncio.sleep(0)
             in_node, out_node = (
-                (edge.subject, edge.object)
+                (edge["subject"], edge["object"])
                 if not current_branch.reversed
-                else (edge.object, edge.subject)
+                else (edge["object"], edge["subject"])
             )
             if in_node not in self.k_agraph[qedge_id]:
                 self.k_agraph[qedge_id][in_node] = dict[CURIE, list[EdgeIdentifier]]()

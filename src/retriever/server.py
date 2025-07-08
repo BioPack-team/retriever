@@ -38,12 +38,12 @@ from retriever.utils.telemetry import configure_telemetry
 async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     """Lifespan hook for any setup/shutdown behavior."""
     # Startup
+    os.environ["PYTHONHASHSEED"] = "0"  # So reasoner_pydantic hashing is deterministic
     configure_logging()
     await MONGO_CLIENT.initialize()
     await MONGO_QUEUE.start_process_task()
     add_mongo_sink()
     await test_redis()
-    os.environ["PYTHONHASHSEED"] = "0"  # So reasoner_pydantic hashing is deterministic
 
     yield  # Separates startup/shutdown phase
 

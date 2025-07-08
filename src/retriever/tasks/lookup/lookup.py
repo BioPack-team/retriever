@@ -9,8 +9,6 @@ from loguru import logger as log
 from opentelemetry import trace
 from reasoner_pydantic import (
     AsyncQuery,
-    AuxiliaryGraphs,
-    KnowledgeGraph,
     LogLevel,
     QueryGraph,
 )
@@ -22,6 +20,7 @@ from retriever.tasks.lookup.utils import expand_qgraph
 from retriever.tasks.lookup.validate import validate
 from retriever.types.general import LookupArtifacts, QueryInfo
 from retriever.types.trapi import (
+    AuxGraphDict,
     KnowledgeGraphDict,
     LogEntryDict,
     MessageDict,
@@ -32,7 +31,7 @@ from retriever.types.trapi import (
 from retriever.utils.calls import BASIC_CLIENT
 from retriever.utils.logs import TRAPILogger, trapi_level_to_int
 from retriever.utils.mongo import MONGO_QUEUE
-from retriever.utils.trapi import merge_results, prune_kg
+from retriever.utils.trapi import merge_results, prune_kg, update_kgraph
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 biolink = bmt.Toolkit()
@@ -109,9 +108,7 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
             if trapi_level_to_int(log.get("level", LogLevel.DEBUG)) >= desired_log_level
         ]
         response["message"]["results"] = results
-        response["message"]["knowledge_graph"] = KnowledgeGraphDict(
-            **kgraph.model_dump()
-        )
+        response["message"]["knowledge_graph"] = kgraph
         return tracked_response(200, response)
 
     except Exception:
@@ -213,8 +210,8 @@ async def run_tiered_lookups(
 ) -> LookupArtifacts:
     """Run lookups against requested tier(s) and combine results."""
     results = dict[int, ResultDict]()
-    kgraph = KnowledgeGraph()
-    aux_graphs = AuxiliaryGraphs()
+    kgraph = KnowledgeGraphDict(nodes={}, edges={})
+    aux_graphs = dict[str, AuxGraphDict]()
     logs = list[LogEntryDict]()
 
     query_tasks = list[asyncio.Task[LookupArtifacts]]()
@@ -235,7 +232,7 @@ async def run_tiered_lookups(
             logs.extend(findings.logs)
             if not findings.error:
                 merge_results(results, findings.results)
-                kgraph.update(findings.kgraph)
+                update_kgraph(kgraph, findings.kgraph)
                 aux_graphs.update(findings.aux_graphs)
         except Exception:
             # This is a bad exception to get because we lose detail about which tier.

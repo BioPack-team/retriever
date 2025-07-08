@@ -1,18 +1,21 @@
-from typing import Annotated, Literal, NamedTuple
+from typing import Annotated, Literal, NamedTuple, TypedDict
 
 from fastapi import BackgroundTasks, Request, Response
 from pydantic import BaseModel, Field
 from reasoner_pydantic import (
     CURIE,
     AsyncQuery,
-    AuxiliaryGraphs,
-    KnowledgeGraph,
     QEdge,
     Query,
 )
 from reasoner_pydantic.shared import EdgeIdentifier
 
-from retriever.types.trapi import LogEntryDict, ResultDict
+from retriever.types.trapi import (
+    AuxGraphDict,
+    KnowledgeGraphDict,
+    LogEntryDict,
+    ResultDict,
+)
 
 TierNumber = Annotated[int, Field(ge=0, le=2)]
 
@@ -66,10 +69,18 @@ class LookupArtifacts(NamedTuple):
     """
 
     results: list[ResultDict]
-    kgraph: KnowledgeGraph
-    aux_graphs: AuxiliaryGraphs
+    kgraph: KnowledgeGraphDict
+    aux_graphs: dict[str, AuxGraphDict]
     logs: list[LogEntryDict]
     error: bool | None = None
+
+
+class TransformedNeo4jResult(TypedDict):
+    """Transformed result of a Neo4j query."""
+
+    results: list[ResultDict]
+    knowledge_graph: KnowledgeGraphDict
+    auxiliary_graphs: dict[str, AuxGraphDict]
 
 
 AdjacencyGraph = dict[str, dict[str, list[QEdge]]]

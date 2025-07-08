@@ -7,21 +7,21 @@ from collections import deque
 from typing import cast
 
 from opentelemetry import trace
-from reasoner_pydantic import (
-    CURIE,
-    Edge,
-    HashableMapping,
-    HashableSet,
-    KnowledgeGraph,
-    Node,
-    QueryGraph,
-    RetrievalSource,
-)
-from reasoner_pydantic.shared import EdgeIdentifier, ResourceRoleEnum
+from reasoner_pydantic import QueryGraph
+from reasoner_pydantic.shared import ResourceRoleEnum
 
 from retriever.tasks.lookup.branch import Branch
-from retriever.types.trapi import LogEntryDict
+from retriever.types.trapi import (
+    CURIE,
+    BiolinkCategory,
+    EdgeDict,
+    KnowledgeGraphDict,
+    LogEntryDict,
+    NodeDict,
+    RetrievalSourceDict,
+)
 from retriever.utils.logs import TRAPILogger
+from retriever.utils.trapi import hash_edge, hash_hex
 
 CATEGORIES = [
     "biolink:Gene",
@@ -53,7 +53,7 @@ tracer = trace.get_tracer("lookup.execution.tracer")
 @tracer.start_as_current_span("subquery")
 async def mock_subquery(
     job_id: str, branch: Branch, qg: QueryGraph
-) -> tuple[KnowledgeGraph, list[LogEntryDict]]:
+) -> tuple[KnowledgeGraphDict, list[LogEntryDict]]:
     """Placeholder subquery function to mockup its overall behavior.
 
     Assumptions:
@@ -73,10 +73,12 @@ async def mock_subquery(
         if node.ids:
             curies = list(node.ids)
         else:
-            category = cast(str, (node.categories or ["biolink:NamedThing"])[0])
+            category = cast(
+                BiolinkCategory, (node.categories or ["biolink:NamedThing"])[0]
+            )
             curies = (
                 [
-                    MOCKUP_NODES[category][CHOICES[category].popleft()]
+                    CURIE(MOCKUP_NODES[category][CHOICES[category].popleft()])
                     # random.choice(MOCKUP_NODES[category])
                     # for _ in range(random.randint(0, 10))
                     for _ in range(10)
@@ -84,33 +86,29 @@ async def mock_subquery(
                 # if category != "biolink:Disease"
                 # else []
             )
-        nodes = HashableMapping(
-            {
-                curie: Node(
-                    categories=HashableSet(
-                        set(qg.nodes[branch.output_node].categories or [])
-                    ),
-                    attributes=HashableSet(),
-                )
-                for curie in curies
-            }
-        )
+        nodes = {
+            curie: NodeDict(
+                categories=cast(
+                    list[BiolinkCategory], qg.nodes[branch.output_node].categories or []
+                ),
+                attributes=[],
+            )
+            for curie in curies
+        }
         edges = [
-            Edge(
+            EdgeDict(
                 subject=(branch.input_curie if not branch.reversed else curie),
                 predicate=cast(
                     str, (current_edge.predicates or ["biolink:related_to"])[0]
                 ),
                 object=(curie if not branch.reversed else branch.input_curie),
-                sources=HashableSet(
-                    {
-                        RetrievalSource(
-                            resource_id=CURIE(f"SOURCE:{uuid.uuid4().hex}"),
-                            resource_role=ResourceRoleEnum.primary_knowledge_source,
-                        )
-                    }
-                ),
-                attributes=HashableSet(),
+                sources=[
+                    RetrievalSourceDict(
+                        resource_id=f"SOURCE:{uuid.uuid4().hex}",
+                        resource_role=ResourceRoleEnum.primary_knowledge_source,
+                    )
+                ],
+                attributes=[],
             )
             for curie in curies
         ]
@@ -120,11 +118,8 @@ async def mock_subquery(
             f"Subquery mock got {len(edges)} records in {math.ceil((end - start) * 1000)}ms"
         )
 
-        return KnowledgeGraph(
-            nodes=nodes,
-            edges=HashableMapping(
-                {EdgeIdentifier(str(hash(edge))): edge for edge in edges}
-            ),
+        return KnowledgeGraphDict(
+            nodes=nodes, edges={hash_hex(hash_edge(edge)): edge for edge in edges}
         ), job_log.get_logs()
     except asyncio.CancelledError:
-        return (KnowledgeGraph(nodes=HashableMapping(), edges=HashableMapping()), [])
+        return (KnowledgeGraphDict(nodes={}, edges={}), [])

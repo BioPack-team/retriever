@@ -9,14 +9,10 @@ from reasoner_pydantic import (
     CURIE,
     BiolinkEntity,
     BiolinkPredicate,
-    Edge,
-    HashableMapping,
     HashableSequence,
-    KnowledgeGraph,
     QEdge,
     QueryGraph,
 )
-from reasoner_pydantic.shared import EdgeIdentifier
 
 from retriever.tasks.lookup.branch import Branch
 from retriever.types.general import (
@@ -24,8 +20,9 @@ from retriever.types.general import (
     QEdgeIDMap,
     SuperpositionHop,
 )
-from retriever.types.trapi import LogEntryDict
+from retriever.types.trapi import EdgeDict, KnowledgeGraphDict, LogEntryDict
 from retriever.utils.logs import TRAPILogger
+from retriever.utils.trapi import hash_edge, hash_hex
 
 biolink = bmt.Toolkit()
 
@@ -130,41 +127,27 @@ async def merge_iterators[T](*iterators: AsyncIterator[T]) -> AsyncIterable[T]:
                 backmap[next_task] = iterator
 
 
-# Probably not used, remove if so
-# async def amap[InputType, **ArgType, OutputType](
-#     iterable: AsyncIterable[InputType],
-#     func: Callable[Concatenate[InputType, ArgType], Awaitable[OutputType]],
-#     *args: ArgType.args,
-#     **kwargs: ArgType.kwargs,
-# ) -> AsyncGenerator[OutputType]:
-#     """Apply the given func to every output of the given async iterable, yielding the results."""
-#     async for item in iterable:
-#         yield await func(item, *args, **kwargs)
-
-
 async def get_subgraph(
     branch: Branch,
     key: tuple[CURIE, str],
-    kedges: dict[SuperpositionHop, list[Edge]],
-    kgraph: KnowledgeGraph,
-) -> tuple[KnowledgeGraph, list[LogEntryDict]]:
+    kedges: dict[SuperpositionHop, list[EdgeDict]],
+    kgraph: KnowledgeGraphDict,
+) -> tuple[KnowledgeGraphDict, list[LogEntryDict]]:
     """Get a subgraph from a given set of kedges.
 
     Used to replace subquerying when a given hop has already been completed.
     """
     edges = kedges[key]
-    curies = list[CURIE]()
+    curies = list[str]()
     for edge in edges:
         if not branch.reversed:
-            curies.append(edge.object)
+            curies.append(edge["object"])
         else:
-            curies.append(edge.subject)
+            curies.append(edge["subject"])
 
-    kg = KnowledgeGraph(
-        edges=HashableMapping(
-            {EdgeIdentifier(str(hash(edge))): edge for edge in edges}
-        ),
-        nodes=HashableMapping({curie: kgraph.nodes[curie] for curie in curies}),
+    kg = KnowledgeGraphDict(
+        edges={hash_hex(hash_edge(edge)): edge for edge in edges},
+        nodes={curie: kgraph["nodes"][curie] for curie in curies},
     )
 
     return kg, list[LogEntryDict]()
