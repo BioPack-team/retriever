@@ -19,6 +19,7 @@ from reasoner_pydantic import Response as TRAPIResponse
 from retriever.config.general import CONFIG
 from retriever.config.logger import configure_logging
 from retriever.config.openapi import OPENAPI_CONFIG, TRAPI
+from retriever.data_tiers.tier_0.neo4j.driver import GraphInterface
 from retriever.tasks.query import get_job_state, make_query
 from retriever.types.general import APIInfo, ErrorDetail, LogLevel, TierNumber
 from retriever.utils.exception_handlers import ensure_cors
@@ -44,10 +45,17 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     await MONGO_QUEUE.start_process_task()
     add_mongo_sink()
     await test_redis()
+    neo4j_interface = GraphInterface(
+        host=CONFIG.tier0.neo4j.host,
+        port=CONFIG.tier0.neo4j.bolt_port,
+        auth=(CONFIG.tier0.neo4j.username, CONFIG.tier0.neo4j.password),
+    )
+    await neo4j_interface.connect_to_neo4j()
 
     yield  # Separates startup/shutdown phase
 
     # Shutdown
+    await neo4j_interface.close()
     await MONGO_QUEUE.stop_process_task()
     await MONGO_CLIENT.close()
     await cleanup()

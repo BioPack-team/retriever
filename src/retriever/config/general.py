@@ -78,6 +78,23 @@ def uppercase(value: str) -> str:
     return value.upper()
 
 
+class Neo4jSettings(BaseSettings):
+    """Settings for the Tier 0 Neo4j interface."""
+
+    query_timeout: int = 1600  # Time in seconds before a neo4j query should time out
+    connect_retries: int = 25
+    host: str = ""
+    bolt_port: int = 7687
+    username: str = ""
+    password: str = ""
+
+
+class Tier0Settings(BaseSettings):
+    """Settings concern Tier 0 abstraction layers."""
+
+    neo4j: Neo4jSettings = Neo4jSettings()
+
+
 class GeneralConfig(BaseSettings):
     """General application config."""
 
@@ -92,12 +109,14 @@ class GeneralConfig(BaseSettings):
     cors: CORSSettings = CORSSettings()
     workers: int | None = None  # Number of workers to use
     worker_concurrency: int = 10  # Number of concurrent jobs a worker may process
+    allow_profiler: bool = True
 
     job: JobSettings = JobSettings()
     log: LogSettings = LogSettings()
 
     redis: RedisSettings = RedisSettings()
     mongo: MongoSettings = MongoSettings()
+    tier0: Tier0Settings = Tier0Settings()
     telemetry: TelemetrySettings = TelemetrySettings()
 
     model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(

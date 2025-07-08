@@ -30,6 +30,14 @@ mongo:
   attempts: 3  # Number of attempts to accomplish operation before considering it failed
   shutdown_timeout: 3  # Time in seconds to wait for serialize task to finish
   flood_batch_size: 1000  # Batch size for basic mongo inserts
+tier0:
+  neo4j:
+    query_timeout: 1600  # Time in seconds before a neo4j query should time out
+    connect_retries: 25  # Number of retries before declaring a connection failure
+    host: ""
+    bolt_port: 7687
+    username: ""
+    password: ""
 telemetry:
   otel_enabled: false
   otel_host: jaeger-otel-collector.sri

@@ -28,6 +28,7 @@ dependencies = [
     "bmt>=1.4.4",
     "reasoner-transpiler>=2.3.5",
     "reasoner-pydantic",
+    "neo4j>=5.28.1",
     "pyinstrument>=5.0.1",
 ]
 

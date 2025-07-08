@@ -97,6 +97,7 @@ class TRAPILogger:
 
     def _log(self, level: LogLevel, message: str, **kwargs: Any) -> None:
         kwargs["job_id"] = self.job_id
+        # FIX: currently showing this function rather than originating call
 
         with logger.contextualize(**kwargs):
             logger.log(level, message)

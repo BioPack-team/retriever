@@ -14,7 +14,7 @@ from reasoner_pydantic import (
 )
 
 from retriever.config.openapi import OPENAPI_CONFIG
-from retriever.data_tiers.tier_0 import Tier0Query
+from retriever.data_tiers.tier_0.neo4j.query import Neo4jQuery
 from retriever.tasks.lookup.qgx import QueryGraphExecutor
 from retriever.tasks.lookup.utils import expand_qgraph
 from retriever.tasks.lookup.validate import validate
@@ -217,7 +217,7 @@ async def run_tiered_lookups(
     query_tasks = list[asyncio.Task[LookupArtifacts]]()
     job_log = TRAPILogger(query.job_id)
 
-    handlers = (Tier0Query, QueryGraphExecutor)
+    handlers = (Neo4jQuery, QueryGraphExecutor)
     for i, called_for in enumerate(
         (0 in query.tiers, not set(query.tiers).isdisjoint({1, 2}))
     ):
