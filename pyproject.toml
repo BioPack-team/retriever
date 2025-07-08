@@ -30,6 +30,7 @@ dependencies = [
     "reasoner-pydantic",
     "neo4j>=5.28.1",
     "pyinstrument>=5.0.1",
+    "pydantic-file-secrets>=0.4.4",
 ]
 
 [project.scripts]

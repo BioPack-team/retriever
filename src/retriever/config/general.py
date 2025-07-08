@@ -1,12 +1,12 @@
 from typing import Annotated, ClassVar, override
 
-from pydantic import AfterValidator, BaseModel
+from pydantic import AfterValidator, BaseModel, SecretStr
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
-    SettingsConfigDict,
     YamlConfigSettingsSource,
 )
+from pydantic_file_secrets import FileSecretsSettingsSource, SettingsConfigDict
 
 from retriever.types.general import LogLevel
 
@@ -26,7 +26,7 @@ class RedisSettings(BaseModel):
     cluster: bool = False
     host: str = "localhost"
     port: int = 6379
-    password: str | None = None
+    password: SecretStr | None = None
     ssl_enabled: bool = False
     attempts: int = 3
 
@@ -37,7 +37,7 @@ class MongoSettings(BaseModel):
     host: str = "localhost"
     port: int = 27017
     username: str | None = None
-    password: str | None = None
+    password: SecretStr | None = None
     authsource: str | None = None
     attempts: int = 3
     shutdown_timeout: int = 3
@@ -78,7 +78,7 @@ def uppercase(value: str) -> str:
     return value.upper()
 
 
-class Neo4jSettings(BaseSettings):
+class Neo4jSettings(BaseModel):
     """Settings for the Tier 0 Neo4j interface."""
 
     query_timeout: int = 1600  # Time in seconds before a neo4j query should time out
@@ -86,10 +86,10 @@ class Neo4jSettings(BaseSettings):
     host: str = ""
     bolt_port: int = 7687
     username: str = ""
-    password: str = ""
+    password: SecretStr = SecretStr("")
 
 
-class Tier0Settings(BaseSettings):
+class Tier0Settings(BaseModel):
     """Settings concern Tier 0 abstraction layers."""
 
     neo4j: Neo4jSettings = Neo4jSettings()
@@ -119,13 +119,16 @@ class GeneralConfig(BaseSettings):
     tier0: Tier0Settings = Tier0Settings()
     telemetry: TelemetrySettings = TelemetrySettings()
 
-    model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(
+    # Weird override happening here, see https://github.com/makukha/pydantic-file-secrets for an explanation
+    model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(  # pyright:ignore[reportIncompatibleVariableOverride] This is the intended pattern
         case_sensitive=False,
         env_nested_delimiter="__",
         env_file=".env",
         env_file_encoding="utf-8",
         yaml_file="config/config.yaml",
         yaml_file_encoding="utf-8",
+        secrets_dir="config/secrets",
+        secrets_nested_delimiter="__",
     )
 
     @classmethod
@@ -141,11 +144,13 @@ class GeneralConfig(BaseSettings):
         """Ensure proper setting priority order."""
         return (
             env_settings,
+            FileSecretsSettingsSource(file_secret_settings),
+            file_secret_settings,
             dotenv_settings,
             YamlConfigSettingsSource(settings_cls),
-            file_secret_settings,
             init_settings,
         )
 
 
 CONFIG = GeneralConfig()
+print(CONFIG.model_dump())
