@@ -95,7 +95,7 @@ class Tier0Settings(BaseSettings):
     neo4j: Neo4jSettings = Neo4jSettings()
 
 
-class GeneralConfig(BaseSettings):
+class GeneralConfig(BaseSettings, secrets_dir="config/secrets"):
     """General application config."""
 
     instance_env: str = "dev"
