@@ -119,7 +119,6 @@ async def merge_iterators[T](*iterators: AsyncIterator[T]) -> AsyncIterable[T]:
                 del next_tasks[iterator]
                 del backmap[task]
             except Exception as e:
-                # TODO: handle exceptions in an appropriate manner
                 raise e
             else:
                 next_task = as_task(iterator)

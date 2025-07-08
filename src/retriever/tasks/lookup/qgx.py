@@ -41,7 +41,6 @@ from retriever.utils.trapi import initialize_kgraph, update_kgraph
 tracer = trace.get_tracer("lookup.execution.tracer")
 
 # TODO:
-# Time limits
 # Set interpretation
 # Subclassing
 
