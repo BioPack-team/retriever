@@ -1655,6 +1655,19 @@ wheels = [
 ]
 
 [[package]]
+name = "pydantic-file-secrets"
+version = "0.4.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic-settings" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d2/84/888ca64f606c11cf4c6b60f882d4c24ab8d76162fbc49399e3ff1bd84dbc/pydantic_file_secrets-0.4.4.tar.gz", hash = "sha256:16cf16efeed0eeae91f2f52e3aaa910344ffe6d4e2ce0f1499aacc48fb90a905", size = 100892, upload-time = "2025-05-24T19:18:59.395Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f7/73/cdcc022b33a80eba6b4085e2cbf1f769a32486da33eab10e57dc7d7c85dd/pydantic_file_secrets-0.4.4-py3-none-any.whl", hash = "sha256:3c8ca6d1950a6c851ea93487f8602a6c26d18a801552efcb12b3012570ae5a1e", size = 9959, upload-time = "2025-05-24T19:18:57.594Z" },
+]
+
+[[package]]
 name = "pydantic-settings"
 version = "2.9.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2037,6 +2050,7 @@ dependencies = [
     { name = "opentelemetry-instrumentation-fastapi" },
     { name = "opentelemetry-instrumentation-httpx" },
     { name = "pydantic", extra = ["email"] },
+    { name = "pydantic-file-secrets" },
     { name = "pydantic-settings" },
     { name = "pyinstrument" },
     { name = "reasoner-pydantic" },
@@ -2073,6 +2087,7 @@ requires-dist = [
     { name = "opentelemetry-instrumentation-fastapi", specifier = ">=0.50b0" },
     { name = "opentelemetry-instrumentation-httpx", specifier = ">=0.51b0" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.10.3,<3" },
+    { name = "pydantic-file-secrets", specifier = ">=0.4.4" },
     { name = "pydantic-settings", specifier = ">=2.6.1,<3" },
     { name = "pyinstrument", specifier = ">=5.0.1" },
     { name = "reasoner-pydantic", editable = "../reasoner-pydantic" },
