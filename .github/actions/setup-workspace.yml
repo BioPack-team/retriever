@@ -1,0 +1,21 @@
+---
+name: Set up workspace
+runs:
+  using: composite
+  steps:
+    - name: Checkout the repository
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.head_ref }}
+    - name: Install the latest version of uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        version: latest
+        activate-environment: true
+        enable-cache: true
+    - name: Install dependencies
+      run: uv sync
+    - name: Check formatting and lint
+      run: ruff check --output-format=github src
+    - name: Check static typing
+      run: basedpyright src

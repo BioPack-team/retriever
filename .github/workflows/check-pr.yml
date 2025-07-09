@@ -1,0 +1,23 @@
+---
+name: Pull Request Checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  lint-format:
+    name: Check linting and formatting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
+      - name: Check formatting and lint
+        run: ruff check --output-format=github src
+  typing:
+    name: Check static typing
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
+      - name: Check static typing
+        run: basedpyright src
