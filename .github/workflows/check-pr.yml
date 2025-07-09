@@ -9,6 +9,10 @@ jobs:
     name: Check linting and formatting
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
       - name: Set up workspace
         uses: ./.github/actions/setup-workspace
       - name: Check formatting and lint
@@ -17,6 +21,10 @@ jobs:
     name: Check static typing
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
       - name: Set up workspace
         uses: ./.github/actions/setup-workspace
       - name: Check static typing
