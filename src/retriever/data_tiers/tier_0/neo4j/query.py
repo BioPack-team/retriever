@@ -22,7 +22,7 @@ class Neo4jQuery(Tier0Query):
         graph_interface = GraphInterface(
             host=CONFIG.tier0.neo4j.host,
             port=CONFIG.tier0.neo4j.bolt_port,
-            auth=(CONFIG.tier0.neo4j.username, CONFIG.tier0.neo4j.password),
+            auth=(CONFIG.tier0.neo4j.username, str(CONFIG.tier0.neo4j.password)),
         )
 
         qgraph = QueryGraphDict(**self.qgraph.model_dump())

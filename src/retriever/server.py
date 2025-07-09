@@ -48,7 +48,7 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     neo4j_interface = GraphInterface(
         host=CONFIG.tier0.neo4j.host,
         port=CONFIG.tier0.neo4j.bolt_port,
-        auth=(CONFIG.tier0.neo4j.username, CONFIG.tier0.neo4j.password),
+        auth=(CONFIG.tier0.neo4j.username, str(CONFIG.tier0.neo4j.password)),
     )
     await neo4j_interface.connect_to_neo4j()
 
