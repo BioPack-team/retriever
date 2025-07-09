@@ -7,7 +7,7 @@ authors = [
 ]
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = "~=3.12"
+requires-python = ">=3.12, <4"
 dependencies = [
     "redis>=5.0.4,<6",
     "httpx>=0.28.1,<0.29",
@@ -213,4 +213,4 @@ line_length = 88
 config-settings = { editable_mode = "compat" }
 
 [tool.uv.sources]
-reasoner-pydantic = { path = "../reasoner-pydantic", editable = true }
+reasoner-pydantic = { git = "https://github.com/tokebe/reasoner-pydantic" }

@@ -1790,13 +1790,10 @@ wheels = [
 [[package]]
 name = "reasoner-pydantic"
 version = "6.0.0"
-source = { editable = "../reasoner-pydantic" }
+source = { git = "https://github.com/tokebe/reasoner-pydantic#6fb3c6654a9d484b753e23b9be5c1d4046c22222" }
 dependencies = [
     { name = "pydantic" },
 ]
-
-[package.metadata]
-requires-dist = [{ name = "pydantic", specifier = ">=2,<3" }]
 
 [[package]]
 name = "reasoner-transpiler"
@@ -1907,7 +1904,7 @@ requires-dist = [
     { name = "pydantic-file-secrets", specifier = ">=0.4.4" },
     { name = "pydantic-settings", specifier = ">=2.6.1,<3" },
     { name = "pyinstrument", specifier = ">=5.0.1" },
-    { name = "reasoner-pydantic", editable = "../reasoner-pydantic" },
+    { name = "reasoner-pydantic", git = "https://github.com/tokebe/reasoner-pydantic" },
     { name = "reasoner-transpiler", specifier = ">=2.3.5" },
     { name = "redis", specifier = ">=5.0.4,<6" },
     { name = "sentry-sdk", specifier = ">=2.20.0" },
