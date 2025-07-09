@@ -5,9 +5,9 @@ description = "A Translator KP that aims to construct responses composed of know
 authors = [
     { name = "tokebe", email = "43009413+tokebe@users.noreply.github.com" },
 ]
-requires-python = "~=3.11"
 readme = "README.md"
 license = "Apache-2.0"
+requires-python = "~=3.12"
 dependencies = [
     "redis>=5.0.4,<6",
     "httpx>=0.28.1,<0.29",
@@ -61,10 +61,10 @@ format = 'ruff format --diff src/retriever'
 'format:fix' = 'ruff format src/retriever'
 
 fixup = """
-echo 'Formatting...' &&
-task format:fix &&
 echo 'Linting...' &&
 task lint:fix &&
+echo 'Formatting...' &&
+task format:fix &&
 echo 'Static analysis...' &&
 task typecheck &&
 echo "✅ All set!"
