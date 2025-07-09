@@ -45,10 +45,12 @@ dev = [
     "locust>=2.33.2",
     "pyinstrument>=5.0.1",
     "basedpyright>=1.29.4",
+    "pre-commit>=4.2.0",
 ]
 
 [tool.taskipy.tasks]
 # Code work
+hook = "pre-commit install"
 lint = 'ruff check src/retriever'
 'lint:stats' = 'task lint --statistics'
 'lint:watch' = 'task lint --watch'
