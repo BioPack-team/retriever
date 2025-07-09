@@ -252,7 +252,7 @@ class MongoQueue:
                         f"An exception occurred in the operation {target}",
                         extra={"doc": doc, "no_mongo_log": True},
                     )
-            except asyncio.queues.QueueEmpty:
+            except asyncio.QueueEmpty:
                 try:
                     await asyncio.sleep(0.05)
                     continue
@@ -316,7 +316,7 @@ class MongoQueue:
         """Add a document to the queue."""
         try:
             self.queue.put_nowait((task_name, doc))
-        except (asyncio.queues.QueueShutDown, asyncio.queues.QueueFull):
+        except (asyncio.QueueShutDown, asyncio.QueueFull):
             return
 
 

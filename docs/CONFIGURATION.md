@@ -13,4 +13,3 @@ You can also change Retriever configuration options by passing environment varia
 ## .env File
 
 A `.env` file placed in the project root directory can also be used in place of explicitly passing in environment variables, and follows the same name rules as above.
-

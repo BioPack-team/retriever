@@ -1,12 +1,12 @@
 from typing import Annotated, ClassVar, override
 
 from pydantic import AfterValidator, BaseModel, SecretStr
+from pydantic_file_secrets import FileSecretsSettingsSource, SettingsConfigDict
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
     YamlConfigSettingsSource,
 )
-from pydantic_file_secrets import FileSecretsSettingsSource, SettingsConfigDict
 
 from retriever.types.general import LogLevel
 
