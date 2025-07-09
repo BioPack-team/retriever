@@ -1,12 +1,12 @@
 ---
-name: Pull Request Checks
+name: Code Checks
 on:
   pull_request:
   push:
     branches: [main]
 jobs:
   lint-format:
-    name: Check linting and formatting
+    name: Linting and Formatting
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the repository
@@ -19,7 +19,7 @@ jobs:
         run: ruff check --output-format=github src
         shell: bash
   typing:
-    name: Check static typing
+    name: Static Typing
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the repository
