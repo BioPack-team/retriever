@@ -87,6 +87,7 @@ class Neo4jSettings(BaseModel):
     bolt_port: int = 7687
     username: str = ""
     password: SecretStr = SecretStr("")
+    database_name: str = "neo4j"
 
 
 class Tier0Settings(BaseModel):

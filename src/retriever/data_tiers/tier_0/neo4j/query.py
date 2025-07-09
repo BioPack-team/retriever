@@ -1,15 +1,15 @@
-from typing import override
+from typing import cast, override
 
 from opentelemetry import trace
 from reasoner_transpiler.cypher import (
     get_query,  # pyright:ignore[reportUnknownVariableType]
+    transform_result,  # pyright:ignore[reportUnknownVariableType]
 )
 
-from retriever.config.general import CONFIG
-from retriever.data_tiers.tier_0.base import Tier0Query
-from retriever.data_tiers.tier_0.neo4j.driver import GraphInterface
-from retriever.types.trapi import QueryGraphDict, ResultDict
-from retriever.utils.trapi import normalize_kgraph, update_kgraph
+from retriever.data_tiers.tier_0.base_query import Tier0Query
+from retriever.data_tiers.tier_0.neo4j.driver import Neo4jDriver
+from retriever.types.general import BackendResults
+from retriever.types.trapi import QueryGraphDict
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 
@@ -18,27 +18,21 @@ class Neo4jQuery(Tier0Query):
     """Adapter to querying Plater Neo4j as a Tier 0 backend."""
 
     @override
-    async def get_results(self) -> list[ResultDict]:
-        graph_interface = GraphInterface(
-            host=CONFIG.tier0.neo4j.host,
-            port=CONFIG.tier0.neo4j.bolt_port,
-            auth=(CONFIG.tier0.neo4j.username, str(CONFIG.tier0.neo4j.password)),
-        )
+    async def get_results(self, qgraph: QueryGraphDict) -> BackendResults:
+        neo4j_driver = Neo4jDriver()
 
-        qgraph = QueryGraphDict(**self.qgraph.model_dump())
-
+        # Transpile to cypher
         query_cypher = get_query(qgraph)
         self.job_log.trace(query_cypher)
 
-        with tracer.start_as_current_span("neo4j_query"):
-            result = await graph_interface.run_cypher(query_cypher, qgraph)
+        neo4j_record = await neo4j_driver.run_query(query_cypher)
 
-        with tracer.start_as_current_span("update_kg"):
-            normalize_kgraph(
-                result["knowledge_graph"], result["results"], result["auxiliary_graphs"]
+        # Have to cast to object, then BackendResults because of some type weirdness
+        # Transpiler will always output valid TRAPI so this should always work
+        with tracer.start_as_current_span("transform_results"):
+            result = cast(
+                BackendResults,
+                cast(object, transform_result(neo4j_record, dict(qgraph))),
             )
-            update_kgraph(self.kgraph, result["knowledge_graph"])
-        with tracer.start_as_current_span("update_auxgraphs"):
-            self.aux_graphs.update(result["auxiliary_graphs"])
 
-        return result["results"]
+        return result

@@ -38,6 +38,7 @@ tier0:
     bolt_port: 7687
     username: ""
     password: ""
+    database_name: neo4j
 telemetry:
   otel_enabled: false
   otel_host: jaeger-otel-collector.sri

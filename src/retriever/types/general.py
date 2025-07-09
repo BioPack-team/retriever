@@ -62,6 +62,14 @@ class QueryInfo(NamedTuple):
     tiers: set[TierNumber]
 
 
+class BackendResults(TypedDict):
+    """Transformed results of a query to a given database backend."""
+
+    results: list[ResultDict]
+    knowledge_graph: KnowledgeGraphDict
+    auxiliary_graphs: dict[str, AuxGraphDict]
+
+
 class LookupArtifacts(NamedTuple):
     """The parts of a TRAPI response that a lookup will update.
 
@@ -73,14 +81,6 @@ class LookupArtifacts(NamedTuple):
     aux_graphs: dict[str, AuxGraphDict]
     logs: list[LogEntryDict]
     error: bool | None = None
-
-
-class TransformedNeo4jResult(TypedDict):
-    """Transformed result of a Neo4j query."""
-
-    results: list[ResultDict]
-    knowledge_graph: KnowledgeGraphDict
-    auxiliary_graphs: dict[str, AuxGraphDict]
 
 
 AdjacencyGraph = dict[str, dict[str, list[QEdge]]]

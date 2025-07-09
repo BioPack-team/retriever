@@ -8,10 +8,15 @@ from reasoner_pydantic import (
 )
 
 from retriever.config.general import CONFIG
-from retriever.types.general import LookupArtifacts
-from retriever.types.trapi import AuxGraphDict, KnowledgeGraphDict, ResultDict
+from retriever.types.general import BackendResults, LookupArtifacts
+from retriever.types.trapi import (
+    AuxGraphDict,
+    KnowledgeGraphDict,
+    QueryGraphDict,
+    ResultDict,
+)
 from retriever.utils.logs import TRAPILogger
-from retriever.utils.trapi import initialize_kgraph
+from retriever.utils.trapi import initialize_kgraph, normalize_kgraph, update_kgraph
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 
@@ -37,19 +42,39 @@ class Tier0Query:
             try:
                 timeout = None if CONFIG.job.timeout < 0 else CONFIG.job.timeout - 0.5
                 async with asyncio.timeout(timeout):
-                    results = await self.get_results()
+                    backend_results = await self.get_results(
+                        QueryGraphDict(**self.qgraph.model_dump())
+                    )
+
             except TimeoutError:
                 self.job_log.error("Tier 0 operation timed out.")
-                results = []
+                backend_results = BackendResults(
+                    results=list[ResultDict](),
+                    knowledge_graph=KnowledgeGraphDict(nodes={}, edges={}),
+                    auxiliary_graphs=dict[str, AuxGraphDict](),
+                )
+
+            with tracer.start_as_current_span("update_kg"):
+                normalize_kgraph(
+                    backend_results["knowledge_graph"],
+                    backend_results["results"],
+                    backend_results["auxiliary_graphs"],
+                )
+                update_kgraph(self.kgraph, backend_results["knowledge_graph"])
+            with tracer.start_as_current_span("update_auxgraphs"):
+                self.aux_graphs.update(backend_results["auxiliary_graphs"])
 
             end_time = time.time()
             duration_ms = math.ceil((end_time - start_time) * 1000)
             self.job_log.info(
-                f"Tier 0: Retrieved {len(results)} results / {len(self.kgraph['nodes'])} nodes / {len(self.kgraph['edges'])} edges in {duration_ms}ms."
+                f"Tier 0: Retrieved {len(backend_results['results'])} results / {len(self.kgraph['nodes'])} nodes / {len(self.kgraph['edges'])} edges in {duration_ms}ms."
             )
 
             return LookupArtifacts(
-                results, self.kgraph, self.aux_graphs, self.job_log.get_logs()
+                backend_results["results"],
+                self.kgraph,
+                self.aux_graphs,
+                self.job_log.get_logs(),
             )
         except Exception:
             self.job_log.exception(
@@ -59,6 +84,6 @@ class Tier0Query:
                 [], self.kgraph, self.aux_graphs, self.job_log.get_logs(), error=True
             )
 
-    async def get_results(self) -> list[ResultDict]:
+    async def get_results(self, qgraph: QueryGraphDict) -> BackendResults:  # pyright:ignore[reportUnusedParameter]
         """Interface with the Tier 0 backend and retrieve results, converting to ResultDict."""
         raise NotImplementedError("Implemented in subclasses of Tier0Query.")

@@ -19,8 +19,8 @@ repos:
         files: src
   - repo: local
     hooks:
-      - id: test
-        name: test
+      - id: static-typing
+        name: static typing
         language: node
         files: src
         entry: uv

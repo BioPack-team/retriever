@@ -232,7 +232,14 @@ async def run_tiered_lookups(
             logs.extend(findings.logs)
             if not findings.error:
                 merge_results(results, findings.results)
-                update_kgraph(kgraph, findings.kgraph)
+                # Small optimization: Don't iterate through the new kgraph if
+                # It's the first of the two to respond
+                if len(kgraph["edges"]) == 0:
+                    update_kgraph(findings.kgraph, kgraph)
+                    kgraph = findings.kgraph
+                else:
+                    update_kgraph(kgraph, findings.kgraph)
+
                 aux_graphs.update(findings.aux_graphs)
         except Exception:
             # This is a bad exception to get because we lose detail about which tier.
