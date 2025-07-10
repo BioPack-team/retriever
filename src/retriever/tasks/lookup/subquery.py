@@ -1,9 +1,9 @@
 import asyncio
+import itertools
 import math
 import random
 import time
 import uuid
-from collections import deque
 
 from opentelemetry import trace
 from reasoner_pydantic import QueryGraph
@@ -41,7 +41,7 @@ MOCKUP_NODES = {
 
 
 CHOICES = {
-    category: deque([0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5] * 10000)
+    category: itertools.cycle([0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5])
     for category in CATEGORIES
 }
 
@@ -78,10 +78,10 @@ async def mock_subquery(
             )
             curies = (
                 [
-                    CURIE(MOCKUP_NODES[category][CHOICES[category].popleft()])
+                    CURIE(MOCKUP_NODES[category][next(CHOICES[category])])
                     # random.choice(MOCKUP_NODES[category])
                     # for _ in range(random.randint(0, 10))
-                    for _ in range(10)
+                    for _ in range(5)
                 ]
                 # if category != "biolink:Disease"
                 # else []
