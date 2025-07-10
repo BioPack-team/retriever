@@ -3,7 +3,6 @@ from typing import cast
 
 from opentelemetry import trace
 from reasoner_pydantic import (
-    HashableSequence,
     QueryGraph,
 )
 from reasoner_pydantic.utils import make_hashable
@@ -243,7 +242,9 @@ def prune_kg(
         )
         if edge_aux_graphs is None:
             continue
-        for aux_graph_id in cast(HashableSequence[str], edge_aux_graphs["value"]):
+        # Have to cast because support graphs always has value of type list[str]
+        # But attribute value is generally of type Any
+        for aux_graph_id in cast(list[str], edge_aux_graphs["value"]):
             edges_to_check.extend(
                 str(edge) for edge in aux_graphs[aux_graph_id]["edges"]
             )

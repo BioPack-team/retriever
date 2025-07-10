@@ -15,7 +15,7 @@ A few notes:
 from __future__ import annotations
 
 from collections.abc import Hashable
-from typing import NotRequired, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 from reasoner_pydantic import LogLevel
 from reasoner_pydantic.qgraph import SetInterpretationEnum
@@ -173,7 +173,7 @@ class AttributeDict(TypedDict):
 
     attribute_type_id: str
     original_attribute_name: NotRequired[str]
-    value: Hashable
+    value: Any
     value_type_id: NotRequired[str]
     attribute_source: NotRequired[str]
     value_url: NotRequired[str]

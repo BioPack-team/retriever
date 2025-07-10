@@ -4,7 +4,6 @@ import random
 import time
 import uuid
 from collections import deque
-from typing import cast
 
 from opentelemetry import trace
 from reasoner_pydantic import QueryGraph
@@ -13,7 +12,6 @@ from reasoner_pydantic.shared import ResourceRoleEnum
 from retriever.tasks.lookup.branch import Branch
 from retriever.types.trapi import (
     CURIE,
-    BiolinkCategory,
     EdgeDict,
     KnowledgeGraphDict,
     LogEntryDict,
@@ -73,8 +71,10 @@ async def mock_subquery(
         if node.ids:
             curies = list(node.ids)
         else:
-            category = cast(
-                BiolinkCategory, (node.categories or ["biolink:NamedThing"])[0]
+            category = (
+                str(next(iter(list(node.categories))))
+                if node.categories
+                else "biolink:NamedThing"
             )
             curies = (
                 [
@@ -86,20 +86,24 @@ async def mock_subquery(
                 # if category != "biolink:Disease"
                 # else []
             )
+        output_node = qg.nodes[branch.output_node]
         nodes = {
             curie: NodeDict(
-                categories=cast(
-                    list[BiolinkCategory], qg.nodes[branch.output_node].categories or []
-                ),
+                categories=[str(cat) for cat in output_node.categories]
+                if output_node.categories
+                else [],
                 attributes=[],
             )
             for curie in curies
         }
+
         edges = [
             EdgeDict(
                 subject=(branch.input_curie if not branch.reversed else curie),
-                predicate=cast(
-                    str, (current_edge.predicates or ["biolink:related_to"])[0]
+                predicate=(
+                    str(next(iter(list(current_edge.predicates))))
+                    if current_edge.predicates is not None
+                    else "biolink:related_to"
                 ),
                 object=(curie if not branch.reversed else branch.input_curie),
                 sources=[
