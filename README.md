@@ -7,7 +7,7 @@ Intermediary between Knowledge Providers and [Shepherd](https://github.com/BioPa
 For a more detailed overview, see the [Installation Documentation](./docs/INSTALLATION.md).
 
 > [!NOTE]
-> Requires [Docker](https://www.docker.com/get-started/) and Python ~3.12
+> Requires [Docker](https://www.docker.com/get-started/) and Python ~3.13
 
 Quick setup for local workspace:
 

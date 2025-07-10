@@ -55,7 +55,7 @@ Retriever uses [uv](https://docs.astral.sh/uv/) for package/workspace management
 pip install uv
 ```
 
-`uv` should handle Python versions for you-- Retriever requires Python ~3.12, but ~3.13 is recommended.
+`uv` should handle Python versions for you-- Retriever requires Python ~3.13.
 
 From here, you're ready to clone the workspace and get set up:
 
