@@ -232,13 +232,16 @@ async def run_tiered_lookups(
             logs.extend(findings.logs)
             if not findings.error:
                 merge_results(results, findings.results)
-                # Small optimization: Don't iterate through the new kgraph if
-                # It's the first of the two to respond
-                if len(kgraph["edges"]) == 0:
+                # Small optimization: Iterate the smaller kgraph
+                kgraph_size = len(kgraph["nodes"]) + len(kgraph["edges"])
+                new_kgraph_size = len(findings.kgraph["nodes"]) + len(
+                    findings.kgraph["edges"]
+                )
+                if kgraph_size > new_kgraph_size:
+                    update_kgraph(kgraph, findings.kgraph)
+                else:
                     update_kgraph(findings.kgraph, kgraph)
                     kgraph = findings.kgraph
-                else:
-                    update_kgraph(kgraph, findings.kgraph)
 
                 aux_graphs.update(findings.aux_graphs)
         except Exception:
