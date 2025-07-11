@@ -33,6 +33,24 @@ jobs:
       - name: Check static typing
         run: basedpyright src
         shell: bash
+  tests:
+    name: Tests and coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
+      - name: Test with pytest
+        run: pytest --junitxml=junit/test-results.xml --cov=src --cov-config=pyproject.toml
+      - name: Test summary
+        uses: test-summary/action@v2
+        with:
+          paths: junit/test-results.xml
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
   docker:
     name: Dockerfile builds
     runs-on: ubuntu-latest

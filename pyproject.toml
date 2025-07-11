@@ -45,7 +45,15 @@ dev = [
     "basedpyright>=1.29.4",
     "pre-commit>=4.2.0",
     "deptry>=0.23.0",
+    "pytest>=8.4.0",
+    "pytest-cov>=6.2.1",
 ]
+
+[tool.uv]
+config-settings = { editable_mode = "compat" }
+
+[tool.uv.sources]
+reasoner-pydantic = { git = "https://github.com/tokebe/reasoner-pydantic" }
 
 [tool.taskipy.tasks]
 # Code work
@@ -60,6 +68,8 @@ typecheck = 'basedpyright src/retriever'
 
 format = 'ruff format --diff src/retriever'
 'format:fix' = 'ruff format src/retriever'
+
+test = 'pytest --cov=src --cov-config=pyproject.toml'
 
 fixup = """
 echo 'Linting...' &&
@@ -213,8 +223,13 @@ line_length = 88
 [tool.deptry]
 extend_exclude = ["locustfile.py", "tests"]
 
-[tool.uv]
-config-settings = { editable_mode = "compat" }
+[tool.coverage.run]
+branch = true
+relative_files = true
+omit = ["tests/*"]
 
-[tool.uv.sources]
-reasoner-pydantic = { git = "https://github.com/tokebe/reasoner-pydantic" }
+[tool.coverage.paths]
+source = ["src"]
+
+[tool.coverage.report]
+include_namespace_packages = true
