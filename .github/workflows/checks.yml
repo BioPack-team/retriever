@@ -18,6 +18,8 @@ jobs:
       - name: Check formatting and lint
         run: ruff check --output-format=github src
         shell: bash
+      - name: Check dependencies
+        run: deptry src
   typing:
     name: Static Typing
     runs-on: ubuntu-latest
