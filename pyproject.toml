@@ -70,7 +70,7 @@ task format:fix &&
 echo 'Static analysis...' &&
 task typecheck &&
 echo 'Check dependencies...' &&
-deptry &&
+deptry src &&
 echo "✅ All set!"
 """
 
