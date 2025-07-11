@@ -51,6 +51,8 @@ jobs:
           paths: junit/test-results.xml
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
   docker:
     name: Dockerfile builds
     runs-on: ubuntu-latest
