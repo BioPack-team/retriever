@@ -1,3 +1,4 @@
+import warnings
 from typing import Annotated, ClassVar, override
 
 from pydantic import AfterValidator, BaseModel, SecretStr
@@ -9,6 +10,14 @@ from pydantic_settings import (
 )
 
 from retriever.types.general import LogLevel
+
+# Filter warnings about secrets because they're optional
+warnings.filterwarnings(
+    action="ignore", message='directory "/run/secrets" does not exist'
+)
+warnings.filterwarnings(
+    action="ignore", message='directory "config/secrets" does not exist'
+)
 
 
 class CORSSettings(BaseModel):
