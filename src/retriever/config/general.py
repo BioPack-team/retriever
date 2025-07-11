@@ -96,7 +96,7 @@ class Tier0Settings(BaseModel):
     neo4j: Neo4jSettings = Neo4jSettings()
 
 
-class GeneralConfig(BaseSettings, secrets_dir="config/secrets"):
+class GeneralConfig(BaseSettings):
     """General application config."""
 
     instance_env: str = "dev"
@@ -128,7 +128,7 @@ class GeneralConfig(BaseSettings, secrets_dir="config/secrets"):
         env_file_encoding="utf-8",
         yaml_file="config/config.yaml",
         yaml_file_encoding="utf-8",
-        secrets_dir="config/secrets",
+        secrets_dir=["config/secrets", "/run/secrets"],
         secrets_nested_delimiter="__",
     )
 

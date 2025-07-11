@@ -1,8 +1,9 @@
 # Build via compose: docker compose build
-# Build manual: docker build --rm --force-rm --compress -t biopack-team/retriever
+# Build manual: docker build --rm --force-rm --compress -t biopack-team/retriever .
 FROM python:3-alpine
 
 # Ensure requirements
+RUN apk add --no-cache git
 RUN pip install --upgrade pip
 
 RUN adduser -D python

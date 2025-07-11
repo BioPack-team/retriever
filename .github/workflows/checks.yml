@@ -31,3 +31,13 @@ jobs:
       - name: Check static typing
         run: basedpyright src
         shell: bash
+  docker:
+    name: Dockerfile builds
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Test building container
+        run: docker build -t biopack-team/retriever .

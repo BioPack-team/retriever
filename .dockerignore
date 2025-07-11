@@ -9,3 +9,5 @@ logs/*
 .DS_Store
 .yamllint.yaml
 REAMDME.md
+dbs
+config/secrets/*
