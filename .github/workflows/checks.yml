@@ -53,6 +53,7 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          slug: BioPack-team/retriever
   docker:
     name: Dockerfile builds
     runs-on: ubuntu-latest
