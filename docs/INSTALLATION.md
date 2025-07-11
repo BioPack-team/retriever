@@ -19,7 +19,7 @@ docker compose build
 Using the Dockerfile:
 
 ```bash
-docker build --rm --force-rm --compress -t biopack-team/retriever
+docker build --rm --force-rm --compress -t biopack-team/retriever .
 ```
 
 ### Run
