@@ -47,12 +47,12 @@ class MongoClient:
     def get_job_collection(self) -> AsyncIOMotorCollection[dict[str, Any]]:
         """Get job_state collection with standard options."""
         db = self.client.retriever_persist
-        return db.get_collection("job_state", codec_options=CODEC_OPTIONS)  # pyright:ignore[reportUnknownMemberType]
+        return db.get_collection("job_state", codec_options=CODEC_OPTIONS)
 
     def get_log_collection(self) -> AsyncIOMotorCollection[dict[str, Any]]:
         """Get log_dump collection with standard options."""
         db = self.client.retriever_persist
-        return db.get_collection("log_dump", codec_options=CODEC_OPTIONS)  # pyright:ignore[reportUnknownMemberType]
+        return db.get_collection("log_dump", codec_options=CODEC_OPTIONS)
 
     async def initialize(self) -> None:
         """Check and prepare mongo client.
@@ -61,7 +61,7 @@ class MongoClient:
         """
         log.info("Checking mongodb connection...")
         try:
-            await self.client.admin.command("ping")  # pyright:ignore[reportUnknownMemberType]
+            await self.client.admin.command("ping")
             log.success("Mongodb connection successful!")
         except Exception as error:
             log.critical(

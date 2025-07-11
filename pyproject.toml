@@ -28,7 +28,6 @@ dependencies = [
     "pyinstrument>=5.0.1",
     "pydantic-file-secrets>=0.4.4",
     "pyyaml>=6.0.2",
-    "bson>=0.5.10",
     "pymongo>=4.12.0",
 ]
 
