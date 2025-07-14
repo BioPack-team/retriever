@@ -58,18 +58,18 @@ reasoner-pydantic = { git = "https://github.com/tokebe/reasoner-pydantic" }
 [tool.taskipy.tasks]
 # Code work
 hook = "pre-commit install"
-lint = 'ruff check src/retriever'
+lint = 'ruff check src'
 'lint:stats' = 'task lint --statistics'
 'lint:watch' = 'task lint --watch'
 'lint:fix' = 'task lint --fix'
 
-typecheck = 'basedpyright src/retriever'
+typecheck = 'basedpyright src'
 'typecheck:watch' = 'task typecheck --watch'
 
-format = 'ruff format --diff src/retriever'
-'format:fix' = 'ruff format src/retriever'
+format = 'ruff format --diff src'
+'format:fix' = 'ruff format src'
 
-test = 'pytest --cov=src --cov-config=pyproject.toml'
+test = 'pytest --cov=src --cov-config=pyproject.toml --cov-report term-missing'
 
 fixup = """
 echo 'Linting...' &&
@@ -154,6 +154,9 @@ build-backend = "hatchling.build"
 include = ["src/*"]
 line-length = 88
 indent-width = 4
+
+[tool.ruff.per-file-ignore]
+"tests/*" = ["D"]
 
 [tool.ruff.lint]
 select = [
