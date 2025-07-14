@@ -155,7 +155,7 @@ include = ["src/*"]
 line-length = 88
 indent-width = 4
 
-[tool.ruff.per-file-ignore]
+[tool.ruff.lint.per-file-ignores]
 "tests/*" = ["D"]
 
 [tool.ruff.lint]
