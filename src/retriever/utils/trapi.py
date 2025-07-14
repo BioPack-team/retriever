@@ -85,16 +85,21 @@ def hash_edge(edge: EdgeDict) -> int:
     )
 
 
+def hash_result(result: ResultDict) -> int:
+    """Get a hash of a ResultDict instance."""
+    return hash(
+        tuple(
+            (qnode_id, *(hash_node_binding(binding) for binding in bindings))
+            for qnode_id, bindings in result["node_bindings"].items()
+        )
+    )
+
+
 @tracer.start_as_current_span("merge_results")
 def merge_results(current: dict[int, ResultDict], new: list[ResultDict]) -> None:
     """Merge ResultDicts in a dict of results by hash."""
     for result in new:
-        key = hash(
-            tuple(
-                (qnode_id, *(hash_node_binding(binding) for binding in bindings))
-                for qnode_id, bindings in result["node_bindings"].items()
-            )
-        )
+        key = hash_result(result)
         if key not in current:
             current[key] = result
             continue
@@ -151,9 +156,9 @@ def update_edge(edge: EdgeDict, new: EdgeDict) -> None:
         # Roll in upstream_resource_ids from new sources that overlap
         for source_id, source in old_sources.items():
             if new_source := new_sources.get(source_id):
-                update_retrieval_source(source, new_source)
-        # Grab from new first to preserve merged upstream_resource_ids
-        new["sources"] = list({**new_sources, **old_sources}.values())
+                # Update new source so it overwrites the old source
+                update_retrieval_source(new_source, source)
+        edge["sources"] = list({**old_sources, **new_sources}.values())
 
 
 def update_kgraph(kgraph: KnowledgeGraphDict, new: KnowledgeGraphDict) -> None:
