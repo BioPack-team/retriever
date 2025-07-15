@@ -1,15 +1,22 @@
 from copy import deepcopy
+
 import pytest
 from reasoner_pydantic import QueryGraph
+from utils.general import mock_inner_log  # pyright:ignore[reportImplicitRelativeImport]
 
 from retriever.types.trapi import (
+    AnalysisDict,
     AttributeDict,
+    AuxGraphDict,
+    EdgeBindingDict,
     EdgeDict,
+    KnowledgeGraphDict,
     NodeBindingDict,
     NodeDict,
     ResultDict,
     RetrievalSourceDict,
 )
+from retriever.utils.logs import TRAPILogger
 from retriever.utils.trapi import (
     edge_primary_knowledge_source,
     hash_attribute,
@@ -20,7 +27,10 @@ from retriever.utils.trapi import (
     hash_retrieval_source,
     initialize_kgraph,
     merge_results,
+    normalize_kgraph,
+    prune_kg,
     update_edge,
+    update_kgraph,
     update_node,
     update_retrieval_source,
 )
@@ -133,6 +143,72 @@ def result0() -> ResultDict:
     )
 
 
+@pytest.fixture
+def kgraph0() -> KnowledgeGraphDict:
+    return KnowledgeGraphDict(
+        nodes={
+            "n0": NodeDict(categories=["A"], attributes=[]),
+            "n1": NodeDict(categories=["B"], attributes=[]),
+        },
+        edges={
+            "e1": EdgeDict(
+                subject="n0", predicate="biolink:related_to", object="n1", sources=[]
+            )
+        },
+    )
+
+
+@pytest.fixture
+def kgraph1() -> KnowledgeGraphDict:
+    return KnowledgeGraphDict(
+        nodes={
+            "n0": NodeDict(categories=["A"], attributes=[]),
+            "n1": NodeDict(categories=["B"], attributes=[]),
+            "n2": NodeDict(categories=["B"], attributes=[]),
+        },
+        edges={
+            "e1": EdgeDict(
+                subject="n0",
+                predicate="biolink:related_to",
+                object="n1",
+                sources=[],
+                attributes=[
+                    AttributeDict(attribute_type_id="some_id", value="some_value")
+                ],
+            ),
+            "e2": EdgeDict(
+                subject="n0", predicate="biolink:has_subclass", object="n1", sources=[]
+            ),
+            "e3": EdgeDict(
+                subject="n0", predicate="biolink:related_to", object="n2", sources=[]
+            ),
+        },
+    )
+
+
+@pytest.fixture
+def results() -> list[ResultDict]:
+    return [
+        # Multiple analysis in one result shouldn't occur, but code should handle it.
+        ResultDict(
+            node_bindings={
+                "qn0": [NodeBindingDict(id="n0", attributes=[])],
+                "qn1": [NodeBindingDict(id="n1", attributes=[])],
+            },
+            analyses=[
+                AnalysisDict(
+                    resource_id="infores:retriever",
+                    edge_bindings={"qe1": [EdgeBindingDict(id="e1", attributes=[])]},
+                ),
+                AnalysisDict(
+                    resource_id="infores:retriever",
+                    edge_bindings={"qe1": [EdgeBindingDict(id="e2", attributes=[])]},
+                ),
+            ],
+        )
+    ]
+
+
 def test_initialize_kgraph() -> None:
     qgraph_dict = {
         "nodes": {
@@ -196,6 +272,7 @@ class TestEdgeDict:
         new_source = RetrievalSourceDict(
             resource_id="some_id", resource_role="some_role"
         )
+        kedge1["sources"].pop(-1)
         kedge1["sources"].append(new_source)
         kedge1["sources"][0]["upstream_resource_ids"] = [
             *kedge1["sources"][0].get("upstream_resource_ids", []),
@@ -298,6 +375,58 @@ class TestResultDict:
         merge_results(results, [deepcopy(result0), result1])
 
         assert len(results) == 2
+
+
+class TestKnowledgeGraphDict:
+    def test_normalize_kgraph(
+        self, kgraph1: KnowledgeGraphDict, results: list[ResultDict]
+    ) -> None:
+        aux_graphs = {"aux0": AuxGraphDict(edges=["e1"], attributes=[])}
+        normalize_kgraph(kgraph1, results, aux_graphs)
+
+        for edge_id, edge in kgraph1["edges"].items():
+            assert edge_id == hash_hex(hash_edge(edge))
+        assert (
+            results[0]["analyses"][0]["edge_bindings"]["qe1"][0]["id"]
+            in kgraph1["edges"]
+        )
+        assert aux_graphs["aux0"]["edges"][0] in kgraph1["edges"]
+
+    def test_update_kgraph(
+        self, kgraph0: KnowledgeGraphDict, kgraph1: KnowledgeGraphDict
+    ) -> None:
+        aux_graphs = {"aux0": AuxGraphDict(edges=["e1"], attributes=[])}
+        normalize_kgraph(kgraph0, [], aux_graphs)
+        normalize_kgraph(kgraph1, [], aux_graphs)
+        update_kgraph(kgraph0, kgraph1)
+
+        assert len(kgraph0["nodes"]) == 3
+        assert len(kgraph0["edges"]) == 3
+
+        new_edge_id = next(iter(kgraph0["edges"].keys()))
+
+        edge = kgraph0["edges"][new_edge_id]
+        assert "attributes" in edge
+        assert edge["attributes"][0]["value"] == "some_value"
+
+    def test_prune_kgraph(
+        self,
+        kgraph1: KnowledgeGraphDict,
+        results: list[ResultDict],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        aux_graphs = {"aux0": AuxGraphDict(edges=["e1"], attributes=[])}
+        kgraph1["edges"]["e1"]["attributes"] = [
+            AttributeDict(attribute_type_id="biolink:support_graphs", value=["aux0"])
+        ]
+        normalize_kgraph(kgraph1, results, aux_graphs)
+
+        logger = TRAPILogger("somejobid")
+        monkeypatch.setattr(TRAPILogger, "_log", mock_inner_log)
+
+        prune_kg(results, kgraph1, aux_graphs, logger)
+        assert len(kgraph1["nodes"]) == 2
+        assert len(kgraph1["edges"]) == 2
 
 
 def test_update_node(knode0: NodeDict) -> None:
