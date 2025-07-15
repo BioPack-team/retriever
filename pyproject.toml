@@ -156,7 +156,7 @@ line-length = 88
 indent-width = 4
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["D"]
+"tests/*" = ["D", "PLR2004"]
 
 [tool.ruff.lint]
 select = [
@@ -225,6 +225,9 @@ line_length = 88
 
 [tool.deptry]
 extend_exclude = ["locustfile.py", "tests"]
+
+[tool.pytest.ini_options]
+norecursedirs=["utils"]
 
 [tool.coverage.run]
 branch = true
