@@ -58,18 +58,18 @@ reasoner-pydantic = { git = "https://github.com/tokebe/reasoner-pydantic" }
 [tool.taskipy.tasks]
 # Code work
 hook = "pre-commit install"
-lint = 'ruff check src/retriever'
+lint = 'ruff check src'
 'lint:stats' = 'task lint --statistics'
 'lint:watch' = 'task lint --watch'
 'lint:fix' = 'task lint --fix'
 
-typecheck = 'basedpyright src/retriever'
+typecheck = 'basedpyright src'
 'typecheck:watch' = 'task typecheck --watch'
 
-format = 'ruff format --diff src/retriever'
-'format:fix' = 'ruff format src/retriever'
+format = 'ruff format --diff src'
+'format:fix' = 'ruff format src'
 
-test = 'pytest --cov=src --cov-config=pyproject.toml'
+test = 'pytest --cov=src --cov-config=pyproject.toml --cov-report term-missing'
 
 fixup = """
 echo 'Linting...' &&
@@ -155,6 +155,9 @@ include = ["src/*"]
 line-length = 88
 indent-width = 4
 
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D", "PLR2004"]
+
 [tool.ruff.lint]
 select = [
     # All of these were carefully chosen, see https://docs.astral.sh/ruff/rules
@@ -222,6 +225,9 @@ line_length = 88
 
 [tool.deptry]
 extend_exclude = ["locustfile.py", "tests"]
+
+[tool.pytest.ini_options]
+norecursedirs=["utils"]
 
 [tool.coverage.run]
 branch = true

@@ -175,6 +175,7 @@ def update_kgraph(kgraph: KnowledgeGraphDict, new: KnowledgeGraphDict) -> None:
     for edge_id, edge in new["edges"].items():
         if edge_id not in kgraph["edges"]:
             kgraph["edges"][edge_id] = edge
+            continue
         update_edge(kgraph["edges"][edge_id], edge)
 
 
@@ -222,15 +223,20 @@ def prune_kg(
     for result in results:
         for node_binding_set in result["node_bindings"].values():
             bound_nodes.update([str(binding["id"]) for binding in node_binding_set])
-        # Only ever one analysis so we can use next(iter())
-        for edge_binding_set in next(iter(result["analyses"]))[
-            "edge_bindings"
-        ].values():
-            bound_edges.update([str(binding["id"]) for binding in edge_binding_set])
+        for analysis in result["analyses"]:
+            for edge_binding_set in analysis["edge_bindings"].values():
+                bound_edges.update([str(binding["id"]) for binding in edge_binding_set])
 
+    checked_edges = set[str]()
     edges_to_check = list(bound_edges)
     while len(edges_to_check) > 0:
         edge_id = edges_to_check.pop()
+
+        # Avoid infinite loops if edge and aux graph reference each other
+        if edge_id in checked_edges:
+            continue
+        checked_edges.add(edge_id)
+
         edge = kgraph["edges"][edge_id]
 
         bound_edges.add(edge_id)
