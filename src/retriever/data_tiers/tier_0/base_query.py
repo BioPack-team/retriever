@@ -1,6 +1,7 @@
 import asyncio
 import math
 import time
+from abc import ABC, abstractmethod
 
 from opentelemetry import trace
 from reasoner_pydantic import (
@@ -21,7 +22,7 @@ from retriever.utils.trapi import initialize_kgraph, normalize_kgraph, update_kg
 tracer = trace.get_tracer("lookup.execution.tracer")
 
 
-class Tier0Query:
+class Tier0Query(ABC):
     """Handler class for running a single Tier 0 query."""
 
     def __init__(self, qgraph: QueryGraph, job_id: str, _tier: set[int]) -> None:
@@ -84,6 +85,7 @@ class Tier0Query:
                 [], self.kgraph, self.aux_graphs, self.job_log.get_logs(), error=True
             )
 
-    async def get_results(self, qgraph: QueryGraphDict) -> BackendResults:  # pyright:ignore[reportUnusedParameter]
+    @abstractmethod
+    async def get_results(self, qgraph: QueryGraphDict) -> BackendResults:
         """Interface with the Tier 0 backend and retrieve results, converting to ResultDict."""
         raise NotImplementedError("Implemented in subclasses of Tier0Query.")
