@@ -1440,9 +1440,13 @@ wheels = [
 [[package]]
 name = "reasoner-pydantic"
 version = "6.0.0"
-source = { git = "https://github.com/tokebe/reasoner-pydantic#6fb3c6654a9d484b753e23b9be5c1d4046c22222" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e4/94/53eaf0897ac0a2b6467a80767a89b2c01ae34302d739ed63cf5dcb536be4/reasoner-pydantic-6.0.0.tar.gz", hash = "sha256:ab44042afd826deecb6b8c05e5103364598c5d62e3e6ef586c602bf1ffd25fe4", size = 15356, upload-time = "2025-07-17T16:15:05.287Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e3/7c/570aede71494d86640aa69d2f8025151f0eb420b4f9e40505ff99c1313f1/reasoner_pydantic-6.0.0-py3-none-any.whl", hash = "sha256:c3847b0b9c96b946aeb834570689a2fb207b0d02c3d81feafc513c1b4f4bf768", size = 17966, upload-time = "2025-07-17T16:15:04.013Z" },
 ]
 
 [[package]]
@@ -1565,7 +1569,7 @@ requires-dist = [
     { name = "pyinstrument", specifier = ">=5.0.1" },
     { name = "pymongo", specifier = ">=4.12.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
-    { name = "reasoner-pydantic", git = "https://github.com/tokebe/reasoner-pydantic" },
+    { name = "reasoner-pydantic", specifier = ">=6.0.0,<7" },
     { name = "reasoner-transpiler", specifier = ">=2.3.5" },
     { name = "redis", specifier = ">=5.0.4,<6" },
     { name = "sentry-sdk", specifier = ">=2.20.0" },

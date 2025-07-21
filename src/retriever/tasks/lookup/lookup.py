@@ -1,7 +1,7 @@
 import asyncio
 import math
 import time
-from typing import Any, cast
+from typing import Any, Literal, cast, overload
 
 import bmt
 import httpx
@@ -12,6 +12,7 @@ from reasoner_pydantic import (
     LogLevel,
     QueryGraph,
 )
+from reasoner_pydantic.qgraph import PathfinderQueryGraph
 
 from retriever.config.openapi import OPENAPI_CONFIG
 from retriever.data_tiers.tier_0.neo4j.query import Neo4jQuery
@@ -52,7 +53,7 @@ async def async_lookup(query: QueryInfo) -> None:
             url=str(query.body.callback), json=response
         )
         callback_response.raise_for_status()
-        job_log.debug("Request sent successfully.")
+        job_log.debug("Callback sent successfully.")
     except httpx.HTTPError:
         job_log.exception("Failed to make callback for async query.")
 
@@ -78,7 +79,9 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
             raise ValueError("Query Graph is None.")
 
         # Query graph validation that isn't handled by reasoner_pydantic
-        if not passes_validation(qgraph, response, job_log):
+        if not passes_validation(qgraph, response, job_log) or isinstance(
+            qgraph, PathfinderQueryGraph
+        ):
             return tracked_response(422, response)
 
         expanded_qgraph = expand_qgraph(qgraph.model_copy(), job_log)
@@ -157,8 +160,24 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
     )
 
 
+@overload
 def passes_validation(
-    qgraph: QueryGraph, response: ResponseDict, job_log: TRAPILogger
+    qgraph: PathfinderQueryGraph, response: ResponseDict, job_log: TRAPILogger
+) -> Literal[False]: ...
+
+
+@overload
+def passes_validation(
+    qgraph: QueryGraph,
+    response: ResponseDict,
+    job_log: TRAPILogger,
+) -> bool: ...
+
+
+def passes_validation(
+    qgraph: QueryGraph | PathfinderQueryGraph,
+    response: ResponseDict,
+    job_log: TRAPILogger,
 ) -> bool:
     """Ensure a given query graph passes validation.
 

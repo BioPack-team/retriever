@@ -1,14 +1,17 @@
 from reasoner_pydantic import QueryGraph
+from reasoner_pydantic.qgraph import PathfinderQueryGraph
 from reasoner_pydantic.shared import KnowledgeType
 
 
-def validate(qg: QueryGraph) -> list[str]:
+def validate(qg: QueryGraph | PathfinderQueryGraph) -> list[str]:
     """Check that a given query graph is valid.
 
     Returns:
         A list of messages detailing validation problems.
         If the list is empty, the graph passes validation.
     """
+    if isinstance(qg, PathfinderQueryGraph):
+        return ["Retriever does not support Pathfinder queries."]
     problems: dict[str, bool] = {}
     problems["Query graph must have at least one node"] = len(qg.nodes.values()) > 0
     problems["Query graph must have at least one edge"] = len(qg.edges.values()) > 0

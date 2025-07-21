@@ -23,12 +23,12 @@ dependencies = [
     "loguru>=0.7.3",
     "bmt>=1.4.4",
     "reasoner-transpiler>=2.3.5",
-    "reasoner-pydantic",
     "neo4j>=5.28.1",
     "pyinstrument>=5.0.1",
     "pydantic-file-secrets>=0.4.4",
     "pyyaml>=6.0.2",
     "pymongo>=4.12.0",
+    "reasoner-pydantic>=6.0.0,<7",
 ]
 
 [project.scripts]
@@ -51,9 +51,6 @@ dev = [
 
 [tool.uv]
 config-settings = { editable_mode = "compat" }
-
-[tool.uv.sources]
-reasoner-pydantic = { git = "https://github.com/tokebe/reasoner-pydantic" }
 
 [tool.taskipy.tasks]
 # Code work
@@ -227,7 +224,7 @@ line_length = 88
 extend_exclude = ["locustfile.py", "tests"]
 
 [tool.pytest.ini_options]
-norecursedirs=["utils"]
+norecursedirs = ["utils"]
 
 [tool.coverage.run]
 branch = true
