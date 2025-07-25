@@ -22,11 +22,11 @@ services:
     build: .
     ports: [8080:8080]
     depends_on: [mongodb, dragonfly]
-    network_mode: host
+    # network_mode: host
     environment:
-      MONGO__HOST: host.docker.internal
-      REDIS__HOST: host.docker.internal
-      REDIS__PORT: 6888
+      MONGO__HOST: mongodb
+      REDIS__HOST: dragonfly
+      REDIS__PORT: 6379
     secrets:
       - tier0__neo4j__host
       - tier0__neo4j__username

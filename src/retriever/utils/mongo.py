@@ -219,7 +219,7 @@ class MongoClient:
 
 
 class MongoQueue:
-    """A multiprocessing queue for sending items to MongoDB in the main process."""
+    """An asynchronous queue for sending items to MongoDB."""
 
     def __init__(self, client: MongoClient) -> None:
         """Initialize a mongo client and multiprocessing queue."""
