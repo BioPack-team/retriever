@@ -123,7 +123,7 @@ async def meta_knowledge_graph(
     tier: Annotated[
         list[TierNumber],
         Query(
-            description="Comma-delimited list of Data Tiers to use.",
+            description="Data Tier to use. Set multiple times to access multiple Tiers simultaneously.",
             default_factory=lambda: [0],
         ),
     ],
@@ -164,7 +164,7 @@ async def query(
     tier: Annotated[
         list[TierNumber],
         Query(
-            description="Comma-delimited list of Data Tiers to use.",
+            description="Data Tier to use. Set multiple times to access multiple Tiers simultaneously.",
             default_factory=lambda: [0],
         ),
     ],
@@ -206,7 +206,7 @@ async def asyncquery(
     tier: Annotated[
         list[TierNumber],
         Query(
-            description="Comma-delimited list of Data Tiers to use.",
+            description="Data Tier to use. Set multiple times to access multiple Tiers simultaneously.",
             default_factory=lambda: [0],
         ),
     ],
