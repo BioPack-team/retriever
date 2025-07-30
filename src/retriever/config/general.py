@@ -57,12 +57,12 @@ class TelemetrySettings(BaseModel):
     """Settings for OpenTelelemtry and Sentry."""
 
     otel_enabled: bool = False
-    otel_host: str | None = "jaeger-otel-collector.sri"
+    otel_host: SecretStr | None = SecretStr("jaeger-otel-collector.sri")
     otel_port: int | None = 4318
     otel_trace_endpoint: str | None = "/v1/traces"
 
     sentry_enabled: bool = False
-    sentry_dsn: str | None = None
+    sentry_dsn: SecretStr | None = None
     traces_sample_rate: float = 0.1
     profiles_sample_rate: float = 1.0
 

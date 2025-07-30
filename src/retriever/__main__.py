@@ -2,6 +2,8 @@ import asyncio
 import multiprocessing
 
 import uvicorn
+import yaml
+from loguru import logger
 
 from retriever.config.general import CONFIG
 from retriever.config.logger import configure_logging
@@ -12,6 +14,10 @@ def main() -> None:
     """Run the server."""
     # logging -> loguru intercept needs to be set up early
     logging_config = configure_logging()
+
+    logger.debug(
+        f"Starting with config: \n{yaml.dump(yaml.safe_load(CONFIG.model_dump_json()))}"
+    )
 
     n_workers = CONFIG.workers or int(multiprocessing.cpu_count() / 2)
 

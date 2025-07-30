@@ -20,10 +20,13 @@ def configure_telemetry(app: FastAPI | None = None) -> None:
     """Set up both sentry and OTel as configured."""
     if CONFIG.telemetry.sentry_enabled:
         sentry_sdk.init(
-            dsn=CONFIG.telemetry.sentry_dsn,
+            dsn=str(CONFIG.telemetry.sentry_dsn)
+            if CONFIG.telemetry.sentry_dsn
+            else None,
             traces_sample_rate=CONFIG.telemetry.traces_sample_rate,
             profiles_sample_rate=CONFIG.telemetry.profiles_sample_rate,
             instrumenter="otel",
+            environment=CONFIG.instance_env,
         )
 
     if any([CONFIG.telemetry.sentry_enabled, CONFIG.telemetry.otel_enabled]):
