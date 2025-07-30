@@ -18,7 +18,9 @@ async def test_redis() -> None:
             r = RedisCluster(  # pyright:ignore [reportAbstractUsage] this instantiates correctly
                 host=CONFIG.redis.host,
                 port=CONFIG.redis.port,
-                password=str(CONFIG.redis.password),
+                password=CONFIG.redis.password.get_secret_value()
+                if CONFIG.redis.password
+                else None,
                 ssl=CONFIG.redis.ssl_enabled,
                 ssl_cert_reqs="none",
                 retry=retry,
@@ -29,7 +31,9 @@ async def test_redis() -> None:
             r = redis.Redis(
                 host=CONFIG.redis.host,
                 port=CONFIG.redis.port,
-                password=str(CONFIG.redis.password),
+                password=CONFIG.redis.password.get_secret_value()
+                if CONFIG.redis.password
+                else None,
                 ssl=CONFIG.redis.ssl_enabled,
                 ssl_cert_reqs="none",
                 retry=retry,

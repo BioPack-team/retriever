@@ -31,7 +31,9 @@ class MongoClient:
                 host=CONFIG.mongo.host,
                 port=CONFIG.mongo.port,
                 username=CONFIG.mongo.username,
-                password=CONFIG.mongo.password,
+                password=CONFIG.mongo.password.get_secret_value()
+                if CONFIG.mongo.password
+                else None,
                 server_api=ServerApi("1"),
             )
         else:
@@ -39,7 +41,9 @@ class MongoClient:
                 host=CONFIG.mongo.host,
                 port=CONFIG.mongo.port,
                 username=CONFIG.mongo.username,
-                password=CONFIG.mongo.password,
+                password=CONFIG.mongo.password.get_secret_value()
+                if CONFIG.mongo.password
+                else None,
                 authsource=CONFIG.mongo.authsource,
                 server_api=ServerApi("1"),
             )

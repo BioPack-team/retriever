@@ -20,7 +20,7 @@ def configure_telemetry(app: FastAPI | None = None) -> None:
     """Set up both sentry and OTel as configured."""
     if CONFIG.telemetry.sentry_enabled:
         sentry_sdk.init(
-            dsn=str(CONFIG.telemetry.sentry_dsn)
+            dsn=CONFIG.telemetry.sentry_dsn.get_secret_value()
             if CONFIG.telemetry.sentry_dsn
             else None,
             traces_sample_rate=CONFIG.telemetry.traces_sample_rate,
@@ -30,9 +30,9 @@ def configure_telemetry(app: FastAPI | None = None) -> None:
         )
 
     if any([CONFIG.telemetry.sentry_enabled, CONFIG.telemetry.otel_enabled]):
-        collector_address = (
-            f"http://{CONFIG.telemetry.otel_host}:{CONFIG.telemetry.otel_port}"
-        )
+        if CONFIG.telemetry.otel_host is None:
+            raise ValueError("otel_host must be set if otel is enabled.")
+        collector_address = f"http://{CONFIG.telemetry.otel_host.get_secret_value()}:{CONFIG.telemetry.otel_port}"
 
         if parent_process() is None:
             log.info(f"Telemetry enabled, settings up service for {collector_address}")

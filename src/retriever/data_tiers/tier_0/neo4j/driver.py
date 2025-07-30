@@ -25,7 +25,10 @@ class Neo4jDriver(DatabaseDriver):
         if not self.neo4j_driver:
             self.neo4j_driver = neo4j.AsyncGraphDatabase.driver(
                 f"bolt://{CONFIG.tier0.neo4j.host}:{CONFIG.tier0.neo4j.bolt_port}",
-                auth=(CONFIG.tier0.neo4j.username, str(CONFIG.tier0.neo4j.password)),
+                auth=(
+                    CONFIG.tier0.neo4j.username,
+                    CONFIG.tier0.neo4j.password.get_secret_value(),
+                ),
                 telemetry_disabled=True,
                 max_connection_pool_size=1000,
             )
