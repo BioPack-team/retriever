@@ -154,7 +154,7 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
             ),
             biolink_version=OPENAPI_CONFIG.x_translator.biolink_version,
             schema_version=OPENAPI_CONFIG.x_trapi.version,
-            workflow=query.body.workflow,
+            workflow=query.body.workflow.model_dump() if query.body.workflow else None,
             job_id=job_id,  # pyright:ignore[reportCallIssue] Extra is allowed
         ),
     )
