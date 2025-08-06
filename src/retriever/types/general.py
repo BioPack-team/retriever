@@ -1,13 +1,8 @@
-from typing import Annotated, Literal, NamedTuple, TypedDict
+from typing import Literal, NamedTuple, TypedDict
 
 from fastapi import BackgroundTasks, Request, Response
-from pydantic import BaseModel, Field
-from reasoner_pydantic import (
-    CURIE,
-    AsyncQuery,
-    QEdge,
-    Query,
-)
+from pydantic import BaseModel
+from reasoner_pydantic import CURIE, QEdge
 from reasoner_pydantic.shared import EdgeIdentifier
 
 from retriever.types.trapi import (
@@ -16,8 +11,7 @@ from retriever.types.trapi import (
     LogEntryDict,
     ResultDict,
 )
-
-TierNumber = Annotated[int, Field(ge=0, le=2)]
+from retriever.types.trapi_pydantic import AsyncQuery, Query, TierNumber
 
 
 class ErrorDetail(BaseModel):
@@ -60,6 +54,7 @@ class QueryInfo(NamedTuple):
     body: Query | AsyncQuery | None
     job_id: str
     tiers: set[TierNumber]
+    timeout: int
 
 
 class BackendResults(TypedDict):

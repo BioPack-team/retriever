@@ -8,8 +8,7 @@ from reasoner_pydantic import (
     QueryGraph,
 )
 
-from retriever.config.general import CONFIG
-from retriever.types.general import BackendResults, LookupArtifacts
+from retriever.types.general import BackendResults, LookupArtifacts, QueryInfo
 from retriever.types.trapi import (
     AuxGraphDict,
     KnowledgeGraphDict,
@@ -28,11 +27,11 @@ tracer = trace.get_tracer("lookup.execution.tracer")
 class Tier0Query(ABC):
     """Handler class for running a single Tier 0 query."""
 
-    def __init__(self, qgraph: QueryGraph, job_id: str, _tier: set[int]) -> None:
+    def __init__(self, qgraph: QueryGraph, query_info: QueryInfo) -> None:
         """Initialize a Tier 0 Query instance."""
+        self.ctx: QueryInfo = query_info
         self.qgraph: QueryGraph = qgraph
-        self.job_id: str = job_id
-        self.job_log: TRAPILogger = TRAPILogger(job_id)
+        self.job_log: TRAPILogger = TRAPILogger(self.ctx.job_id)
         self.kgraph: KnowledgeGraphDict = initialize_kgraph(self.qgraph)
         self.aux_graphs: dict[str, AuxGraphDict] = {}
 
@@ -44,7 +43,7 @@ class Tier0Query(ABC):
             self.job_log.info("Starting lookup against Tier 0...")
 
             try:
-                timeout = None if CONFIG.job.timeout < 0 else CONFIG.job.timeout - 0.5
+                timeout = None if self.ctx.timeout < 0 else self.ctx.timeout - 0.5
                 async with asyncio.timeout(timeout):
                     backend_results = await self.get_results(
                         QueryGraphDict(**self.qgraph.model_dump())

@@ -4,14 +4,16 @@ from typing import Any, Literal, overload
 
 from fastapi import Request, Response
 from opentelemetry import trace
-from reasoner_pydantic import AsyncQuery as TRAPIAsyncQuery
 from reasoner_pydantic import MetaKnowledgeGraph as TRAPIMetaKnowledgeGraph
-from reasoner_pydantic import Query as TRAPIQuery
 
+from retriever.config.general import CONFIG
 from retriever.tasks.lookup.lookup import async_lookup, lookup
 from retriever.tasks.metakg.metakg import metakg
-from retriever.types.general import APIInfo, QueryInfo, TierNumber
+from retriever.types.general import APIInfo, QueryInfo
 from retriever.types.trapi import AsyncQueryResponseDict, ResponseDict
+from retriever.types.trapi_pydantic import AsyncQuery as TRAPIAsyncQuery
+from retriever.types.trapi_pydantic import Query as TRAPIQuery
+from retriever.types.trapi_pydantic import TierNumber
 from retriever.utils import telemetry
 from retriever.utils.logs import TRAPILogger, structured_log_to_trapi
 from retriever.utils.mongo import MONGO_CLIENT, MONGO_QUEUE
@@ -23,7 +25,7 @@ tracer = trace.get_tracer("lookup.execution.tracer")
 async def make_query(
     func: Literal["lookup"],
     ctx: APIInfo,
-    tiers: list[TierNumber],
+    *,
     body: TRAPIQuery,
 ) -> ResponseDict: ...
 
@@ -32,7 +34,7 @@ async def make_query(
 async def make_query(
     func: Literal["lookup"],
     ctx: APIInfo,
-    tiers: list[TierNumber],
+    *,
     body: TRAPIAsyncQuery,
 ) -> AsyncQueryResponseDict: ...
 
@@ -41,6 +43,7 @@ async def make_query(
 async def make_query(
     func: Literal["metakg"],
     ctx: APIInfo,
+    *,
     tiers: list[TierNumber],
 ) -> TRAPIMetaKnowledgeGraph: ...
 
@@ -48,20 +51,31 @@ async def make_query(
 async def make_query(
     func: Literal["lookup", "metakg"],
     ctx: APIInfo,
-    tiers: list[TierNumber],  # Guaranteed to be 0 <= x <= 2
+    *,
     body: TRAPIQuery | TRAPIAsyncQuery | None = None,
+    tiers: list[TierNumber] | None = None,  # Guaranteed to be 0 <= x <= 2
 ) -> ResponseDict | AsyncQueryResponseDict | TRAPIMetaKnowledgeGraph:
     """Process a request and await its response before returning.
 
     Unhandled errors are handled by middleware.
     """
     job_id = uuid.uuid4().hex
+    timeout: int = CONFIG.job.timeout
+    if tiers is None:
+        tiers = [0]
+    if body is not None and body.parameters is not None:
+        if body.parameters.timeout is not None:
+            timeout = body.parameters.timeout
+        if body.parameters.tiers is not None:
+            tiers = body.parameters.tiers
+
     query = QueryInfo(
         endpoint=ctx.request.url.path,
         method=ctx.request.method,
         body=body,
         job_id=job_id,
         tiers=set(tiers),
+        timeout=timeout,
     )
 
     query_function = {"lookup": lookup, "metakg": metakg}[func]

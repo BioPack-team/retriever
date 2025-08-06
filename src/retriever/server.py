@@ -10,18 +10,19 @@ import yaml
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
-from reasoner_pydantic import AsyncQuery as TRAPIAsyncQuery
 from reasoner_pydantic import AsyncQueryStatusResponse as TRAPIAsyncQueryStatusResponse
 from reasoner_pydantic import MetaKnowledgeGraph as TRAPIMetaKnowledgeGraph
-from reasoner_pydantic import Query as TRAPIQuery
-from reasoner_pydantic import Response as TRAPIResponse
 
 from retriever.config.general import CONFIG
 from retriever.config.logger import configure_logging
 from retriever.config.openapi import OPENAPI_CONFIG, TRAPI
 from retriever.data_tiers.tier_0.neo4j.driver import Neo4jDriver
 from retriever.tasks.query import get_job_state, make_query
-from retriever.types.general import APIInfo, ErrorDetail, LogLevel, TierNumber
+from retriever.types.general import APIInfo, ErrorDetail, LogLevel
+from retriever.types.trapi_pydantic import AsyncQuery as TRAPIAsyncQuery
+from retriever.types.trapi_pydantic import Query as TRAPIQuery
+from retriever.types.trapi_pydantic import Response as TRAPIResponse
+from retriever.types.trapi_pydantic import TierNumber
 from retriever.utils.exception_handlers import ensure_cors
 from retriever.utils.logs import (
     add_mongo_sink,
@@ -129,7 +130,7 @@ async def meta_knowledge_graph(
     ],
 ) -> TRAPIMetaKnowledgeGraph:
     """Retrieve the Meta-Knowledge Graph."""
-    return await make_query("metakg", APIInfo(request, response), tier)
+    return await make_query("metakg", APIInfo(request, response), tiers=tier)
     # return {"logs": list(logs)}
 
 
@@ -161,16 +162,9 @@ async def query(
     request: Request,
     response: Response,
     body: TRAPIQuery,
-    tier: Annotated[
-        list[TierNumber],
-        Query(
-            description="Data Tier to use. Set multiple times to access multiple Tiers simultaneously.",
-            default_factory=lambda: [0],
-        ),
-    ],
 ) -> JSONResponse:
     """Initiate a synchronous query."""
-    response_dict = await make_query("lookup", APIInfo(request, response), tier, body)
+    response_dict = await make_query("lookup", APIInfo(request, response), body=body)
     return JSONResponse(response_dict)
     # return {}
 
@@ -203,17 +197,10 @@ async def asyncquery(
     response: Response,
     body: TRAPIAsyncQuery,
     background_tasks: BackgroundTasks,
-    tier: Annotated[
-        list[TierNumber],
-        Query(
-            description="Data Tier to use. Set multiple times to access multiple Tiers simultaneously.",
-            default_factory=lambda: [0],
-        ),
-    ],
 ) -> JSONResponse:
     """Initiate an asynchronous query."""
     response_dict = await make_query(
-        "lookup", APIInfo(request, response, background_tasks), tier, body
+        "lookup", APIInfo(request, response, background_tasks), body=body
     )
     return JSONResponse(response_dict)
 

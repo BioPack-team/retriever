@@ -21,6 +21,13 @@ from reasoner_pydantic import LogLevel
 from reasoner_pydantic.qgraph import SetInterpretationEnum
 
 
+class ParametersDict(TypedDict):
+    """Query Parameters."""
+
+    tiers: list[int]
+    timeout: int
+
+
 class QueryDict(TypedDict):
     """Query."""
 
@@ -62,6 +69,7 @@ class ResponseDict(TypedDict):
     description: NotRequired[str]
     logs: list[LogEntryDict]
     workflow: NotRequired[list[Hashable]]
+    parameters: ParametersDict
     schema_version: NotRequired[str]
     biolink_version: NotRequired[str]
 

@@ -8,7 +8,6 @@ import httpx
 from loguru import logger as log
 from opentelemetry import trace
 from reasoner_pydantic import (
-    AsyncQuery,
     LogLevel,
     QueryGraph,
 )
@@ -25,10 +24,12 @@ from retriever.types.trapi import (
     KnowledgeGraphDict,
     LogEntryDict,
     MessageDict,
+    ParametersDict,
     QueryGraphDict,
     ResponseDict,
     ResultDict,
 )
+from retriever.types.trapi_pydantic import AsyncQuery
 from retriever.utils.calls import BASIC_CLIENT
 from retriever.utils.logs import TRAPILogger, trapi_level_to_int
 from retriever.utils.mongo import MONGO_QUEUE
@@ -73,6 +74,9 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
     try:
         start_time = time.time()
         job_log.info(f"Begin processing job {job_id}.")
+        job_log.debug(
+            f"Job timeout is {str(query.timeout) + 's' if query.timeout >= 0 else 'disabled'}."
+        )
 
         qgraph = query.body.message.query_graph
         if qgraph is None:
@@ -155,6 +159,7 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
             biolink_version=OPENAPI_CONFIG.x_translator.biolink_version,
             schema_version=OPENAPI_CONFIG.x_trapi.version,
             workflow=query.body.workflow.model_dump() if query.body.workflow else None,
+            parameters=ParametersDict(tiers=list(query.tiers), timeout=query.timeout),
             job_id=job_id,  # pyright:ignore[reportCallIssue] Extra is allowed
         ),
     )
@@ -242,7 +247,7 @@ async def run_tiered_lookups(
     ):
         if not called_for:
             continue
-        query_handler = handlers[i](expanded_qgraph, query.job_id, query.tiers)
+        query_handler = handlers[i](expanded_qgraph, query)
         query_tasks.append(asyncio.create_task(query_handler.execute()))
 
     async for task in asyncio.as_completed(query_tasks):

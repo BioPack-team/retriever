@@ -11,7 +11,6 @@ from reasoner_pydantic import (
     QueryGraph,
 )
 
-from retriever.config.general import CONFIG
 from retriever.tasks.lookup.branch import Branch
 from retriever.tasks.lookup.partial import Partial
 from retriever.tasks.lookup.subquery import mock_subquery
@@ -25,6 +24,7 @@ from retriever.types.general import (
     KAdjacencyGraph,
     LookupArtifacts,
     QEdgeIDMap,
+    QueryInfo,
     SuperpositionHop,
 )
 from retriever.types.trapi import (
@@ -48,12 +48,11 @@ tracer = trace.get_tracer("lookup.execution.tracer")
 class QueryGraphExecutor:
     """Handler class for running the QGX algorithm."""
 
-    def __init__(self, qgraph: QueryGraph, job_id: str, tiers: set[int]) -> None:
+    def __init__(self, qgraph: QueryGraph, query_info: QueryInfo) -> None:
         """Initialize a QueryGraphExecutor, setting up information shared by methods."""
-        self.tiers: set[int] = tiers
+        self.ctx: QueryInfo = query_info
         self.qgraph: QueryGraph = qgraph
-        self.job_id: str = job_id
-        self.job_log: TRAPILogger = TRAPILogger(job_id)
+        self.job_log: TRAPILogger = TRAPILogger(self.ctx.job_id)
 
         agraph, qedge_map = make_mappings(self.qgraph)
         self.agraph: AdjacencyGraph = agraph
@@ -97,7 +96,7 @@ class QueryGraphExecutor:
             self.start_time = time.time()
             timeout_task = asyncio.create_task(self.timeout())
             self.job_log.info(
-                f"Starting lookup against Tier {', '.join(str(t) for t in self.tiers if t > 0)}..."
+                f"Starting lookup against Tier {', '.join(str(t) for t in self.ctx.tiers if t > 0)}..."
             )
             starting_branches = await Branch.get_start_branches(
                 self.qgraph,
@@ -127,7 +126,7 @@ class QueryGraphExecutor:
             duration_ms = math.ceil((end_time - self.start_time) * 1000)
             self.job_log.info(
                 "Tier {}: Retrieved {} results / {} nodes / {} edges in {}ms.".format(
-                    ", ".join(str(t) for t in self.tiers if t > 0),
+                    ", ".join(str(t) for t in self.ctx.tiers if t > 0),
                     len(results),
                     len(self.kgraph["nodes"]),
                     len(self.kgraph["edges"]),
@@ -142,7 +141,7 @@ class QueryGraphExecutor:
             )
         except Exception:
             self.job_log.exception(
-                f"Unhandled exception occured in QGX while processing Tier {', '.join(str(t) for t in self.tiers)}. See logs for details."
+                f"Unhandled exception occured in QGX while processing Tier {', '.join(str(t) for t in self.ctx.tiers)}. See logs for details."
             )
             return LookupArtifacts(
                 [], self.kgraph, self.aux_graphs, self.job_log.get_logs(), error=True
@@ -233,8 +232,11 @@ class QueryGraphExecutor:
             # - Yield partials from next steps as they complete
             while parallel_tasks:
                 timeout = (
-                    max(CONFIG.job.timeout - (time.time() - self.start_time) - 0.5, 0)
-                    if CONFIG.job.timeout >= 0
+                    max(
+                        self.ctx.timeout - (time.time() - self.start_time) - 0.5,
+                        0,
+                    )
+                    if self.ctx.timeout >= 0
                     else None
                 )
                 done, pending = await asyncio.wait(
@@ -303,7 +305,7 @@ class QueryGraphExecutor:
             # TODO: replace this with looking up operations from the metakg
             subquery_tasks = [
                 asyncio.create_task(
-                    mock_subquery(self.job_id, current_branch, self.qgraph),
+                    mock_subquery(self.ctx.job_id, current_branch, self.qgraph),
                     name="subquery",
                 )
                 # for _ in range(random.randint(0, 3))
@@ -526,9 +528,9 @@ class QueryGraphExecutor:
     async def timeout(self) -> None:
         """Set work to terminate after the configured timeout."""
         try:
-            if CONFIG.job.timeout < 0:
+            if self.ctx.timeout < 0:
                 return
-            await asyncio.sleep(max(CONFIG.job.timeout - 0.5, 0))
+            await asyncio.sleep(max(self.ctx.timeout - 0.5, 0))
             self.job_log.error("QGX hit timeout, attempting wrapup...")
             self.terminate = True
         except asyncio.CancelledError:
