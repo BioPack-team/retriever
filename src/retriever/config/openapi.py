@@ -1,5 +1,6 @@
-from typing import Any, ClassVar, override
+from typing import Annotated, Any, ClassVar, override
 
+import bmt
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel, EmailStr
@@ -10,6 +11,10 @@ from pydantic_settings import (
     SettingsConfigDict,
     YamlConfigSettingsSource,
 )
+
+from retriever.utils.general import CommentedSettings
+
+biolink = bmt.Toolkit()
 
 
 class ContactInfo(BaseModel):
@@ -48,8 +53,11 @@ class XTranslator(BaseModel):
 
     component: str = ""
     team: list[str] = ["biopack"]
-    biolink_version: str = "4.2.1"
-    infores: str = "retriever"
+    biolink_version: str = str(biolink.get_model_version())
+    infores: Annotated[
+        str,
+        Field(description="Unique identifier for this component, used in provenance."),
+    ] = "retriever"
     externalDocs: ExternalDocs = ExternalDocs(
         description="The values for component and team are restricted according to this external JSON schema. See schema and examples at url.",
         url="https://github.com/NCATSTranslator/translator_extensions/blob/production/x-translator/",
@@ -59,30 +67,35 @@ class XTranslator(BaseModel):
 class TestDataLocation(BaseModel):
     """Link to testing data."""
 
-    url: str
+    # TODO: add an appropriate test data location.
+    url: str = "https://raw.githubusercontent.com/NCATS-Tangerine/translator-api-registry/master/biothings_explorer/sri-test-bte-ara.json"
 
 
 class TestDataLocationObject(BaseModel):
     """Collection of testing data links."""
 
-    default: TestDataLocation
+    default: TestDataLocation = TestDataLocation()
 
 
 class XTrapi(BaseModel):
     """Trapi-specific metadata."""
 
-    version: str = "1.5.0"
-    multicuriesquery: bool = False
-    pathfinderquery: bool = False
-    asyncquery: bool = True
+    version: str = "1.6.0"
+    multicuriesquery: Annotated[
+        bool, Field(description="Supports advanced set interpretation.")
+    ] = False
+    pathfinderquery: Annotated[
+        bool, Field(description="Supports Pathfinder-type queries.")
+    ] = False
+    asyncquery: Annotated[bool, Field(description="Supports async query type.")] = True
     operations: list[str] = ["lookup"]
-    batch_size_limit: int = 300
-    rate_limit: int = 300
-    test_data_location: TestDataLocationObject = TestDataLocationObject(
-        default=TestDataLocation(
-            url="https://raw.githubusercontent.com/NCATS-Tangerine/translator-api-registry/master/biothings_explorer/sri-test-bte-ara.json",
-        ),
-    )
+    batch_size_limit: Annotated[
+        int, Field(description="Maximum IDs on any one node.")
+    ] = 300
+    rate_limit: Annotated[
+        int, Field(description="Maximum number of requests per minute.")
+    ] = 300
+    test_data_location: TestDataLocationObject = TestDataLocationObject()
     externalDocs: ExternalDocs = ExternalDocs(
         description="The values for version are restricted according to the regex in this external JSON schema. See schema and examples at url",
         url="https://github.com/NCATSTranslator/translator_extensions/blob/production/x-trapi/",
@@ -92,15 +105,33 @@ class XTrapi(BaseModel):
 class ResponseDescriptions(BaseModel):
     """Required response description fields."""
 
-    meta_knowledge_graph: dict[str, str] = {}
-    query: dict[str, str] = {}
-    asyncquery: dict[str, str] = {}
-    asyncquery_status: dict[str, str] = {}
-    response: dict[str, str] = {}
-    logs: dict[str, str] = {}
+    meta_knowledge_graph: dict[str, str] = {
+        "200": "Returns meta knowledge graph representation of this TRAPI web service.",
+    }
+    query: dict[str, str] = {
+        "200": "OK. There may or may not be results. Note that some of the provided identifiers may not have been recognized.",
+        "400": "Bad request. The request is invalid according to this OpenAPI schema OR a specific identifier is believed to be invalid somehow (not just unrecognized).",
+        "413": "Payload too large. Indicates that batch size was over the limit specified in x-trapi.",
+        "429": "Payload too large. Indicates that batch size was over the limit specified in x-trapi.",
+    }
+    asyncquery: dict[str, str] = {
+        "200": "The query is accepted for processing and the Response will be sent to the callback url when complete."
+    }
+    asyncquery_status: dict[str, str] = {
+        "200": "Returns the status and current logs of a previously submitted asyncquery.",
+        "404": "job_id not found",
+        "501": "Return code 501 indicates that this endpoint has not been implemented at this site. Sites that implement /asyncquery MUST implement /asyncquery_status/{job_id}, but those that do not implement /asyncquery SHOULD NOT implement /asyncquery_status.",
+    }
+    response: dict[str, str] = {
+        "200": "Returns either the status and logs, or if complete, the complete response  of a previously submitted asyncquery."
+    }
+    logs: dict[str, str] = {
+        "200": "Logs in either flat or structured JSON format.",
+        "404": "Indicates this service is disabled by config.",
+    }
 
 
-class OpenAPIConfig(BaseSettings):
+class OpenAPIConfig(CommentedSettings):
     """OpenAPI Metadata."""
 
     description: str = "Translator Knowledge Provider"
@@ -109,17 +140,24 @@ class OpenAPIConfig(BaseSettings):
     contact: ContactInfo = ContactInfo()
     license: License = License()
     termsOfService: str = "https://biothings.io/about"
-    tags: list[Tag] = [
-        Tag(name="meta_knowledge_graph"),
-        Tag(name="query"),
-        Tag(name="asyncquery"),
-        Tag(name="asyncquery_status"),
-        Tag(name="translator"),
-        Tag(name="trapi"),
-        Tag(name="biothings"),
-    ]
+    tags: list[Tag] = Field(
+        default_factory=lambda: [
+            Tag(name="meta_knowledge_graph"),
+            Tag(name="query"),
+            Tag(name="asyncquery"),
+            Tag(name="asyncquery_status"),
+            Tag(name="translator"),
+            Tag(name="trapi"),
+            Tag(name="biothings"),
+        ]
+    )
     # Have to set openapi_ prefix for any aliased fields for...some reason
-    x_translator: XTranslator = Field(default=XTranslator())
+    x_translator: Annotated[
+        XTranslator,
+        Field(
+            description="Note that fields usually named with - instead use _ (e.g. x-translator -> x_translator)."
+        ),
+    ] = XTranslator()
     x_trapi: XTrapi = Field(default=XTrapi())
     response_descriptions: ResponseDescriptions = ResponseDescriptions()
 

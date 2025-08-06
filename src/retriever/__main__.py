@@ -8,6 +8,7 @@ from loguru import logger
 from retriever.config.general import CONFIG
 from retriever.config.logger import configure_logging
 from retriever.utils.logs import cleanup
+from retriever.utils.write_configs import write_default_configs
 
 
 def main() -> None:
@@ -18,6 +19,8 @@ def main() -> None:
     logger.debug(
         f"Starting with config: \n{yaml.dump(yaml.safe_load(CONFIG.model_dump_json()))}"
     )
+
+    write_default_configs()
 
     n_workers = CONFIG.workers or int(multiprocessing.cpu_count() / 2)
 

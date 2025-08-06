@@ -1,5 +1,3 @@
-from multiprocessing import parent_process
-
 import sentry_sdk
 from fastapi import FastAPI
 from loguru import logger as log
@@ -34,10 +32,7 @@ def configure_telemetry(app: FastAPI | None = None) -> None:
         if CONFIG.telemetry.otel_host:
             collector_address = f"http://{CONFIG.telemetry.otel_host.get_secret_value()}:{CONFIG.telemetry.otel_port}"
 
-            if parent_process() is None:
-                log.info(
-                    f"Telemetry enabled, settings up service for {collector_address}"
-                )
+            log.info(f"Telemetry enabled, settings up service for {collector_address}")
 
         # Service name is required for most backends
         resource = Resource(attributes={SERVICE_NAME: "retriever"})

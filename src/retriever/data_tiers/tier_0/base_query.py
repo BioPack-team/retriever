@@ -21,6 +21,9 @@ from retriever.utils.trapi import initialize_kgraph, normalize_kgraph, update_kg
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 
+# TODO: add Retriever provenance
+# TODO: add edge attributes specifying tier source
+
 
 class Tier0Query(ABC):
     """Handler class for running a single Tier 0 query."""

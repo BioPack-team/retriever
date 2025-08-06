@@ -3,6 +3,7 @@ from reasoner_pydantic.qgraph import PathfinderQueryGraph
 from reasoner_pydantic.shared import KnowledgeType
 
 
+# TODO: ensure batch_size_limit is respected
 def validate(qg: QueryGraph | PathfinderQueryGraph) -> list[str]:
     """Check that a given query graph is valid.
 

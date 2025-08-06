@@ -1,7 +1,7 @@
 import warnings
 from typing import Annotated, ClassVar, override
 
-from pydantic import AfterValidator, BaseModel, SecretStr
+from pydantic import AfterValidator, BaseModel, Field, SecretStr
 from pydantic_file_secrets import FileSecretsSettingsSource, SettingsConfigDict
 from pydantic_settings import (
     BaseSettings,
@@ -10,6 +10,7 @@ from pydantic_settings import (
 )
 
 from retriever.types.general import LogLevel
+from retriever.utils.general import CommentedSettings
 
 # Filter warnings about secrets because they're optional
 warnings.filterwarnings(
@@ -23,21 +24,37 @@ warnings.filterwarnings(
 class CORSSettings(BaseModel):
     """CORS-specific settings."""
 
-    allow_origins: list[str] = ["*"]
-    allow_credentials: bool = True
-    allow_methods: list[str] = ["*"]
-    allow_headers: list[str] = ["*"]
+    allow_origins: Annotated[
+        list[str],
+        Field(description="Origins allowed to make cross-origin requests."),
+    ] = ["*"]
+    allow_credentials: Annotated[
+        bool, Field(description="Support cookies in cross-origin requests.")
+    ] = True
+    allow_methods: Annotated[
+        list[str], Field(description="Methods allowed in cross-origin requests.")
+    ] = ["*"]
+    allow_headers: Annotated[
+        list[str], Field(description="Headers allowed in cross-origin requests.")
+    ] = ["*"]
 
 
 class RedisSettings(BaseModel):
     """Redis client initialization settings."""
 
-    cluster: bool = False
+    cluster: Annotated[
+        bool, Field(description="Initialize Redis client in cluster mode.")
+    ] = False
     host: str = "localhost"
     port: int = 6379
     password: SecretStr | None = None
     ssl_enabled: bool = False
-    attempts: int = 3
+    attempts: Annotated[
+        int,
+        Field(
+            description="Number of attempts to accomplish operation before considering it failed."
+        ),
+    ] = 3
 
 
 class MongoSettings(BaseModel):
@@ -48,9 +65,18 @@ class MongoSettings(BaseModel):
     username: str | None = None
     password: SecretStr | None = None
     authsource: str | None = None
-    attempts: int = 3
-    shutdown_timeout: int = 3
-    flood_batch_size: int = 1000
+    attempts: Annotated[
+        int,
+        Field(
+            description="Number of attempts to accomplish operation before considering it failed."
+        ),
+    ] = 3
+    shutdown_timeout: Annotated[
+        int, Field(description="Time in seconds to wait for serialize task to finish.")
+    ] = 3
+    flood_batch_size: Annotated[
+        int, Field(description="# Batch size for basic mongo inserts.")
+    ] = 1000
 
 
 class TelemetrySettings(BaseModel):
@@ -63,23 +89,44 @@ class TelemetrySettings(BaseModel):
 
     sentry_enabled: bool = False
     sentry_dsn: SecretStr | None = None
-    traces_sample_rate: float = 0.1
-    profiles_sample_rate: float = 1.0
+    traces_sample_rate: Annotated[
+        float, Field(description="Proportion of traces to send to Sentry.")
+    ] = 0.1
+    profiles_sample_rate: Annotated[
+        float, Field(description="Proportion of sampled traces to profile.")
+    ] = 1.0
 
 
 class JobSettings(BaseModel):
     """Settings for job handling."""
 
-    timeout: int = 300
-    ttl: int = 2_592_000
-    ttl_max: int = 31_536_000
+    timeout: Annotated[
+        int,
+        Field(
+            description="Time in seconds before a job should time out, set to -1 to disable."
+        ),
+    ] = 10
+    ttl: Annotated[
+        int,
+        Field(
+            description="Time in seconds for job state to remain after it was last touched"
+        ),
+    ] = 2_592_000
+    ttl_max: Annotated[
+        int,
+        Field(
+            description="Time in seconds after which job state is cleared, regardless of last touch"
+        ),
+    ] = 31_536_000
 
 
 class LogSettings(BaseModel):
     """Settings for log handling."""
 
-    log_to_mongo: bool = True
-    ttl: int = 1_209_600
+    log_to_mongo: Annotated[bool, Field(description="Persist logs in MongoDB.")] = True
+    ttl: Annotated[int, Field(description="Time in seconds for a log to persist.")] = (
+        1_209_600
+    )
 
 
 def uppercase(value: str) -> str:
@@ -90,8 +137,13 @@ def uppercase(value: str) -> str:
 class Neo4jSettings(BaseModel):
     """Settings for the Tier 0 Neo4j interface."""
 
-    query_timeout: int = 1600  # Time in seconds before a neo4j query should time out
-    connect_retries: int = 25
+    query_timeout: Annotated[
+        int, Field(description="Time in seconds before a neo4j query should time out.")
+    ] = 1600
+    connect_retries: Annotated[
+        int,
+        Field(description="Number of retries before declaring a connection failure."),
+    ] = 25
     host: str = ""
     bolt_port: int = 7687
     username: str = ""
@@ -105,21 +157,35 @@ class Tier0Settings(BaseModel):
     neo4j: Neo4jSettings = Neo4jSettings()
 
 
-class GeneralConfig(BaseSettings):
+class GeneralConfig(CommentedSettings):
     """General application config."""
 
-    instance_env: str = "dev"
+    instance_env: Annotated[
+        str,
+        Field(
+            description="Instance environment. Used in Sentry, userAgent of subqueries, instance-appropriate behavior, etc."
+        ),
+    ] = "dev"
 
     log_level: Annotated[
         LogLevel,
         AfterValidator(uppercase),
-    ] = "DEBUG"
-    host: str = "0.0.0.0"
-    port: int = 8080
+    ] = Field(
+        default="DEBUG",
+        description="Level of application logs to print/keep.",
+    )
+    host: Annotated[str, Field(description="Uvicorn listen host.")] = "0.0.0.0"
+    port: Annotated[int, Field(description="Uvicorn listen port.")] = 8080
     cors: CORSSettings = CORSSettings()
-    workers: int | None = None  # Number of workers to use
-    worker_concurrency: int = 10  # Number of concurrent jobs a worker may process
-    allow_profiler: bool = True
+    workers: Annotated[
+        int | None, Field(description="Number of workers, defaults to n_cpus if unset.")
+    ] = None  # Number of workers to use
+    allow_profiler: Annotated[
+        bool,
+        Field(
+            description="Allow all queries to enable profiling with a query parameter."
+        ),
+    ] = True
 
     job: JobSettings = JobSettings()
     log: LogSettings = LogSettings()
