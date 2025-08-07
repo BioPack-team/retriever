@@ -8,7 +8,7 @@ from neo4j import unit_of_work
 from opentelemetry import trace
 
 from retriever.config.general import CONFIG
-from retriever.data_tiers.tier_0.base_driver import DatabaseDriver
+from retriever.data_tiers.base_driver import DatabaseDriver
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 
