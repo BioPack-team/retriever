@@ -59,7 +59,7 @@ async def async_lookup(query: QueryInfo) -> None:
         job_log.exception(
             f"Callback returned erroneous status {error.response.status_code}"
         )
-        job_log.error(f"Response body was {error.response.json()}")
+        job_log.error(f"Response body was {error.response.text}")
     except httpx.HTTPError:
         job_log.exception(
             "An unhandled exception occured while making response callback."
