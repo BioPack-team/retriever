@@ -180,7 +180,7 @@ class MongoClient:
             query["extra.job_id"] = {"$regex": job_id}
 
         logs = self.get_log_collection()
-        cursor = logs.find(query).sort("timestamp", 1)
+        cursor = logs.find(query).sort("time", 1)
         async for document in cursor:
             del document["_id"]
             document["time"] = (
