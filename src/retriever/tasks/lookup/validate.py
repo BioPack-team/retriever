@@ -2,8 +2,9 @@ from reasoner_pydantic import QueryGraph
 from reasoner_pydantic.qgraph import PathfinderQueryGraph
 from reasoner_pydantic.shared import KnowledgeType
 
+from retriever.config.openapi import OPENAPI_CONFIG
 
-# TODO: ensure batch_size_limit is respected
+
 def validate(qg: QueryGraph | PathfinderQueryGraph) -> list[str]:
     """Check that a given query graph is valid.
 
@@ -49,5 +50,13 @@ def validate(qg: QueryGraph | PathfinderQueryGraph) -> list[str]:
         # ):
         #     problems["Duplicate edges not allowed."] = False
         # node_pairs.add(f"{edge.subject}-{edge.object}")
+
+    for node_id, node in qg.nodes.items():
+        if node.ids is None:
+            continue
+        if len(node.ids) > OPENAPI_CONFIG.x_trapi.batch_size_limit:
+            problems[
+                f"Node `{node_id}` ID count ({len(node.ids)}) exceeds batch size limit of {OPENAPI_CONFIG.x_trapi.batch_size_limit}"
+            ] = False
 
     return [name for name, passed in problems.items() if not passed]
