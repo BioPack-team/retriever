@@ -16,12 +16,14 @@ from retriever.types.trapi import (
     ResultDict,
 )
 from retriever.utils.logs import TRAPILogger
-from retriever.utils.trapi import initialize_kgraph, normalize_kgraph, update_kgraph
+from retriever.utils.trapi import (
+    append_aggregator_source,
+    initialize_kgraph,
+    normalize_kgraph,
+    update_kgraph,
+)
 
 tracer = trace.get_tracer("lookup.execution.tracer")
-
-# TODO: add Retriever provenance
-# TODO: add edge attributes specifying tier source
 
 
 class Tier0Query(ABC):
@@ -73,6 +75,10 @@ class Tier0Query(ABC):
                 f"Tier 0: Retrieved {len(backend_results['results'])} results / {len(self.kgraph['nodes'])} nodes / {len(self.kgraph['edges'])} edges in {duration_ms}ms."
             )
 
+            # Add Retriever to the provenance chain
+            for edge in backend_results["knowledge_graph"]["edges"].values():
+                append_aggregator_source(edge, "infores:retriever")
+
             return LookupArtifacts(
                 backend_results["results"],
                 self.kgraph,
@@ -89,5 +95,10 @@ class Tier0Query(ABC):
 
     @abstractmethod
     async def get_results(self, qgraph: QueryGraphDict) -> BackendResults:
-        """Interface with the Tier 0 backend and retrieve results, converting to ResultDict."""
+        """Interface with the Tier 0 backend and retrieve results, converting to ResultDict.
+
+        Note that this method is responsible for calling the appropriate transpiler,
+        running the query against the appropriate driver, tranforming the response,
+        and ensuring that all edges have the correct Tier 0 provenance.
+        """
         raise NotImplementedError("Implemented in subclasses of Tier0Query.")

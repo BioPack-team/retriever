@@ -1,4 +1,5 @@
 import hashlib
+import itertools
 from typing import cast
 
 from opentelemetry import trace
@@ -70,6 +71,35 @@ def edge_primary_knowledge_source(edge: EdgeDict) -> RetrievalSourceDict | None:
     for source in edge["sources"]:
         if source["resource_role"] == "primary_knowledge_source":
             return source
+
+
+def append_aggregator_source(
+    edge: EdgeDict,
+    source: str,
+) -> None:
+    """Append a aggregator source to an edge's provenance, reference the current most downstream source."""
+    upstreams = set(
+        itertools.chain(
+            *[source.get("upstream_resource_ids", []) for source in edge["sources"]]
+        )
+    )
+    most_downstream_source = next(
+        iter(
+            source
+            for source in edge["sources"]
+            if source["resource_id"] not in upstreams
+        ),
+        None,
+    )
+    if most_downstream_source is None:
+        raise ValueError("Provenance chain is invalid.")
+    edge["sources"].append(
+        RetrievalSourceDict(
+            resource_id=source,
+            resource_role="aggregator_knowledge_source",
+            upstream_resource_ids=[most_downstream_source["resource_id"]],
+        )
+    )
 
 
 def hash_edge(edge: EdgeDict) -> int:

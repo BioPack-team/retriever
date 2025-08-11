@@ -35,4 +35,14 @@ class Neo4jQuery(Tier0Query):
                 cast(object, transform_result(neo4j_record, dict(qgraph))),
             )
 
+        for edge in result["knowledge_graph"]["edges"].values():
+            transpiler_source = next(
+                iter(
+                    source
+                    for source in edge["sources"]
+                    if source["resource_id"] == "reasoner-transpiler"
+                )
+            )
+            transpiler_source["resource_id"] = "infores:dogpark-tier0"
+
         return result
