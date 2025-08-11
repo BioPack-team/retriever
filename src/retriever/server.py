@@ -92,7 +92,7 @@ if CONFIG.allow_profiler:
         """Profile the api call when query parameter `profile` is set to True."""
         profile = request.query_params.get("profile", "false")
         if profile and profile != "false":
-            profiler = Profiler(interval=0.02, async_mode="enabled")
+            profiler = Profiler(interval=0.01, async_mode="enabled")
             profiler.start()
             await call_next(request)
             profiler.stop()
