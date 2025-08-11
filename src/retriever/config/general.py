@@ -97,8 +97,20 @@ class TelemetrySettings(BaseModel):
     ] = 1.0
 
 
-class JobSettings(BaseModel):
-    """Settings for job handling."""
+class CallbackSettings(BaseModel):
+    """Settings for callback handling."""
+
+    retries: Annotated[
+        int, Field(description="Number of times to retry the callback.")
+    ] = 3
+    timeout: Annotated[
+        int,
+        Field(description="Time in seconds before a callback attempt should time out."),
+    ] = 10
+
+
+class LookupSettings(BaseModel):
+    """Settings pertaining to lookups."""
 
     timeout: Annotated[
         int,
@@ -106,6 +118,25 @@ class JobSettings(BaseModel):
             description="Time in seconds before a job should time out, set to -1 to disable."
         ),
     ] = 10
+
+
+class MetaKGSettings(BaseModel):
+    """Settings pertaining to metakg queries."""
+
+    timeout: Annotated[
+        int,
+        Field(
+            description="Time in seconds before a job should time out, set to -1 to disable."
+        ),
+    ] = 10
+
+
+class JobSettings(BaseModel):
+    """Settings for job handling."""
+
+    callback: CallbackSettings = CallbackSettings()
+    lookup: LookupSettings = LookupSettings()
+    metakg: MetaKGSettings = MetaKGSettings()
     ttl: Annotated[
         int,
         Field(

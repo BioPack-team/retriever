@@ -60,7 +60,10 @@ async def make_query(
     Unhandled errors are handled by middleware.
     """
     job_id = uuid.uuid4().hex
-    timeout: int = CONFIG.job.timeout
+    timeout: int = {
+        "lookup": CONFIG.job.lookup.timeout,
+        "metakg": CONFIG.job.metakg.timeout,
+    }[func]
     if tiers is None:
         tiers = [0]
     if body is not None and body.parameters is not None:

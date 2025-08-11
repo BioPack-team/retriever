@@ -17,8 +17,14 @@ cors:
 workers: # Number of workers, defaults to n_cpus if unset.
 allow_profiler: true # Allow all queries to enable profiling with a query parameter.
 job:
-  timeout: 10  # Time in seconds before a job should time out, set to -1 to disable.
-  ttl: 2592000 # Time in seconds for job state to remain after it was last touched
+  callback:
+    retries: 3  # Number of times to retry the callback.
+    timeout: 10 # Time in seconds before a callback attempt should time out.
+  lookup:
+    timeout: 10  # Time in seconds before a job should time out, set to -1 to disable.
+  metakg:
+    timeout: 10  # Time in seconds before a job should time out, set to -1 to disable.
+  ttl: 2592000  # Time in seconds for job state to remain after it was last touched
   ttl_max: 31536000 # Time in seconds after which job state is cleared, regardless of last touch
 log:
   log_to_mongo: true  # Persist logs in MongoDB.

@@ -30,7 +30,7 @@ from retriever.types.trapi import (
     ResultDict,
 )
 from retriever.types.trapi_pydantic import AsyncQuery
-from retriever.utils.calls import BASIC_CLIENT
+from retriever.utils.calls import CALLBACK_CLIENT
 from retriever.utils.logs import TRAPILogger, trapi_level_to_int
 from retriever.utils.mongo import MONGO_QUEUE
 from retriever.utils.trapi import merge_results, prune_kg, update_kgraph
@@ -50,13 +50,20 @@ async def async_lookup(query: QueryInfo) -> None:
 
     job_log.debug(f"Sending callback to `{query.body.callback}`...")
     try:
-        callback_response = await BASIC_CLIENT.post(
+        callback_response = await CALLBACK_CLIENT.post(
             url=str(query.body.callback), json=response
         )
         callback_response.raise_for_status()
         job_log.debug("Callback sent successfully.")
+    except httpx.HTTPStatusError as error:
+        job_log.exception(
+            f"Callback returned erroneous status {error.response.status_code}"
+        )
+        job_log.error(f"Response body was {error.response.json()}")
     except httpx.HTTPError:
-        job_log.exception("Failed to make callback for async query.")
+        job_log.exception(
+            "An unhandled exception occured while making response callback."
+        )
 
 
 async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
