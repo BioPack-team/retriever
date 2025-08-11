@@ -96,11 +96,12 @@ class TRAPILogger:
         self.job_id: str = job_id
 
     def _log(self, level: LogLevel, message: str, **kwargs: Any) -> None:
+        """Shared log handling before log is sent to loguru."""
         kwargs["job_id"] = self.job_id
-        # FIX: currently showing this function rather than originating call
 
         with logger.contextualize(**kwargs):
-            logger.log(level, message)
+            # depth 2 to ignore TRAPILogger wrappers
+            logger.opt(depth=2).log(level, message)
         # Implicitly drop TRACE logs from TRAPI logs.
         # These should only be used in extensive debugging on a local instance.
         if level.lower() != "trace":

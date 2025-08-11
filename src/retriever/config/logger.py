@@ -69,6 +69,7 @@ def configure_logging() -> dict[str, Any]:
         log = "{message:80} <cyan>{name}:{function}():{line}</cyan>\n{exception}"
         if "job_id" in record["extra"]:
             header += f"<green>{record['extra']['job_id'][:8]}</green> "
+            log = "{message:71} <cyan>{name}:{function}():{line}</cyan>\n{exception}"
 
         return header + log
 
