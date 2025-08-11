@@ -57,5 +57,5 @@ class Transpiler(ABC):
         """Convert a multi-hop graph where any node may have multiple IDs."""
 
     @abstractmethod
-    def convert_results(self, results: Any) -> BackendResults:
-        """Convert the backend response back to TRAPI."""
+    def convert_results(self, qgraph: QueryGraphDict, results: Any) -> BackendResults:
+        """Convert the backend response back to TRAPI, mapping it to the qgraph."""
