@@ -34,6 +34,8 @@ from retriever.utils.mongo import MONGO_CLIENT, MONGO_QUEUE
 from retriever.utils.redis import test_redis
 from retriever.utils.telemetry import configure_telemetry
 
+configure_logging()
+
 
 # Lifespan handling for each FastAPI worker (not main process, see __main__.py)
 @asynccontextmanager
@@ -41,7 +43,6 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     """Lifespan hook for any setup/shutdown behavior."""
     # Startup
     os.environ["PYTHONHASHSEED"] = "0"  # So reasoner_pydantic hashing is deterministic
-    configure_logging()
     await MONGO_CLIENT.initialize()
     await MONGO_QUEUE.start_process_task()
     add_mongo_sink()
