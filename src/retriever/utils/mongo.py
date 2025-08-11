@@ -177,7 +177,7 @@ class MongoClient:
         if end:
             query["time"]["$lte"] = end
         if job_id is not None:
-            query["extra.job_id"] = job_id
+            query["extra.job_id"] = {"$regex": job_id}
 
         logs = self.get_log_collection()
         cursor = logs.find(query).sort("timestamp", 1)
