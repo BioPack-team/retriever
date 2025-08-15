@@ -9,7 +9,7 @@ from typing import Annotated, Literal
 import yaml
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+from fastapi.responses import ORJSONResponse, Response, StreamingResponse
 from reasoner_pydantic import AsyncQueryStatusResponse as TRAPIAsyncQueryStatusResponse
 from reasoner_pydantic import MetaKnowledgeGraph as TRAPIMetaKnowledgeGraph
 
@@ -163,10 +163,10 @@ async def query(
     request: Request,
     response: Response,
     body: TRAPIQuery,
-) -> JSONResponse:
+) -> ORJSONResponse:
     """Initiate a synchronous query."""
     response_dict = await make_query("lookup", APIInfo(request, response), body=body)
-    return JSONResponse(response_dict)
+    return ORJSONResponse(response_dict)
     # return {}
 
 
@@ -198,12 +198,12 @@ async def asyncquery(
     response: Response,
     body: TRAPIAsyncQuery,
     background_tasks: BackgroundTasks,
-) -> JSONResponse:
+) -> ORJSONResponse:
     """Initiate an asynchronous query."""
     response_dict = await make_query(
         "lookup", APIInfo(request, response, background_tasks), body=body
     )
-    return JSONResponse(response_dict)
+    return ORJSONResponse(response_dict)
 
 
 @app.get(
@@ -228,7 +228,7 @@ async def asyncquery(
 )
 async def asyncquery_status(
     request: Request, response: Response, job_id: str
-) -> JSONResponse:
+) -> ORJSONResponse:
     """Get the status of an asynchronous query."""
     job_dict = await get_job_state(job_id, request, response)
 
@@ -250,7 +250,7 @@ async def asyncquery_status(
     for key in del_keys:
         del job_dict[key]
 
-    return JSONResponse(job_dict)
+    return ORJSONResponse(job_dict)
 
 
 @app.get(
@@ -267,10 +267,10 @@ async def asyncquery_status(
         },
     },
 )
-async def response(request: Request, response: Response, job_id: str) -> JSONResponse:
+async def response(request: Request, response: Response, job_id: str) -> ORJSONResponse:
     """Get the response of an asynchronous query."""
     job_dict = await get_job_state(job_id, request, response)
-    return JSONResponse(job_dict)
+    return ORJSONResponse(job_dict)
 
 
 @app.get(

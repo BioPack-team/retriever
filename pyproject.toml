@@ -31,6 +31,7 @@ dependencies = [
     "ruamel-yaml>=0.18.14",
     "pydantic-core>=2.33.1",
     "neo4j-rust-ext>=5.28.2.1",
+    "orjson>=3.11.2",
 ]
 
 [project.scripts]
@@ -225,6 +226,11 @@ line_length = 88
 
 [tool.deptry]
 extend_exclude = ["locustfile.py", "tests"]
+
+[tool.deptry.per_rule_ignores]
+DEP002 = [
+    "orjson" # Used by FastAPI to speed up JSON serialization
+]
 
 [tool.pytest.ini_options]
 norecursedirs = ["utils"]
