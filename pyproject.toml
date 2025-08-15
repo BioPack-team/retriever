@@ -23,7 +23,6 @@ dependencies = [
     "loguru>=0.7.3",
     "bmt>=1.4.4",
     "reasoner-transpiler>=2.3.5",
-    "neo4j>=5.28.1",
     "pyinstrument>=5.0.1",
     "pydantic-file-secrets>=0.4.4",
     "pyyaml>=6.0.2",
@@ -31,6 +30,7 @@ dependencies = [
     "reasoner-pydantic>=6.0.0,<7",
     "ruamel-yaml>=0.18.14",
     "pydantic-core>=2.33.1",
+    "neo4j-rust-ext>=5.28.2.1",
 ]
 
 [project.scripts]
