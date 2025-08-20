@@ -17,7 +17,7 @@ from retriever.config.general import CONFIG
 from retriever.config.logger import configure_logging
 from retriever.config.openapi import OPENAPI_CONFIG, TRAPI
 from retriever.data_tiers.tier_0.neo4j.driver import Neo4jDriver
-from retriever.tasks.query import get_job_state, make_query
+from retriever.query import get_job_state, make_query
 from retriever.types.general import APIInfo, ErrorDetail, LogLevel
 from retriever.types.trapi_pydantic import AsyncQuery as TRAPIAsyncQuery
 from retriever.types.trapi_pydantic import Query as TRAPIQuery

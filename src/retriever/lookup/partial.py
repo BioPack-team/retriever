@@ -1,6 +1,6 @@
-import json
 from typing import override
 
+import orjson
 from reasoner_pydantic import (
     CURIE,
 )
@@ -28,7 +28,7 @@ class Partial:
 
     @override
     def __str__(self) -> str:
-        return json.dumps(
+        return orjson.dumps(
             {
                 "node_bindings": {
                     qnode: str(node) for qnode, node in sorted(self.node_bindings)
@@ -38,7 +38,7 @@ class Partial:
                     for (qedge_id, in_curie, out_curie) in self.edge_bindings
                 ),
             }
-        )
+        ).decode()
 
     @override
     def __hash__(self) -> int:
@@ -95,13 +95,11 @@ class Partial:
                 AnalysisDict(
                     resource_id="infores:retriever",
                     edge_bindings={
-                        kedge_key[0]: [
+                        qedge_id: [
                             EdgeBindingDict(id=kedge_id, attributes=[])
-                            for kedge_id in k_agraph[kedge_key[0]][kedge_key[1]][
-                                kedge_key[2]
-                            ]
+                            for kedge_id in k_agraph[qedge_id][in_id][out_id]
                         ]
-                        for kedge_key in self.edge_bindings
+                        for qedge_id, in_id, out_id in self.edge_bindings
                     },
                 )
             ],

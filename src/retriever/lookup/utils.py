@@ -1,9 +1,3 @@
-import asyncio
-from collections.abc import (
-    AsyncIterable,
-    AsyncIterator,
-)
-
 import bmt
 from reasoner_pydantic import (
     CURIE,
@@ -14,13 +8,17 @@ from reasoner_pydantic import (
     QueryGraph,
 )
 
-from retriever.tasks.lookup.branch import Branch
+from retriever.lookup.branch import Branch
 from retriever.types.general import (
     AdjacencyGraph,
     QEdgeIDMap,
     SuperpositionHop,
 )
-from retriever.types.trapi import EdgeDict, KnowledgeGraphDict, LogEntryDict
+from retriever.types.trapi import (
+    EdgeDict,
+    KnowledgeGraphDict,
+    LogEntryDict,
+)
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.trapi import hash_edge, hash_hex
 
@@ -85,45 +83,6 @@ def make_mappings(qg: QueryGraph) -> tuple[AdjacencyGraph, QEdgeIDMap]:
         agraph[edge.object][edge.subject].append(edge)
 
     return agraph, edge_id_map
-
-
-async def await_next[T](iterator: AsyncIterator[T]) -> T:
-    """Create a coroutine awaiting next value in iterator."""
-    return await iterator.__anext__()
-
-
-def as_task[T](iterator: AsyncIterator[T]) -> asyncio.Task[T]:
-    """Create a task which resolves to the iterator's next result."""
-    return asyncio.create_task(await_next(iterator))
-
-
-async def merge_iterators[T](*iterators: AsyncIterator[T]) -> AsyncIterable[T]:
-    """Merge multiple async iterators, yielding values as they are completed.
-
-    Based on Alex Peter's solution: https://stackoverflow.com/a/76643550
-    """
-    next_tasks = {iterator: as_task(iterator) for iterator in iterators}
-    backmap = {v: k for k, v in next_tasks.items()}
-
-    while next_tasks:
-        done, _ = await asyncio.wait(
-            next_tasks.values(), return_when=asyncio.FIRST_COMPLETED
-        )
-
-        for task in done:
-            iterator = backmap[task]
-
-            try:
-                yield task.result()
-            except StopAsyncIteration:
-                del next_tasks[iterator]
-                del backmap[task]
-            except Exception as e:
-                raise e
-            else:
-                next_task = as_task(iterator)
-                next_tasks[iterator] = next_task
-                backmap[next_task] = iterator
 
 
 async def get_subgraph(

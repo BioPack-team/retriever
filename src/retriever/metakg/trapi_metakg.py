@@ -9,7 +9,7 @@ from reasoner_pydantic import (
 from retriever.types.general import QueryInfo
 
 
-async def metakg(
+async def get_trapi_metakg(
     query: QueryInfo,  # pyright: ignore[reportUnusedParameter] Will be used in the future
 ) -> tuple[int, MetaKnowledgeGraph]:
     """Obtain a TRAPI-formatted meta-kg.

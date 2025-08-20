@@ -7,8 +7,8 @@ from loguru import logger
 
 from retriever.config.general import CONFIG
 from retriever.config.logger import configure_logging
+from retriever.config.write_configs import write_default_configs
 from retriever.utils.logs import cleanup
-from retriever.utils.write_configs import write_default_configs
 
 
 def main() -> None:

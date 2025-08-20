@@ -15,9 +15,9 @@ from reasoner_pydantic.qgraph import PathfinderQueryGraph
 
 from retriever.config.openapi import OPENAPI_CONFIG
 from retriever.data_tiers.tier_0.neo4j.query import Neo4jQuery
-from retriever.tasks.lookup.qgx import QueryGraphExecutor
-from retriever.tasks.lookup.utils import expand_qgraph
-from retriever.tasks.lookup.validate import validate
+from retriever.lookup.qgx import QueryGraphExecutor
+from retriever.lookup.utils import expand_qgraph
+from retriever.lookup.validate import validate
 from retriever.types.general import LookupArtifacts, QueryInfo
 from retriever.types.trapi import (
     AuxGraphDict,
@@ -46,7 +46,7 @@ async def async_lookup(query: QueryInfo) -> None:
 
     job_id = query.job_id
     job_log = log.bind(job_id=job_id)
-    _, response = await lookup(query)
+    status, response = await lookup(query)
 
     job_log.debug(f"Sending callback to `{query.body.callback}`...")
     try:
@@ -64,6 +64,9 @@ async def async_lookup(query: QueryInfo) -> None:
         job_log.exception(
             "An unhandled exception occured while making response callback."
         )
+
+    # update so callback logs are kept with response
+    tracked_response(status, response)
 
 
 async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:

@@ -7,8 +7,8 @@ from opentelemetry import trace
 from reasoner_pydantic import MetaKnowledgeGraph as TRAPIMetaKnowledgeGraph
 
 from retriever.config.general import CONFIG
-from retriever.tasks.lookup.lookup import async_lookup, lookup
-from retriever.tasks.metakg.metakg import metakg
+from retriever.lookup.lookup import async_lookup, lookup
+from retriever.metakg.trapi_metakg import get_trapi_metakg
 from retriever.types.general import APIInfo, QueryInfo
 from retriever.types.trapi import AsyncQueryResponseDict, ResponseDict
 from retriever.types.trapi_pydantic import AsyncQuery as TRAPIAsyncQuery
@@ -81,7 +81,7 @@ async def make_query(
         timeout=timeout,
     )
 
-    query_function = {"lookup": lookup, "metakg": metakg}[func]
+    query_function = {"lookup": lookup, "metakg": get_trapi_metakg}[func]
     if func == "lookup":
         MONGO_QUEUE.put("job_state", {"job_id": job_id, "status": "Running"})
 

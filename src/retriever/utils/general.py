@@ -1,4 +1,6 @@
+import asyncio
 from abc import ABCMeta
+from collections.abc import AsyncIterable, AsyncIterator
 from pathlib import Path
 from typing import Any, ClassVar, cast, override
 
@@ -86,3 +88,42 @@ class CommentedSettings(BaseSettings):
 
         commented.yaml_set_start_comment(start_comment)  # pyright:ignore[reportUnknownMemberType] ruamel uses unknowns
         yaml.dump(commented, path)  # pyright:ignore[reportUnknownMemberType] ruamel uses unknowns
+
+
+async def await_next[T](iterator: AsyncIterator[T]) -> T:
+    """Create a coroutine awaiting next value in iterator."""
+    return await iterator.__anext__()
+
+
+def as_task[T](iterator: AsyncIterator[T]) -> asyncio.Task[T]:
+    """Create a task which resolves to the iterator's next result."""
+    return asyncio.create_task(await_next(iterator))
+
+
+async def merge_iterators[T](*iterators: AsyncIterator[T]) -> AsyncIterable[T]:
+    """Merge multiple async iterators, yielding values as they are completed.
+
+    Based on Alex Peter's solution: https://stackoverflow.com/a/76643550
+    """
+    next_tasks = {iterator: as_task(iterator) for iterator in iterators}
+    backmap = {v: k for k, v in next_tasks.items()}
+
+    while next_tasks:
+        done, _ = await asyncio.wait(
+            next_tasks.values(), return_when=asyncio.FIRST_COMPLETED
+        )
+
+        for task in done:
+            iterator = backmap[task]
+
+            try:
+                yield task.result()
+            except StopAsyncIteration:
+                del next_tasks[iterator]
+                del backmap[task]
+            except Exception as e:
+                raise e
+            else:
+                next_task = as_task(iterator)
+                next_tasks[iterator] = next_task
+                backmap[next_task] = iterator

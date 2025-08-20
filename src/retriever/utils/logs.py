@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import traceback
 from collections import deque
 from collections.abc import AsyncGenerator
@@ -8,6 +7,7 @@ from datetime import datetime
 from typing import Any
 
 import loguru
+import orjson
 from loguru import logger
 from reasoner_pydantic import LogLevel as TRAPILogLevel
 
@@ -82,7 +82,7 @@ async def objs_to_json(generator: AsyncGenerator[Any]) -> AsyncGenerator[str]:
 
     first = True
     async for item in generator:
-        yield ("" if first else ",") + json.dumps(item)
+        yield ("" if first else ",") + orjson.dumps(item).decode()
         first = False
     yield "]"
 

@@ -12,6 +12,10 @@ from reasoner_pydantic import (
 )
 
 from retriever.types.general import AdjacencyGraph, QEdgeIDMap
+from retriever.types.trapi import QEdgeID, QNodeID
+
+BranchName = str
+SuperpositionName = str
 
 
 class Branch:
@@ -25,9 +29,9 @@ class Branch:
     def __init__(
         self,
         qgraph: QueryGraph,
-        agraph: AdjacencyGraph,
+        q_agraph: AdjacencyGraph,
         edge_id_map: QEdgeIDMap,
-        starting_node: str,
+        starting_node: QNodeID,
         starting_curie: CURIE,
     ) -> None:
         """Initialize a Branch instance.
@@ -35,14 +39,14 @@ class Branch:
         Expects that nodes, curies, and edges are all the same length.
         """
         self.qgraph: QueryGraph = qgraph
-        self.agraph: AdjacencyGraph = agraph
+        self.q_agraph: AdjacencyGraph = q_agraph
         self.edge_id_map: QEdgeIDMap = edge_id_map
-        self.nodes: list[str] = [starting_node]
+        self.nodes: list[QNodeID] = [starting_node]
         self.curies: list[CURIE] = [starting_curie]
-        self.edges: list[str] = []
+        self.edges: list[QEdgeID] = []
         self.reversed: bool = False  # executing reversed relative to current_edge
-        self.next_steps: set[str] = set()
-        self.skipped_steps: set[str] = set()
+        self.next_steps: set[BranchName] = set()
+        self.skipped_steps: set[BranchName] = set()
 
     @override
     def __eq__(self, other: object) -> bool:
@@ -60,7 +64,7 @@ class Branch:
         return hash(self.branch_name)
 
     @cached_property
-    def branch_name(self) -> str:
+    def branch_name(self) -> BranchName:
         """Return the branch name.
 
         A Branch is named solely by its QNodes and QEdges.
@@ -71,7 +75,7 @@ class Branch:
         )
 
     @cached_property
-    def superposition_name(self) -> str:
+    def superposition_name(self) -> SuperpositionName:
         """Return the superposition name.
 
         A superposition is named taking into account curies.
@@ -84,7 +88,7 @@ class Branch:
         )
 
     @cached_property
-    def hop_name(self) -> tuple[CURIE, str]:
+    def hop_name(self) -> tuple[CURIE, QEdgeID]:
         """Return a name representing the branch's input superposition.
 
         Used to identify the specific curie-qedge hop, which might be executed by
@@ -96,17 +100,17 @@ class Branch:
         )
 
     @property
-    def current_edge(self) -> str:
+    def current_edge(self) -> QEdgeID:
         """Get the currently-focused edge of the branch."""
         return self.edges[-1]
 
     @property
-    def start_node(self) -> str:
+    def start_node(self) -> QNodeID:
         """Get the starting node of the branch."""
         return self.nodes[0]
 
     @property
-    def input_node(self) -> str:
+    def input_node(self) -> QNodeID:
         """Get the input node of the current edge.
 
         Relative to Branch direction, not QEdge direction.
@@ -122,7 +126,7 @@ class Branch:
         return self.curies[-1]
 
     @property
-    def output_node(self) -> str:
+    def output_node(self) -> QNodeID:
         """Get the output node of the current edge.
 
         Relative to Branch direction, not QEdge direction.
@@ -130,10 +134,10 @@ class Branch:
         return self.nodes[-1]
 
     @cached_property
-    def next_edges(self) -> dict[str, list[QEdge]]:
+    def next_edges(self) -> dict[QNodeID, list[QEdge]]:
         """Return the next potential edges adjacent to the current edge."""
-        edges = dict[str, list[QEdge]]()
-        for qnode_id, qedge in self.agraph[self.output_node].items():
+        edges = dict[QNodeID, list[QEdge]]()
+        for qnode_id, qedge in self.q_agraph[self.output_node].items():
             if qnode_id not in edges:
                 edges[qnode_id] = list[QEdge]()
             edges[qnode_id].extend(qedge)
@@ -141,14 +145,18 @@ class Branch:
 
     def advance(
         self,
-        edge: str,
-        node: str,
+        edge: QEdgeID,
+        node: QNodeID,
         last_curie: CURIE | None = None,
         reverse: bool = False,
     ) -> "Branch":
         """Return a new branch that is advanced by the given step."""
         branch = Branch(
-            self.qgraph, self.agraph, self.edge_id_map, self.start_node, self.curies[0]
+            self.qgraph,
+            self.q_agraph,
+            self.edge_id_map,
+            self.start_node,
+            self.curies[0],
         )
         branch.nodes = [*self.nodes, node]
         branch.curies = [*self.curies]
@@ -162,7 +170,7 @@ class Branch:
     async def get_next_steps(
         self,
         curies: Iterable[CURIE],
-        qedge_claims: dict[str, "Branch | None"],
+        qedge_claims: dict[QEdgeID, "Branch | None"],
         lock: asyncio.Lock,
     ) -> list["Branch"]:
         """Find next possible edges to execute.
@@ -173,19 +181,19 @@ class Branch:
         next_steps = list[Branch]()
 
         current_edge = self.qgraph.edges[self.current_edge]
-        for next_node_id, edges in self.next_edges.items():
+        for next_qnode_id, edges in self.next_edges.items():
             for next_edge in edges:
                 if self.edge_id_map[next_edge] == self.edge_id_map[current_edge]:
                     continue
 
                 claim_checked = False
                 for curie in curies:
-                    next_edge_id = self.edge_id_map[next_edge]
+                    next_qedge_id = self.edge_id_map[next_edge]
                     branch = self.advance(
-                        next_edge_id,
-                        next_node_id,
+                        next_qedge_id,
+                        next_qnode_id,
                         curie,
-                        reverse=next_edge.subject == next_node_id,
+                        reverse=next_edge.subject == next_qnode_id,
                     )
                     if not claim_checked and not await branch.has_claim(
                         qedge_claims, lock
@@ -197,7 +205,7 @@ class Branch:
         return next_steps
 
     async def has_claim(
-        self, qedge_claims: dict[str, "Branch | None"], lock: asyncio.Lock
+        self, qedge_claims: dict[QEdgeID, "Branch | None"], lock: asyncio.Lock
     ) -> bool:
         """Check if the branch's current edge is claimable, and claim it if so.
 
@@ -219,7 +227,7 @@ class Branch:
         qg: QueryGraph,
         ag: AdjacencyGraph,
         em: QEdgeIDMap,
-        qedge_claims: dict[str, "Branch | None"],
+        qedge_claims: dict[QEdgeID, "Branch | None"],
         lock: asyncio.Lock,
     ) -> list["Branch"]:
         """Get starting edges from a query graph.

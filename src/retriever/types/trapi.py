@@ -202,7 +202,7 @@ class EdgeDict(TypedDict):
 class QualifierDict(TypedDict):
     """Qualifier."""
 
-    qualifier_type_id: str
+    qualifier_type_id: QualifierTypeID
     qualifier_value: str
 
 
@@ -240,7 +240,7 @@ class MetaEdgeDict(TypedDict):
 class MetaQualifierDict(TypedDict):
     """MetaQualifier."""
 
-    qualifier_type_id: str
+    qualifier_type_id: QualifierTypeID
     applicable_values: list[str]
 
 
@@ -287,3 +287,4 @@ AuxGraphID = str
 QNodeID = str
 QEdgeID = str
 Infores = str
+QualifierTypeID = str
