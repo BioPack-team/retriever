@@ -235,7 +235,7 @@ class QueryGraphExecutor:
             while parallel_tasks:
                 timeout = (
                     max(
-                        self.ctx.timeout - (time.time() - self.start_time) - 0.5,
+                        self.ctx.timeout - (time.time() - self.start_time),
                         0,
                     )
                     if self.ctx.timeout >= 0
@@ -561,7 +561,7 @@ class QueryGraphExecutor:
         try:
             if self.ctx.timeout < 0:
                 return
-            await asyncio.sleep(max(self.ctx.timeout - 0.5, 0))
+            await asyncio.sleep(self.ctx.timeout)
             self.job_log.error("QGX hit timeout, attempting wrapup...")
             self.terminate = True
         except asyncio.CancelledError:

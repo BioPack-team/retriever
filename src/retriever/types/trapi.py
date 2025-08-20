@@ -25,7 +25,7 @@ class ParametersDict(TypedDict):
     """Query Parameters."""
 
     tiers: list[int]
-    timeout: int
+    timeout: float
 
 
 class QueryDict(TypedDict):

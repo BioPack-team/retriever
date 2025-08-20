@@ -15,7 +15,7 @@ class Parameters(BaseModel):
     """Parameters that govern some elements of query execution behavior."""
 
     timeout: Annotated[
-        int | None,
+        float | None,
         Field(
             description="Custom query timeout in seconds. Defaults to server default if not set. Set to -1 to disable timeout entirely."
         ),

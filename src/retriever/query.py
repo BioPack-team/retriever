@@ -60,7 +60,7 @@ async def make_query(
     Unhandled errors are handled by middleware.
     """
     job_id = uuid.uuid4().hex
-    timeout: int = {
+    timeout: float = {
         "lookup": CONFIG.job.lookup.timeout,
         "metakg": CONFIG.job.metakg.timeout,
     }[func]
