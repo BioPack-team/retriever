@@ -1678,7 +1678,7 @@ dependencies = [
     { name = "reasoner-transpiler" },
     { name = "redis" },
     { name = "ruamel-yaml" },
-    { name = "sentry-sdk" },
+    { name = "sentry-sdk", extra = ["loguru"] },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -1721,7 +1721,7 @@ requires-dist = [
     { name = "reasoner-transpiler", specifier = ">=2.3.5" },
     { name = "redis", specifier = ">=5.0.4,<6" },
     { name = "ruamel-yaml", specifier = ">=0.18.14" },
-    { name = "sentry-sdk", specifier = ">=2.20.0" },
+    { name = "sentry-sdk", extras = ["loguru"], specifier = ">=2.20.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.1,<0.33" },
 ]
 
@@ -1881,6 +1881,11 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/85/26/099631caa51abffb1fd9e08c2138bc6681d3f288a5936c2fc4e054729611/sentry_sdk-2.26.1.tar.gz", hash = "sha256:759e019c41551a21519a95e6cef6d91fb4af1054761923dadaee2e6eca9c02c7", size = 323099, upload-time = "2025-04-15T11:22:04.606Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/23/32/0a30b4fafdb3d26d133f99bb566aaa6000004ee7f2c4b72aafea9237ab7e/sentry_sdk-2.26.1-py2.py3-none-any.whl", hash = "sha256:e99390e3f217d13ddcbaeaed08789f1ca614d663b345b9da42e35ad6b60d696a", size = 340558, upload-time = "2025-04-15T11:22:02.688Z" },
+]
+
+[package.optional-dependencies]
+loguru = [
+    { name = "loguru" },
 ]
 
 [[package]]
