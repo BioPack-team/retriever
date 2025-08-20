@@ -15,7 +15,7 @@ from retriever.types.trapi import (
     QNodeDict,
 )
 from retriever.utils.logs import TRAPILogger
-from retriever.utils.trapi import normalize_kgraph
+from retriever.utils.trapi import append_aggregator_source, normalize_kgraph
 
 # TODO:
 # Use Robokop as a mockup on this level (make a Tier 1 version for query and such)
@@ -43,9 +43,6 @@ async def mock_subquery(
         transpiler = Neo4jTranspiler()
         neo4j_driver = Neo4jDriver()
 
-        # TODO: technically here we need to handle flipping for canonical directions
-        # Because outside of this query all we care about is "query direction" vs "execution direction"
-
         # branch comes in execution direction
         # edge it refers to is in query direction
 
@@ -66,12 +63,13 @@ async def mock_subquery(
         neo4j_record = await neo4j_driver.run_query(query_cypher)
 
         result = transpiler.convert_results(qgraph, neo4j_record)
-        # FIX: Some edges come back reversed of query direction???
-        # Either...
-        # a) this is a valid way to respond + bind, in which case we need to handle reversed-of-query-but-not-of-execution edges in the QGX, or
-        #    (possibly can just handle this by making k_agraph bi-directional)
-        # b) this is an invalid way to response + bind, in which case we need to do a manual pass to make sure everything is fine before sending back to QGX.
-        # -> This is valid whenever the query predicate is symmetric, handle it
+
+        # Add Retriever to the provenance chain
+        for edge_id, edge in result["knowledge_graph"]["edges"].items():
+            try:
+                append_aggregator_source(edge, "infores:retriever")
+            except ValueError:
+                job_log.warning(f"Edge f{edge_id} has an invalid provenance chain.")
 
         end = time.time()
         job_log.debug(

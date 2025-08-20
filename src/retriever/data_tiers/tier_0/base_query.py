@@ -76,8 +76,13 @@ class Tier0Query(ABC):
             )
 
             # Add Retriever to the provenance chain
-            for edge in backend_results["knowledge_graph"]["edges"].values():
-                append_aggregator_source(edge, "infores:retriever")
+            for edge_id, edge in backend_results["knowledge_graph"]["edges"].items():
+                try:
+                    append_aggregator_source(edge, "infores:retriever")
+                except ValueError:
+                    self.job_log.warning(
+                        f"Edge f{edge_id} has an invalid provenance chain."
+                    )
 
             return LookupArtifacts(
                 backend_results["results"],
