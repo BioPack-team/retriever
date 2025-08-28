@@ -164,6 +164,28 @@ def uppercase(value: str) -> str:
     """Make a string uppercase."""
     return value.upper()
 
+class ElasticSearchSettings(BaseModel):
+    """Settings for the Tier 1 ElasticSearch interface."""
+
+    """Settings for the Tier 0 Neo4j interface."""
+
+    query_timeout: Annotated[
+        int, Field(description="Time in seconds before a Elasticsearch query should time out.")
+    ] = 1600
+    connect_retries: Annotated[
+        int,
+        Field(description="Number of retries before declaring a connection failure."),
+    ] = 25
+    host: str = ""
+    port: int = 9200
+    database_name: str = "elasticsearch"
+
+
+class Tier1Settings(BaseModel):
+    """Settings concern Tier 1 abstraction layers."""
+
+    elasticsearch: ElasticSearchSettings = ElasticSearchSettings()
+
 
 class Neo4jSettings(BaseModel):
     """Settings for the Tier 0 Neo4j interface."""
@@ -224,6 +246,7 @@ class GeneralConfig(CommentedSettings):
     redis: RedisSettings = RedisSettings()
     mongo: MongoSettings = MongoSettings()
     tier0: Tier0Settings = Tier0Settings()
+    tier1: Tier1Settings = Tier1Settings()
     telemetry: TelemetrySettings = TelemetrySettings()
 
     # Weird override happening here, see https://github.com/makukha/pydantic-file-secrets for an explanation
