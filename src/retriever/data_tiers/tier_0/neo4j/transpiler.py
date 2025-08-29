@@ -68,6 +68,6 @@ class Neo4jTranspiler(Transpiler):
                     if source["resource_id"] == "reasoner-transpiler"
                 )
             )
-            transpiler_source["resource_id"] = "infores:dogpark-robokop-standin"
+            transpiler_source["resource_id"] = "infores:automat-robokopkg"
 
         return result
