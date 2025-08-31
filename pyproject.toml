@@ -32,6 +32,8 @@ dependencies = [
     "pydantic-core>=2.33.1",
     "neo4j-rust-ext>=5.28.2.1",
     "orjson>=3.11.2",
+    "elasticsearch (>=7.8.0)",
+    "aiohttp (>=3.12.15,<4.0.0)",
 ]
 
 [project.scripts]
