@@ -45,23 +45,29 @@ class ElasticSearchDriver(DatabaseDriver):
     async def retry_es_connection(self, retries: int) -> None:
         """retry connection to Elasticsearch and raise exception if retries exceeded"""
 
+        # keep trying to connect, if allowed
         if retries <= CONFIG.tier1.elasticsearch.connect_retries:
             await self.close()
             await asyncio.sleep(8)
             log.error(
-                f"Could not establish connection to neo4j, trying again... retry {retries + 1}"
+                f"Could not establish connection to elasticsearch, trying again... retry {retries + 1}"
             )
             return await self.connect(retries + 1)
 
+
+        # retry limit reached
         try:
             connection_info = await self.es_connection.info()
-            log.error(f"Could not establish connection to neo4j, more info: {connection_info}")
-            raise Exception(f"Could not establish connection to neo4j, error: {connection_info}")
         except Exception as e:
-            log.error(f"Could not establish connection to neo4j, error: {e}")
+            # failed to get connection info
+            log.error(f"Could not establish connection to elasticsearch, error: {e}")
             raise e
         finally:
             await self.close()
+
+        # theoretical corner case, when ping() failed but connection_info() succeeded
+        log.error(f"Could not establish connection to elasticsearch, more info: {connection_info}")
+        raise Exception(f"Could not establish connection to elasticsearch, error: {connection_info}")
 
 
     @override
@@ -74,7 +80,7 @@ class ElasticSearchDriver(DatabaseDriver):
 
         is_connected = await self.check_es_connection()
 
-        # retry logic
+        # evoke retry logic
         if not is_connected:
             # reset connection for a clean slate
             await self.es_connection.close()
