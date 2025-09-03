@@ -180,6 +180,9 @@ class ElasticSearchSettings(BaseModel):
     port: int = 9200
     database_name: str = "elasticsearch"
 
+    # use merged edges index
+    index_name: str = "rtx_kg2_edges_merged"
+
 
 class Tier1Settings(BaseModel):
     """Settings concern Tier 1 abstraction layers."""

@@ -1,10 +1,9 @@
 import asyncio
-from typing import Optional
+from typing import Optional, Any
 
-import elasticsearch
 from opentelemetry import trace
 
-from elasticsearch import AsyncElasticsearch
+from elasticsearch import AsyncElasticsearch, exceptions as es_exceptions
 from typing_extensions import override
 
 from loguru import logger as log
@@ -82,17 +81,72 @@ class ElasticSearchDriver(DatabaseDriver):
 
         # evoke retry logic
         if not is_connected:
-            # reset connection for a clean slate
-            await self.es_connection.close()
             await self.retry_es_connection(retries)
 
     @override
     async def close(self) -> None:
         """Close connection to Elasticsearch instance, if present"""
+
         if self.es_connection is not None:
             await self.es_connection.close()
         self.es_connection = None
 
+
+    async def run(self, query:dict) -> list[dict] | None:
+        """Execute query logic"""
+
+        # check ES connection instance
+        if self.es_connection is None:
+            raise RuntimeError(
+                "Must use ElasticSearchDriver.connect() before running queries."
+            )
+
+        try:
+            response = await self.es_connection.search(
+                index=CONFIG.tier1.elasticsearch.index_name,
+                body=query,
+            )
+        except es_exceptions.ConnectionError as e:
+            await self.connect()
+            return await self.run(query)
+        except es_exceptions.ApiError as e:
+            log.exception("elasticsearch query error encountered.")
+            raise e
+        except es_exceptions.TransportError as e:
+            log.exception("elasticsearch error encountered.")
+            raise e
+        except Exception as e:
+            log.exception("other error encountered")
+            raise e
+
+        results = response["hits"]["hits"]
+
+        # empty array
+        if not results:
+            return None
+
+        return results
+
+
+
+    @override
+    @tracer.start_as_current_span("elasticsearch_query")
+    async def run_query(self, query: dict, *args: Any, **kwargs: Any) -> list[dict] | None:
+        """Use ES async client to execute query via the `_search` endpoint"""
+
+        otel_span = trace.get_current_span()
+        if not otel_span or not otel_span.is_recording():
+            otel_span = None
+        else:
+            otel_span.add_event(
+                "elasticsearch_query_start", attributes={"query_body": query}
+            )
+
+        query_result = await self.run(query)
+        if otel_span is not None:
+            otel_span.add_event("elasticsearch_query_end")
+
+        return query_result
 
 
 
