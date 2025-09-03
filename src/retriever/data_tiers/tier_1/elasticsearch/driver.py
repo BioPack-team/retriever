@@ -64,8 +64,6 @@ class ElasticSearchDriver(DatabaseDriver):
             await self.close()
 
 
-
-
     @override
     async def connect(self, retries: int = 0) -> None:
         """Initialize a persistent connection to Elasticsearch instance"""
@@ -78,10 +76,9 @@ class ElasticSearchDriver(DatabaseDriver):
 
         # retry logic
         if not is_connected:
-
             # reset connection for a clean slate
             await self.es_connection.close()
-            self.es_connection = None
+            await self.retry_es_connection(retries)
 
     @override
     async def close(self) -> None:
