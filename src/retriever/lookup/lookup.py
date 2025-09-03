@@ -126,6 +126,7 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
         ]
         response["message"]["results"] = results
         response["message"]["knowledge_graph"] = kgraph
+        response["message"]["auxiliary_graphs"] = aux_graphs
         return tracked_response(200, response)
 
     except Exception:
