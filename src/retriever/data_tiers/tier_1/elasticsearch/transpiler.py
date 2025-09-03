@@ -1,4 +1,4 @@
-from typing import Any, LiteralString, Literal
+from typing import Any, Literal
 
 from typing_extensions import override
 
@@ -81,8 +81,8 @@ class ElasticsearchTranspiler(Transpiler):
         }
         """
 
-        subject_terms = self.process_qnode(in_node)
-        object_terms = self.process_qnode(out_node)
+        subject_terms = self.process_qnode(in_node, "subject")
+        object_terms = self.process_qnode(out_node, "object")
         edge_terms = self.process_qedge(edge)
 
         return {
