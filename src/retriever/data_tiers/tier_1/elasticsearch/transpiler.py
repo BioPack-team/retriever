@@ -12,8 +12,11 @@ class ElasticsearchTranspiler(Transpiler):
     """Transpiler for TRAPI to/from Elasticsearch queries"""
 
 
-    def generate_query_term(self, target: str, value):
+    def generate_query_term(self, target: str, value: list):
         """ Common utility function to generate a termed query based on key-value pairs"""
+        if type(value) is not list:
+            raise TypeError(f"value must be a list")
+
         return { "terms": { f"{target}.keyword": value}}
 
     def process_qnode(self, qnode, side:  Literal["subject", "object"]):
