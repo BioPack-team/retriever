@@ -13,9 +13,15 @@ class ElasticsearchTranspiler(Transpiler):
 
 
     def generate_query_term(self, target: str, value):
+        """ Common utility function to generate a termed query based on key-value pairs"""
         return { "terms": { f"{target}.keyword": value}}
 
     def process_qnode(self, qnode, side:  Literal["subject", "object"]):
+        """
+        Provide query terms based on given side and fields of a QNodeDict
+        example return value: { "terms": { "subject.id.keyword": ["NCBIGene:22828"] }},
+        """
+
         field_mapping = {
             "ids": "id",
             "categories": "all_categories", # could be just "category
@@ -29,7 +35,11 @@ class ElasticsearchTranspiler(Transpiler):
 
 
     def process_qedge(self, qedge):
+        """
+        Provide query terms based on a given QEdgeDict
 
+        example return value: { "terms": { "predicates.keyword": ["biolink:Gene"] }},
+        """
 
         # check required field
         predicates = qedge.get('predicates')
@@ -55,7 +65,7 @@ class ElasticsearchTranspiler(Transpiler):
         self, in_node: QNodeDict, edge: QEdgeDict, out_node: QNodeDict
     ) -> dict:
         """
-        generate query based on merged edges schema on Elasticsearch
+        Generate query based on merged edges schema on Elasticsearch
 
         example pyload:
 
@@ -88,20 +98,23 @@ class ElasticsearchTranspiler(Transpiler):
     def convert_triple(
         self, in_node: QNodeDict, edge: QEdgeDict, out_node: QNodeDict
     ) -> tuple[QueryGraphDict, dict]:
+        """ Special case of convert_batch_triple"""
+
         return self.convert_batch_triple(in_node, edge, out_node)
 
     @override
     def convert_batch_triple(
         self, in_node: QNodeDict, edge: QEdgeDict, out_node: QNodeDict
     ) -> tuple[QueryGraphDict, dict]:
+        """ Provide an ES query body for given trio of Q-dicts  """
 
         qgraph = QueryGraphDict(
             nodes={edge["subject"]: in_node, edge["object"]: out_node},
             edges={"edge": edge},
         )
 
-        # use merged_edges schema for now
-        # todo adjacency list schema, when updated
+        # use "merged_edges" schema for now
+        # todo "adjacency list schema", when updated
 
         return qgraph, self.generate_query_for_merged_edges(in_node, edge, out_node)
 
