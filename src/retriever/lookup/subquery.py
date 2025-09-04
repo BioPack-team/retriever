@@ -5,8 +5,8 @@ import time
 from opentelemetry import trace
 from reasoner_pydantic import QueryGraph
 
-from retriever.data_tiers.tier_0.neo4j.driver import Neo4jDriver
-from retriever.data_tiers.tier_0.neo4j.transpiler import Neo4jTranspiler
+from retriever.data_tiers.tier_1.elasticsearch.driver import ElasticSearchDriver
+from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
 from retriever.lookup.branch import Branch
 from retriever.types.trapi import (
     KnowledgeGraphDict,
@@ -33,8 +33,8 @@ async def mock_subquery(
         job_log: TRAPILogger = TRAPILogger(job_id)
         start = time.time()
 
-        transpiler = Neo4jTranspiler()
-        neo4j_driver = Neo4jDriver()
+        transpiler = ElasticsearchTranspiler()
+        query_driver = ElasticSearchDriver()
 
         # branch comes in execution direction
         # edge it refers to is in query direction
@@ -53,12 +53,13 @@ async def mock_subquery(
         )
 
         job_log.debug(
-            f"Subquerying Robokop for {subject_node.get('ids', [])} -{current_edge.get('predicates', []) or []}-> {object_node.get('ids', []) or []}..."
+            f"Subquerying Tier 1 for {subject_node.get('ids', [])} -{current_edge.get('predicates', []) or []}-> {object_node.get('ids', []) or []}..."
         )
 
-        neo4j_record = await neo4j_driver.run_query(query_cypher)
+        response_record = await query_driver.run_query(query_cypher)
+        print(response_record)
 
-        result = transpiler.convert_results(qgraph, neo4j_record)
+        result = transpiler.convert_results(qgraph, response_record)
 
         # Add Retriever to the provenance chain
         for edge_id, edge in result["knowledge_graph"]["edges"].items():
