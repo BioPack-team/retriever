@@ -167,8 +167,6 @@ def uppercase(value: str) -> str:
 class ElasticSearchSettings(BaseModel):
     """Settings for the Tier 1 ElasticSearch interface."""
 
-    """Settings for the Tier 0 Neo4j interface."""
-
     query_timeout: Annotated[
         int, Field(description="Time in seconds before a Elasticsearch query should time out.")
     ] = 1600
