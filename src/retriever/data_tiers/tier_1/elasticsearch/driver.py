@@ -110,13 +110,15 @@ class ElasticSearchDriver(DatabaseDriver):
             await self.connect()
             return await self.run(query)
         except es_exceptions.ApiError as e:
-            log.exception("elasticsearch query error encountered.")
+            log.exception("Elasticsearch query returned non-200 HTTP status")
             raise e
         except es_exceptions.TransportError as e:
-            log.exception("elasticsearch error encountered.")
+            log.exception("Elasticsearch query encountered a transport error")
             raise e
         except Exception as e:
-            log.exception("other error encountered")
+            # TransportError and ApiError covers all Elasticsearch related exceptions.
+            # Exceptions caught here are likely caused by connect()
+            log.exception("An unexpected exception occurred during Elasticsearch query")
             raise e
 
         results = response["hits"]["hits"]
