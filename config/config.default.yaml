@@ -57,6 +57,14 @@ tier0:
     username: ''
     password: ''
     database_name: neo4j
+tier1:
+  elasticsearch:
+    query_timeout: 1600  # Time in seconds before a Elasticsearch query should time out.
+    connect_retries: 25 # Number of retries before declaring a connection failure.
+    host: ''
+    port: 9200
+    database_name: elasticsearch
+    index_name: rtx_kg2_edges_merged
 telemetry:
   otel_enabled: false
   otel_host: jaeger-otel-collector.sri
