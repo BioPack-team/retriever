@@ -32,6 +32,7 @@ dependencies = [
     "pydantic-core>=2.33.1",
     "neo4j-rust-ext>=5.28.2.1",
     "orjson>=3.11.2",
+    "pydgraph>=24.3.0",
 ]
 
 [project.scripts]
