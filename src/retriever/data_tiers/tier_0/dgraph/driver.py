@@ -3,6 +3,7 @@ from retriever.data_tiers.base_driver import DatabaseDriver
 from typing import Any, Optional
 import pydgraph
 import asyncio
+import logging
 
 
 class DgraphDriver(DatabaseDriver):
@@ -10,20 +11,19 @@ class DgraphDriver(DatabaseDriver):
 
     def __init__(self):
         self.settings = CONFIG.tier0.dgraph
-        self.endpoint = self.settings.host  # should be like 'dgraph-alpha:9080'
+        self.endpoint = self.settings.host
         self.endpoint = "localhost:9080"
         self._client_stub: Optional[pydgraph.DgraphClientStub] = None
         self._client: Optional[pydgraph.DgraphClient] = None
 
     async def connect(self) -> None:
         """Connect to Dgraph using gRPC (pydgraph client)."""
-        # pydgraph is synchronous, wrap in threadpool if async is needed
-        self._client_stub = pydgraph.DgraphClientStub(self.endpoint)
-        self._client = pydgraph.DgraphClient(self._client_stub)
-
-        # Optionally, do a health check
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self._client.alter, pydgraph.Operation(drop_all=False))
+        try:
+            self._client_stub = pydgraph.DgraphClientStub(self.endpoint)
+            self._client = pydgraph.DgraphClient(self._client_stub)
+        except Exception as e:
+            logging.error(f"Failed to connect to Dgraph: {e}")
+            raise
 
     async def run_query(self, query: Any, *args: Any, **kwargs: Any) -> Any:
         if not self._client:
