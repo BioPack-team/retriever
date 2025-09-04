@@ -47,7 +47,7 @@ class ElasticSearchDriver(DatabaseDriver):
         # Keep trying to connect, if allowed
         if retries <= CONFIG.tier1.elasticsearch.connect_retries:
             await self.close()
-            await asyncio.sleep(8)
+            await asyncio.sleep(1)
             log.error(
                 f"Could not establish connection to elasticsearch, trying again... retry {retries + 1}"
             )
@@ -75,7 +75,7 @@ class ElasticSearchDriver(DatabaseDriver):
     @override
     async def connect(self, retries: int = 0) -> None:
         """Initialize a persistent connection to Elasticsearch instance."""
-        log.info("checking ElasticSearch connection")
+        log.info("Checking ElasticSearch connection...")
 
         if self.es_connection is None:
             self.setup_es_connection()
