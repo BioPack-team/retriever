@@ -16,6 +16,7 @@ from retriever.config.general import CONFIG
 from retriever.config.logger import configure_logging
 from retriever.config.openapi import OPENAPI_CONFIG, TRAPI
 from retriever.data_tiers.tier_0.neo4j.driver import Neo4jDriver
+from retriever.data_tiers.tier_1.elasticsearch.driver import ElasticSearchDriver
 from retriever.metakg.metakg import METAKG_MANAGER
 from retriever.query import get_job_state, make_query
 from retriever.types.general import APIInfo, ErrorDetail, LogLevel
@@ -49,11 +50,14 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     await REDIS_CLIENT.initialize()
     await METAKG_MANAGER.initialize()
     neo4j_driver = Neo4jDriver()
+    es_driver = ElasticSearchDriver()
     await neo4j_driver.connect()
+    await es_driver.connect()
 
     yield  # Separates startup/shutdown phase
 
     # Shutdown
+    await es_driver.close()
     await neo4j_driver.close()
     await METAKG_MANAGER.wrapup()
     await REDIS_CLIENT.close()
