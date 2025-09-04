@@ -57,7 +57,7 @@ class QueryInfo(NamedTuple):
     timeout: float
 
 
-class BackendResults(TypedDict):
+class BackendResult(TypedDict):
     """Transformed results of a query to a given database backend."""
 
     results: list[ResultDict]

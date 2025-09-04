@@ -15,6 +15,7 @@ from retriever.lookup.branch import Branch, SuperpositionName
 from retriever.lookup.partial import Partial
 from retriever.lookup.subquery import mock_subquery
 from retriever.lookup.utils import get_subgraph, make_mappings
+from retriever.metakg.metakg import METAKG_MANAGER
 from retriever.types.general import (
     AdjacencyGraph,
     KAdjacencyGraph,
@@ -99,12 +100,21 @@ class QueryGraphExecutor:
             self.job_log.info(
                 f"Starting lookup against Tier {', '.join(str(t) for t in self.ctx.tiers if t > 0)}..."
             )
+            operation_plan = await METAKG_MANAGER.create_operation_plan(
+                self.qgraph, {t for t in self.ctx.tiers if t > 0}
+            )
+            if isinstance(operation_plan, list):
+                self.job_log.warning(
+                    f"Failed for find operations supporting query edge(s): {operation_plan}"
+                )
+                return LookupArtifacts(
+                    [], self.kgraph, self.aux_graphs, self.job_log.get_logs()
+                )
+
             starting_branches = await Branch.get_start_branches(
-                self.qgraph,
-                self.q_agraph,
-                self.qedge_map,
                 self.qedge_claims,
                 self.locks["claim"],
+                (self.qgraph, self.q_agraph, self.qedge_map, operation_plan),
             )
             self.job_log.debug(
                 f"Found {len(starting_branches)} starting branches: {', '.join(branch.superposition_name for branch in starting_branches)}"
@@ -303,15 +313,14 @@ class QueryGraphExecutor:
             update_kgraph = True
             if self.terminate:
                 return [], update_kgraph
-            # Simulate finding a variable number of operations to perform
-            # TODO: replace this with looking up operations from the metakg
+
             subquery_tasks = [
+                # Simulate finding a variable number of operations to perform
                 asyncio.create_task(
                     mock_subquery(self.ctx.job_id, current_branch, self.qgraph),
                     name="subquery",
                 )
-                # for _ in range(random.randint(0, 3))
-                # for _ in range(2)
+                # for operation in current_branch.operations
             ]
 
         return subquery_tasks, update_kgraph

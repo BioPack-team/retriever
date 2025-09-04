@@ -6,7 +6,7 @@ from reasoner_transpiler.cypher import (
 )
 
 from retriever.data_tiers.base_transpiler import Transpiler
-from retriever.types.general import BackendResults
+from retriever.types.general import BackendResult
 from retriever.types.trapi import QEdgeDict, QNodeDict, QueryGraphDict
 
 
@@ -49,11 +49,11 @@ class Neo4jTranspiler(Transpiler):
         return get_query(qgraph, subclass=subclass)
 
     @override
-    def convert_results(self, qgraph: QueryGraphDict, results: Any) -> BackendResults:
+    def convert_results(self, qgraph: QueryGraphDict, results: Any) -> BackendResult:
         # Have to cast to object, then BackendResults because of some type weirdness
         # Transpiler will always output valid TRAPI so this should always work
         result = cast(
-            BackendResults,
+            BackendResult,
             cast(object, transform_result(results, dict(qgraph))),
         )
 

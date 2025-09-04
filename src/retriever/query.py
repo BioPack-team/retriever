@@ -4,13 +4,16 @@ from typing import Any, Literal, overload
 
 from fastapi import Request, Response
 from opentelemetry import trace
-from reasoner_pydantic import MetaKnowledgeGraph as TRAPIMetaKnowledgeGraph
 
 from retriever.config.general import CONFIG
 from retriever.lookup.lookup import async_lookup, lookup
-from retriever.metakg.trapi_metakg import get_trapi_metakg
+from retriever.metakg.trapi_metakg import trapi_metakg
 from retriever.types.general import APIInfo, QueryInfo
-from retriever.types.trapi import AsyncQueryResponseDict, ResponseDict
+from retriever.types.trapi import (
+    AsyncQueryResponseDict,
+    MetaKnowledgeGraphDict,
+    ResponseDict,
+)
 from retriever.types.trapi_pydantic import AsyncQuery as TRAPIAsyncQuery
 from retriever.types.trapi_pydantic import Query as TRAPIQuery
 from retriever.types.trapi_pydantic import TierNumber
@@ -45,7 +48,7 @@ async def make_query(
     ctx: APIInfo,
     *,
     tiers: list[TierNumber],
-) -> TRAPIMetaKnowledgeGraph: ...
+) -> MetaKnowledgeGraphDict: ...
 
 
 async def make_query(
@@ -54,7 +57,7 @@ async def make_query(
     *,
     body: TRAPIQuery | TRAPIAsyncQuery | None = None,
     tiers: list[TierNumber] | None = None,  # Guaranteed to be 0 <= x <= 2
-) -> ResponseDict | AsyncQueryResponseDict | TRAPIMetaKnowledgeGraph:
+) -> ResponseDict | AsyncQueryResponseDict | MetaKnowledgeGraphDict:
     """Process a request and await its response before returning.
 
     Unhandled errors are handled by middleware.
@@ -81,7 +84,7 @@ async def make_query(
         timeout=timeout,
     )
 
-    query_function = {"lookup": lookup, "metakg": get_trapi_metakg}[func]
+    query_function = {"lookup": lookup, "metakg": trapi_metakg}[func]
     if func == "lookup":
         MONGO_QUEUE.put("job_state", {"job_id": job_id, "status": "Running"})
 

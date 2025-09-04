@@ -18,6 +18,7 @@ from retriever.data_tiers.tier_0.neo4j.query import Neo4jQuery
 from retriever.lookup.qgx import QueryGraphExecutor
 from retriever.lookup.utils import expand_qgraph
 from retriever.lookup.validate import validate
+from retriever.metakg.metakg import METAKG_MANAGER
 from retriever.types.general import LookupArtifacts, QueryInfo
 from retriever.types.trapi import (
     AuxGraphDict,
@@ -29,7 +30,7 @@ from retriever.types.trapi import (
     ResponseDict,
     ResultDict,
 )
-from retriever.types.trapi_pydantic import AsyncQuery
+from retriever.types.trapi_pydantic import AsyncQuery, TierNumber
 from retriever.utils.calls import CALLBACK_CLIENT
 from retriever.utils.logs import TRAPILogger, trapi_level_to_int
 from retriever.utils.mongo import MONGO_QUEUE
@@ -100,7 +101,7 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
 
         expanded_qgraph = expand_qgraph(qgraph.model_copy(), job_log)
 
-        if not await qgraph_supported(expanded_qgraph, response, job_log):
+        if not await qgraph_supported(expanded_qgraph, response, job_log, query.tiers):
             return tracked_response(424, response)
 
         results, kgraph, aux_graphs, logs, _ = await run_tiered_lookups(
@@ -218,18 +219,19 @@ def passes_validation(
 
 
 async def qgraph_supported(
-    qgraph: QueryGraph, response: ResponseDict, job_log: TRAPILogger
+    qgraph: QueryGraph,
+    response: ResponseDict,
+    job_log: TRAPILogger,
+    tiers: set[TierNumber],
 ) -> bool:
     """Check that the given query graph has metakg support for all edges.
 
     Prepares response with appropriate messages if not.
     """
-    # TODO: Do a linear iteration of all edges and check that metaEdges exist for each
-    graph_supported, logs = bool(qgraph), list[LogEntryDict]()
-    if not graph_supported:
-        job_log.log_deque.extend(logs)
+    operation_plan = await METAKG_MANAGER.create_operation_plan(qgraph, tiers)
+    if isinstance(operation_plan, list):
         job_log.error(
-            "Query cannot be traversed due to missing metaEdges. See above logs for details."
+            f"MetaEdges could not be found for the following QEdge(s): {operation_plan}"
         )
         response["status"] = "QueryNotTraversable"
         response["description"] = (

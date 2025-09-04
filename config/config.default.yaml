@@ -3,6 +3,7 @@
 # Don't edit this file, it will be overwritten.
 # Edit the appropriate config file instead.
 instance_env: dev  # Instance environment. Used in Sentry, userAgent of subqueries, instance-appropriate behavior, etc.
+instance_idx: 0 # Instance index. Use when multiple Retriever instances are run, so a leader can be determined.
 log_level: DEBUG # Level of application logs to print/keep.
 host: 0.0.0.0 # Uvicorn listen host.
 port: 8080 # Uvicorn listen port.
@@ -24,18 +25,20 @@ job:
     timeout: 10  # Time in seconds before a job should time out, set to -1 to disable.
   metakg:
     timeout: 10  # Time in seconds before a job should time out, set to -1 to disable.
+    build_time: -1 # Time in seconds before MetaKG should be rebuilt. Set to -1 to only build at start.
   ttl: 2592000  # Time in seconds for job state to remain after it was last touched
   ttl_max: 31536000 # Time in seconds after which job state is cleared, regardless of last touch
 log:
   log_to_mongo: true  # Persist logs in MongoDB.
   ttl: 1209600 # Time in seconds for a log to persist.
 redis:
-  cluster: false  # Initialize Redis client in cluster mode.
   host: localhost
   port: 6379
   password:
   ssl_enabled: false
   attempts: 3  # Number of attempts to accomplish operation before considering it failed.
+  timeout: 5 # Time before a redis operation is considered failed.
+  shutdown_timeout: 3 # Time in seconds to wait for batched tasks to finish before force-quitting.
 mongo:
   host: localhost
   port: 27017
@@ -44,7 +47,7 @@ mongo:
   authsource:
   attempts: 3  # Number of attempts to accomplish operation before considering it failed.
   shutdown_timeout: 3 # Time in seconds to wait for serialize task to finish.
-  flood_batch_size: 1000 # Batch size for basic mongo inserts.
+  flood_batch_size: 1000 #  Batch size for basic mongo inserts.
 tier0:
   neo4j:
     query_timeout: 1600  # Time in seconds before a neo4j query should time out.

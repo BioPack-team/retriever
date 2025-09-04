@@ -11,12 +11,12 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse, Response, StreamingResponse
 from reasoner_pydantic import AsyncQueryStatusResponse as TRAPIAsyncQueryStatusResponse
-from reasoner_pydantic import MetaKnowledgeGraph as TRAPIMetaKnowledgeGraph
 
 from retriever.config.general import CONFIG
 from retriever.config.logger import configure_logging
 from retriever.config.openapi import OPENAPI_CONFIG, TRAPI
 from retriever.data_tiers.tier_0.neo4j.driver import Neo4jDriver
+from retriever.metakg.metakg import METAKG_MANAGER
 from retriever.query import get_job_state, make_query
 from retriever.types.general import APIInfo, ErrorDetail, LogLevel
 from retriever.types.trapi_pydantic import AsyncQuery as TRAPIAsyncQuery
@@ -31,7 +31,7 @@ from retriever.utils.logs import (
     structured_log_to_trapi,
 )
 from retriever.utils.mongo import MONGO_CLIENT, MONGO_QUEUE
-from retriever.utils.redis import test_redis
+from retriever.utils.redis import REDIS_CLIENT
 from retriever.utils.telemetry import configure_telemetry
 
 configure_logging()
@@ -46,7 +46,8 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     await MONGO_CLIENT.initialize()
     await MONGO_QUEUE.start_process_task()
     add_mongo_sink()
-    await test_redis()
+    await REDIS_CLIENT.initialize()
+    await METAKG_MANAGER.initialize()
     neo4j_driver = Neo4jDriver()
     await neo4j_driver.connect()
 
@@ -54,6 +55,8 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
 
     # Shutdown
     await neo4j_driver.close()
+    await METAKG_MANAGER.wrapup()
+    await REDIS_CLIENT.close()
     await MONGO_QUEUE.stop_process_task()
     await MONGO_CLIENT.close()
     await cleanup()
@@ -129,9 +132,10 @@ async def meta_knowledge_graph(
             default_factory=lambda: [0],
         ),
     ],
-) -> TRAPIMetaKnowledgeGraph:
+) -> ORJSONResponse:
     """Retrieve the Meta-Knowledge Graph."""
-    return await make_query("metakg", APIInfo(request, response), tiers=tier)
+    response_dict = await make_query("metakg", APIInfo(request, response), tiers=tier)
+    return ORJSONResponse(response_dict)
     # return {"logs": list(logs)}
 
 

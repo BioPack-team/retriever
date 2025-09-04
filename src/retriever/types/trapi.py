@@ -160,7 +160,7 @@ class QEdgeDict(TypedDict):
     """QEdge."""
 
     knowledge_type: NotRequired[str]
-    predicates: NotRequired[BiolinkPredicate]
+    predicates: NotRequired[list[BiolinkPredicate]]
     subject: CURIE
     object: CURIE
     attribute_constraints: list[AttributeConstraintDict]
@@ -216,7 +216,7 @@ class MetaKnowledgeGraphDict(TypedDict):
     """MetaKnowledgeGraph."""
 
     nodes: dict[BiolinkCategory, MetaNodeDict]
-    edges: dict[BiolinkPredicate, MetaEdgeDict]
+    edges: list[MetaEdgeDict]
 
 
 class MetaNodeDict(TypedDict):
@@ -249,7 +249,7 @@ class MetaAttributeDict(TypedDict):
 
     attribute_type_id: str
     attribute_source: NotRequired[str]
-    original_attribute_name: NotRequired[str]
+    original_attribute_names: NotRequired[list[str]]
     constraint_use: bool
     constraint_name: NotRequired[str]
 

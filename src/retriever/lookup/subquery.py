@@ -17,13 +17,6 @@ from retriever.types.trapi import (
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.trapi import append_aggregator_source, normalize_kgraph
 
-# TODO:
-# Use Robokop as a mockup on this level (make a Tier 1 version for query and such)
-# Then build the subquery dispatcher around it
-# Ignore source selection logic, just give robokop a hash and assume it can answer
-# Then hook up as much logic as you can
-
-
 tracer = trace.get_tracer("lookup.execution.tracer")
 
 
@@ -31,7 +24,7 @@ tracer = trace.get_tracer("lookup.execution.tracer")
 async def mock_subquery(
     job_id: str, branch: Branch, qg: QueryGraph
 ) -> tuple[KnowledgeGraphDict, list[LogEntryDict]]:
-    """Placeholder subquery function to mockup its overall behavior.
+    """Placeholder subquery function to mockup retrieving from Tier 1.
 
     Assumptions:
         Returns KEdges in the direction of the QEdge
@@ -48,16 +41,19 @@ async def mock_subquery(
 
         edge_id = branch.current_edge
         current_edge = QEdgeDict(**qg.edges[edge_id].model_dump())
-        input_node = QNodeDict(**qg.nodes[current_edge["subject"]].model_dump())
-        input_node["ids"] = [branch.input_curie]
-        output_node = QNodeDict(**qg.nodes[current_edge["object"]].model_dump())
+        subject_node = QNodeDict(**qg.nodes[current_edge["subject"]].model_dump())
+        object_node = QNodeDict(**qg.nodes[current_edge["object"]].model_dump())
+        if not branch.reversed:
+            subject_node["ids"] = [branch.input_curie]
+        else:
+            object_node["ids"] = [branch.input_curie]
 
         qgraph, query_cypher = transpiler.convert_triple(
-            input_node, current_edge, output_node
+            subject_node, current_edge, object_node
         )
 
         job_log.debug(
-            f"Subquerying Robokop for {input_node.get('ids', [])} -{current_edge.get('predicates', []) or []}-> {output_node.get('ids', []) or []}..."
+            f"Subquerying Robokop for {subject_node.get('ids', [])} -{current_edge.get('predicates', []) or []}-> {object_node.get('ids', []) or []}..."
         )
 
         neo4j_record = await neo4j_driver.run_query(query_cypher)
