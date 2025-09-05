@@ -1,7 +1,7 @@
-from typing import Any, Optional
-
 import asyncio
 import logging
+from typing import Any, Optional
+
 import pydgraph
 
 from retriever.config.general import CONFIG
@@ -16,8 +16,8 @@ class DgraphDriver(DatabaseDriver):
         self.settings = CONFIG.tier0.dgraph
         self.endpoint = self.settings.host
         self.endpoint = "localhost:9080"
-        self._client_stub: Optional[pydgraph.DgraphClientStub] = None
-        self._client: Optional[pydgraph.DgraphClient] = None
+        self._client_stub: pydgraph.DgraphClientStub | None = None
+        self._client: pydgraph.DgraphClient | None = None
 
     async def connect(self) -> None:
         """Connect to Dgraph using gRPC (pydgraph client)."""

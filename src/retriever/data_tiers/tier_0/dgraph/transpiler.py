@@ -55,7 +55,7 @@ class DgraphTranspiler(Transpiler):
 
         # Start the query with the node filter
         node_filter = "func: has(id)"
-        if "ids" in node and node["ids"]:
+        if node.get("ids"):
             node_filter = f'func: eq(id, "{node["ids"][0]}")'
 
         query = f"{indent}node({node_filter}) @cascade {{\n"
@@ -85,7 +85,7 @@ class DgraphTranspiler(Transpiler):
 
             # Source node
             source_filter = ""
-            if "ids" in source and source["ids"]:
+            if source.get("ids"):
                 source_filter = f'eq(id, "{source["ids"][0]}")'
 
             source_filter_clause = f" @filter({source_filter})" if source_filter else ""
@@ -133,7 +133,7 @@ class DgraphTranspiler(Transpiler):
 
                 # Source node
                 source_filter = ""
-                if "ids" in source and source["ids"]:
+                if source.get("ids"):
                     source_filter = f'eq(id, "{source["ids"][0]}")'
 
                 source_filter_clause = f" @filter({source_filter})" if source_filter else ""
