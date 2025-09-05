@@ -48,7 +48,7 @@ async def mock_subquery(
         else:
             object_node["ids"] = [branch.input_curie]
 
-        qgraph, query_cypher = transpiler.convert_triple(
+        qgraph, query_payload = transpiler.convert_batch_triple(
             subject_node, current_edge, object_node
         )
 
@@ -56,8 +56,7 @@ async def mock_subquery(
             f"Subquerying Tier 1 for {subject_node.get('ids', [])} -{current_edge.get('predicates', []) or []}-> {object_node.get('ids', []) or []}..."
         )
 
-        response_record = await query_driver.run_query(query_cypher)
-        print(response_record)
+        response_record = await query_driver.run_query(query_payload)
 
         result = transpiler.convert_results(qgraph, response_record)
 

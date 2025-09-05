@@ -9,7 +9,7 @@ from opentelemetry import trace
 
 from retriever.config.general import CONFIG
 from retriever.data_tiers.base_driver import DatabaseDriver
-from retriever.data_tiers.tier_1.elasticsearch.types import ESPayload
+from retriever.data_tiers.tier_1.elasticsearch.types import ESHit, ESPayload
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 
@@ -93,7 +93,7 @@ class ElasticSearchDriver(DatabaseDriver):
             await self.es_connection.close()
         self.es_connection = None
 
-    async def run(self, query: ESPayload) -> list[dict[str, Any]] | None:
+    async def run(self, query: ESPayload) -> list[ESHit] | None:
         """Execute query logic."""
         # Check ES connection instance
         if self.es_connection is None:
@@ -121,10 +121,9 @@ class ElasticSearchDriver(DatabaseDriver):
             log.exception("An unexpected exception occurred during Elasticsearch query")
             raise e
 
-
         # extract results
         raw_results = response["hits"]["hits"]
-        results = list(map(lambda x: x["_source"], raw_results))
+        results = [r["_source"] for r in raw_results]
 
         # empty array
         if not results:
@@ -136,7 +135,7 @@ class ElasticSearchDriver(DatabaseDriver):
     @tracer.start_as_current_span("elasticsearch_query")
     async def run_query(
         self, query: ESPayload, *args: Any, **kwargs: Any
-    ) -> list[dict[str, Any]] | None:
+    ) -> list[ESHit] | None:
         """Use ES async client to execute query via the `_search` endpoint."""
         otel_span = trace.get_current_span()
         if not otel_span or not otel_span.is_recording():
