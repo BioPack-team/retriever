@@ -14,6 +14,17 @@ SIMPLE_QGRAPH = {
     }
 }
 
+# Example minimal TRAPI query graph with multiple ids per node
+SIMPLE_QGRAPH_MULTIPLE_IDS = {
+    "nodes": {
+        "n0": {"ids": ["Q0", "Q1"]},
+        "n1": {"ids": ["Q2", "Q3"]}
+    },
+    "edges": {
+        "e0": {"object": "n0", "subject": "n1", "predicate": "interacts_with"}
+    }
+}
+
 # 2-hop query
 TWO_HOP_QGRAPH = {
     "nodes": {
@@ -78,8 +89,27 @@ FIVE_HOP_QGRAPH = {
     }
 }
 
+# 5-hop query with multiple ids per node
+FIVE_HOP_QGRAPH_MULTIPLE_IDS = {
+    "nodes": {
+        "n0": {"ids": ["Q0, Q1"]},
+        "n1": {"ids": ["Q2, Q3"]},
+        "n2": {"ids": ["Q4, Q5"]},
+        "n3": {"ids": ["Q6, Q7"]},
+        "n4": {"ids": ["Q8, Q9"]},
+        "n5": {"ids": ["Q10, Q11"]}
+    },
+    "edges": {
+        "e0": {"object": "n0", "subject": "n1", "predicate": "P0"},
+        "e1": {"object": "n1", "subject": "n2", "predicate": "P1"},
+        "e2": {"object": "n2", "subject": "n3", "predicate": "P2"},
+        "e3": {"object": "n3", "subject": "n4", "predicate": "P3"},
+        "e4": {"object": "n4", "subject": "n5", "predicate": "P4"}
+    }
+}
 
-def test_convert_multihop_query():
+
+def test_convert_multihop_simple_query():
     transpiler = DgraphTranspiler()
     query = transpiler._convert_multihop(SIMPLE_QGRAPH)
 
@@ -101,13 +131,54 @@ def test_convert_multihop_query():
             name
             category
             in_edges: ~source @filter(eq(predicate,"interacts_with")) {
-            predicate
-            primary_knowledge_source
-            node: target @filter(eq(id, "Q2")) {
-                id
-                name
-                category
+                predicate
+                primary_knowledge_source
+                node: target @filter(eq(id, "Q2")) {
+                    id
+                    name
+                    category
+                }
             }
+        }
+    }
+    """.strip()
+
+    # Normalize spaces to make comparison more robust
+    query_normalized = re.sub(r'\s+', ' ', query.strip())
+    expected_normalized = re.sub(r'\s+', ' ', expected_structure.strip())
+
+    assert query_normalized == expected_normalized
+
+
+def test_convert_multihop_multiple_ids_query():
+    transpiler = DgraphTranspiler()
+    query = transpiler._convert_multihop(SIMPLE_QGRAPH_MULTIPLE_IDS)
+
+    assert isinstance(query, str)
+    assert '@cascade' in query
+    assert 'node(func: eq(id, ["Q0", "Q1"])) @cascade' in query
+    assert 'in_edges: ~source @filter(eq(predicate,"interacts_with"))' in query
+    assert 'node: target @filter(eq(id, ["Q2", "Q3"]))' in query
+    assert "id" in query
+    assert "name" in query
+    assert "category" in query
+    assert "predicate" in query
+
+    # Check full query structure - updated with reversed node direction
+    expected_structure = """
+    {
+        node(func: eq(id, ["Q0", "Q1"])) @cascade {
+            id
+            name
+            category
+            in_edges: ~source @filter(eq(predicate,"interacts_with")) {
+                predicate
+                primary_knowledge_source
+                node: target @filter(eq(id, ["Q2", "Q3"])) {
+                    id
+                    name
+                    category
+                }
             }
         }
     }
@@ -140,22 +211,22 @@ def test_convert_2hop_query():
             name
             category
             in_edges: ~source @filter(eq(predicate,"has_part")) {
-            predicate
-            primary_knowledge_source
-            node: target @filter(eq(id, "UBERON:0001608")) {
-                id
-                name
-                category
-                in_edges: ~source @filter(eq(predicate,"has_part")) {
                 predicate
                 primary_knowledge_source
-                node: target @filter(eq(id, "CL:1000445")) {
+                node: target @filter(eq(id, "UBERON:0001608")) {
                     id
                     name
                     category
+                        in_edges: ~source @filter(eq(predicate,"has_part")) {
+                        predicate
+                        primary_knowledge_source
+                        node: target @filter(eq(id, "CL:1000445")) {
+                            id
+                            name
+                            category
+                        }
+                    }
                 }
-                }
-            }
             }
         }
     }
@@ -374,43 +445,133 @@ def test_convert_5hop_query():
     assert query_normalized == expected_normalized
 
 
+def test_convert_5hop_with_multiple_ids_query():
+    """Test the transpiler with a 5-hop multiple IDs query."""
+    transpiler = DgraphTranspiler()
+    query = transpiler._convert_multihop(FIVE_HOP_QGRAPH_MULTIPLE_IDS)
+
+    assert isinstance(query, str)
+    # Updated: Start with the last node
+    assert 'node(func: eq(id, ["Q0", "Q1"])) @cascade' in query
+    # Updated: Check for first node as a target
+    assert 'node: target @filter(eq(id, ["Q2", "Q3"]))' in query
+    assert 'node: target @filter(eq(id, ["Q4", "Q5"]))' in query
+    assert 'node: target @filter(eq(id, ["Q6", "Q7"]))' in query
+    assert 'node: target @filter(eq(id, ["Q8", "Q9"]))' in query
+    assert 'node: target @filter(eq(id, ["Q10", "Q11"]))' in query
+    assert 'in_edges: ~source @filter(eq(predicate,"P0"))' in query
+
+    # Check the full query structure for a five-hop traversal - updated direction
+    expected_structure = """
+    {
+        node(func: eq(id, ["Q0", "Q1"])) @cascade {
+            id
+            name
+            category
+            in_edges: ~source @filter(eq(predicate,"P0")) {
+                predicate
+                primary_knowledge_source
+                node: target @filter(eq(id, ["Q2", "Q3"])) {
+                    id
+                    name
+                    category
+                    in_edges: ~source @filter(eq(predicate,"P1")) {
+                        predicate
+                        primary_knowledge_source
+                        node: target @filter(eq(id, ["Q4", "Q5"])) {
+                            id
+                            name
+                            category
+                            in_edges: ~source @filter(eq(predicate,"P2")) {
+                                predicate
+                                primary_knowledge_source
+                                node: target @filter(eq(id, ["Q6", "Q7"])) {
+                                    id
+                                    name
+                                    category
+                                    in_edges: ~source @filter(eq(predicate,"P3")) {
+                                        predicate
+                                        primary_knowledge_source
+                                        node: target @filter(eq(id, ["Q8", "Q9"])) {
+                                            id
+                                            name
+                                            category
+                                            in_edges: ~source @filter(eq(predicate,"P4")) {
+                                                predicate
+                                                primary_knowledge_source
+                                                node: target @filter(eq(id, ["Q10", "Q11"])) {
+                                                    id
+                                                    name
+                                                    category
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    """.strip()
+
+    # Normalize spaces to make comparison more robust
+    query_normalized = re.sub(r'\s+', ' ', query.strip())
+    expected_normalized = re.sub(r'\s+', ' ', expected_structure.strip())
+
+    assert query_normalized == expected_normalized
+
+
 def test_convert_batch_multihop_query():
     transpiler = DgraphTranspiler()
     # Add multiple IDs to test batch
-    batch_qgraph = {
-        "nodes": {
-            "n0": {"ids": ["Q1", "Q2"]},
-            "n1": {"ids": ["Q3"]}
+    batch_qgraph = [
+        {
+            "nodes": {
+                "n0": {"ids": ["Q0"]},
+                "n1": {"ids": ["Q1"]}
+            },
+            "edges": {
+                "e0": {"object": "n0", "subject": "n1", "predicate": "P0"}
+            }
         },
-        "edges": {
-            "e0": {"object": "n0", "subject": "n1", "predicate": "interacts_with"}
+        {
+            "nodes": {
+                "n0": {"ids": ["Q0", "Q1"]},
+                "n1": {"ids": ["Q2", "Q3"]}
+            },
+            "edges": {
+                "e0": {"object": "n0", "subject": "n1", "predicate": "P0"}
+            }
         }
-    }
+    ]
 
     query = transpiler._convert_batch_multihop(batch_qgraph)
 
     assert isinstance(query, str)
-    assert "node0(func: eq(id, \"Q1\"))" in query
-    assert '@cascade' in query
-    assert 'in_edges: ~source @filter(eq(predicate,"interacts_with"))' in query
-    assert "node1(func: eq(id, \"Q2\"))" in query
-    assert 'node: target @filter(eq(id, "Q3"))' in query
-    assert "id" in query
-    assert "name" in query
-    assert "category" in query
-    assert "predicate" in query
+    # assert "node0(func: eq(id, \"Q0\"))" in query
+    # assert '@cascade' in query
+    # assert 'in_edges: ~source @filter(eq(predicate,"interacts_with"))' in query
+    # assert "node1(func: eq(id, \"Q2\"))" in query
+    # assert 'node: target @filter(eq(id, "Q3"))' in query
+    # assert "id" in query
+    # assert "name" in query
+    # assert "category" in query
+    # assert "predicate" in query
 
     # Check the full batch query structure - updated direction
     expected_structure = """
     {
-        node0(func: eq(id, "Q1")) @cascade {
+        node0(func: eq(id, "Q0")) @cascade {
             id
             name
             category
-            in_edges: ~source @filter(eq(predicate,"interacts_with")) {
+            in_edges: ~source @filter(eq(predicate,"P0")) {
                 predicate
                 primary_knowledge_source
-                node: target @filter(eq(id, "Q3")) {
+                node: target @filter(eq(id, "Q1")) {
                     id
                     name
                     category
@@ -418,14 +579,14 @@ def test_convert_batch_multihop_query():
             }
         }
 
-        node1(func: eq(id, "Q2")) @cascade {
+        node1(func: eq(id, ["Q0", "Q1"])) @cascade {
             id
             name
             category
-            in_edges: ~source @filter(eq(predicate,"interacts_with")) {
+            in_edges: ~source @filter(eq(predicate,"P0")) {
                 predicate
                 primary_knowledge_source
-                node: target @filter(eq(id, "Q3")) {
+                node: target @filter(eq(id, ["Q2", "Q3"])) {
                     id
                     name
                     category
