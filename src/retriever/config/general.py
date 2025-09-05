@@ -42,9 +42,6 @@ class CORSSettings(BaseModel):
 class RedisSettings(BaseModel):
     """Redis client initialization settings."""
 
-    cluster: Annotated[
-        bool, Field(description="Initialize Redis client in cluster mode.")
-    ] = False
     host: str = "localhost"
     port: int = 6379
     password: SecretStr | None = None
@@ -53,6 +50,15 @@ class RedisSettings(BaseModel):
         int,
         Field(
             description="Number of attempts to accomplish operation before considering it failed."
+        ),
+    ] = 3
+    timeout: Annotated[
+        float, Field(description="Time before a redis operation is considered failed.")
+    ] = 5
+    shutdown_timeout: Annotated[
+        int,
+        Field(
+            description="Time in seconds to wait for batched tasks to finish before force-quitting."
         ),
     ] = 3
 
@@ -75,7 +81,7 @@ class MongoSettings(BaseModel):
         int, Field(description="Time in seconds to wait for serialize task to finish.")
     ] = 3
     flood_batch_size: Annotated[
-        int, Field(description="# Batch size for basic mongo inserts.")
+        int, Field(description=" Batch size for basic mongo inserts.")
     ] = 1000
 
 
@@ -129,6 +135,12 @@ class MetaKGSettings(BaseModel):
             description="Time in seconds before a job should time out, set to -1 to disable."
         ),
     ] = 10
+    build_time: Annotated[
+        int,
+        Field(
+            description="Time in seconds before MetaKG should be rebuilt. Set to -1 to only build at start."
+        ),
+    ] = -1
 
 
 class JobSettings(BaseModel):
@@ -165,6 +177,33 @@ def uppercase(value: str) -> str:
     return value.upper()
 
 
+class ElasticSearchSettings(BaseModel):
+    """Settings for the Tier 1 ElasticSearch interface."""
+
+    query_timeout: Annotated[
+        int,
+        Field(
+            description="Time in seconds before a Elasticsearch query should time out."
+        ),
+    ] = 1600
+    connect_retries: Annotated[
+        int,
+        Field(description="Number of retries before declaring a connection failure."),
+    ] = 25
+    host: str = ""
+    port: int = 9200
+    database_name: str = "elasticsearch"
+
+    # use merged edges index
+    index_name: str = "rtx_kg2_edges_merged"
+
+
+class Tier1Settings(BaseModel):
+    """Settings concern Tier 1 abstraction layers."""
+
+    elasticsearch: ElasticSearchSettings = ElasticSearchSettings()
+
+
 class Neo4jSettings(BaseModel):
     """Settings for the Tier 0 Neo4j interface."""
 
@@ -197,6 +236,12 @@ class GeneralConfig(CommentedSettings):
             description="Instance environment. Used in Sentry, userAgent of subqueries, instance-appropriate behavior, etc."
         ),
     ] = "dev"
+    instance_idx: Annotated[
+        int,
+        Field(
+            description="Instance index. Use when multiple Retriever instances are run, so a leader can be determined."
+        ),
+    ] = 0
 
     log_level: Annotated[
         LogLevel,
@@ -210,7 +255,7 @@ class GeneralConfig(CommentedSettings):
     cors: CORSSettings = CORSSettings()
     workers: Annotated[
         int | None, Field(description="Number of workers, defaults to n_cpus if unset.")
-    ] = None  # Number of workers to use
+    ] = None
     allow_profiler: Annotated[
         bool,
         Field(
@@ -224,6 +269,7 @@ class GeneralConfig(CommentedSettings):
     redis: RedisSettings = RedisSettings()
     mongo: MongoSettings = MongoSettings()
     tier0: Tier0Settings = Tier0Settings()
+    tier1: Tier1Settings = Tier1Settings()
     telemetry: TelemetrySettings = TelemetrySettings()
 
     # Weird override happening here, see https://github.com/makukha/pydantic-file-secrets for an explanation

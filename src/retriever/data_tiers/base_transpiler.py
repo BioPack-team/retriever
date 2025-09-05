@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from retriever.types.general import BackendResults
+from retriever.types.general import BackendResult
 from retriever.types.trapi import QEdgeDict, QNodeDict, QueryGraphDict
 
 
@@ -57,5 +57,5 @@ class Transpiler(ABC):
         """Convert a multi-hop graph where any node may have multiple IDs."""
 
     @abstractmethod
-    def convert_results(self, qgraph: QueryGraphDict, results: Any) -> BackendResults:
+    def convert_results(self, qgraph: QueryGraphDict, results: Any) -> BackendResult:
         """Convert the backend response back to TRAPI, mapping it to the qgraph."""

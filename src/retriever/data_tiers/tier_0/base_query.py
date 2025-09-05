@@ -8,7 +8,7 @@ from reasoner_pydantic import (
     QueryGraph,
 )
 
-from retriever.types.general import BackendResults, LookupArtifacts, QueryInfo
+from retriever.types.general import BackendResult, LookupArtifacts, QueryInfo
 from retriever.types.trapi import (
     AuxGraphDict,
     KnowledgeGraphDict,
@@ -53,7 +53,7 @@ class Tier0Query(ABC):
 
             except TimeoutError:
                 self.job_log.error("Tier 0 operation timed out.")
-                backend_results = BackendResults(
+                backend_results = BackendResult(
                     results=list[ResultDict](),
                     knowledge_graph=KnowledgeGraphDict(nodes={}, edges={}),
                     auxiliary_graphs=dict[str, AuxGraphDict](),
@@ -99,7 +99,7 @@ class Tier0Query(ABC):
             )
 
     @abstractmethod
-    async def get_results(self, qgraph: QueryGraphDict) -> BackendResults:
+    async def get_results(self, qgraph: QueryGraphDict) -> BackendResult:
         """Interface with the Tier 0 backend and retrieve results, converting to ResultDict.
 
         Note that this method is responsible for calling the appropriate transpiler,
