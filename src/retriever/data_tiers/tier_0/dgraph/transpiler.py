@@ -1,5 +1,4 @@
-from typing import Any, Dict, List, Set
-import textwrap
+from typing import Any
 
 from retriever.data_tiers.base_transpiler import Transpiler
 from retriever.types.general import BackendResults
@@ -12,11 +11,19 @@ class DgraphTranspiler(Transpiler):
     def convert_triple(
         self, in_node: QNodeDict, edge: QEdgeDict, out_node: QNodeDict
     ) -> Any:
+        """Convert a single triple to Dgraph query format.
+
+        Not implemented for Dgraph as it's Tier 0 only.
+        """
         raise NotImplementedError("Dgraph is Tier 0 only. Use multi-hop methods.")
 
     def convert_batch_triple(
         self, in_node: QNodeDict, edge: QEdgeDict, out_node: QNodeDict
     ) -> Any:
+        """Convert a batch of triples to Dgraph query format.
+
+        Not implemented for Dgraph as it's Tier 0 only.
+        """
         raise NotImplementedError("Dgraph is Tier 0 only. Use batch multi-hop methods.")
 
     def _convert_multihop(self, qgraph: QueryGraphDict) -> Any:
@@ -30,7 +37,7 @@ class DgraphTranspiler(Transpiler):
         # Build query from the starting node
         return "{\n" + self._build_node_query(start_node_id, nodes, edges) + "}"
 
-    def _find_start_node(self, nodes: Dict, edges: Dict) -> str:
+    def _find_start_node(self, nodes: dict, edges: dict) -> str:
         """Find the best node to start the traversal from."""
         # Start with a node that has IDs and is the object of at least one edge
         for node_id, node in nodes.items():
@@ -40,24 +47,23 @@ class DgraphTranspiler(Transpiler):
         # If no ideal start node, just take the first one
         return next(iter(nodes))
 
-    def _build_node_query(self, node_id: str, nodes: Dict, edges: Dict, indent_level: int = 1) -> str:
+    def _build_node_query(self, node_id: str, nodes: dict, edges: dict, indent_level: int = 1) -> str:
         """Recursively build a query for a node and its connected nodes."""
         node = nodes[node_id]
         indent = "  " * indent_level
         next_indent = "  " * (indent_level + 1)
 
         # Start the query with the node filter
+        node_filter = "func: has(id)"
         if "ids" in node and node["ids"]:
             node_filter = f'func: eq(id, "{node["ids"][0]}")'
-        else:
-            node_filter = "func: has(id)"
 
         query = f"{indent}node({node_filter}) @cascade {{\n"
         query += f"{next_indent}id\n{next_indent}name\n{next_indent}category\n"
 
         # Find incoming edges to this node (where this node is the OBJECT)
         connected_edges = {}
-        for edge_id, edge in edges.items():
+        for edge in edges.values():
             if edge["object"] == node_id:
                 # Get the source node and predicate
                 source_id = edge["subject"]
@@ -78,13 +84,16 @@ class DgraphTranspiler(Transpiler):
             query += f"{next_indent}  predicate\n{next_indent}  primary_knowledge_source\n"
 
             # Source node
-            source_filter = f'eq(id, "{source["ids"][0]}")' if "ids" in source and source["ids"] else ""
+            source_filter = ""
+            if "ids" in source and source["ids"]:
+                source_filter = f'eq(id, "{source["ids"][0]}")'
+
             source_filter_clause = f" @filter({source_filter})" if source_filter else ""
             query += f"{next_indent}  node: target{source_filter_clause} {{\n"
             query += f"{next_indent}    id\n{next_indent}    name\n{next_indent}    category\n"
 
             # Recursively add further hops
-            visited = set([node_id])
+            visited = {node_id}
             query += self._build_further_hops(source_id, nodes, edges, indent_level + 2, visited)
 
             # Close the blocks
@@ -94,7 +103,7 @@ class DgraphTranspiler(Transpiler):
         query += f"{indent}}}\n"
         return query
 
-    def _build_further_hops(self, node_id: str, nodes: Dict, edges: Dict, indent_level: int, visited: Set[str]) -> str:
+    def _build_further_hops(self, node_id: str, nodes: dict, edges: dict, indent_level: int, visited: set[str]) -> str:
         """Build query for further hops beyond the first one."""
         # Prevent cycles
         if node_id in visited:
@@ -104,10 +113,9 @@ class DgraphTranspiler(Transpiler):
 
         query = ""
         indent = "  " * indent_level
-        next_indent = "  " * (indent_level + 1)
 
         # Find incoming edges to this node
-        for edge_id, edge in edges.items():
+        for edge in edges.values():
             if edge["object"] == node_id:
                 # Get the source node and predicate
                 source_id = edge["subject"]
@@ -123,8 +131,11 @@ class DgraphTranspiler(Transpiler):
                 query += f"{indent}in_edges: ~source{filter_clause} {{\n"
                 query += f"{indent}  predicate\n{indent}  primary_knowledge_source\n"
 
-                # Source node 
-                source_filter = f'eq(id, "{source["ids"][0]}")' if "ids" in source and source["ids"] else ""
+                # Source node
+                source_filter = ""
+                if "ids" in source and source["ids"]:
+                    source_filter = f'eq(id, "{source["ids"][0]}")'
+
                 source_filter_clause = f" @filter({source_filter})" if source_filter else ""
                 query += f"{indent}  node: target{source_filter_clause} {{\n"
                 query += f"{indent}    id\n{indent}    name\n{indent}    category\n"
@@ -136,7 +147,6 @@ class DgraphTranspiler(Transpiler):
                 query += f"{indent}  }}\n{indent}}}\n"
 
         return query
-
 
     def _convert_batch_multihop(self, qgraph: QueryGraphDict) -> Any:
         """Convert a TRAPI multi-hop graph to a batch of Dgraph queries."""
