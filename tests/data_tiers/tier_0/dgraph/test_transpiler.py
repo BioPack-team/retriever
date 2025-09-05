@@ -10,7 +10,7 @@ SIMPLE_QGRAPH = {
         "n1": {"ids": ["Q2"]}
     },
     "edges": {
-        "e0": {"subject": "n0", "object": "n1", "predicate": "interacts_with"}
+        "e0": {"object": "n0", "subject": "n1", "predicate": "interacts_with"}
     }
 }
 
@@ -22,8 +22,8 @@ TWO_HOP_QGRAPH = {
         "n2": {"ids": ["CL:1000445"]}
     },
     "edges": {
-        "e0": {"subject": "n0", "object": "n1", "predicate": "has_part"},
-        "e1": {"subject": "n1", "object": "n2", "predicate": "has_part"}
+        "e0": {"object": "n0", "subject": "n1", "predicate": "has_part"},
+        "e1": {"object": "n1", "subject": "n2", "predicate": "has_part"}
     }
 }
 
@@ -36,9 +36,9 @@ THREE_HOP_QGRAPH = {
         "n3": {"ids": ["CL:0000185"]}
     },
     "edges": {
-        "e0": {"subject": "n0", "object": "n1", "predicate": "has_part"},
-        "e1": {"subject": "n1", "object": "n2", "predicate": "has_part"},
-        "e2": {"subject": "n2", "object": "n3", "predicate": "develops_from"}
+        "e0": {"object": "n0", "subject": "n1", "predicate": "has_part"},
+        "e1": {"object": "n1", "subject": "n2", "predicate": "has_part"},
+        "e2": {"object": "n2", "subject": "n3", "predicate": "develops_from"}
     }
 }
 
@@ -52,10 +52,10 @@ FOUR_HOP_QGRAPH = {
         "n4": {"ids": ["CL:0000075"]}
     },
     "edges": {
-        "e0": {"subject": "n0", "object": "n1", "predicate": "has_part"},
-        "e1": {"subject": "n1", "object": "n2", "predicate": "has_part"},
-        "e2": {"subject": "n2", "object": "n3", "predicate": "develops_from"},
-        "e3": {"subject": "n3", "object": "n4", "predicate": "develops_from"}
+        "e0": {"object": "n0", "subject": "n1", "predicate": "has_part"},
+        "e1": {"object": "n1", "subject": "n2", "predicate": "has_part"},
+        "e2": {"object": "n2", "subject": "n3", "predicate": "develops_from"},
+        "e3": {"object": "n3", "subject": "n4", "predicate": "develops_from"}
     }
 }
 
@@ -70,11 +70,11 @@ FIVE_HOP_QGRAPH = {
         "n5": {"ids": ["UMLS:C1257909"]}
     },
     "edges": {
-        "e0": {"subject": "n0", "object": "n1", "predicate": "has_part"},
-        "e1": {"subject": "n1", "object": "n2", "predicate": "has_part"},
-        "e2": {"subject": "n2", "object": "n3", "predicate": "develops_from"},
-        "e3": {"subject": "n3", "object": "n4", "predicate": "develops_from"},
-        "e4": {"subject": "n4", "object": "n5", "predicate": "associated_with"}
+        "e0": {"object": "n0", "subject": "n1", "predicate": "has_part"},
+        "e1": {"object": "n1", "subject": "n2", "predicate": "has_part"},
+        "e2": {"object": "n2", "subject": "n3", "predicate": "develops_from"},
+        "e3": {"object": "n3", "subject": "n4", "predicate": "develops_from"},
+        "e4": {"object": "n4", "subject": "n5", "predicate": "associated_with"}
     }
 }
 
@@ -93,7 +93,7 @@ def test_convert_multihop_query():
     assert "category" in query
     assert "predicate" in query
 
-    # Check full query structure
+    # Check full query structure - updated with reversed node direction
     expected_structure = """
     {
         node(func: eq(id, "Q1")) @cascade {
@@ -125,12 +125,14 @@ def test_convert_2hop_query():
     query = transpiler._convert_multihop(TWO_HOP_QGRAPH)
 
     assert isinstance(query, str)
+    # Updated: Starting with the last node in the chain
     assert 'node(func: eq(id, "UBERON:0001769")) @cascade' in query
     assert 'in_edges: ~source @filter(eq(predicate,"has_part"))' in query
+    # Updated node order
     assert 'node: target @filter(eq(id, "UBERON:0001608"))' in query
     assert 'node: target @filter(eq(id, "CL:1000445"))' in query
 
-    # Check the full query structure for a multi-hop traversal
+    # Check the full query structure for a multi-hop traversal - updated direction
     expected_structure = """
     {
         node(func: eq(id, "UBERON:0001769")) @cascade {
@@ -172,12 +174,15 @@ def test_convert_3hop_query():
     query = transpiler._convert_multihop(THREE_HOP_QGRAPH)
 
     assert isinstance(query, str)
+    # Updated: Starting with the last node in the chain
     assert 'node(func: eq(id, "UBERON:0001769")) @cascade' in query
     assert 'in_edges: ~source @filter(eq(predicate,"has_part"))' in query
     assert 'in_edges: ~source @filter(eq(predicate,"develops_from"))' in query
+    assert 'node: target @filter(eq(id, "UBERON:0001608"))' in query
+    assert 'node: target @filter(eq(id, "CL:1000445"))' in query
     assert 'node: target @filter(eq(id, "CL:0000185"))' in query
 
-    # Check the full query structure for a three-hop traversal
+    # Check the full query structure for a three-hop traversal - updated direction
     expected_structure = """
     {
         node(func: eq(id, "UBERON:0001769")) @cascade {
@@ -228,10 +233,15 @@ def test_convert_4hop_query():
     query = transpiler._convert_multihop(FOUR_HOP_QGRAPH)
 
     assert isinstance(query, str)
+    # Updated: Start with the last node
     assert 'node(func: eq(id, "UBERON:0001769")) @cascade' in query
+    # Updated: Check for the first node as a target
+    assert 'node: target @filter(eq(id, "UBERON:0001608"))' in query
+    assert 'node: target @filter(eq(id, "CL:1000445"))' in query
+    assert 'node: target @filter(eq(id, "CL:0000185"))' in query
     assert 'node: target @filter(eq(id, "CL:0000075"))' in query
 
-    # Check the full query structure for a four-hop traversal
+    # Check the full query structure for a four-hop traversal - updated direction
     expected_structure = """
     {
         node(func: eq(id, "UBERON:0001769")) @cascade {
@@ -291,11 +301,17 @@ def test_convert_5hop_query():
     query = transpiler._convert_multihop(FIVE_HOP_QGRAPH)
 
     assert isinstance(query, str)
+    # Updated: Start with the last node
     assert 'node(func: eq(id, "UBERON:0001769")) @cascade' in query
+    # Updated: Check for first node as a target
+    assert 'node: target @filter(eq(id, "UBERON:0001608"))' in query
+    assert 'node: target @filter(eq(id, "CL:1000445"))' in query
+    assert 'node: target @filter(eq(id, "CL:0000185"))' in query
+    assert 'node: target @filter(eq(id, "CL:0000075"))' in query
     assert 'node: target @filter(eq(id, "UMLS:C1257909"))' in query
     assert 'in_edges: ~source @filter(eq(predicate,"associated_with"))' in query
 
-    # Check the full query structure for a five-hop traversal
+    # Check the full query structure for a five-hop traversal - updated direction
     expected_structure = """
     {
         node(func: eq(id, "UBERON:0001769")) @cascade {
@@ -367,7 +383,7 @@ def test_convert_batch_multihop_query():
             "n1": {"ids": ["Q3"]}
         },
         "edges": {
-            "e0": {"subject": "n0", "object": "n1", "predicate": "interacts_with"}
+            "e0": {"object": "n0", "subject": "n1", "predicate": "interacts_with"}
         }
     }
 
@@ -375,16 +391,16 @@ def test_convert_batch_multihop_query():
 
     assert isinstance(query, str)
     assert "node0(func: eq(id, \"Q1\"))" in query
-    assert "node1(func: eq(id, \"Q2\"))" in query
     assert '@cascade' in query
     assert 'in_edges: ~source @filter(eq(predicate,"interacts_with"))' in query
+    assert "node1(func: eq(id, \"Q2\"))" in query
     assert 'node: target @filter(eq(id, "Q3"))' in query
     assert "id" in query
     assert "name" in query
     assert "category" in query
     assert "predicate" in query
 
-    # Check the full batch query structure
+    # Check the full batch query structure - updated direction
     expected_structure = """
     {
         node0(func: eq(id, "Q1")) @cascade {

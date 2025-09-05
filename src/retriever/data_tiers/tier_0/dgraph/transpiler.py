@@ -32,9 +32,9 @@ class DgraphTranspiler(Transpiler):
 
     def _find_start_node(self, nodes: Dict, edges: Dict) -> str:
         """Find the best node to start the traversal from."""
-        # Start with a node that has IDs and is the subject of at least one edge
+        # Start with a node that has IDs and is the object of at least one edge
         for node_id, node in nodes.items():
-            if "ids" in node and node["ids"] and any(e["subject"] == node_id for e in edges.values()):
+            if "ids" in node and node["ids"] and any(e["object"] == node_id for e in edges.values()):
                 return node_id
 
         # If no ideal start node, just take the first one
@@ -46,61 +46,53 @@ class DgraphTranspiler(Transpiler):
         indent = "  " * indent_level
         next_indent = "  " * (indent_level + 1)
 
-        # Start the query with the node
-        node_filter = f'eq(id, "{node["ids"][0]}")' if "ids" in node and node["ids"] else "has(id)"
+        # Start the query with the node filter
+        if "ids" in node and node["ids"]:
+            node_filter = f'func: eq(id, "{node["ids"][0]}")'
+        else:
+            node_filter = "func: has(id)"
 
-        # Basic node template
-        query_template = f"""{indent}node(func: {node_filter}) @cascade {{
-        {next_indent}id
-        {next_indent}name
-        {next_indent}category
-        """
+        query = f"{indent}node({node_filter}) @cascade {{\n"
+        query += f"{next_indent}id\n{next_indent}name\n{next_indent}category\n"
 
-        query_parts = [query_template]
-
-        # Find outgoing edges from this node
+        # Find incoming edges to this node (where this node is the OBJECT)
         connected_edges = {}
         for edge_id, edge in edges.items():
-            if edge["subject"] == node_id:
-                # Get the target node and predicate
-                target_id = edge["object"]
-                if target_id not in connected_edges:
-                    connected_edges[target_id] = []
-                connected_edges[target_id].append(edge)
+            if edge["object"] == node_id:
+                # Get the source node and predicate
+                source_id = edge["subject"]
+                if source_id not in connected_edges:
+                    connected_edges[source_id] = []
+                connected_edges[source_id].append(edge)
 
-        # For each target node, build the edge traversal
-        for target_id, target_edges in connected_edges.items():
+        # For each source node, build the edge traversal
+        for source_id, source_edges in connected_edges.items():
             # Use the first edge's predicate (if multiple exist between same nodes)
-            predicate = target_edges[0].get("predicate", "")
-            target = nodes[target_id]
+            predicate = source_edges[0].get("predicate", "")
+            source = nodes[source_id]
 
-            # Create the edge traversal template
-            predicate_filter = f'@filter(eq(predicate,"{predicate}"))' if predicate else ""
-            target_filter = f'@filter(eq(id, "{target["ids"][0]}"))' if "ids" in target and target["ids"] else ""
+            # Add the edge traversal
+            predicate_filter = f'eq(predicate,"{predicate}")' if predicate else ""
+            filter_clause = f" @filter({predicate_filter})" if predicate_filter else ""
+            query += f"{next_indent}in_edges: ~source{filter_clause} {{\n"
+            query += f"{next_indent}  predicate\n{next_indent}  primary_knowledge_source\n"
 
-            edge_template = f"""{next_indent}in_edges: ~source {predicate_filter} {{
-            {next_indent}  predicate
-            {next_indent}  primary_knowledge_source
-            {next_indent}  node: target {target_filter} {{
-            {next_indent}    id
-            {next_indent}    name
-            {next_indent}    category
-            """
-            query_parts.append(edge_template)
+            # Source node
+            source_filter = f'eq(id, "{source["ids"][0]}")' if "ids" in source and source["ids"] else ""
+            source_filter_clause = f" @filter({source_filter})" if source_filter else ""
+            query += f"{next_indent}  node: target{source_filter_clause} {{\n"
+            query += f"{next_indent}    id\n{next_indent}    name\n{next_indent}    category\n"
 
             # Recursively add further hops
             visited = set([node_id])
-            further_hops = self._build_further_hops(target_id, nodes, edges, indent_level + 2, visited)
-            if further_hops:
-                query_parts.append(further_hops)
+            query += self._build_further_hops(source_id, nodes, edges, indent_level + 2, visited)
 
-            # Close the target node and edge blocks
-            query_parts.append(f"{next_indent}  }}\n{next_indent}}}\n")
+            # Close the blocks
+            query += f"{next_indent}  }}\n{next_indent}}}\n"
 
         # Close the node block
-        query_parts.append(f"{indent}}}\n")
-
-        return "".join(query_parts)
+        query += f"{indent}}}\n"
+        return query
 
     def _build_further_hops(self, node_id: str, nodes: Dict, edges: Dict, indent_level: int, visited: Set[str]) -> str:
         """Build query for further hops beyond the first one."""
@@ -109,45 +101,42 @@ class DgraphTranspiler(Transpiler):
             return ""
 
         visited.add(node_id)
+
+        query = ""
         indent = "  " * indent_level
         next_indent = "  " * (indent_level + 1)
 
-        query_parts = []
-
-        # Find outgoing edges from this node
+        # Find incoming edges to this node
         for edge_id, edge in edges.items():
-            if edge["subject"] == node_id:
-                # Get the target node and predicate
-                target_id = edge["object"]
-                if target_id in visited:
-                    continue  # Skip already visited nodes to prevent cycles
+            if edge["object"] == node_id:
+                # Get the source node and predicate
+                source_id = edge["subject"]
+                if source_id in visited:
+                    continue  # Skip already visited nodes
 
                 predicate = edge.get("predicate", "")
-                target = nodes[target_id]
+                source = nodes[source_id]
 
-                # Create edge and target templates
-                predicate_filter = f'@filter(eq(predicate,"{predicate}"))' if predicate else ""
-                target_filter = f'@filter(eq(id, "{target["ids"][0]}"))' if "ids" in target and target["ids"] else ""
+                # Add the edge traversal
+                predicate_filter = f'eq(predicate,"{predicate}")' if predicate else ""
+                filter_clause = f" @filter({predicate_filter})" if predicate_filter else ""
+                query += f"{indent}in_edges: ~source{filter_clause} {{\n"
+                query += f"{indent}  predicate\n{indent}  primary_knowledge_source\n"
 
-                edge_template = f"""{indent}in_edges: ~source {predicate_filter} {{
-                {indent}  predicate
-                {indent}  primary_knowledge_source
-                {indent}  node: target {target_filter} {{
-                {indent}    id
-                {indent}    name
-                {indent}    category
-                """
-                query_parts.append(edge_template)
+                # Source node 
+                source_filter = f'eq(id, "{source["ids"][0]}")' if "ids" in source and source["ids"] else ""
+                source_filter_clause = f" @filter({source_filter})" if source_filter else ""
+                query += f"{indent}  node: target{source_filter_clause} {{\n"
+                query += f"{indent}    id\n{indent}    name\n{indent}    category\n"
 
                 # Recursively add further hops
-                further_hops = self._build_further_hops(target_id, nodes, edges, indent_level + 2, visited.copy())
-                if further_hops:
-                    query_parts.append(further_hops)
+                query += self._build_further_hops(source_id, nodes, edges, indent_level + 2, visited.copy())
 
-                # Close the target node and edge blocks
-                query_parts.append(f"{indent}  }}\n{indent}}}\n")
+                # Close the blocks
+                query += f"{indent}  }}\n{indent}}}\n"
 
-        return "".join(query_parts)
+        return query
+
 
     def _convert_batch_multihop(self, qgraph: QueryGraphDict) -> Any:
         """Convert a TRAPI multi-hop graph to a batch of Dgraph queries."""
