@@ -121,7 +121,10 @@ class ElasticSearchDriver(DatabaseDriver):
             log.exception("An unexpected exception occurred during Elasticsearch query")
             raise e
 
-        results = response["hits"]["hits"]
+
+        # extract results
+        raw_results = response["hits"]["hits"]
+        results = list(map(lambda x: x["_source"], raw_results))
 
         # empty array
         if not results:
