@@ -37,8 +37,9 @@ class Neo4jDriver(DatabaseDriver):
             log.success("Neo4j connection successful!")
         except Exception as e:  # currently the driver says it raises Exception, not something more specific
             await self.neo4j_driver.close()
+            self.neo4j_driver = None
             if retries <= CONFIG.tier0.neo4j.connect_retries:
-                await asyncio.sleep(8)
+                await asyncio.sleep(1)
                 log.error(
                     f"Could not establish connection to neo4j, trying again... retry {retries + 1}"
                 )

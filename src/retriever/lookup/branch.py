@@ -11,11 +11,15 @@ from reasoner_pydantic import (
     QueryGraph,
 )
 
+from retriever.metakg.metakg import OperationPlan
 from retriever.types.general import AdjacencyGraph, QEdgeIDMap
+from retriever.types.metakg import Operation
 from retriever.types.trapi import QEdgeID, QNodeID
 
 BranchName = str
 SuperpositionName = str
+
+QGraphInfo = tuple[QueryGraph, AdjacencyGraph, QEdgeIDMap, OperationPlan]
 
 
 class Branch:
@@ -27,20 +31,17 @@ class Branch:
     """
 
     def __init__(
-        self,
-        qgraph: QueryGraph,
-        q_agraph: AdjacencyGraph,
-        edge_id_map: QEdgeIDMap,
-        starting_node: QNodeID,
-        starting_curie: CURIE,
+        self, starting_node: QNodeID, starting_curie: CURIE, qgraph_info: QGraphInfo
     ) -> None:
         """Initialize a Branch instance.
 
         Expects that nodes, curies, and edges are all the same length.
         """
+        qgraph, q_agraph, edge_id_map, op_plan = qgraph_info
         self.qgraph: QueryGraph = qgraph
         self.q_agraph: AdjacencyGraph = q_agraph
         self.edge_id_map: QEdgeIDMap = edge_id_map
+        self.op_plan: OperationPlan = op_plan
         self.nodes: list[QNodeID] = [starting_node]
         self.curies: list[CURIE] = [starting_curie]
         self.edges: list[QEdgeID] = []
@@ -133,6 +134,11 @@ class Branch:
         """
         return self.nodes[-1]
 
+    @property
+    def operations(self) -> list[Operation]:
+        """Get the planned operations for the current edge."""
+        return self.op_plan[self.current_edge]
+
     @cached_property
     def next_edges(self) -> dict[QNodeID, list[QEdge]]:
         """Return the next potential edges adjacent to the current edge."""
@@ -152,11 +158,9 @@ class Branch:
     ) -> "Branch":
         """Return a new branch that is advanced by the given step."""
         branch = Branch(
-            self.qgraph,
-            self.q_agraph,
-            self.edge_id_map,
             self.start_node,
             self.curies[0],
+            (self.qgraph, self.q_agraph, self.edge_id_map, self.op_plan),
         )
         branch.nodes = [*self.nodes, node]
         branch.curies = [*self.curies]
@@ -224,16 +228,15 @@ class Branch:
 
     @staticmethod
     async def get_start_branches(
-        qg: QueryGraph,
-        ag: AdjacencyGraph,
-        em: QEdgeIDMap,
         qedge_claims: dict[QEdgeID, "Branch | None"],
         lock: asyncio.Lock,
+        qgraph_info: QGraphInfo,
     ) -> list["Branch"]:
         """Get starting edges from a query graph.
 
         Starting edges are all edges connected to nodes which have ids.
         """
+        qg, ag, em, tiers = qgraph_info
         start = list[Branch]()
         for node_id, node in qg.nodes.items():
             if node.ids is None:  # Only start on nodes with curies
@@ -243,7 +246,7 @@ class Branch:
                     edge_id = em[edge]
                     next_node = edge.object if edge.subject == node_id else edge.subject
                     reverse = edge.object == node_id
-                    branch = Branch(qg, ag, em, node_id, curie).advance(
+                    branch = Branch(node_id, curie, (qg, ag, em, tiers)).advance(
                         edge_id, next_node, reverse=reverse
                     )
                     if await branch.has_claim(qedge_claims, lock):

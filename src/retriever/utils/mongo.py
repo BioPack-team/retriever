@@ -4,7 +4,6 @@ import asyncio
 from collections import deque
 from collections.abc import AsyncGenerator
 from datetime import datetime
-from threading import Lock
 from time import time
 from typing import Any
 
@@ -230,9 +229,9 @@ class MongoQueue:
         self.queue: asyncio.Queue[tuple[str, dict[str, Any]]] = asyncio.Queue()
         self.client: MongoClient = client
         self.process_tasks: list[asyncio.Task[None]] | None = None
-        self.task_deques: dict[str, tuple[Lock, deque[Any]]] = {
-            "job_state": (Lock(), deque()),
-            "log_dump": (Lock(), deque()),
+        self.task_deques: dict[str, tuple[asyncio.Lock, deque[Any]]] = {
+            "job_state": (asyncio.Lock(), deque()),
+            "log_dump": (asyncio.Lock(), deque()),
         }
 
     async def process_queue(self) -> None:
@@ -248,7 +247,7 @@ class MongoQueue:
                 try:
                     task = getattr(self.client, target)(doc)
                     lock, task_deque = self.task_deques[target]
-                    with lock:
+                    async with lock:
                         task_deque.append(task)
                     self.queue.task_done()
                 except Exception:
@@ -258,7 +257,7 @@ class MongoQueue:
                     )
             except asyncio.QueueEmpty:
                 try:
-                    await asyncio.sleep(0.05)
+                    await asyncio.sleep(0.1)
                     continue
                 except asyncio.CancelledError:  # likely to be cancelled while waiting
                     break
@@ -270,7 +269,7 @@ class MongoQueue:
         while True:
             try:
                 for target, (lock, task_deque) in self.task_deques.items():
-                    with lock:
+                    async with lock:
                         tasks = [
                             task_deque.popleft()
                             for _ in range(
@@ -281,7 +280,7 @@ class MongoQueue:
                         continue
                     await getattr(self.client, f"batch_{target}")(tasks)
 
-                await asyncio.sleep(0.05)
+                await asyncio.sleep(0.1)
             except (ValueError, asyncio.CancelledError):
                 break
 

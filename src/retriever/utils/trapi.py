@@ -1,11 +1,13 @@
 import hashlib
 import itertools
+from collections.abc import Sequence
 from typing import cast
 
 from opentelemetry import trace
 from reasoner_pydantic import (
     QueryGraph,
 )
+from reasoner_pydantic.qgraph import QualifierConstraint
 from reasoner_pydantic.utils import make_hashable
 
 from retriever.types.trapi import (
@@ -13,6 +15,7 @@ from retriever.types.trapi import (
     AuxGraphDict,
     EdgeDict,
     KnowledgeGraphDict,
+    MetaAttributeDict,
     NodeBindingDict,
     NodeDict,
     ResultDict,
@@ -48,6 +51,23 @@ def hash_attribute(attr: AttributeDict) -> int:
     """Get a hash of an AttributeDict instance."""
     # Make use of a reasoner_pydantic util for this
     return hash(make_hashable(attr))  # pyright:ignore[reportUnknownArgumentType]
+
+
+def hash_meta_attribute(attr: MetaAttributeDict) -> int:
+    """Get a hash of a MetaAttributeDict instance."""
+    return hash(
+        tuple(
+            (
+                key,
+                (
+                    value
+                    if key != "original_attribute_names"
+                    else tuple(cast(list[str], value))
+                ),
+            )
+            for key, value in attr.items()
+        )
+    )
 
 
 def hash_node_binding(binding: NodeBindingDict) -> int:
@@ -302,3 +322,28 @@ def prune_kg(
     job_log.debug(
         f"KG Pruning: {len(kgraph['nodes'])} (-{pruned_nodes}) nodes and {len(kgraph['edges'])} (-{pruned_edges}) edges remain."
     )
+
+
+def meta_qualifier_meets_constraints(
+    meta_qualifiers: dict[str, list[str]] | None,
+    constraints: Sequence[QualifierConstraint],
+) -> bool:
+    """Check if a number of qualifier constraints are met by a meta-qualifier set."""
+    if len(constraints) == 0:  # No constraints to meet
+        return True
+    elif meta_qualifiers is None or len(meta_qualifiers) == 0:  # Can't meet constraints
+        return False
+
+    for constraint in constraints:
+        qualifiers_met = True
+        for qualifier in constraint.qualifier_set:
+            q_type, q_val = qualifier.qualifier_type_id, qualifier.qualifier_value
+            if q_type in meta_qualifiers or q_val in meta_qualifiers[q_type]:
+                continue
+            else:
+                qualifiers_met = False
+                break
+
+        if qualifiers_met:
+            return True
+    return False

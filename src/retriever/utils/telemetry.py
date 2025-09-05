@@ -52,7 +52,7 @@ def configure_telemetry(app: FastAPI | None = None) -> None:
 
         # Instrument Server
         if app:
-            FastAPIInstrumentor.instrument_app(  # pyright: ignore[reportUnknownMemberType] Sentry uses unknowns :/
+            FastAPIInstrumentor.instrument_app(
                 app,
                 http_capture_headers_server_request=["User-Agent"],
                 tracer_provider=trace_provider,
