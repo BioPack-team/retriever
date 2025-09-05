@@ -190,8 +190,33 @@ class DgraphTranspiler(Transpiler):
 
         return query
 
-    def _convert_batch_multihop(self, qgraph: QueryGraphDict) -> Any:
-        """Convert a TRAPI multi-hop graph to a batch of Dgraph queries."""
+
+    def _convert_batch_multihop(self, qgraph: QueryGraphDict) -> str:
+        """Convert a TRAPI multi-hop graph to a batch of Dgraph queries.
+
+        This function handles a single QueryGraphDict that contains a special format
+        where multiple query graphs are stored within it.
+
+        Args:
+            qgraph: A query graph that may contain multiple sub-graphs
+
+        Returns:
+            A combined Dgraph query containing all sub-queries
+        """
+        # Check if this is a "batch container" with sub-queries
+        if "query_graphs" in qgraph:
+            # Process each query graph in the list
+            queries = []
+            for i, sub_qgraph in enumerate(qgraph["query_graphs"]):
+                # Get the query for this graph and rename the node to make it unique
+                query = self._convert_multihop(sub_qgraph)
+                query = query.replace("node(func:", f"node{i}(func:")
+                queries.append(query)
+
+            # Combine all queries into one batch query
+            return "{\n" + "\n".join([q.strip("{}") for q in queries]) + "\n}"
+
+        # Otherwise, process a standard query graph with possibly multiple IDs per node
         nodes = qgraph["nodes"]
         start_node_id = self._find_start_node(nodes, {})
         start_node = nodes[start_node_id]
