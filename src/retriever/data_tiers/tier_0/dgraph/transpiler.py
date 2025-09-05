@@ -41,7 +41,7 @@ class DgraphTranspiler(Transpiler):
         """Find the best node to start the traversal from."""
         # Start with a node that has IDs and is the object of at least one edge
         for node_id, node in nodes.items():
-            if "ids" in node and node["ids"] and any(e["object"] == node_id for e in edges.values()):
+            if node.get("ids") and any(e["object"] == node_id for e in edges.values()):
                 return node_id
 
         # If no ideal start node, just take the first one
@@ -56,7 +56,21 @@ class DgraphTranspiler(Transpiler):
         # Start the query with the node filter
         node_filter = "func: has(id)"
         if node.get("ids"):
-            node_filter = f'func: eq(id, "{node["ids"][0]}")'
+            if len(node["ids"]) == 1:
+                # Single ID case - check if it contains a comma (multiple IDs in one string)
+                id_value = node["ids"][0]
+                if "," in id_value:
+                    # Multiple IDs in a single string - split them
+                    ids = [id.strip() for id in id_value.split(",")]
+                    ids_str = ', '.join(f'"{id_}"' for id_ in ids)
+                    node_filter = f'func: eq(id, [{ids_str}])'
+                else:
+                    # Single ID
+                    node_filter = f'func: eq(id, "{id_value}")'
+            else:
+                # Multiple IDs in array
+                ids_str = ', '.join(f'"{id_}"' for id_ in node["ids"])
+                node_filter = f'func: eq(id, [{ids_str}])'
 
         query = f"{indent}node({node_filter}) @cascade {{\n"
         query += f"{next_indent}id\n{next_indent}name\n{next_indent}category\n"
@@ -86,7 +100,21 @@ class DgraphTranspiler(Transpiler):
             # Source node
             source_filter = ""
             if source.get("ids"):
-                source_filter = f'eq(id, "{source["ids"][0]}")'
+                if len(source["ids"]) == 1:
+                    # Single ID case - check if it contains a comma (multiple IDs in one string)
+                    id_value = source["ids"][0]
+                    if "," in id_value:
+                        # Multiple IDs in a single string - split them
+                        ids = [id.strip() for id in id_value.split(",")]
+                        ids_str = ', '.join(f'"{id_}"' for id_ in ids)
+                        source_filter = f'eq(id, [{ids_str}])'
+                    else:
+                        # Single ID
+                        source_filter = f'eq(id, "{id_value}")'
+                else:
+                    # Multiple IDs in array
+                    ids_str = ', '.join(f'"{id_}"' for id_ in source["ids"])
+                    source_filter = f'eq(id, [{ids_str}])'
 
             source_filter_clause = f" @filter({source_filter})" if source_filter else ""
             query += f"{next_indent}  node: target{source_filter_clause} {{\n"
@@ -134,7 +162,21 @@ class DgraphTranspiler(Transpiler):
                 # Source node
                 source_filter = ""
                 if source.get("ids"):
-                    source_filter = f'eq(id, "{source["ids"][0]}")'
+                    if len(source["ids"]) == 1:
+                        # Single ID case - check if it contains a comma (multiple IDs in one string)
+                        id_value = source["ids"][0]
+                        if "," in id_value:
+                            # Multiple IDs in a single string - split them
+                            ids = [id.strip() for id in id_value.split(",")]
+                            ids_str = ', '.join(f'"{id_}"' for id_ in ids)
+                            source_filter = f'eq(id, [{ids_str}])'
+                        else:
+                            # Single ID
+                            source_filter = f'eq(id, "{id_value}")'
+                    else:
+                        # Multiple IDs in array
+                        ids_str = ', '.join(f'"{id_}"' for id_ in source["ids"])
+                        source_filter = f'eq(id, [{ids_str}])'
 
                 source_filter_clause = f" @filter({source_filter})" if source_filter else ""
                 query += f"{indent}  node: target{source_filter_clause} {{\n"
@@ -155,7 +197,7 @@ class DgraphTranspiler(Transpiler):
         start_node = nodes[start_node_id]
 
         # If there are no IDs, just return a single query
-        if "ids" not in start_node or not start_node["ids"]:
+        if not start_node.get("ids"):
             return self._convert_multihop(qgraph)
 
         # Create a query for each starting ID and collect
