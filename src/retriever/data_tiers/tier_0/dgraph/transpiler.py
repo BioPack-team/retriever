@@ -1,7 +1,7 @@
 from typing import Any
 
 from retriever.data_tiers.base_transpiler import Transpiler
-from retriever.types.general import BackendResults
+from retriever.types.general import BackendResult
 from retriever.types.trapi import QEdgeDict, QNodeDict, QueryGraphDict
 
 
@@ -244,6 +244,6 @@ class DgraphTranspiler(Transpiler):
 
     def convert_results(
         self, qgraph: QueryGraphDict, results: Any
-    ) -> BackendResults:
-        """Convert Dgraph JSON results back to TRAPI BackendResults."""
+    ) -> BackendResult:
+        """Convert Dgraph JSON results back to TRAPI BackendResult."""
         return {"results": results}
