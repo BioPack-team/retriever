@@ -164,27 +164,27 @@ class QueryGraphExecutor:
         self, starting_branches: list[Branch]
     ) -> tuple[dict[SuperpositionName, list[Partial]], list[Partial]]:
         """Run a given set of starting branches and reconcile the partial results they return."""
-        partials = {
-            branch.superposition_name: list[Partial]() for branch in starting_branches
-        }
+        partials = {branch.branch_name: list[Partial]() for branch in starting_branches}
         reconciled = list[Partial]()
 
         branch_tasks = [self.execute_branch(branch) for branch in starting_branches]
 
         async for branch, partial in merge_iterators(*branch_tasks):
             # await asyncio.sleep(0)
-            super_name = branch.superposition_name
+            branch_name = branch.branch_name
             partial.node_bindings.append((branch.start_node, branch.curies[0]))
-            partials[super_name].append(partial)
+            partials[branch_name].append(partial)
 
             if len(partials) == 1:  # No reconciliation to be done
                 reconciled.append(partial)
                 # self.job_log.trace(f"RESULT: {hash(partial)}")
                 continue
 
+            # FIX: have to handle batch cases where two branches are from the same node
+            # Maybe just organize by branch instead of super?
             # Only attempt reconciliation if all branches have representatives
             other_branches = [
-                parts for s_name, parts in partials.items() if s_name != super_name
+                parts for s_name, parts in partials.items() if s_name != branch_name
             ]
             if any(len(parts) == 0 for parts in other_branches):
                 self.job_log.trace("No other branches ready.")
@@ -397,12 +397,12 @@ class QueryGraphExecutor:
         )
 
         self.job_log.trace(
-            f"{current_branch.superposition_name}: found {len(next_steps)} next steps for curies {list(new_kgraph['nodes'].keys())}."
+            f"{current_branch.superposition_name}: found {len(next_steps)} next steps for curies {list(next_curies)}."
         )
 
         if len(next_steps) == 0:
             self.job_log.trace(
-                f"{current_branch.superposition_name}: Returning {len(new_kgraph['nodes'])} Partial results."
+                f"{current_branch.superposition_name}: Returning {len(list(next_curies))} Partial results."
             )
             for edge in new_kgraph["edges"].values():
                 if edge["subject"] == current_branch.input_curie:
