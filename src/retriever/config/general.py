@@ -230,6 +230,12 @@ class Tier0Settings(BaseModel):
 class GeneralConfig(CommentedSettings):
     """General application config."""
 
+    debug: Annotated[
+        bool,
+        Field(
+            description="Run server with increased compatibility for breakpoint debugging."
+        ),
+    ] = False
     instance_env: Annotated[
         str,
         Field(

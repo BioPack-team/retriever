@@ -2,7 +2,8 @@
 # Managed by Retriever.
 # Don't edit this file, it will be overwritten.
 # Edit the appropriate config file instead.
-instance_env: dev  # Instance environment. Used in Sentry, userAgent of subqueries, instance-appropriate behavior, etc.
+debug: false  # Run server with increased compatibility for breakpoint debugging.
+instance_env: dev # Instance environment. Used in Sentry, userAgent of subqueries, instance-appropriate behavior, etc.
 instance_idx: 0 # Instance index. Use when multiple Retriever instances are run, so a leader can be determined.
 log_level: DEBUG # Level of application logs to print/keep.
 host: 0.0.0.0 # Uvicorn listen host.

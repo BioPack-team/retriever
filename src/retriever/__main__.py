@@ -25,9 +25,10 @@ async def _main_inner() -> None:
     logging_config = configure_logging()
 
     # For main process logging
-    await MONGO_CLIENT.initialize()
-    await MONGO_QUEUE.start_process_task()
-    add_mongo_sink()
+    if not CONFIG.debug:
+        await MONGO_CLIENT.initialize()
+        await MONGO_QUEUE.start_process_task()
+        add_mongo_sink()
 
     logger.debug(
         f"Starting with config: \n{yaml.dump(yaml.safe_load(CONFIG.model_dump_json()))}"
@@ -56,19 +57,22 @@ async def _main_inner() -> None:
     # Run even 1 worker in separate process for consistency
     try:
         sock = config.bind_socket()
-        await AsyncMultiprocess(config, target=server.run, sockets=[sock]).run()
+        if not CONFIG.debug:
+            await AsyncMultiprocess(config, target=server.run, sockets=[sock]).run()
+        else:
+            await server.serve([sock])
     except KeyboardInterrupt:
         pass
 
     # /// POST-SERVER CLEANUP ///
 
     await background_manager.wrapup()
-    await MONGO_QUEUE.stop_process_task()
-    await MONGO_CLIENT.close()
+    if not CONFIG.debug:
+        await MONGO_QUEUE.stop_process_task()
+        await MONGO_CLIENT.close()
 
     # Wait for loguru to complete
-    if n_workers > 1:
-        await cleanup()
+    await cleanup()
 
 
 def main() -> None:
