@@ -1,4 +1,5 @@
 import multiprocessing
+import os
 import sys
 
 import uvicorn
@@ -10,13 +11,15 @@ from retriever.background import BackgroundProcessManager
 from retriever.config.general import CONFIG
 from retriever.config.logger import configure_logging
 from retriever.config.write_configs import write_default_configs
-from retriever.utils.logs import cleanup
+from retriever.utils.logs import add_mongo_sink, cleanup
 from retriever.utils.mongo import MONGO_CLIENT, MONGO_QUEUE
 from retriever.utils.uvicorn_multiprocess import AsyncMultiprocess
 
 
 async def _main_inner() -> None:
     # /// PRE-SERVER SETUP ///
+    os.environ["PYTHONHASHSEED"] = "0"  # Deterministic hashing
+    multiprocessing.set_start_method("spawn")
 
     # logging -> loguru intercept needs to be set up early
     logging_config = configure_logging()
@@ -24,6 +27,7 @@ async def _main_inner() -> None:
     # For main process logging
     await MONGO_CLIENT.initialize()
     await MONGO_QUEUE.start_process_task()
+    add_mongo_sink()
 
     logger.debug(
         f"Starting with config: \n{yaml.dump(yaml.safe_load(CONFIG.model_dump_json()))}"

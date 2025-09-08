@@ -1,4 +1,5 @@
 import asyncio
+import os
 import signal
 import sys
 from multiprocessing import Process
@@ -9,11 +10,10 @@ from uvicorn.supervisors.multiprocess import SIGNALS
 
 from retriever.config.logger import configure_logging
 from retriever.metakg.metakg import MetaKGManager
+from retriever.utils.logs import add_mongo_sink
 from retriever.utils.mongo import MONGO_CLIENT, MONGO_QUEUE
 from retriever.utils.redis import REDIS_CLIENT
 from retriever.utils.telemetry import configure_telemetry
-
-configure_telemetry()
 
 
 @logger.catch(
@@ -21,11 +21,13 @@ configure_telemetry()
 )
 async def _background_async() -> None:
     # /// SETUP ///
-    metakg_manager = MetaKGManager(leader=True)
-    await metakg_manager.initialize()
+
     await MONGO_CLIENT.initialize()
     await MONGO_QUEUE.start_process_task()
+    add_mongo_sink()
     await REDIS_CLIENT.initialize()
+    metakg_manager = MetaKGManager(leader=True)
+    await metakg_manager.initialize()
 
     # /// MAIN LOOP ///
 
@@ -46,7 +48,9 @@ async def _background_async() -> None:
 
 def background_process() -> None:
     """A simple sync wrapper for the background process."""
+    os.environ["PYTHONHASHSEED"] = "0"  # So reasoner_pydantic hashing is deterministic
     configure_logging()
+    configure_telemetry()
     uvloop.run(_background_async())
 
 

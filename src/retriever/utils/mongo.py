@@ -30,9 +30,11 @@ class MongoClient:
                 host=CONFIG.mongo.host,
                 port=CONFIG.mongo.port,
                 username=CONFIG.mongo.username,
-                password=CONFIG.mongo.password.get_secret_value()
-                if CONFIG.mongo.password
-                else None,
+                password=(
+                    CONFIG.mongo.password.get_secret_value()
+                    if CONFIG.mongo.password
+                    else None
+                ),
                 server_api=ServerApi("1"),
             )
         else:
@@ -40,12 +42,16 @@ class MongoClient:
                 host=CONFIG.mongo.host,
                 port=CONFIG.mongo.port,
                 username=CONFIG.mongo.username,
-                password=CONFIG.mongo.password.get_secret_value()
-                if CONFIG.mongo.password
-                else None,
+                password=(
+                    CONFIG.mongo.password.get_secret_value()
+                    if CONFIG.mongo.password
+                    else None
+                ),
                 authsource=CONFIG.mongo.authsource,
                 server_api=ServerApi("1"),
             )
+        # Patch client to get the current asyncio loop
+        self.client.get_io_loop = asyncio.get_running_loop
 
     def get_job_collection(self) -> AsyncIOMotorCollection[dict[str, Any]]:
         """Get job_state collection with standard options."""
