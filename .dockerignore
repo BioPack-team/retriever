@@ -10,4 +10,3 @@ logs/*
 .yamllint.yaml
 REAMDME.md
 dbs
-config/secrets/*

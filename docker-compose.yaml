@@ -27,14 +27,14 @@ services:
       MONGO__HOST: mongodb
       REDIS__HOST: dragonfly
       REDIS__PORT: 6379
-    secrets:
-      - tier0__neo4j__host
-      - tier0__neo4j__username
-      - tier0__neo4j__password
-secrets:
-  tier0__neo4j__host:
-    file: config/secrets/tier0__neo4j__host
-  tier0__neo4j__username:
-    file: config/secrets/tier0__neo4j__username
-  tier0__neo4j__password:
-    file: config/secrets/tier0__neo4j__password
+#     secrets:
+#       - tier0__neo4j__host
+#       - tier0__neo4j__username
+#       - tier0__neo4j__password
+# secrets:
+#   tier0__neo4j__host:
+#     file: config/secrets/tier0__neo4j__host
+#   tier0__neo4j__username:
+#     file: config/secrets/tier0__neo4j__username
+#   tier0__neo4j__password:
+#     file: config/secrets/tier0__neo4j__password
