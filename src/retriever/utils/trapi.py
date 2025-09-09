@@ -338,7 +338,7 @@ def meta_qualifier_meets_constraints(
         qualifiers_met = True
         for qualifier in constraint.qualifier_set:
             q_type, q_val = qualifier.qualifier_type_id, qualifier.qualifier_value
-            if q_type in meta_qualifiers or q_val in meta_qualifiers[q_type]:
+            if q_type in meta_qualifiers and q_val in meta_qualifiers[q_type]:
                 continue
             else:
                 qualifiers_met = False
