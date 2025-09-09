@@ -1,5 +1,7 @@
 import asyncio
 import itertools
+from pathlib import Path
+from typing import NamedTuple
 
 import aiofiles
 import orjson
@@ -27,6 +29,14 @@ METAKG_GET_ATTEMPTS = 3
 OperationPlan = dict[QEdgeID, list[Operation]]
 
 
+class TRAPIMetaKGInfo(NamedTuple):
+    """Basic info about a given MetaKG resource."""
+
+    metakg: MetaKnowledgeGraphDict
+    tier: TierNumber
+    infores: str
+
+
 class MetaKGManager:
     """Utility class that keeps an up-to-date metakg."""
 
@@ -37,6 +47,42 @@ class MetaKGManager:
         self.metakg_lock: asyncio.Lock = asyncio.Lock()
         self.is_leader: bool = leader
 
+    def parse_trapi_metakg(
+        self,
+        metakg_info: TRAPIMetaKGInfo,
+        operations: dict[str, list[Operation]],
+        nodes: dict[BiolinkCategory, OperationNode],
+    ) -> None:
+        """Parse a TRAPI MetaKG to build operations."""
+        metakg, tier, infores = metakg_info
+        for edge in metakg["edges"]:
+            edge_dict = MetaEdgeDict(**edge)
+            spo = (
+                f"{edge_dict['subject']} {edge_dict['predicate']} {edge_dict['object']}"
+            )
+            if spo not in operations:
+                operations[spo] = list[Operation]()
+            operations[spo].append(
+                Operation(
+                    subject=edge_dict["subject"],
+                    predicate=edge_dict["predicate"],
+                    object=edge_dict["object"],
+                    api=infores,
+                    tier=tier,
+                    attributes=edge_dict.get("attributes"),
+                    qualifiers={
+                        qualifier["qualifier_type_id"]: qualifier["applicable_values"]
+                        for qualifier in edge_dict.get("qualifiers", [])
+                    },
+                )
+            )
+        for category, node in metakg["nodes"].items():
+            node_dict = MetaNodeDict(**node)
+            nodes[category] = OperationNode(
+                prefixes={infores: node_dict.get("id_prefixes", [])},
+                attributes={infores: node_dict.get("attributes", [])},
+            )
+
     async def build_metakg(self) -> None:
         """Build Retriever's internal MetaKG and store it to Redis."""
         if CONFIG.instance_idx != 0:
@@ -44,47 +90,38 @@ class MetaKGManager:
 
         logger.info("Building MetaKG...")
 
-        async with aiofiles.open("data/robokop-metakg.json") as file:
-            robokop_metakg = orjson.loads(await file.read())
-
         operations = dict[str, list[Operation]]()
         nodes = dict[BiolinkCategory, OperationNode]()
 
-        for edge in robokop_metakg["edges"]:
-            edge_dict = MetaEdgeDict(**edge)
-            spo = (
-                f"{edge_dict['subject']}-{edge_dict['predicate']}-{edge_dict['object']}"
-            )
-            for tier in (0, 1):
-                if spo not in operations:
-                    operations[spo] = list[Operation]()
-                operations[spo].append(
-                    Operation(
-                        subject=edge_dict["subject"],
-                        predicate=edge_dict["predicate"],
-                        object=edge_dict["object"],
-                        api="infores:robokopkg",
-                        tier=tier,
-                        attributes=edge_dict.get("attributes"),
-                        qualifiers={
-                            qualifier["qualifier_type_id"]: qualifier[
-                                "applicable_values"
-                            ]
-                            for qualifier in edge_dict.get("qualifiers", [])
-                        },
+        metakg_files = {
+            0: {
+                "infores:automat-robokop": Path("data/robokop-metakg.json"),
+            },
+            1: {
+                "infores:rtx-kg2": Path("data/rtx-kg2-metakg.json"),
+            },
+        }
+
+        for tier, sources in metakg_files.items():
+            for infores, path in sources.items():
+                async with aiofiles.open(path) as file:
+                    trapi_metakg = MetaKnowledgeGraphDict(
+                        orjson.loads(await file.read())
                     )
+                self.parse_trapi_metakg(
+                    TRAPIMetaKGInfo(trapi_metakg, tier, infores),
+                    operations,
+                    nodes,
                 )
-        for category, node in robokop_metakg["nodes"].items():
-            node_dict = MetaNodeDict(**node)
-            nodes[category] = OperationNode(
-                prefixes={"infores:robokopkg": node_dict["id_prefixes"]},
-                attributes={"infores:robokopkg": node_dict["attributes"]},
-            )
+                logger.success(f"Parsed {infores} as a Tier {tier} resource.")
+
         async with self.metakg_lock:
             self._metakg = OperationTable(operations, nodes)
 
         await REDIS_CLIENT.update_metakg(self._metakg)
-        logger.success("Built MetaKG.")
+        logger.success(
+            f"Built MetaKG containing {sum(len(ops) for ops in operations.values())} operations / {len(nodes)} nodes."
+        )
 
     async def periodic_build_metakg(self) -> None:
         """Periodically rebuild the metakg."""
@@ -146,7 +183,7 @@ class MetaKGManager:
         predicates = expand(set(edge.predicates or ["biolink:related_to"]))
 
         spo_combos = (
-            f"{s}-{p}-{o}"
+            f"{s} {p} {o}"
             for s, p, o in itertools.product(
                 input_categories, predicates, output_categories
             )

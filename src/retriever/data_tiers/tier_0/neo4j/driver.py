@@ -81,7 +81,7 @@ class Neo4jDriver(DatabaseDriver):
         """Run a given query."""
         if self.neo4j_driver is None:
             raise RuntimeError(
-                "Must use Neo4jBoltDriver.connect_to_neo4j() before running queries."
+                "Must use Neo4jBoltDriver.connect() before running queries."
             )
         try:
             async with self.neo4j_driver.session(
