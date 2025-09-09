@@ -114,7 +114,7 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
 
         end_time = time.time()
         finish_msg = f"Execution completed, obtained {len(results)} results in {math.ceil((end_time - start_time) * 1000):}ms."
-        job_log.info(finish_msg)
+        job_log.success(finish_msg)
 
         response["status"] = "Complete"
         response["description"] = finish_msg
