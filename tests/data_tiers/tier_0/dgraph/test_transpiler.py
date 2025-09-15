@@ -114,29 +114,24 @@ def test_convert_multihop_simple_query():
     query = transpiler._convert_multihop(SIMPLE_QGRAPH)
 
     assert isinstance(query, str)
-    assert '@cascade' in query
-    assert 'node(func: eq(id, "Q1")) @cascade' in query
-    assert 'in_edges: ~source @filter(eq(predicate,"interacts_with"))' in query
-    assert 'node: target @filter(eq(id, "Q2"))' in query
-    assert "id" in query
-    assert "name" in query
-    assert "category" in query
-    assert "predicate" in query
+    # assert '@cascade' in query
+    # assert 'node(func: eq(id, "Q1")) @cascade' in query
+    # assert 'in_edges: ~source @filter(eq(predicate,"interacts_with"))' in query
+    # assert 'node: target @filter(eq(id, "Q2"))' in query
+    # assert "id" in query
+    # assert "name" in query
+    # assert "category" in query
+    # assert "predicate" in query
 
     # Check full query structure
     expected_structure = """
     {
         node(func: eq(id, "Q1")) @cascade {
-            id
-            name
-            category
-            in_edges: ~source @filter(eq(predicate,"interacts_with")) {
-                predicate
-                primary_knowledge_source
+            id name category all_names all_categories iri equivalent_curies description publications
+            in_edges: ~source @filter(eq(predicate, "interacts_with")) {
+                predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                 node: target @filter(eq(id, "Q2")) {
-                    id
-                    name
-                    category
+                    id name category all_names all_categories iri equivalent_curies description publications
                 }
             }
         }
@@ -155,29 +150,24 @@ def test_convert_multihop_multiple_ids_query():
     query = transpiler._convert_multihop(SIMPLE_QGRAPH_MULTIPLE_IDS)
 
     assert isinstance(query, str)
-    assert '@cascade' in query
-    assert 'node(func: eq(id, ["Q0", "Q1"])) @cascade' in query
-    assert 'in_edges: ~source @filter(eq(predicate,"interacts_with"))' in query
-    assert 'node: target @filter(eq(id, ["Q2", "Q3"]))' in query
-    assert "id" in query
-    assert "name" in query
-    assert "category" in query
-    assert "predicate" in query
+    # assert '@cascade' in query
+    # assert 'node(func: eq(id, ["Q0", "Q1"])) @cascade' in query
+    # assert 'in_edges: ~source @filter(eq(predicate,"interacts_with"))' in query
+    # assert 'node: target @filter(eq(id, ["Q2", "Q3"]))' in query
+    # assert "id" in query
+    # assert "name" in query
+    # assert "category" in query
+    # assert "predicate" in query
 
     # Check full query structure - updated with reversed node direction
     expected_structure = """
     {
         node(func: eq(id, ["Q0", "Q1"])) @cascade {
-            id
-            name
-            category
-            in_edges: ~source @filter(eq(predicate,"interacts_with")) {
-                predicate
-                primary_knowledge_source
+            id name category all_names all_categories iri equivalent_curies description publications
+            in_edges: ~source @filter(eq(predicate, "interacts_with")) {
+                predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                 node: target @filter(eq(id, ["Q2", "Q3"])) {
-                    id
-                    name
-                    category
+                    id name category all_names all_categories iri equivalent_curies description publications
                 }
             }
         }
@@ -196,32 +186,24 @@ def test_convert_2hop_query():
     query = transpiler._convert_multihop(TWO_HOP_QGRAPH)
 
     assert isinstance(query, str)
-    assert 'node(func: eq(id, "UBERON:0001769")) @cascade' in query
-    assert 'in_edges: ~source @filter(eq(predicate,"has_part"))' in query
-    assert 'node: target @filter(eq(id, "UBERON:0001608"))' in query
-    assert 'node: target @filter(eq(id, "CL:1000445"))' in query
+    # assert 'node(func: eq(id, "UBERON:0001769")) @cascade' in query
+    # assert 'in_edges: ~source @filter(eq(predicate,"has_part"))' in query
+    # assert 'node: target @filter(eq(id, "UBERON:0001608"))' in query
+    # assert 'node: target @filter(eq(id, "CL:1000445"))' in query
 
     # Check the full query structure for a multi-hop traversal - updated direction
     expected_structure = """
     {
         node(func: eq(id, "UBERON:0001769")) @cascade {
-            id
-            name
-            category
-            in_edges: ~source @filter(eq(predicate,"has_part")) {
-                predicate
-                primary_knowledge_source
+            id name category all_names all_categories iri equivalent_curies description publications
+            in_edges: ~source @filter(eq(predicate, "has_part")) {
+                predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                 node: target @filter(eq(id, "UBERON:0001608")) {
-                    id
-                    name
-                    category
-                        in_edges: ~source @filter(eq(predicate,"has_part")) {
-                        predicate
-                        primary_knowledge_source
+                    id name category all_names all_categories iri equivalent_curies description publications
+                        in_edges: ~source @filter(eq(predicate, "has_part")) {
+                        predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                         node: target @filter(eq(id, "CL:1000445")) {
-                            id
-                            name
-                            category
+                            id name category all_names all_categories iri equivalent_curies description publications
                         }
                     }
                 }
@@ -243,41 +225,30 @@ def test_convert_3hop_query():
     query = transpiler._convert_multihop(THREE_HOP_QGRAPH)
 
     assert isinstance(query, str)
-    assert 'node(func: eq(id, "UBERON:0001769")) @cascade' in query
-    assert 'in_edges: ~source @filter(eq(predicate,"has_part"))' in query
-    assert 'in_edges: ~source @filter(eq(predicate,"develops_from"))' in query
-    assert 'node: target @filter(eq(id, "UBERON:0001608"))' in query
-    assert 'node: target @filter(eq(id, "CL:1000445"))' in query
-    assert 'node: target @filter(eq(id, "CL:0000185"))' in query
+    # assert 'node(func: eq(id, "UBERON:0001769")) @cascade' in query
+    # assert 'in_edges: ~source @filter(eq(predicate,"has_part"))' in query
+    # assert 'in_edges: ~source @filter(eq(predicate,"develops_from"))' in query
+    # assert 'node: target @filter(eq(id, "UBERON:0001608"))' in query
+    # assert 'node: target @filter(eq(id, "CL:1000445"))' in query
+    # assert 'node: target @filter(eq(id, "CL:0000185"))' in query
 
     # Check the full query structure for a three-hop traversal
     expected_structure = """
     {
         node(func: eq(id, "UBERON:0001769")) @cascade {
-            id
-            name
-            category
-            in_edges: ~source @filter(eq(predicate,"has_part")) {
-                predicate
-                primary_knowledge_source
+            id name category all_names all_categories iri equivalent_curies description publications
+            in_edges: ~source @filter(eq(predicate, "has_part")) {
+                predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                 node: target @filter(eq(id, "UBERON:0001608")) {
-                    id
-                    name
-                    category
-                    in_edges: ~source @filter(eq(predicate,"has_part")) {
-                        predicate
-                        primary_knowledge_source
+                    id name category all_names all_categories iri equivalent_curies description publications
+                    in_edges: ~source @filter(eq(predicate, "has_part")) {
+                        predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                         node: target @filter(eq(id, "CL:1000445")) {
-                            id
-                            name
-                            category
-                            in_edges: ~source @filter(eq(predicate,"develops_from")) {
-                                predicate
-                                primary_knowledge_source
+                            id name category all_names all_categories iri equivalent_curies description publications
+                            in_edges: ~source @filter(eq(predicate, "develops_from")) {
+                                predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                                 node: target @filter(eq(id, "CL:0000185")) {
-                                    id
-                                    name
-                                    category
+                                    id name category all_names all_categories iri equivalent_curies description publications
                                 }
                             }
                         }
@@ -301,47 +272,33 @@ def test_convert_4hop_query():
     query = transpiler._convert_multihop(FOUR_HOP_QGRAPH)
 
     assert isinstance(query, str)
-    assert 'node(func: eq(id, "UBERON:0001769")) @cascade' in query
-    assert 'node: target @filter(eq(id, "UBERON:0001608"))' in query
-    assert 'node: target @filter(eq(id, "CL:1000445"))' in query
-    assert 'node: target @filter(eq(id, "CL:0000185"))' in query
-    assert 'node: target @filter(eq(id, "CL:0000075"))' in query
+    # assert 'node(func: eq(id, "UBERON:0001769")) @cascade' in query
+    # assert 'node: target @filter(eq(id, "UBERON:0001608"))' in query
+    # assert 'node: target @filter(eq(id, "CL:1000445"))' in query
+    # assert 'node: target @filter(eq(id, "CL:0000185"))' in query
+    # assert 'node: target @filter(eq(id, "CL:0000075"))' in query
 
     # Check the full query structure for a four-hop traversal
     expected_structure = """
     {
         node(func: eq(id, "UBERON:0001769")) @cascade {
-            id
-            name
-            category
-            in_edges: ~source @filter(eq(predicate,"has_part")) {
-                predicate
-                primary_knowledge_source
+            id name category all_names all_categories iri equivalent_curies description publications
+            in_edges: ~source @filter(eq(predicate, "has_part")) {
+                predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                 node: target @filter(eq(id, "UBERON:0001608")) {
-                    id
-                    name
-                    category
-                    in_edges: ~source @filter(eq(predicate,"has_part")) {
-                        predicate
-                        primary_knowledge_source
+                    id name category all_names all_categories iri equivalent_curies description publications
+                    in_edges: ~source @filter(eq(predicate, "has_part")) {
+                        predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                         node: target @filter(eq(id, "CL:1000445")) {
-                            id
-                            name
-                            category
-                            in_edges: ~source @filter(eq(predicate,"develops_from")) {
-                                predicate
-                                primary_knowledge_source
+                            id name category all_names all_categories iri equivalent_curies description publications
+                            in_edges: ~source @filter(eq(predicate, "develops_from")) {
+                                predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                                 node: target @filter(eq(id, "CL:0000185")) {
-                                    id
-                                    name
-                                    category
-                                    in_edges: ~source @filter(eq(predicate,"develops_from")) {
-                                        predicate
-                                        primary_knowledge_source
+                                    id name category all_names all_categories iri equivalent_curies description publications
+                                    in_edges: ~source @filter(eq(predicate, "develops_from")) {
+                                        predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                                         node: target @filter(eq(id, "CL:0000075")) {
-                                            id
-                                            name
-                                            category
+                                            id name category all_names all_categories iri equivalent_curies description publications
                                         }
                                     }
                                 }
@@ -367,58 +324,41 @@ def test_convert_5hop_query():
     query = transpiler._convert_multihop(FIVE_HOP_QGRAPH)
 
     assert isinstance(query, str)
-    # Updated: Start with the last node
-    assert 'node(func: eq(id, "UBERON:0001769")) @cascade' in query
-    # Updated: Check for first node as a target
-    assert 'node: target @filter(eq(id, "UBERON:0001608"))' in query
-    assert 'node: target @filter(eq(id, "CL:1000445"))' in query
-    assert 'node: target @filter(eq(id, "CL:0000185"))' in query
-    assert 'node: target @filter(eq(id, "CL:0000075"))' in query
-    assert 'node: target @filter(eq(id, "UMLS:C1257909"))' in query
-    assert 'in_edges: ~source @filter(eq(predicate,"associated_with"))' in query
+    # # Updated: Start with the last node
+    # assert 'node(func: eq(id, "UBERON:0001769")) @cascade' in query
+    # # Updated: Check for first node as a target
+    # assert 'node: target @filter(eq(id, "UBERON:0001608"))' in query
+    # assert 'node: target @filter(eq(id, "CL:1000445"))' in query
+    # assert 'node: target @filter(eq(id, "CL:0000185"))' in query
+    # assert 'node: target @filter(eq(id, "CL:0000075"))' in query
+    # assert 'node: target @filter(eq(id, "UMLS:C1257909"))' in query
+    # assert 'in_edges: ~source @filter(eq(predicate,"associated_with"))' in query
 
     # Check the full query structure for a five-hop traversal
     expected_structure = """
     {
         node(func: eq(id, "UBERON:0001769")) @cascade {
-            id
-            name
-            category
-            in_edges: ~source @filter(eq(predicate,"has_part")) {
-                predicate
-                primary_knowledge_source
+            id name category all_names all_categories iri equivalent_curies description publications
+            in_edges: ~source @filter(eq(predicate, "has_part")) {
+                predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                 node: target @filter(eq(id, "UBERON:0001608")) {
-                    id
-                    name
-                    category
-                    in_edges: ~source @filter(eq(predicate,"has_part")) {
-                        predicate
-                        primary_knowledge_source
+                    id name category all_names all_categories iri equivalent_curies description publications
+                    in_edges: ~source @filter(eq(predicate, "has_part")) {
+                        predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                         node: target @filter(eq(id, "CL:1000445")) {
-                            id
-                            name
-                            category
-                            in_edges: ~source @filter(eq(predicate,"develops_from")) {
-                                predicate
-                                primary_knowledge_source
+                            id name category all_names all_categories iri equivalent_curies description publications
+                            in_edges: ~source @filter(eq(predicate, "develops_from")) {
+                                predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                                 node: target @filter(eq(id, "CL:0000185")) {
-                                    id
-                                    name
-                                    category
-                                    in_edges: ~source @filter(eq(predicate,"develops_from")) {
-                                        predicate
-                                        primary_knowledge_source
+                                    id name category all_names all_categories iri equivalent_curies description publications
+                                    in_edges: ~source @filter(eq(predicate, "develops_from")) {
+                                        predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                                         node: target @filter(eq(id, "CL:0000075")) {
-                                            id
-                                            name
-                                            category
-                                            in_edges: ~source @filter(eq(predicate,"associated_with")) {
-                                                predicate
-                                                primary_knowledge_source
+                                            id name category all_names all_categories iri equivalent_curies description publications
+                                            in_edges: ~source @filter(eq(predicate, "associated_with")) {
+                                                predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                                                 node: target @filter(eq(id, "UMLS:C1257909")) {
-                                                    id
-                                                    name
-                                                    category
+                                                    id name category all_names all_categories iri equivalent_curies description publications
                                                 }
                                             }
                                         }
@@ -446,56 +386,39 @@ def test_convert_5hop_with_multiple_ids_query():
     query = transpiler._convert_multihop(FIVE_HOP_QGRAPH_MULTIPLE_IDS)
 
     assert isinstance(query, str)
-    assert 'node(func: eq(id, ["Q0", "Q1"])) @cascade' in query
-    assert 'node: target @filter(eq(id, ["Q2", "Q3"]))' in query
-    assert 'node: target @filter(eq(id, ["Q4", "Q5"]))' in query
-    assert 'node: target @filter(eq(id, ["Q6", "Q7"]))' in query
-    assert 'node: target @filter(eq(id, ["Q8", "Q9"]))' in query
-    assert 'node: target @filter(eq(id, ["Q10", "Q11"]))' in query
-    assert 'in_edges: ~source @filter(eq(predicate,"P0"))' in query
+    # assert 'node(func: eq(id, ["Q0", "Q1"])) @cascade' in query
+    # assert 'node: target @filter(eq(id, ["Q2", "Q3"]))' in query
+    # assert 'node: target @filter(eq(id, ["Q4", "Q5"]))' in query
+    # assert 'node: target @filter(eq(id, ["Q6", "Q7"]))' in query
+    # assert 'node: target @filter(eq(id, ["Q8", "Q9"]))' in query
+    # assert 'node: target @filter(eq(id, ["Q10", "Q11"]))' in query
+    # assert 'in_edges: ~source @filter(eq(predicate,"P0"))' in query
 
     # Check the full query structure for a five-hop traversal with multiple IDs
     expected_structure = """
     {
         node(func: eq(id, ["Q0", "Q1"])) @cascade {
-            id
-            name
-            category
-            in_edges: ~source @filter(eq(predicate,"P0")) {
-                predicate
-                primary_knowledge_source
+            id name category all_names all_categories iri equivalent_curies description publications
+            in_edges: ~source @filter(eq(predicate, "P0")) {
+                predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                 node: target @filter(eq(id, ["Q2", "Q3"])) {
-                    id
-                    name
-                    category
-                    in_edges: ~source @filter(eq(predicate,"P1")) {
-                        predicate
-                        primary_knowledge_source
+                    id name category all_names all_categories iri equivalent_curies description publications
+                    in_edges: ~source @filter(eq(predicate, "P1")) {
+                        predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                         node: target @filter(eq(id, ["Q4", "Q5"])) {
-                            id
-                            name
-                            category
-                            in_edges: ~source @filter(eq(predicate,"P2")) {
-                                predicate
-                                primary_knowledge_source
+                            id name category all_names all_categories iri equivalent_curies description publications
+                            in_edges: ~source @filter(eq(predicate, "P2")) {
+                                predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                                 node: target @filter(eq(id, ["Q6", "Q7"])) {
-                                    id
-                                    name
-                                    category
-                                    in_edges: ~source @filter(eq(predicate,"P3")) {
-                                        predicate
-                                        primary_knowledge_source
+                                    id name category all_names all_categories iri equivalent_curies description publications
+                                    in_edges: ~source @filter(eq(predicate, "P3")) {
+                                        predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                                         node: target @filter(eq(id, ["Q8", "Q9"])) {
-                                            id
-                                            name
-                                            category
-                                            in_edges: ~source @filter(eq(predicate,"P4")) {
-                                                predicate
-                                                primary_knowledge_source
+                                            id name category all_names all_categories iri equivalent_curies description publications
+                                            in_edges: ~source @filter(eq(predicate, "P4")) {
+                                                predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                                                 node: target @filter(eq(id, ["Q10", "Q11"])) {
-                                                    id
-                                                    name
-                                                    category
+                                                    id name category all_names all_categories iri equivalent_curies description publications
                                                 }
                                             }
                                         }
@@ -548,42 +471,32 @@ def test_convert_batch_multihop_query():
     query = transpiler._convert_batch_multihop(batch_container)
 
     assert isinstance(query, str)
-    # Check that both queries are in the result
-    assert 'node0(func: eq(id, "Q0")) @cascade' in query
-    assert 'node1(func: eq(id, ["Q0", "Q1"])) @cascade' in query
-    assert '@filter(eq(predicate,"P0"))' in query
-    assert 'node: target @filter(eq(id, "Q1"))' in query
-    assert 'node: target @filter(eq(id, ["Q2", "Q3"]))' in query
+    # # Check that both queries are in the result
+    # assert 'node0(func: eq(id, "Q0")) @cascade' in query
+    # assert 'node1(func: eq(id, ["Q0", "Q1"])) @cascade' in query
+    # assert '@filter(eq(predicate,"P0"))' in query
+    # assert 'node: target @filter(eq(id, "Q1"))' in query
+    # assert 'node: target @filter(eq(id, ["Q2", "Q3"]))' in query
 
     # Check the full query structure
     expected_structure = """
     {
         node0(func: eq(id, "Q0")) @cascade {
-            id
-            name
-            category
-            in_edges: ~source @filter(eq(predicate,"P0")) {
-                predicate
-                primary_knowledge_source
+            id name category all_names all_categories iri equivalent_curies description publications
+            in_edges: ~source @filter(eq(predicate, "P0")) {
+                predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                 node: target @filter(eq(id, "Q1")) {
-                    id
-                    name
-                    category
+                    id name category all_names all_categories iri equivalent_curies description publications
                 }
             }
         }
 
         node1(func: eq(id, ["Q0", "Q1"])) @cascade {
-            id
-            name
-            category
-            in_edges: ~source @filter(eq(predicate,"P0")) {
-                predicate
-                primary_knowledge_source
+            id name category all_names all_categories iri equivalent_curies description publications
+            in_edges: ~source @filter(eq(predicate, "P0")) {
+                predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                 node: target @filter(eq(id, ["Q2", "Q3"])) {
-                    id
-                    name
-                    category
+                    id name category all_names all_categories iri equivalent_curies description publications
                 }
             }
         }
