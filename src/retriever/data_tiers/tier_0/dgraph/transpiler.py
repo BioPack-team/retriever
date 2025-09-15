@@ -1,4 +1,4 @@
-from typing import Any, cast, override
+from typing import Any, Dict, cast, override
 
 from retriever.data_tiers.base_transpiler import Transpiler
 from retriever.types.general import BackendResult
@@ -221,8 +221,8 @@ class DgraphTranspiler(Transpiler):
 
         # Build secondary filters
         # If we used IDs as primary, add categories as secondary
-        if ids and node.get("categories"):
-            categories = node["categories"]
+        categories = node.get("categories")
+        if ids and categories:
             category_filter = self._create_category_filter(categories)
             secondary_filters.append(category_filter)
 
@@ -472,7 +472,7 @@ class DgraphTranspiler(Transpiler):
 
         # Create a query for each starting ID and collect
         queries = []
-        for i, node_id in enumerate(start_node["ids"]):
+        for i, node_id in enumerate(start_node.get("ids", [])):
             # Create a modified query graph with just one ID
             modified_qgraph = qgraph.copy()
             modified_qgraph["nodes"] = qgraph["nodes"].copy()
@@ -492,9 +492,10 @@ class DgraphTranspiler(Transpiler):
         self, qgraph: QueryGraphDict, results: Any
     ) -> BackendResult:
         """Convert Dgraph JSON results back to TRAPI BackendResults."""
-        # Create a properly structured BackendResult with required fields
-        return cast(BackendResult, {
+        # Create a properly structured BackendResult
+        backend_result: Dict[str, Any] = {
             "results": results,
             "knowledge_graph": {},  # Required field in BackendResult
             "auxiliary_graphs": {}  # Required field in BackendResult
-        })
+        }
+        return backend_result
