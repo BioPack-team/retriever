@@ -2,7 +2,12 @@ from typing import Any, cast, override
 
 from retriever.data_tiers.base_transpiler import Transpiler
 from retriever.types.general import BackendResult
-from retriever.types.trapi import AttributeConstraintDict, QEdgeDict, QNodeDict, QueryGraphDict
+from retriever.types.trapi import (
+    AttributeConstraintDict,
+    QEdgeDict,
+    QNodeDict,
+    QueryGraphDict,
+)
 
 
 class DgraphTranspiler(Transpiler):
