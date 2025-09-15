@@ -492,10 +492,9 @@ class DgraphTranspiler(Transpiler):
         self, qgraph: QueryGraphDict, results: Any
     ) -> BackendResult:
         """Convert Dgraph JSON results back to TRAPI BackendResults."""
-        # Create a properly structured BackendResult
-        backend_result: Dict[str, Any] = {
-            "results": results,
-            "knowledge_graph": {},  # Required field in BackendResult
-            "auxiliary_graphs": {}  # Required field in BackendResult
-        }
-        return backend_result
+        # Create a properly structured BackendResult with all required fields
+        return BackendResult(
+            results=results,
+            knowledge_graph={"nodes": {}, "edges": {}},  # KnowledgeGraphDict requires nodes and edges
+            auxiliary_graphs={}  # Required field in BackendResult
+        )
