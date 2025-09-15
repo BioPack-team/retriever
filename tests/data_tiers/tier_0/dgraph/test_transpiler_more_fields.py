@@ -183,9 +183,9 @@ def test_publication_filter():
     """Test filtering by publication."""
     transpiler = DgraphTranspiler()
     query = transpiler._convert_multihop(PUBLICATION_FILTER_QGRAPH)
-    
+
     assert isinstance(query, str)
-    
+
     expected_structure = """
     {
         node(func: eq(id, "DOID:14330")) @cascade {
@@ -211,9 +211,9 @@ def test_numeric_filter():
     """Test numeric comparison filters."""
     transpiler = DgraphTranspiler()
     query = transpiler._convert_multihop(NUMERIC_FILTER_QGRAPH)
-    
+
     assert isinstance(query, str)
-    
+
     expected_structure = """
     {
         node(func: eq(id, "DOID:14330")) @cascade {
@@ -277,12 +277,12 @@ def test_complex_query():
             }
         }
     }
-    
+
     transpiler = DgraphTranspiler()
     query = transpiler._convert_multihop(complex_query)
-    
+
     assert isinstance(query, str)
-    
+
     expected_structure = """
     {
         node(func: eq(id, "MONDO:0005148")) @filter(eq(category, "biolink:Disease") AND anyoftext(name, "diabetes") AND anyoftext(description, "pancreas")) @cascade {

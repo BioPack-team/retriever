@@ -170,19 +170,9 @@ class DgraphTranspiler(Transpiler):
 
         return filters
 
-    def _build_node_query(
-        self,
-        node_id: str,
-        nodes: dict[str, QNodeDict],
-        edges: dict[str, QEdgeDict],
-        indent_level: int = 1
-    ) -> str:
-        """Recursively build a query for a node and its connected nodes."""
-        node = nodes[node_id]
-        indent = "  " * indent_level
-        next_indent = "  " * (indent_level + 1)
-
-        # Build the node filter - use a primary filter for func: and secondary filters for @filter
+    # Breaking down _build_node_query into smaller methods
+    def _get_primary_and_secondary_filters(self, node: QNodeDict) -> tuple[str, list[str]]:
+        """Extract primary and secondary filters from a node."""
         primary_filter = "has(id)"  # Default
         secondary_filters = []
 
@@ -225,24 +215,106 @@ class DgraphTranspiler(Transpiler):
         if node.get("constraints"):
             secondary_filters.extend(self._convert_constraints_to_filters(node["constraints"]))
 
+        return primary_filter, secondary_filters
+
+    def _add_standard_node_fields(self, indent: str) -> str:
+        """Generate standard node fields."""
+        return (f"{indent}id\n{indent}name\n{indent}category\n"
+                f"{indent}all_names\n{indent}all_categories\n"
+                f"{indent}iri\n{indent}equivalent_curies\n"
+                f"{indent}description\n{indent}publications\n")
+
+    def _add_standard_edge_fields(self, indent: str) -> str:
+        """Generate standard edge fields."""
+        return (f"{indent}predicate\n{indent}primary_knowledge_source\n"
+                f"{indent}knowledge_level\n{indent}agent_type\n"
+                f"{indent}kg2_ids\n{indent}domain_range_exclusion\n"
+                f"{indent}edge_id\n")
+
+    def _build_filter_clause(self, filters: list[str]) -> str:
+        """Build filter clause from a list of filters."""
+        if not filters:
+            return ""
+        elif len(filters) == 1:
+            return f" @filter({filters[0]})"
+        else:
+            return f" @filter({' AND '.join(filters)})"
+
+    def _process_edge_connection(
+        self,
+        edge: QEdgeDict,
+        source: QNodeDict,
+        source_id: str,
+        nodes: dict[str, QNodeDict],
+        edges: dict[str, QEdgeDict],
+        indent_level: int,
+        visited: set[str],
+    ) -> str:
+        """Process an edge connection and build the query for it."""
+        indent = "  " * indent_level
+        next_indent = "  " * (indent_level + 1)
+
+        # Build edge filter
+        edge_filter = self._build_edge_filter(edge)
+        filter_clause = f" @filter({edge_filter})" if edge_filter else ""
+
+        query = f"{indent}in_edges: ~source{filter_clause} {{\n"
+
+        # Include all standard edge fields
+        query += self._add_standard_edge_fields(indent + "  ")
+
+        # Get primary and secondary filters for source node
+        primary_filter, secondary_filters = self._get_primary_and_secondary_filters(source)
+
+        # Create the source filter clause
+        source_filter_clause = ""
+        if primary_filter != "has(id)":
+            if not secondary_filters:
+                source_filter_clause = f" @filter({primary_filter})"
+            else:
+                source_filter_clause = f" @filter({primary_filter} AND {' AND '.join(secondary_filters)})"
+        elif secondary_filters:
+            source_filter_clause = self._build_filter_clause(secondary_filters)
+
+        query += f"{indent}  node: target{source_filter_clause} {{\n"
+
+        # Include all standard node fields for the target
+        query += self._add_standard_node_fields(indent + "    ")
+
+        # Recursively add further hops
+        query += self._build_further_hops(source_id, nodes, edges, indent_level + 2, visited.copy())
+
+        # Close the blocks
+        query += f"{indent}  }}\n{indent}}}\n"
+
+        return query
+
+    def _build_node_query(
+        self,
+        node_id: str,
+        nodes: dict[str, QNodeDict],
+        edges: dict[str, QEdgeDict],
+        indent_level: int = 1
+    ) -> str:
+        """Recursively build a query for a node and its connected nodes."""
+        node = nodes[node_id]
+        indent = "  " * indent_level
+        next_indent = "  " * (indent_level + 1)
+
+        # Get primary and secondary filters
+        primary_filter, secondary_filters = self._get_primary_and_secondary_filters(node)
+
         # Start the query with the primary filter
         query = f"{indent}node(func: {primary_filter})"
 
-        # Add secondary filters if present - use AND between filters
-        if secondary_filters:
-            if len(secondary_filters) == 1:
-                query += f" @filter({secondary_filters[0]})"
-            else:
-                query += f" @filter({' AND '.join(secondary_filters)})"
+        # Add secondary filters if present
+        query += self._build_filter_clause(secondary_filters)
 
         # Add cascade and open block
-        query += f" @cascade {{\n"
+        query += " @cascade {\n"
 
         # Include all standard node fields
-        query += f"{next_indent}id\n{next_indent}name\n{next_indent}category\n"
-        query += f"{next_indent}all_names\n{next_indent}all_categories\n"
-        query += f"{next_indent}iri\n{next_indent}equivalent_curies\n"
-        query += f"{next_indent}description\n{next_indent}publications\n"
+        query += self._add_standard_node_fields(next_indent)
 
         # Find incoming edges to this node (where this node is the OBJECT)
         connected_edges: dict[str, list[QEdgeDict]] = {}
@@ -259,84 +331,10 @@ class DgraphTranspiler(Transpiler):
             # Use the first edge
             edge = source_edges[0]
             source = nodes[source_id]
-
-            # Build edge filter
-            edge_filter = self._build_edge_filter(edge)
-            filter_clause = f" @filter({edge_filter})" if edge_filter else ""
-
-            query += f"{next_indent}in_edges: ~source{filter_clause} {{\n"
-
-            # Include all standard edge fields
-            query += f"{next_indent}  predicate\n{next_indent}  primary_knowledge_source\n"
-            query += f"{next_indent}  knowledge_level\n{next_indent}  agent_type\n"
-            query += f"{next_indent}  kg2_ids\n{next_indent}  domain_range_exclusion\n"
-            query += f"{next_indent}  edge_id\n"
-
-            # Build source node for target filter - need to split into primary/secondary
-            primary_source_filter = "has(id)"  # Default
-            secondary_source_filters = []
-
-            # Choose the most selective filter for primary (usually ID)
-            if source.get("ids"):
-                if len(source["ids"]) == 1:
-                    id_value = source["ids"][0]
-                    if "," in id_value:
-                        ids = [id_val.strip() for id_val in id_value.split(",")]
-                        ids_str = ', '.join(f'"{id_val}"' for id_val in ids)
-                        primary_source_filter = f'eq(id, [{ids_str}])'
-                    else:
-                        primary_source_filter = f'eq(id, "{id_value}")'
-                else:
-                    ids_str = ', '.join(f'"{id_val}"' for id_val in source["ids"])
-                    primary_source_filter = f'eq(id, [{ids_str}])'
-            elif source.get("categories"):
-                categories = source["categories"]
-                if len(categories) == 1:
-                    primary_source_filter = f'eq(category, "{categories[0]}")'
-                else:
-                    categories_str = ', '.join(f'"{cat}"' for cat in categories)
-                    primary_source_filter = f'eq(category, [{categories_str}])'
-
-            # Build additional source filters
-            if source.get("ids") and source.get("categories"):
-                categories = source["categories"]
-                if len(categories) == 1:
-                    secondary_source_filters.append(f'eq(category, "{categories[0]}")')
-                elif len(categories) > 1:
-                    categories_str = ', '.join(f'"{cat}"' for cat in categories)
-                    secondary_source_filters.append(f'eq(category, [{categories_str}])')
-
-            # Add constraints as secondary filters
-            if source.get("constraints"):
-                secondary_source_filters.extend(self._convert_constraints_to_filters(source["constraints"]))
-
-            # Create the source filter clause using AND for multiple filters
-            source_filter_clause = ""
-            if primary_source_filter != "has(id)":
-                if not secondary_source_filters:
-                    source_filter_clause = f" @filter({primary_source_filter})"
-                else:
-                    source_filter_clause = f" @filter({primary_source_filter} AND {' AND '.join(secondary_source_filters)})"
-            elif secondary_source_filters:
-                if len(secondary_source_filters) == 1:
-                    source_filter_clause = f" @filter({secondary_source_filters[0]})"
-                else:
-                    source_filter_clause = f" @filter({' AND '.join(secondary_source_filters)})"
-
-            query += f"{next_indent}  node: target{source_filter_clause} {{\n"
-
-            # Include all standard node fields for the target
-            query += f"{next_indent}    id\n{next_indent}    name\n{next_indent}    category\n"
-            query += f"{next_indent}    all_names\n{next_indent}    all_categories\n"
-            query += f"{next_indent}    iri\n{next_indent}    equivalent_curies\n"
-            query += f"{next_indent}    description\n{next_indent}    publications\n"
-
-            # Recursively add further hops
             visited = {node_id}
-            query += self._build_further_hops(source_id, nodes, edges, indent_level + 2, visited)
-
-            # Close the blocks
-            query += f"{next_indent}  }}\n{next_indent}}}\n"
+            query += self._process_edge_connection(
+                edge, source, source_id, nodes, edges, indent_level + 1, visited
+            )
 
         # Close the node block
         query += f"{indent}}}\n"
@@ -377,10 +375,7 @@ class DgraphTranspiler(Transpiler):
                 query += f"{indent}in_edges: ~source{filter_clause} {{\n"
 
                 # Include all standard edge fields
-                query += f"{indent}  predicate\n{indent}  primary_knowledge_source\n"
-                query += f"{indent}  knowledge_level\n{indent}  agent_type\n"
-                query += f"{indent}  kg2_ids\n{indent}  domain_range_exclusion\n"
-                query += f"{indent}  edge_id\n"
+                query += self._add_standard_edge_fields(indent + "  ")
 
                 # Build source node filter using the node_filter helper
                 source_filter = self._build_node_filter(source)
@@ -389,10 +384,7 @@ class DgraphTranspiler(Transpiler):
                 query += f"{indent}  node: target{source_filter_clause} {{\n"
 
                 # Include all standard node fields for the target
-                query += f"{indent}    id\n{indent}    name\n{indent}    category\n"
-                query += f"{indent}    all_names\n{indent}    all_categories\n"
-                query += f"{indent}    iri\n{indent}    equivalent_curies\n"
-                query += f"{indent}    description\n{indent}    publications\n"
+                query += self._add_standard_node_fields(indent + "    ")
 
                 # Recursively add further hops
                 query += self._build_further_hops(source_id, nodes, edges, indent_level + 2, visited.copy())
@@ -426,7 +418,8 @@ class DgraphTranspiler(Transpiler):
                 queries.append(query)
 
             # Combine all queries into one batch query
-            return "{\n" + "\n".join([q.strip("{}") for q in queries]) + "\n}"
+            # Fix F541: Change f-string without placeholders to regular string
+            return "{\n" + "\n".join(q.strip("{}") for q in queries) + "\n}"
 
         # Otherwise, process a standard query graph with possibly multiple IDs per node
         nodes = qgraph["nodes"]
@@ -452,7 +445,8 @@ class DgraphTranspiler(Transpiler):
             queries.append(query)
 
         # Combine all queries into one
-        return "{\n" + "\n".join([q.strip("{}") for q in queries]) + "\n}"
+        # Fix F541: Change f-string without placeholders to regular string
+        return "{\n" + "\n".join(q.strip("{}") for q in queries) + "\n}"
 
     @override
     def convert_results(
