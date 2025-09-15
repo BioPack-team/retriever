@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, override
+from typing import Any, override
 
 from retriever.data_tiers.base_transpiler import Transpiler
 from retriever.types.general import BackendResult
@@ -40,7 +40,7 @@ class DgraphTranspiler(Transpiler):
         # Build query from the starting node
         return "{\n" + self._build_node_query(start_node_id, nodes, edges) + "}"
 
-    def _find_start_node(self, nodes: Dict[str, QNodeDict], edges: Dict[str, QEdgeDict]) -> str:
+    def _find_start_node(self, nodes: dict[str, QNodeDict], edges: dict[str, QEdgeDict]) -> str:
         """Find the best node to start the traversal from."""
         # Start with a node that has IDs and is the object of at least one edge
         for node_id, node in nodes.items():
@@ -126,7 +126,7 @@ class DgraphTranspiler(Transpiler):
         else:
             return " AND ".join(filters)
 
-    def _convert_constraints_to_filters(self, constraints: List[AttributeConstraintDict]) -> List[str]:
+    def _convert_constraints_to_filters(self, constraints: list[AttributeConstraintDict]) -> list[str]:
         """Convert TRAPI attribute constraints to Dgraph filter expressions."""
         filters = []
 
@@ -137,7 +137,7 @@ class DgraphTranspiler(Transpiler):
             is_negated = constraint.get("not", False)
 
             # Handle different operators
-            if operator == "==" or operator == "=":
+            if operator in ("==", "="):
                 filter_expr = f'eq({field_name}, "{value}")'
             elif operator == ">":
                 filter_expr = f'gt({field_name}, "{value}")'
@@ -171,10 +171,10 @@ class DgraphTranspiler(Transpiler):
         return filters
 
     def _build_node_query(
-        self, 
-        node_id: str, 
-        nodes: Dict[str, QNodeDict], 
-        edges: Dict[str, QEdgeDict], 
+        self,
+        node_id: str,
+        nodes: dict[str, QNodeDict],
+        edges: dict[str, QEdgeDict],
         indent_level: int = 1
     ) -> str:
         """Recursively build a query for a node and its connected nodes."""
@@ -245,8 +245,8 @@ class DgraphTranspiler(Transpiler):
         query += f"{next_indent}description\n{next_indent}publications\n"
 
         # Find incoming edges to this node (where this node is the OBJECT)
-        connected_edges: Dict[str, List[QEdgeDict]] = {}
-        for edge_id, edge in edges.items():
+        connected_edges: dict[str, list[QEdgeDict]] = {}
+        for edge in edges.values():
             if edge["object"] == node_id:
                 # Get the source node and predicate
                 source_id = edge["subject"]
@@ -343,11 +343,11 @@ class DgraphTranspiler(Transpiler):
         return query
 
     def _build_further_hops(
-        self, 
-        node_id: str, 
-        nodes: Dict[str, QNodeDict], 
-        edges: Dict[str, QEdgeDict], 
-        indent_level: int, 
+        self,
+        node_id: str,
+        nodes: dict[str, QNodeDict],
+        edges: dict[str, QEdgeDict],
+        indent_level: int,
         visited: set[str]
     ) -> str:
         """Build query for further hops beyond the first one."""
@@ -361,7 +361,7 @@ class DgraphTranspiler(Transpiler):
         indent = "  " * indent_level
 
         # Find incoming edges to this node
-        for edge_id, edge in edges.items():
+        for edge in edges.values():
             if edge["object"] == node_id:
                 # Get the source node and predicate
                 source_id = edge["subject"]
