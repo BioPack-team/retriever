@@ -15,20 +15,20 @@ CATEGORY_FILTER_QGRAPH = {
     }
 }
 
-# Example TRAPI query with multiple filters
+# Update MULTIPLE_FILTERS_QGRAPH
 MULTIPLE_FILTERS_QGRAPH = {
     "nodes": {
         "n0": {
             "ids": ["MONDO:0005148"],
             "categories": ["biolink:Disease"],
             "constraints": [
-                {"id": "name", "operator": "contains", "value": "diabetes"}
+                {"id": "name", "name": "name", "operator": "matches", "value": "diabetes"}
             ]
         },
         "n1": {
             "categories": ["biolink:Gene"],
             "constraints": [
-                {"id": "description", "operator": "contains", "value": "insulin"}
+                {"id": "description", "name": "description", "operator": "matches", "value": "insulin"}
             ]
         }
     },
@@ -38,20 +38,20 @@ MULTIPLE_FILTERS_QGRAPH = {
             "subject": "n1", 
             "predicates": ["biolink:gene_associated_with_condition", "biolink:contributes_to"],
             "attribute_constraints": [
-                {"id": "knowledge_level", "operator": "=", "value": "primary"}
+                {"id": "knowledge_level", "name": "knowledge_level", "operator": "==", "value": "primary"}
             ]
         }
     }
 }
 
-# Example TRAPI query with negated constraint
+# Update NEGATED_CONSTRAINT_QGRAPH
 NEGATED_CONSTRAINT_QGRAPH = {
     "nodes": {
         "n0": {"ids": ["DOID:14330"]},
         "n1": {
             "categories": ["biolink:Protein"],
             "constraints": [
-                {"id": "name", "operator": "contains", "value": "kinase", "not": True}
+                {"id": "name", "name": "name", "operator": "matches", "value": "kinase", "not": True}
             ]
         }
     },
@@ -60,13 +60,13 @@ NEGATED_CONSTRAINT_QGRAPH = {
     }
 }
 
-# Example TRAPI query with publication filter
+# Update PUBLICATION_FILTER_QGRAPH
 PUBLICATION_FILTER_QGRAPH = {
     "nodes": {
         "n0": {"ids": ["DOID:14330"]},
         "n1": {
             "constraints": [
-                {"id": "publications", "operator": "in", "value": "PMID:12345678"}
+                {"id": "publications", "name": "publications", "operator": "in", "value": "PMID:12345678"}
             ]
         }
     },
@@ -75,7 +75,7 @@ PUBLICATION_FILTER_QGRAPH = {
     }
 }
 
-# Example TRAPI query with numeric filters
+# Update NUMERIC_FILTER_QGRAPH
 NUMERIC_FILTER_QGRAPH = {
     "nodes": {
         "n0": {"ids": ["DOID:14330"]},
@@ -86,7 +86,7 @@ NUMERIC_FILTER_QGRAPH = {
             "object": "n0", 
             "subject": "n1",
             "attribute_constraints": [
-                {"id": "edge_id", "operator": ">", "value": "100"}
+                {"id": "edge_id", "name": "edge_id", "operator": ">", "value": "100"}
             ]
         }
     }
@@ -244,20 +244,20 @@ def test_complex_query():
                 "ids": ["MONDO:0005148"],
                 "categories": ["biolink:Disease"],
                 "constraints": [
-                    {"id": "name", "operator": "contains", "value": "diabetes"},
-                    {"id": "description", "operator": "contains", "value": "pancreas"}
+                    {"id": "name", "name": "name", "operator": "matches", "value": "diabetes"},
+                    {"id": "description", "name": "description", "operator": "matches", "value": "pancreas"}
                 ]
             },
             "n1": {
                 "categories": ["biolink:Gene", "biolink:Protein"],
                 "constraints": [
-                    {"id": "equivalent_curies", "operator": "in", "value": ["HGNC:1234", "HGNC:5678"]}
+                    {"id": "equivalent_curies", "name": "equivalent_curies", "operator": "in", "value": ["HGNC:1234", "HGNC:5678"]}
                 ]
             },
             "n2": {
                 "constraints": [
-                    {"id": "publications", "operator": "in", "value": "PMID:12345678"},
-                    {"id": "name", "operator": "=", "value": "insulin", "not": True}
+                    {"id": "publications", "name": "publications", "operator": "in", "value": "PMID:12345678"},
+                    {"id": "name", "name": "name", "operator": "==", "value": "insulin", "not": True}
                 ]
             }
         },
@@ -271,8 +271,8 @@ def test_complex_query():
                 "object": "n1", 
                 "subject": "n2",
                 "attribute_constraints": [
-                    {"id": "knowledge_level", "operator": "=", "value": "primary"},
-                    {"id": "edge_id", "operator": "<", "value": "1000"}
+                    {"id": "knowledge_level", "name": "knowledge_level", "operator": "==", "value": "primary"},
+                    {"id": "edge_id", "name": "edge_id", "operator": "<", "value": "1000"}
                 ]
             }
         }

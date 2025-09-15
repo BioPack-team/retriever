@@ -116,7 +116,7 @@ class DgraphTranspiler(Transpiler):
         if edge.get("attribute_constraints"):
             filters.extend(self._convert_constraints_to_filters(edge["attribute_constraints"]))
 
-        # If no filters, return empty string (no filter clause will be added)
+        # If no filters, return empty string
         if not filters:
             return ""
 
@@ -137,7 +137,7 @@ class DgraphTranspiler(Transpiler):
             is_negated = constraint.get("not", False)
 
             # Handle different operators
-            if operator == "=" or operator == "==":
+            if operator == "==" or operator == "=":
                 filter_expr = f'eq({field_name}, "{value}")'
             elif operator == ">":
                 filter_expr = f'gt({field_name}, "{value}")'
@@ -155,14 +155,14 @@ class DgraphTranspiler(Transpiler):
                 else:
                     # Single value
                     filter_expr = f'eq({field_name}, "{value}")'
-            elif operator == "contains":
+            elif operator == "matches":
                 # For string fields that should contain the value
                 filter_expr = f'anyoftext({field_name}, "{value}")'
             else:
                 # Default to equality
                 filter_expr = f'eq({field_name}, "{value}")'
 
-            # Handle negation - use NOT instead of not()
+            # Handle negation
             if is_negated:
                 filter_expr = f'NOT({filter_expr})'
 
