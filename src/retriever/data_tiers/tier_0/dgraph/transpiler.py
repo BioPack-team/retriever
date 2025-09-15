@@ -179,8 +179,6 @@ class DgraphTranspiler(Transpiler):
 
         return filters
 
-    # Breaking down _get_primary_and_secondary_filters into smaller methods
-    # to reduce branch complexity (PLR0912)
     def _create_id_filter(self, ids: list[str]) -> str:
         """Create a filter for ID fields."""
         if len(ids) == 1:
@@ -258,7 +256,6 @@ class DgraphTranspiler(Transpiler):
         else:
             return f" @filter({' AND '.join(filters)})"
 
-    # Fix for PLR0913 (too many arguments)
     # Create a context class to bundle related arguments
     class EdgeConnectionContext:
         """Context object for edge connection data."""
