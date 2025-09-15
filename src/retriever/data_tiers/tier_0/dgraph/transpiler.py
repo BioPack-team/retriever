@@ -268,7 +268,14 @@ class DgraphTranspiler(Transpiler):
             nodes: dict[str, QNodeDict],
             edges: dict[str, QEdgeDict],
             visited: set[str]
-        ):
+        ) -> None:
+            """Initialize edge connection context.
+
+            Args:
+                nodes: Dictionary of query nodes
+                edges: Dictionary of query edges
+                visited: Set of already visited node IDs
+            """
             self.nodes = nodes
             self.edges = edges
             self.visited = visited
@@ -393,9 +400,6 @@ class DgraphTranspiler(Transpiler):
 
         query = ""
         indent = "  " * indent_level
-
-        # Create a context object for edge processing
-        context = self.EdgeConnectionContext(nodes=nodes, edges=edges, visited=visited)
 
         # Find incoming edges to this node
         for edge in edges.values():
