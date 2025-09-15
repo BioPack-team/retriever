@@ -179,7 +179,33 @@ class DgraphTranspiler(Transpiler):
 
         return filters
 
-    # Breaking down _build_node_query into smaller methods
+    # Breaking down _get_primary_and_secondary_filters into smaller methods
+    # to reduce branch complexity (PLR0912)
+    def _create_id_filter(self, ids: list[str]) -> str:
+        """Create a filter for ID fields."""
+        if len(ids) == 1:
+            id_value = ids[0]
+            if "," in id_value:
+                # Multiple IDs in a single string - split them
+                id_list = [id_val.strip() for id_val in id_value.split(",")]
+                ids_str = ', '.join(f'"{id_val}"' for id_val in id_list)
+                return f'eq(id, [{ids_str}])'
+            else:
+                # Single ID - most selective query
+                return f'eq(id, "{id_value}")'
+        else:
+            # Multiple IDs in array
+            ids_str = ', '.join(f'"{id_val}"' for id_val in ids)
+            return f'eq(id, [{ids_str}])'
+
+    def _create_category_filter(self, categories: list[str]) -> str:
+        """Create a filter for category fields."""
+        if len(categories) == 1:
+            return f'eq(category, "{categories[0]}")'
+        else:
+            categories_str = ', '.join(f'"{cat}"' for cat in categories)
+            return f'eq(category, [{categories_str}])'
+
     def _get_primary_and_secondary_filters(self, node: QNodeDict) -> tuple[str, list[str]]:
         """Extract primary and secondary filters from a node."""
         primary_filter = "has(id)"  # Default
@@ -188,39 +214,19 @@ class DgraphTranspiler(Transpiler):
         # Choose the most selective filter for primary (usually ID)
         ids = node.get("ids")
         if ids:
-            if len(ids) == 1:
-                id_value = ids[0]
-                if "," in id_value:
-                    # Multiple IDs in a single string - split them
-                    id_list = [id_val.strip() for id_val in id_value.split(",")]
-                    ids_str = ', '.join(f'"{id_val}"' for id_val in id_list)
-                    primary_filter = f'eq(id, [{ids_str}])'
-                else:
-                    # Single ID - most selective query
-                    primary_filter = f'eq(id, "{id_value}")'
-            else:
-                # Multiple IDs in array
-                ids_str = ', '.join(f'"{id_val}"' for id_val in ids)
-                primary_filter = f'eq(id, [{ids_str}])'
+            primary_filter = self._create_id_filter(ids)
         else:
             # Use category as primary if no IDs
             categories = node.get("categories")
             if categories:
-                if len(categories) == 1:
-                    primary_filter = f'eq(category, "{categories[0]}")'
-                else:
-                    categories_str = ', '.join(f'"{cat}"' for cat in categories)
-                    primary_filter = f'eq(category, [{categories_str}])'
+                primary_filter = self._create_category_filter(categories)
 
         # Build secondary filters
         # If we used IDs as primary, add categories as secondary
         if ids and node.get("categories"):
             categories = node["categories"]
-            if len(categories) == 1:
-                secondary_filters.append(f'eq(category, "{categories[0]}")')
-            elif len(categories) > 1:
-                categories_str = ', '.join(f'"{cat}"' for cat in categories)
-                secondary_filters.append(f'eq(category, [{categories_str}])')
+            category_filter = self._create_category_filter(categories)
+            secondary_filters.append(category_filter)
 
         # Add constraints as secondary filters
         constraints = node.get("constraints")
@@ -252,15 +258,28 @@ class DgraphTranspiler(Transpiler):
         else:
             return f" @filter({' AND '.join(filters)})"
 
+    # Fix for PLR0913 (too many arguments)
+    # Create a context class to bundle related arguments
+    class EdgeConnectionContext:
+        """Context object for edge connection data."""
+
+        def __init__(
+            self,
+            nodes: dict[str, QNodeDict],
+            edges: dict[str, QEdgeDict],
+            visited: set[str]
+        ):
+            self.nodes = nodes
+            self.edges = edges
+            self.visited = visited
+
     def _process_edge_connection(
         self,
         edge: QEdgeDict,
         source: QNodeDict,
         source_id: str,
-        nodes: dict[str, QNodeDict],
-        edges: dict[str, QEdgeDict],
+        context: EdgeConnectionContext,
         indent_level: int,
-        visited: set[str],
     ) -> str:
         """Process an edge connection and build the query for it."""
         indent = "  " * indent_level
@@ -293,7 +312,7 @@ class DgraphTranspiler(Transpiler):
         query += self._add_standard_node_fields(indent + "    ")
 
         # Recursively add further hops
-        query += self._build_further_hops(source_id, nodes, edges, indent_level + 2, visited.copy())
+        query += self._build_further_hops(source_id, context.nodes, context.edges, indent_level + 2, context.visited.copy())
 
         # Close the blocks
         query += f"{indent}  }}\n{indent}}}\n"
@@ -337,20 +356,20 @@ class DgraphTranspiler(Transpiler):
                     connected_edges[source_id] = []
                 connected_edges[source_id].append(edge)
 
+        # Create a context object for edge processing
+        context = self.EdgeConnectionContext(nodes=nodes, edges=edges, visited={node_id})
+
         # For each source node, build the edge traversal
         for source_id, source_edges in connected_edges.items():
             # Use the first edge
             edge = source_edges[0]
             source = nodes[source_id]
-            visited = {node_id}
             query += self._process_edge_connection(
                 edge=edge,
                 source=source,
                 source_id=source_id,
-                nodes=nodes,
-                edges=edges,
+                context=context,
                 indent_level=indent_level + 1,
-                visited=visited
             )
 
         # Close the node block
@@ -374,6 +393,9 @@ class DgraphTranspiler(Transpiler):
 
         query = ""
         indent = "  " * indent_level
+
+        # Create a context object for edge processing
+        context = self.EdgeConnectionContext(nodes=nodes, edges=edges, visited=visited)
 
         # Find incoming edges to this node
         for edge in edges.values():
@@ -403,8 +425,9 @@ class DgraphTranspiler(Transpiler):
                 # Include all standard node fields for the target
                 query += self._add_standard_node_fields(indent + "    ")
 
-                # Recursively add further hops
-                query += self._build_further_hops(source_id, nodes, edges, indent_level + 2, visited.copy())
+                # Recursively add further hops with updated context
+                new_visited = visited.copy()
+                query += self._build_further_hops(source_id, nodes, edges, indent_level + 2, new_visited)
 
                 # Close the blocks
                 query += f"{indent}  }}\n{indent}}}\n"
