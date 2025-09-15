@@ -1,4 +1,4 @@
-from typing import Any, Dict, cast, override
+from typing import Any, override
 
 from retriever.data_tiers.base_transpiler import Transpiler
 from retriever.types.general import BackendResult
