@@ -44,7 +44,7 @@ class DgraphTranspiler(Transpiler):
         """Find the best node to start the traversal from."""
         # Start with a node that has IDs and is the object of at least one edge
         for node_id, node in nodes.items():
-            if "ids" in node and node["ids"] and any(e["object"] == node_id for e in edges.values()):
+            if node.get("ids") and any(e["object"] == node_id for e in edges.values()):
                 return node_id
 
         # If no ideal start node, just take the first one
@@ -55,26 +55,27 @@ class DgraphTranspiler(Transpiler):
         filters = []
 
         # Handle ID filtering
-        if "ids" in node and node["ids"]:
-            if len(node["ids"]) == 1:
+        ids = node.get("ids")
+        if ids:
+            if len(ids) == 1:
                 # Single ID case - check if it contains a comma (multiple IDs in one string)
-                id_value = node["ids"][0]
+                id_value = ids[0]
                 if "," in id_value:
                     # Multiple IDs in a single string - split them
-                    ids = [id_val.strip() for id_val in id_value.split(",")]
-                    ids_str = ', '.join(f'"{id_val}"' for id_val in ids)
+                    id_list = [id_val.strip() for id_val in id_value.split(",")]
+                    ids_str = ', '.join(f'"{id_val}"' for id_val in id_list)
                     filters.append(f'eq(id, [{ids_str}])')
                 else:
                     # Single ID
                     filters.append(f'eq(id, "{id_value}")')
             else:
                 # Multiple IDs in array
-                ids_str = ', '.join(f'"{id_val}"' for id_val in node["ids"])
+                ids_str = ', '.join(f'"{id_val}"' for id_val in ids)
                 filters.append(f'eq(id, [{ids_str}])')
 
         # Handle category filtering
-        if "categories" in node and node["categories"]:
-            categories = node["categories"]
+        categories = node.get("categories")
+        if categories:
             if len(categories) == 1:
                 filters.append(f'eq(category, "{categories[0]}")')
             elif len(categories) > 1:
@@ -82,8 +83,9 @@ class DgraphTranspiler(Transpiler):
                 filters.append(f'eq(category, [{categories_str}])')
 
         # Handle attribute constraints
-        if "constraints" in node and node["constraints"]:
-            filters.extend(self._convert_constraints_to_filters(node["constraints"]))
+        constraints = node.get("constraints")
+        if constraints:
+            filters.extend(self._convert_constraints_to_filters(constraints))
 
         # If no filters, use a generic filter
         if not filters:
@@ -99,13 +101,14 @@ class DgraphTranspiler(Transpiler):
         """Build a filter expression for an edge based on its properties."""
         filters = []
 
-        # Handle predicate filtering - needs to check if key exists
-        if "predicate" in edge:
-            filters.append(f'eq(predicate, "{edge["predicate"]}")')
+        # Handle predicate filtering
+        predicate = edge.get("predicate")
+        if predicate:
+            filters.append(f'eq(predicate, "{predicate}")')
 
         # Handle predicates (multiple) filtering
-        if "predicates" in edge and edge["predicates"]:
-            predicates = edge["predicates"]
+        predicates = edge.get("predicates")
+        if predicates:
             if len(predicates) == 1:
                 filters.append(f'eq(predicate, "{predicates[0]}")')
             elif len(predicates) > 1:
@@ -113,8 +116,9 @@ class DgraphTranspiler(Transpiler):
                 filters.append(f'eq(predicate, [{predicates_str}])')
 
         # Handle attribute constraints
-        if "attribute_constraints" in edge and edge["attribute_constraints"]:
-            filters.extend(self._convert_constraints_to_filters(edge["attribute_constraints"]))
+        attribute_constraints = edge.get("attribute_constraints")
+        if attribute_constraints:
+            filters.extend(self._convert_constraints_to_filters(attribute_constraints))
 
         # If no filters, return empty string
         if not filters:
@@ -177,33 +181,35 @@ class DgraphTranspiler(Transpiler):
         secondary_filters = []
 
         # Choose the most selective filter for primary (usually ID)
-        if "ids" in node and node["ids"]:
-            if len(node["ids"]) == 1:
-                id_value = node["ids"][0]
+        ids = node.get("ids")
+        if ids:
+            if len(ids) == 1:
+                id_value = ids[0]
                 if "," in id_value:
                     # Multiple IDs in a single string - split them
-                    ids = [id_val.strip() for id_val in id_value.split(",")]
-                    ids_str = ', '.join(f'"{id_val}"' for id_val in ids)
+                    id_list = [id_val.strip() for id_val in id_value.split(",")]
+                    ids_str = ', '.join(f'"{id_val}"' for id_val in id_list)
                     primary_filter = f'eq(id, [{ids_str}])'
                 else:
                     # Single ID - most selective query
                     primary_filter = f'eq(id, "{id_value}")'
             else:
                 # Multiple IDs in array
-                ids_str = ', '.join(f'"{id_val}"' for id_val in node["ids"])
+                ids_str = ', '.join(f'"{id_val}"' for id_val in ids)
                 primary_filter = f'eq(id, [{ids_str}])'
-        elif "categories" in node and node["categories"]:
+        else:
             # Use category as primary if no IDs
-            categories = node["categories"]
-            if len(categories) == 1:
-                primary_filter = f'eq(category, "{categories[0]}")'
-            else:
-                categories_str = ', '.join(f'"{cat}"' for cat in categories)
-                primary_filter = f'eq(category, [{categories_str}])'
+            categories = node.get("categories")
+            if categories:
+                if len(categories) == 1:
+                    primary_filter = f'eq(category, "{categories[0]}")'
+                else:
+                    categories_str = ', '.join(f'"{cat}"' for cat in categories)
+                    primary_filter = f'eq(category, [{categories_str}])'
 
         # Build secondary filters
         # If we used IDs as primary, add categories as secondary
-        if "ids" in node and node["ids"] and "categories" in node and node["categories"]:
+        if ids and node.get("categories"):
             categories = node["categories"]
             if len(categories) == 1:
                 secondary_filters.append(f'eq(category, "{categories[0]}")')
@@ -212,8 +218,9 @@ class DgraphTranspiler(Transpiler):
                 secondary_filters.append(f'eq(category, [{categories_str}])')
 
         # Add constraints as secondary filters
-        if "constraints" in node and node["constraints"]:
-            secondary_filters.extend(self._convert_constraints_to_filters(node["constraints"]))
+        constraints = node.get("constraints")
+        if constraints:
+            secondary_filters.extend(self._convert_constraints_to_filters(constraints))
 
         return primary_filter, secondary_filters
 
@@ -252,7 +259,6 @@ class DgraphTranspiler(Transpiler):
     ) -> str:
         """Process an edge connection and build the query for it."""
         indent = "  " * indent_level
-        next_indent = "  " * (indent_level + 1)
 
         # Build edge filter
         edge_filter = self._build_edge_filter(edge)
@@ -333,7 +339,13 @@ class DgraphTranspiler(Transpiler):
             source = nodes[source_id]
             visited = {node_id}
             query += self._process_edge_connection(
-                edge, source, source_id, nodes, edges, indent_level + 1, visited
+                edge=edge,
+                source=source,
+                source_id=source_id,
+                nodes=nodes,
+                edges=edges,
+                indent_level=indent_level + 1,
+                visited=visited
             )
 
         # Close the node block
@@ -418,7 +430,6 @@ class DgraphTranspiler(Transpiler):
                 queries.append(query)
 
             # Combine all queries into one batch query
-            # Remove f-string without placeholders
             return "{\n" + "\n".join(q.strip("{}") for q in queries) + "\n}"
 
         # Otherwise, process a standard query graph with possibly multiple IDs per node
@@ -427,7 +438,7 @@ class DgraphTranspiler(Transpiler):
         start_node = nodes[start_node_id]
 
         # If there are no IDs, just return a single query
-        if "ids" not in start_node or not start_node["ids"]:
+        if not start_node.get("ids"):
             return self._convert_multihop(qgraph)
 
         # Create a query for each starting ID and collect
@@ -445,7 +456,6 @@ class DgraphTranspiler(Transpiler):
             queries.append(query)
 
         # Combine all queries into one
-        # Remove f-string without placeholders
         return "{\n" + "\n".join(q.strip("{}") for q in queries) + "\n}"
 
     @override
