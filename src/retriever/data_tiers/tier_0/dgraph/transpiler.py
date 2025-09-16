@@ -1,4 +1,4 @@
-from typing import Any, override
+from typing import Any, cast, override
 
 from retriever.data_tiers.base_transpiler import Transpiler
 from retriever.types.general import BackendResult
@@ -191,9 +191,8 @@ class DgraphTranspiler(Transpiler):
     def _create_in_filter(self, field_name: str, value: Any) -> str:
         """Create a filter expression for 'in' operator."""
         if isinstance(value, list):
-            # Fix: Create a list of quoted strings with proper format specifier
-            quoted_items = [f'"{item!s}"' for item in value] if value else []
-
+            value_list: list[str] = [cast(str, v) for v in value]  # type: ignore[reportUnknownVariableType]
+            quoted_items = [f'"{item!s}"' for item in value_list] if value_list else []
             values_str = ", ".join(quoted_items)
             return f'eq({field_name}, [{values_str}])'
         else:
