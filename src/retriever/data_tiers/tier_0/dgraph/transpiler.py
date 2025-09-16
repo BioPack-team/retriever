@@ -57,7 +57,7 @@ class DgraphTranspiler(Transpiler):
 
     def _build_node_filter(self, node: QNodeDict) -> str:
         """Build a filter expression for a node based on its properties."""
-        filters = []
+        filters: list[str] = []
 
         # Handle ID filtering
         ids = node.get("ids")
@@ -104,7 +104,7 @@ class DgraphTranspiler(Transpiler):
 
     def _build_edge_filter(self, edge: QEdgeDict) -> str:
         """Build a filter expression for an edge based on its properties."""
-        filters = []
+        filters: list[str] = []
 
         # Handle predicate filtering
         predicate = edge.get("predicate")
@@ -137,47 +137,68 @@ class DgraphTranspiler(Transpiler):
 
     def _convert_constraints_to_filters(self, constraints: list[AttributeConstraintDict]) -> list[str]:
         """Convert TRAPI attribute constraints to Dgraph filter expressions."""
-        filters = []
+        filters: list[str] = []
 
         for constraint in constraints:
-            field_name = constraint["id"]
-            value = constraint["value"]
-            operator = constraint["operator"]
-            is_negated = constraint.get("not", False)
-
-            # Handle different operators
-            if operator in ("==", "="):
-                filter_expr = f'eq({field_name}, "{value}")'
-            elif operator == ">":
-                filter_expr = f'gt({field_name}, "{value}")'
-            elif operator == ">=":
-                filter_expr = f'ge({field_name}, "{value}")'
-            elif operator == "<":
-                filter_expr = f'lt({field_name}, "{value}")'
-            elif operator == "<=":
-                filter_expr = f'le({field_name}, "{value}")'
-            elif operator == "in":
-                # Value should be a list
-                if isinstance(value, list):
-                    values_str = ', '.join(f'"{val}"' for val in value)
-                    filter_expr = f'eq({field_name}, [{values_str}])'
-                else:
-                    # Single value
-                    filter_expr = f'eq({field_name}, "{value}")'
-            elif operator == "matches":
-                # For string fields that should contain the value
-                filter_expr = f'anyoftext({field_name}, "{value}")'
-            else:
-                # Default to equality
-                filter_expr = f'eq({field_name}, "{value}")'
-
-            # Handle negation
-            if is_negated:
-                filter_expr = f'NOT({filter_expr})'
-
+            filter_expr = self._create_filter_expression(constraint)
             filters.append(filter_expr)
 
         return filters
+
+    def _create_filter_expression(self, constraint: AttributeConstraintDict) -> str:
+        """Create a filter expression for a single constraint."""
+        field_name = constraint["id"]
+        value = constraint["value"]
+        operator = constraint["operator"]
+        is_negated = constraint.get("not", False)
+
+        # Generate the appropriate filter expression based on the operator
+        filter_expr = self._get_operator_filter(field_name, operator, value)
+
+        # Handle negation
+        if is_negated:
+            filter_expr = f'NOT({filter_expr})'
+
+        return filter_expr
+
+    def _get_operator_filter(self, field_name: str, operator: str, value: Any) -> str:
+        """Generate filter expression based on operator type."""
+        # Group operators by their filter type
+        if operator == "in":
+            # List membership requires special handling
+            return self._create_in_filter(field_name, value)
+
+        if operator == "matches":
+            # Text matching
+            return f'anyoftext({field_name}, "{value}")'
+
+        # All other operators map to Dgraph functions
+        func_map = {
+            "==": "eq",
+            "=": "eq",
+            ">": "gt",
+            ">=": "ge",
+            "<": "lt",
+            "<=": "le",
+        }
+
+        # Get the function name or default to 'eq'
+        func = func_map.get(operator, "eq")
+
+        # Return the constructed filter
+        return f'{func}({field_name}, "{value}")'
+
+    def _create_in_filter(self, field_name: str, value: Any) -> str:
+        """Create a filter expression for 'in' operator."""
+        if isinstance(value, list):
+            # Fix: Create a list of quoted strings with proper format specifier
+            quoted_items = [f'"{item!s}"' for item in value] if value else []
+
+            values_str = ", ".join(quoted_items)
+            return f'eq({field_name}, [{values_str}])'
+        else:
+            # Single value
+            return f'eq({field_name}, "{value}")'
 
     def _create_id_filter(self, ids: list[str]) -> str:
         """Create a filter for ID fields."""
@@ -207,7 +228,7 @@ class DgraphTranspiler(Transpiler):
     def _get_primary_and_secondary_filters(self, node: QNodeDict) -> tuple[str, list[str]]:
         """Extract primary and secondary filters from a node."""
         primary_filter = "has(id)"  # Default
-        secondary_filters = []
+        secondary_filters: list[str] = []
 
         # Choose the most selective filter for primary (usually ID)
         ids = node.get("ids")
@@ -273,9 +294,9 @@ class DgraphTranspiler(Transpiler):
                 edges: Dictionary of query edges
                 visited: Set of already visited node IDs
             """
-            self.nodes = nodes
-            self.edges = edges
-            self.visited = visited
+            self.nodes: dict[str, QNodeDict] = nodes
+            self.edges: dict[str, QEdgeDict] = edges
+            self.visited: set[str] = visited
 
     def _process_edge_connection(
         self,
@@ -449,17 +470,18 @@ class DgraphTranspiler(Transpiler):
             A combined Dgraph query containing all sub-queries
         """
         # Check if this is a "batch container" with sub-queries
-        if "query_graphs" in qgraph and isinstance(qgraph["query_graphs"], list):
+        query_graphs = qgraph.get("query_graphs", [])
+        if query_graphs:
             # Process each query graph in the list
-            queries = []
-            for i, sub_qgraph in enumerate(qgraph["query_graphs"]):
+            batch_queries: list[str] = []  # Changed name to avoid redeclaration
+            for i, sub_qgraph in enumerate(query_graphs):
                 # Get the query for this graph and rename the node to make it unique
                 query = self._convert_multihop(sub_qgraph)
                 query = query.replace("node(func:", f"node{i}(func:")
-                queries.append(query)
+                batch_queries.append(query)
 
             # Combine all queries into one batch query
-            return "{\n" + "\n".join(q.strip("{}") for q in queries) + "\n}"
+            return "{\n" + "\n".join(q.strip("{}") for q in batch_queries) + "\n}"
 
         # Otherwise, process a standard query graph with possibly multiple IDs per node
         nodes = qgraph["nodes"]
@@ -471,7 +493,7 @@ class DgraphTranspiler(Transpiler):
             return self._convert_multihop(qgraph)
 
         # Create a query for each starting ID and collect
-        queries = []
+        id_queries: list[str] = []  # Changed name to avoid redeclaration
         for i, node_id in enumerate(start_node.get("ids", [])):
             # Create a modified query graph with just one ID
             modified_qgraph = qgraph.copy()
@@ -482,10 +504,10 @@ class DgraphTranspiler(Transpiler):
             # Get the query for this ID and rename the node
             query = self._convert_multihop(modified_qgraph)
             query = query.replace("node(func:", f"node{i}(func:")
-            queries.append(query)
+            id_queries.append(query)
 
         # Combine all queries into one
-        return "{\n" + "\n".join(q.strip("{}") for q in queries) + "\n}"
+        return "{\n" + "\n".join(q.strip("{}") for q in id_queries) + "\n}"
 
     @override
     def convert_results(
