@@ -20,7 +20,6 @@ class FilterValueProtocol(Protocol):
 class DgraphTranspiler(Transpiler):
     """Transpiler for converting TRAPI queries into Dgraph GraphQL queries."""
 
-    # Define precise type aliases at module level.
     FilterScalar: TypeAlias = str | int | float | bool  # noqa: UP040
     FilterValue: TypeAlias = FilterScalar | list[FilterScalar]  # noqa: UP040
 
