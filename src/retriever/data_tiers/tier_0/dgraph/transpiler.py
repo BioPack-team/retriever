@@ -1,4 +1,4 @@
-from typing import Any, cast, override
+from typing import Any, Protocol, TypeAlias, override
 
 from retriever.data_tiers.base_transpiler import Transpiler
 from retriever.types.general import BackendResult
@@ -10,8 +10,19 @@ from retriever.types.trapi import (
 )
 
 
+class FilterValueProtocol(Protocol):
+    """Protocol for values that can be used in filters."""
+
+    @override
+    def __str__(self) -> str: ...
+
+
 class DgraphTranspiler(Transpiler):
     """Transpiler for converting TRAPI queries into Dgraph GraphQL queries."""
+
+    # Define precise type aliases at module level.
+    FilterScalar: TypeAlias = str | int | float | bool  # noqa: UP040
+    FilterValue: TypeAlias = FilterScalar | list[FilterScalar]  # noqa: UP040
 
     @override
     def convert_triple(
@@ -188,16 +199,16 @@ class DgraphTranspiler(Transpiler):
         # Return the constructed filter
         return f'{func}({field_name}, "{value}")'
 
-    def _create_in_filter(self, field_name: str, value: Any) -> str:
+    def _create_in_filter(self, field_name: str, value: FilterValue) -> str:
         """Create a filter expression for 'in' operator."""
         if isinstance(value, list):
-            value_list: list[str] = [cast(str, v) for v in value]  # type: ignore[reportUnknownVariableType]
-            quoted_items = [f'"{item!s}"' for item in value_list] if value_list else []
+            # value is list[FilterScalar] here; ensure string formatting
+            quoted_items = [f'"{item!s}"' for item in value] if value else []
             values_str = ", ".join(quoted_items)
             return f'eq({field_name}, [{values_str}])'
         else:
-            # Single value
-            return f'eq({field_name}, "{value}")'
+            # Single scalar value
+            return f'eq({field_name}, "{value!s}")'
 
     def _create_id_filter(self, ids: list[str]) -> str:
         """Create a filter for ID fields."""
