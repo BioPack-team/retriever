@@ -58,6 +58,13 @@ tier0:
     username: ''
     password: ''
     database_name: neo4j
+  dgraph:
+    host: localhost
+    http_port: 8080
+    grpc_port: 9080
+    use_tls: false
+    query_timeout: 1600  # Time in seconds before a Dgraph query should time out.
+    connect_retries: 25 # Number of retries before declaring a connection failure.
 tier1:
   elasticsearch:
     query_timeout: 1600  # Time in seconds before a Elasticsearch query should time out.
