@@ -53,7 +53,7 @@ class DgraphTranspiler(Transpiler):
         start_node_id = self._find_start_node(nodes, edges)
 
         # Build query from the starting node
-        return "{\n" + self._build_node_query(start_node_id, nodes, edges) + "}"
+        return "{ " + self._build_node_query(start_node_id, nodes, edges) + "}"
 
     def _find_start_node(self, nodes: dict[str, QNodeDict], edges: dict[str, QEdgeDict]) -> str:
         """Find the best node to start the traversal from."""
@@ -263,19 +263,19 @@ class DgraphTranspiler(Transpiler):
 
         return primary_filter, secondary_filters
 
-    def _add_standard_node_fields(self, indent: str) -> str:
+    def _add_standard_node_fields(self) -> str:
         """Generate standard node fields."""
-        return (f"{indent}id\n{indent}name\n{indent}category\n"
-                f"{indent}all_names\n{indent}all_categories\n"
-                f"{indent}iri\n{indent}equivalent_curies\n"
-                f"{indent}description\n{indent}publications\n")
+        return ("id name category "
+                "all_names all_categories "
+                "iri equivalent_curies "
+                "description publications ")
 
-    def _add_standard_edge_fields(self, indent: str) -> str:
+    def _add_standard_edge_fields(self) -> str:
         """Generate standard edge fields."""
-        return (f"{indent}predicate\n{indent}primary_knowledge_source\n"
-                f"{indent}knowledge_level\n{indent}agent_type\n"
-                f"{indent}kg2_ids\n{indent}domain_range_exclusion\n"
-                f"{indent}edge_id\n")
+        return ("predicate primary_knowledge_source "
+                "knowledge_level agent_type "
+                "kg2_ids domain_range_exclusion "
+                "edge_id ")
 
     def _build_filter_clause(self, filters: list[str]) -> str:
         """Build filter clause from a list of filters."""
@@ -313,19 +313,16 @@ class DgraphTranspiler(Transpiler):
         source: QNodeDict,
         source_id: str,
         context: EdgeConnectionContext,
-        indent_level: int,
     ) -> str:
         """Process an edge connection and build the query for it."""
-        indent = "  " * indent_level
-
         # Build edge filter
         edge_filter = self._build_edge_filter(edge)
         filter_clause = f" @filter({edge_filter})" if edge_filter else ""
 
-        query = f"{indent}in_edges: ~source{filter_clause} {{\n"
+        query = f"in_edges: ~source{filter_clause} {{ "
 
         # Include all standard edge fields
-        query += self._add_standard_edge_fields(indent + "  ")
+        query += self._add_standard_edge_fields()
 
         # Get primary and secondary filters for source node
         primary_filter, secondary_filters = self._get_primary_and_secondary_filters(source)
@@ -340,16 +337,18 @@ class DgraphTranspiler(Transpiler):
         elif secondary_filters:
             source_filter_clause = self._build_filter_clause(secondary_filters)
 
-        query += f"{indent}  node: target{source_filter_clause} {{\n"
+        query += f"node: target{source_filter_clause} {{ "
 
         # Include all standard node fields for the target
-        query += self._add_standard_node_fields(indent + "    ")
+        query += self._add_standard_node_fields()
 
         # Recursively add further hops
-        query += self._build_further_hops(source_id, context.nodes, context.edges, indent_level + 2, context.visited.copy())
+        query += self._build_further_hops(
+            source_id, context.nodes, context.edges, context.visited.copy()
+        )
 
         # Close the blocks
-        query += f"{indent}  }}\n{indent}}}\n"
+        query += "} } "
 
         return query
 
@@ -358,27 +357,24 @@ class DgraphTranspiler(Transpiler):
         node_id: str,
         nodes: dict[str, QNodeDict],
         edges: dict[str, QEdgeDict],
-        indent_level: int = 1
     ) -> str:
         """Recursively build a query for a node and its connected nodes."""
         node = nodes[node_id]
-        indent = "  " * indent_level
-        next_indent = "  " * (indent_level + 1)
 
         # Get primary and secondary filters
         primary_filter, secondary_filters = self._get_primary_and_secondary_filters(node)
 
         # Start the query with the primary filter
-        query = f"{indent}node(func: {primary_filter})"
+        query = f"node(func: {primary_filter})"
 
         # Add secondary filters if present
         query += self._build_filter_clause(secondary_filters)
 
         # Add cascade and open block
-        query += " @cascade {\n"
+        query += " @cascade { "
 
         # Include all standard node fields
-        query += self._add_standard_node_fields(next_indent)
+        query += self._add_standard_node_fields()
 
         # Find incoming edges to this node (where this node is the OBJECT)
         connected_edges: dict[str, list[QEdgeDict]] = {}
@@ -403,11 +399,10 @@ class DgraphTranspiler(Transpiler):
                 source=source,
                 source_id=source_id,
                 context=context,
-                indent_level=indent_level + 1,
             )
 
         # Close the node block
-        query += f"{indent}}}\n"
+        query += "} "
         return query
 
     def _build_further_hops(
@@ -415,7 +410,6 @@ class DgraphTranspiler(Transpiler):
         node_id: str,
         nodes: dict[str, QNodeDict],
         edges: dict[str, QEdgeDict],
-        indent_level: int,
         visited: set[str]
     ) -> str:
         """Build query for further hops beyond the first one."""
@@ -426,7 +420,6 @@ class DgraphTranspiler(Transpiler):
         visited.add(node_id)
 
         query = ""
-        indent = "  " * indent_level
 
         # Find incoming edges to this node
         for edge in edges.values():
@@ -442,26 +435,26 @@ class DgraphTranspiler(Transpiler):
                 edge_filter = self._build_edge_filter(edge)
                 filter_clause = f" @filter({edge_filter})" if edge_filter else ""
 
-                query += f"{indent}in_edges: ~source{filter_clause} {{\n"
+                query += f"in_edges: ~source{filter_clause} {{ "
 
                 # Include all standard edge fields
-                query += self._add_standard_edge_fields(indent + "  ")
+                query += self._add_standard_edge_fields()
 
                 # Build source node filter using the node_filter helper
                 source_filter = self._build_node_filter(source)
                 source_filter_clause = f" @filter({source_filter})" if source_filter != "has(id)" else ""
 
-                query += f"{indent}  node: target{source_filter_clause} {{\n"
+                query += f"node: target{source_filter_clause} {{ "
 
                 # Include all standard node fields for the target
-                query += self._add_standard_node_fields(indent + "    ")
+                query += self._add_standard_node_fields()
 
                 # Recursively add further hops with updated context
                 new_visited = visited.copy()
-                query += self._build_further_hops(source_id, nodes, edges, indent_level + 2, new_visited)
+                query += self._build_further_hops(source_id, nodes, edges, new_visited)
 
                 # Close the blocks
-                query += f"{indent}  }}\n{indent}}}\n"
+                query += "} } "
 
         return query
 
@@ -490,7 +483,7 @@ class DgraphTranspiler(Transpiler):
                 batch_queries.append(query)
 
             # Combine all queries into one batch query
-            return "{\n" + "\n".join(q.strip("{}") for q in batch_queries) + "\n}"
+            return "{" + "".join(q.strip("{}") for q in batch_queries) + "}"
 
         # Otherwise, process a standard query graph with possibly multiple IDs per node
         nodes = qgraph["nodes"]
@@ -516,7 +509,7 @@ class DgraphTranspiler(Transpiler):
             id_queries.append(query)
 
         # Combine all queries into one
-        return "{\n" + "\n".join(q.strip("{}") for q in id_queries) + "\n}"
+        return "{" + "".join(q.strip("{}") for q in id_queries) + "}"
 
     @override
     def convert_results(
