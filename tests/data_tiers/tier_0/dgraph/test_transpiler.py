@@ -669,13 +669,13 @@ def transpiler() -> DgraphTranspiler:
 
 @pytest.mark.parametrize("case", CASES, ids=[c.name for c in CASES])
 def test_convert_multihop_pairs(transpiler: DgraphTranspiler, case: QueryCase) -> None:
-    actual = transpiler._convert_multihop(case.qgraph)  # type: ignore[reportPrivateUsage]
+    actual = transpiler._convert_multihop(case.qgraph)
     assert_query_equals(actual, case.expected)
 
 
 @pytest.mark.parametrize("case", BATCH_CASES, ids=[c.name for c in BATCH_CASES])
 def test_convert_batch_multihop_pairs(transpiler: DgraphTranspiler, case: BatchCase) -> None:
-    actual = transpiler._convert_batch_multihop(case.qgraph)  # type: ignore[reportPrivateUsage]
+    actual = transpiler._convert_batch_multihop(case.qgraph)
     assert_query_equals(actual, case.expected)
 
 
