@@ -684,3 +684,25 @@ def test_convert_results_pairs(case: ResultsCase) -> None:
     tr = DgraphTranspiler()
     wrapped = tr.convert_results(case.qgraph, case.raw_results)
     assert wrapped == case.expected_wrapped
+
+
+# -----------------------
+# Triple-level API errors
+# -----------------------
+
+def test_convert_triple_raises_not_implemented(transpiler: DgraphTranspiler) -> None:
+    in_node = {"ids": ["X"]}
+    edge = {"object": "n0", "subject": "n1"}
+    out_node = {"ids": ["Y"]}
+    with pytest.raises(NotImplementedError) as excinfo:
+        transpiler.convert_triple(in_node, edge, out_node)
+    assert str(excinfo.value) == "Dgraph is Tier 0 only. Use multi-hop methods."
+
+
+def test_convert_batch_triple_raises_not_implemented(transpiler: DgraphTranspiler) -> None:
+    in_node = {"ids": ["X"]}
+    edge = {"object": "n0", "subject": "n1"}
+    out_node = {"ids": ["Y"]}
+    with pytest.raises(NotImplementedError) as excinfo:
+        transpiler.convert_batch_triple(in_node, edge, out_node)
+    assert str(excinfo.value) == "Dgraph is Tier 0 only. Use batch multi-hop methods."
