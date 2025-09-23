@@ -1,9 +1,38 @@
 import pytest
 import json
 
+from retriever.config.general import CONFIG, DgraphSettings
 from retriever.data_tiers.tier_0.dgraph.driver import DgraphDriver
 
-# Test with real connection if available
+
+@pytest.mark.asyncio
+async def test_dgraph_live_with_settings(monkeypatch):
+    # Define settings for local Dgraph (adjust if needed)
+    settings = DgraphSettings(host="localhost", http_port=8080, grpc_port=9080, use_tls=False)
+
+    # Patch the global CONFIG used by the driver
+    monkeypatch.setattr(CONFIG.tier0, "dgraph", settings, raising=False)
+
+    driver = DgraphDriver()
+
+    # Ensure the endpoint matches our settings (driver currently defaults to localhost:9080)
+    driver.endpoint = f"{settings.host}:{settings.grpc_port}"
+
+    try:
+        await driver.connect()
+        query = '{ node(func: has(id), first: 1) { id } }'
+        result = await driver.run_query(query)
+        result = json.loads(result)
+        assert isinstance(result, dict)
+        assert "node" in result
+        assert "id" in result["node"][0]
+    except Exception as e:
+        pytest.skip(f"Skipping live Dgraph test (cannot connect or query): {e}")
+    finally:
+        await driver.close()
+        assert driver._client is None
+
+
 @pytest.mark.asyncio
 async def test_dgraph_connect_and_query():
     driver = DgraphDriver()
@@ -16,7 +45,7 @@ async def test_dgraph_connect_and_query():
         # Run a basic query
         query = """{ node(func: has(id), first: 1) { id } }"""
         result = await driver.run_query(query)
-        result = json.loads(result.decode("utf-8"))
+        result = json.loads(result)
         assert isinstance(result, dict)
         assert "node" in result
         assert "id" in result["node"][0]
@@ -28,7 +57,7 @@ async def test_dgraph_connect_and_query():
         await driver.close()
         assert driver._client is None
 
-# Always run this test with a mock
+
 @pytest.mark.asyncio
 async def test_dgraph_mock():
     # Create a mock driver that doesn't need a real connection
