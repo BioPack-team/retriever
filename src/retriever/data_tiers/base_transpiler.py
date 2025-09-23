@@ -50,11 +50,11 @@ class Transpiler(ABC):
 
     @abstractmethod
     def _convert_multihop(self, qgraph: QueryGraphDict) -> Any:
-        """Convert a multi-hop graph where all nodes have at most 1 ID."""
+        """Convert a multi-hop graph query."""
 
     @abstractmethod
-    def _convert_batch_multihop(self, qgraph: QueryGraphDict) -> Any:
-        """Convert a multi-hop graph where any node may have multiple IDs."""
+    def _convert_batch_multihop(self, qgraphs: list[QueryGraphDict]) -> Any:
+        """Convert a list of multi-hop graph queries."""
 
     @abstractmethod
     def convert_results(self, qgraph: QueryGraphDict, results: Any) -> BackendResult:

@@ -33,7 +33,7 @@ class QueryCase:
 class BatchCase:
     """Pair of input TRAPI container or single qgraph for batch API and expected Dgraph query."""
     name: str
-    qgraph: dict[str, Any]  # container with "query_graphs" or single qgraph accepted by batch API
+    qgraphs: list[QueryGraphDict]
     expected: str
 
 
@@ -223,22 +223,31 @@ START_OBJECT_WITH_IDS_QGRAPH: QueryGraphDict = {
 }
 
 # Batch inputs
-BATCH_CONTAINER_QGRAPH: dict[str, list[QueryGraphDict]] = {
-    "query_graphs": [
-        SIMPLE_QGRAPH,
-        SIMPLE_QGRAPH_MULTIPLE_IDS,
-    ]
-}
+BATCH_QGRAPHS: list[QueryGraphDict] = [
+    SIMPLE_QGRAPH,
+    SIMPLE_QGRAPH_MULTIPLE_IDS,
+]
 
-BATCH_MULTI_IDS_SINGLE_GRAPH: dict[str, Any] = {
-    "nodes": {"n0": {"ids": ["A", "B"]}, "n1": {"ids": ["C"]}},
-    "edges": {"e0": {"object": "n0", "subject": "n1", "predicate": "P"}},
-}
+BATCH_QGRAPHS_MULTI_HOP: list[QueryGraphDict] = [
+    SIMPLE_QGRAPH,
+    SIMPLE_QGRAPH_MULTIPLE_IDS,
+    TWO_HOP_QGRAPH,
+    FIVE_HOP_QGRAPH_MULTIPLE_IDS,
+]
 
-BATCH_NO_IDS_SINGLE_GRAPH: dict[str, Any] = {
-    "nodes": {"n0": {"categories": ["biolink:Gene"]}, "n1": {"ids": ["D"]}},
-    "edges": {"e0": {"object": "n0", "subject": "n1", "predicate": "R"}},
-}
+BATCH_MULTI_IDS_SINGLE_GRAPH: list[QueryGraphDict] = [
+    {
+        "nodes": {"n0": {"ids": ["A", "B"]}, "n1": {"ids": ["C"]}},
+        "edges": {"e0": {"object": "n0", "subject": "n1", "predicate": "P"}}
+    },
+]
+
+BATCH_NO_IDS_SINGLE_GRAPH: list[QueryGraphDict] = [
+    {
+        "nodes": {"n0": {"categories": ["biolink:Gene"]}, "n1": {"ids": ["D"]}},
+        "edges": {"e0": {"object": "n0", "subject": "n1", "predicate": "R"}},
+    },
+]
 
 
 # -----------------------
@@ -553,7 +562,7 @@ EXP_START_OBJECT_WITH_IDS = dedent("""
 }
 """).strip()
 
-EXP_BATCH_CONTAINER = dedent("""
+EXP_BATCH_QGRAPHS = dedent("""
 {
     node0(func: eq(id, "Q1")) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
@@ -577,18 +586,83 @@ EXP_BATCH_CONTAINER = dedent("""
 }
 """).strip()
 
-EXP_BATCH_MULTI_IDS_SINGLE = dedent("""
+EXP_BATCH_QGRAPHS_MULTI_HOP = dedent("""
 {
-    node0(func: eq(id, "A")) @cascade {
+    node0(func: eq(id, "Q1")) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        in_edges: ~source @filter(eq(predicate, "P")) {
+        in_edges: ~source @filter(eq(predicate, "interacts_with")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
-            node: target @filter(eq(id, "C")) {
+            node: target @filter(eq(id, "Q2")) {
                 id name category all_names all_categories iri equivalent_curies description publications
             }
         }
     }
-    node1(func: eq(id, "B")) @cascade {
+
+    node1(func: eq(id, ["Q0", "Q1"])) @cascade {
+        id name category all_names all_categories iri equivalent_curies description publications
+        in_edges: ~source @filter(eq(predicate, "interacts_with")) {
+            predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
+            node: target @filter(eq(id, ["Q2", "Q3"])) {
+                id name category all_names all_categories iri equivalent_curies description publications
+            }
+        }
+    }
+
+    node2(func: eq(id, "UBERON:0001769")) @cascade {
+        id name category all_names all_categories iri equivalent_curies description publications
+        in_edges: ~source @filter(eq(predicate, "has_part")) {
+            predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
+            node: target @filter(eq(id, "UBERON:0001608")) {
+                id name category all_names all_categories iri equivalent_curies description publications
+                    in_edges: ~source @filter(eq(predicate, "has_part")) {
+                    predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
+                    node: target @filter(eq(id, "CL:1000445")) {
+                        id name category all_names all_categories iri equivalent_curies description publications
+                    }
+                }
+            }
+        }
+    }
+
+    node3(func: eq(id, ["Q0", "Q1"])) @cascade {
+        id name category all_names all_categories iri equivalent_curies description publications
+        in_edges: ~source @filter(eq(predicate, "P0")) {
+            predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
+            node: target @filter(eq(id, ["Q2", "Q3"])) {
+                id name category all_names all_categories iri equivalent_curies description publications
+                in_edges: ~source @filter(eq(predicate, "P1")) {
+                    predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
+                    node: target @filter(eq(id, ["Q4", "Q5"])) {
+                        id name category all_names all_categories iri equivalent_curies description publications
+                        in_edges: ~source @filter(eq(predicate, "P2")) {
+                            predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
+                            node: target @filter(eq(id, ["Q6", "Q7"])) {
+                                id name category all_names all_categories iri equivalent_curies description publications
+                                in_edges: ~source @filter(eq(predicate, "P3")) {
+                                    predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
+                                    node: target @filter(eq(id, ["Q8", "Q9"])) {
+                                        id name category all_names all_categories iri equivalent_curies description publications
+                                        in_edges: ~source @filter(eq(predicate, "P4")) {
+                                            predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
+                                            node: target @filter(eq(id, ["Q10", "Q11"])) {
+                                                id name category all_names all_categories iri equivalent_curies description publications
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+""").strip()
+
+EXP_BATCH_MULTI_IDS_SINGLE = dedent("""
+{
+    node0(func: eq(id, ["A", "B"])) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
         in_edges: ~source @filter(eq(predicate, "P")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
@@ -602,7 +676,7 @@ EXP_BATCH_MULTI_IDS_SINGLE = dedent("""
 
 EXP_BATCH_NO_IDS_SINGLE = dedent("""
 {
-    node(func: eq(category, "biolink:Gene")) @cascade {
+    node0(func: eq(category, "biolink:Gene")) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
         in_edges: ~source @filter(eq(predicate, "R")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
@@ -639,7 +713,8 @@ CASES: list[QueryCase] = [
 ]
 
 BATCH_CASES: list[BatchCase] = [
-    BatchCase("batch-container", {"query_graphs": BATCH_CONTAINER_QGRAPH["query_graphs"]}, EXP_BATCH_CONTAINER),
+    BatchCase("batch-qgraphs", BATCH_QGRAPHS, EXP_BATCH_QGRAPHS),
+    BatchCase("batch-qgraph-multi-hop", BATCH_QGRAPHS_MULTI_HOP, EXP_BATCH_QGRAPHS_MULTI_HOP),
     BatchCase("batch-multi-ids-single-graph", BATCH_MULTI_IDS_SINGLE_GRAPH, EXP_BATCH_MULTI_IDS_SINGLE),
     BatchCase("batch-no-ids-single-graph", BATCH_NO_IDS_SINGLE_GRAPH, EXP_BATCH_NO_IDS_SINGLE),
 ]
@@ -675,7 +750,7 @@ def test_convert_multihop_pairs(transpiler: DgraphTranspiler, case: QueryCase) -
 
 @pytest.mark.parametrize("case", BATCH_CASES, ids=[c.name for c in BATCH_CASES])
 def test_convert_batch_multihop_pairs(transpiler: DgraphTranspiler, case: BatchCase) -> None:
-    actual = transpiler._convert_batch_multihop(case.qgraph)
+    actual = transpiler._convert_batch_multihop(case.qgraphs)
     assert_query_equals(actual, case.expected)
 
 

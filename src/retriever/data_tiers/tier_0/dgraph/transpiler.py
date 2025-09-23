@@ -459,57 +459,22 @@ class DgraphTranspiler(Transpiler):
         return query
 
     @override
-    def _convert_batch_multihop(self, qgraph: QueryGraphDict) -> str:
-        """Convert a TRAPI multi-hop graph to a batch of Dgraph queries.
-
-        This function handles a single QueryGraphDict that contains a special format
-        where multiple query graphs are stored within it.
-
-        Args:
-            qgraph: A query graph that may contain multiple sub-graphs
+    def _convert_batch_multihop(self, qgraphs: list[QueryGraphDict]) -> str:
+        """Convert a TRAPI multi-hop batch graph to a batch of Dgraph queries.
 
         Returns:
             A combined Dgraph query containing all sub-queries
         """
-        # Check if this is a "batch container" with sub-queries
-        query_graphs = qgraph.get("query_graphs", [])
-        if query_graphs:
-            # Process each query graph in the list
-            batch_queries: list[str] = []  # Changed name to avoid redeclaration
-            for i, sub_qgraph in enumerate(query_graphs):
-                # Get the query for this graph and rename the node to make it unique
-                query = self._convert_multihop(sub_qgraph)
-                query = query.replace("node(func:", f"node{i}(func:")
-                batch_queries.append(query)
+        # Process each query graph in the list
+        blocks: list[str] = []
+        for i, sub_qgraph in enumerate(qgraphs):
+            sub_qgraph_typed: QueryGraphDict = sub_qgraph
+            query = self._convert_multihop(sub_qgraph_typed)
+            query = query.replace("node(func:", f"node{i}(func:", 1)
+            blocks.append(query.strip()[1:-1])
 
-            # Combine all queries into one batch query
-            return "{" + "".join(q.strip("{}") for q in batch_queries) + "}"
-
-        # Otherwise, process a standard query graph with possibly multiple IDs per node
-        nodes = qgraph["nodes"]
-        start_node_id = self._find_start_node(nodes, {})
-        start_node = nodes[start_node_id]
-
-        # If there are no IDs, just return a single query
-        if not start_node.get("ids"):
-            return self._convert_multihop(qgraph)
-
-        # Create a query for each starting ID and collect
-        id_queries: list[str] = []  # Changed name to avoid redeclaration
-        for i, node_id in enumerate(start_node.get("ids", [])):
-            # Create a modified query graph with just one ID
-            modified_qgraph = qgraph.copy()
-            modified_qgraph["nodes"] = qgraph["nodes"].copy()
-            modified_qgraph["nodes"][start_node_id] = start_node.copy()
-            modified_qgraph["nodes"][start_node_id]["ids"] = [node_id]
-
-            # Get the query for this ID and rename the node
-            query = self._convert_multihop(modified_qgraph)
-            query = query.replace("node(func:", f"node{i}(func:")
-            id_queries.append(query)
-
-        # Combine all queries into one
-        return "{" + "".join(q.strip("{}") for q in id_queries) + "}"
+        # Combine all queries into one batch query
+        return "{" + "".join(q.strip("{}") for q in blocks) + "}"
 
     @override
     def convert_results(
