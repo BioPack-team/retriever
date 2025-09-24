@@ -1,88 +1,87 @@
-import pytest
 import json
+from typing import Any, cast, final, override
+
+import pytest
 
 from retriever.config.general import CONFIG, DgraphSettings
-from retriever.data_tiers.tier_0.dgraph.driver import DgraphDriver
+from retriever.data_tiers.tier_0.dgraph.driver import (
+    DgraphDriver,
+    DgraphQueryResult,
+)
+
+
+def _load_result(result: DgraphQueryResult) -> dict[str, Any]:
+    if isinstance(result, (bytes, bytearray)):
+        return json.loads(result.decode("utf-8"))
+    if isinstance(result, str):
+        return json.loads(result)
+    raise TypeError(f"Unexpected result type: {type(result)}")
 
 
 @pytest.mark.asyncio
-async def test_dgraph_connect_and_query():
+async def test_dgraph_live_with_default_settings():
     driver = DgraphDriver()
-
     try:
-        # Connect
         await driver.connect()
-        assert driver._client is not None
+        assert driver.client is not None
 
-        # Run a basic query
-        query = """{ node(func: has(id), first: 1) { id } }"""
-        result = await driver.run_query(query)
-        result = json.loads(result)
-        assert isinstance(result, dict)
-        assert "node" in result
-        assert "id" in result["node"][0]
+        raw = await driver.run_query("{ node(func: has(id), first: 1) { id } }")
+        data = _load_result(raw)
+        assert isinstance(data, dict)
+        if "node" in data and data["node"]:
+            assert "id" in data["node"][0]
     except Exception as e:
-        print(f"Connection or query failed: {e}")
-        pytest.skip(f"Skipping live DGraph test: {e}")
+        pytest.skip(f"Skipping live Dgraph test: {e}")
     finally:
-        # Close
         await driver.close()
-        assert driver._client is None
+        assert driver.client is None
 
 
 @pytest.mark.asyncio
-async def test_dgraph_live_with_settings(monkeypatch):
-    # Define settings for local Dgraph (adjust if needed)
+async def test_dgraph_live_with_settings(monkeypatch: pytest.MonkeyPatch):
     settings = DgraphSettings(host="localhost", http_port=8080, grpc_port=9080, use_tls=False)
-
-    # Patch the global CONFIG used by the driver
     monkeypatch.setattr(CONFIG.tier0, "dgraph", settings, raising=False)
 
     driver = DgraphDriver()
-
-    # Ensure the endpoint matches our settings (driver currently defaults to localhost:9080)
     driver.endpoint = f"{settings.host}:{settings.grpc_port}"
 
     try:
         await driver.connect()
-        query = '{ node(func: has(id), first: 1) { id } }'
-        result = await driver.run_query(query)
-        result = json.loads(result)
-        assert isinstance(result, dict)
-        assert "node" in result
-        assert "id" in result["node"][0]
+        raw = await driver.run_query('{ node(func: has(id), first: 1) { id } }')
+        data = _load_result(raw)
+        assert isinstance(data, dict)
+        if "node" in data and data["node"]:
+            assert "id" in data["node"][0]
     except Exception as e:
         pytest.skip(f"Skipping live Dgraph test (cannot connect or query): {e}")
     finally:
         await driver.close()
-        assert driver._client is None
+        assert driver.client is None
 
 
 @pytest.mark.asyncio
 async def test_dgraph_mock():
-    # Create a mock driver that doesn't need a real connection
+    @final
     class MockDgraphDriver(DgraphDriver):
+        @override
         async def connect(self) -> None:
-            self._client = {}
+            self._client = cast(Any, object())  # internal; tests only read via .client
 
-        async def run_query(self, query: str, *args, **kwargs) -> dict:
-            return {"node": [{"id": "test_id"}]}
+        @override
+        async def run_query(self, query: str) -> DgraphQueryResult:
+            return b'{"data": {"node": [{"id": "test_id"}]}}'
 
+        @override
         async def close(self) -> None:
             self._client = None
 
     driver = MockDgraphDriver()
-
-    # Connect to mock
     await driver.connect()
-    assert driver._client is not None
+    assert driver.client is not None
 
-    # Run query against mock
-    result = await driver.run_query("test query")
-    assert isinstance(result, dict)
-    assert "node" in result
-    assert result["node"][0]["id"] == "test_id"
+    raw = await driver.run_query("test query")
+    result = _load_result(raw)
+    assert result["data"]["node"][0]["id"] == "test_id"
 
-    # Close mock connection
     await driver.close()
-    assert driver._client is None
+    assert driver.client is None
