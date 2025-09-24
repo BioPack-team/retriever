@@ -38,7 +38,7 @@ from retriever.types.trapi import (
     QEdgeID,
     ResultDict,
 )
-from retriever.utils.general import merge_iterators
+from retriever.utils.general import EmptyIteratorError, merge_iterators
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.trapi import initialize_kgraph, update_kgraph
 
@@ -63,22 +63,23 @@ class QueryGraphExecutor:
         q_agraph, qedge_map = make_mappings(self.qgraph)
         self.q_agraph: AdjacencyGraph = q_agraph
         self.qedge_map: QEdgeIDMap = qedge_map
-        self.qedge_claims: dict[QEdgeID, Branch | None] = dict.fromkeys(
-            self.qgraph.edges.keys()
-        )
+        self.qedge_claims: dict[QEdgeID, Branch | None] = {
+            QEdgeID(qedge_id): None for qedge_id in self.qgraph.edges
+        }
 
         self.kgraph: KnowledgeGraphDict = initialize_kgraph(self.qgraph)
-        self.aux_graphs: dict[AuxGraphID, AuxGraphDict] = {}
+        self.aux_graphs: dict[AuxGraphID, AuxiliaryGraphDict] = {}
         # For more detailed tracking
         # Each key represents an input superposition for a given branch
         # (branch's input curie and current edge)
         self.kedges_by_input: dict[SuperpositionHop, list[EdgeDict]] = {}
         self.k_agraph: KAdjacencyGraph = {
-            qedge_id: dict[CURIE, dict[CURIE, list[EdgeIdentifier]]]()
+            QEdgeID(qedge_id): dict[CURIE, dict[CURIE, list[EdgeIdentifier]]]()
             for qedge_id in self.qgraph.edges
         }
 
-        self.active_superpositions: set[SuperpositionName] = set()
+        self.active_branches: set[BranchID] = set()
+        self.active_superpositions: set[SuperpositionID] = set()
         self.complete_paths: set[CompletePathName] = set()
 
         # Initialize locks for accessing some of the above
@@ -173,7 +174,38 @@ class QueryGraphExecutor:
 
         branch_tasks = [self.execute_branch(branch) for branch in starting_branches]
 
-        async for branch, partial in merge_iterators(*branch_tasks):
+        try:
+            await self.reconcile_starting_branches(branch_tasks, partials, reconciled)
+        except EmptyIteratorError as e:
+            # Longest branch matching the starting branch will always be the one that failed
+            initial_id = starting_branches[e.iterator].branch_id
+            matching_branches = [
+                br for br in self.active_branches if str(initial_id) in str(br)
+            ]
+            branch_lengths = [len(br) for br in matching_branches]
+            longest_branch = matching_branches[
+                branch_lengths.index(max(branch_lengths))
+            ]
+            self.job_log.debug(
+                f"Branch {Branch.branch_id_to_name(longest_branch)} (starting branch {Branch.branch_id_to_name(initial_id)}) terminated with no partials."
+            )
+            self.job_log.warning(
+                f"QEdge {longest_branch[-2][1]} found no supporting knowledge. No results can be reconciled. Query terminates."
+            )
+            self.terminate = True
+
+        return partials, reconciled
+
+    async def reconcile_starting_branches(
+        self,
+        branch_tasks: list[AsyncGenerator[tuple[Branch, Partial]]],
+        partials: dict[BranchID, list[Partial]],
+        reconciled: list[Partial],
+    ) -> None:
+        """Iterate over a number of starting branch tasks and reconcile their partials."""
+        async for branch, partial in merge_iterators(
+            *branch_tasks, raise_on_empty=True
+        ):
             # await asyncio.sleep(0)
             branch_id = branch.branch_id
             partial.node_bindings.append((branch.start_node, branch.curies[0]))
