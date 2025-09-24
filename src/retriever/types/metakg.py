@@ -4,6 +4,7 @@ from retriever.types.trapi import (
     BiolinkEntity,
     BiolinkPredicate,
     MetaAttributeDict,
+    QualifierTypeID,
 )
 
 TripleName = str
@@ -27,7 +28,7 @@ class Operation(NamedTuple):
     association: str | None = None
     tier_meta: Any | None = None
     attributes: list[MetaAttributeDict] | None = None
-    qualifiers: dict[str, list[str]] | None = None
+    qualifiers: dict[QualifierTypeID, list[str]] | None = None
 
 
 class OperationTable(NamedTuple):

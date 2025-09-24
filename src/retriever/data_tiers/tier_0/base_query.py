@@ -12,6 +12,7 @@ from retriever.types.general import BackendResult, LookupArtifacts, QueryInfo
 from retriever.types.trapi import (
     AuxGraphID,
     AuxiliaryGraphDict,
+    Infores,
     KnowledgeGraphDict,
     QueryGraphDict,
     ResultDict,
@@ -79,7 +80,7 @@ class Tier0Query(ABC):
             # Add Retriever to the provenance chain
             for edge_id, edge in backend_results["knowledge_graph"]["edges"].items():
                 try:
-                    append_aggregator_source(edge, "infores:retriever")
+                    append_aggregator_source(edge, Infores("infores:retriever"))
                 except ValueError:
                     self.job_log.warning(
                         f"Edge f{edge_id} has an invalid provenance chain."

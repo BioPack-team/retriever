@@ -23,6 +23,7 @@ from retriever.types.trapi import (
     MetaAttributeDict,
     NodeBindingDict,
     NodeDict,
+    QualifierTypeID,
     ResultDict,
     RetrievalSourceDict,
 )
@@ -102,7 +103,7 @@ def edge_primary_knowledge_source(edge: EdgeDict) -> RetrievalSourceDict | None:
 
 def append_aggregator_source(
     edge: EdgeDict,
-    source: str,
+    source: Infores,
 ) -> None:
     """Append a aggregator source to an edge's provenance, reference the current most downstream source."""
     upstreams = set(
@@ -125,7 +126,7 @@ def append_aggregator_source(
         raise ValueError("Provenance chain is invalid.")
     edge["sources"].append(
         RetrievalSourceDict(
-            resource_id=Infores(source),
+            resource_id=source,
             resource_role="aggregator_knowledge_source",
             upstream_resource_ids=[most_downstream_source["resource_id"]],
         )
@@ -337,7 +338,7 @@ def prune_kg(
 
 
 def meta_qualifier_meets_constraints(
-    meta_qualifiers: dict[str, list[str]] | None,
+    meta_qualifiers: dict[QualifierTypeID, list[str]] | None,
     constraints: Sequence[QualifierConstraint],
 ) -> bool:
     """Check if a number of qualifier constraints are met by a meta-qualifier set."""
@@ -350,7 +351,10 @@ def meta_qualifier_meets_constraints(
         qualifiers_met = True
         for qualifier in constraint.qualifier_set:
             q_type, q_val = qualifier.qualifier_type_id, qualifier.qualifier_value
-            if q_type in meta_qualifiers and q_val in meta_qualifiers[q_type]:
+            if (
+                q_type in meta_qualifiers
+                and q_val in meta_qualifiers[QualifierTypeID(q_type)]
+            ):
                 continue
             else:
                 qualifiers_met = False

@@ -110,7 +110,7 @@ class ResultDict(TypedDict):
     """Result."""
 
     node_bindings: dict[QNodeID, list[NodeBindingDict]]
-    analyses: list[AnalysisDict | PathfinderAnalysis]
+    analyses: list[AnalysisDict | PathfinderAnalysisDict]
 
 
 class NodeBindingDict(TypedDict):
@@ -137,7 +137,7 @@ class AnalysisDict(BaseAnalysisDict):
     edge_bindings: dict[QEdgeID, list[EdgeBindingDict]]
 
 
-class PathfinderAnalysis(BaseAnalysisDict):
+class PathfinderAnalysisDict(BaseAnalysisDict):
     """PathfinderAnalysis."""
 
     path_bindings: dict[QPathID, list[PathBindingDict]]

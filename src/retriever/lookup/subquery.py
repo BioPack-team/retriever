@@ -9,6 +9,7 @@ from retriever.data_tiers.tier_1.elasticsearch.driver import ElasticSearchDriver
 from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
 from retriever.lookup.branch import Branch
 from retriever.types.trapi import (
+    Infores,
     KnowledgeGraphDict,
     LogEntryDict,
     QEdgeDict,
@@ -63,7 +64,7 @@ async def mock_subquery(
         # Add Retriever to the provenance chain
         for edge_id, edge in result["knowledge_graph"]["edges"].items():
             try:
-                append_aggregator_source(edge, "infores:retriever")
+                append_aggregator_source(edge, Infores("infores:retriever"))
             except ValueError:
                 job_log.warning(f"Edge f{edge_id} has an invalid provenance chain.")
 
