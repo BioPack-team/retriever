@@ -46,6 +46,15 @@ class ResultsCase:
     expected_wrapped: dict[str, Any]
 
 
+class _TestDgraphTranspiler(DgraphTranspiler):
+    """Expose protected methods for testing without modifying production code."""
+    def convert_multihop_public(self, qgraph: QueryGraphDict) -> str:
+        return self._convert_multihop(qgraph)
+
+    def convert_batch_multihop_public(self, qgraphs: list[QueryGraphDict]) -> str:
+        return self._convert_batch_multihop(qgraphs)
+
+
 # -----------------------
 # Query graph inputs
 # -----------------------
@@ -996,21 +1005,18 @@ RESULTS_CASES: list[ResultsCase] = [
 # -----------------------
 
 @pytest.fixture
-def transpiler() -> DgraphTranspiler:
-    return DgraphTranspiler()
-
+def transpiler() -> _TestDgraphTranspiler:
+    return _TestDgraphTranspiler()
 
 @pytest.mark.parametrize("case", CASES, ids=[c.name for c in CASES])
-def test_convert_multihop_pairs(transpiler: DgraphTranspiler, case: QueryCase) -> None:
-    actual = transpiler._convert_multihop(case.qgraph)
+def test_convert_multihop_pairs(transpiler: _TestDgraphTranspiler, case: QueryCase) -> None:
+    actual = transpiler.convert_multihop_public(case.qgraph)
     assert_query_equals(actual, case.expected)
-
 
 @pytest.mark.parametrize("case", BATCH_CASES, ids=[c.name for c in BATCH_CASES])
-def test_convert_batch_multihop_pairs(transpiler: DgraphTranspiler, case: BatchCase) -> None:
-    actual = transpiler._convert_batch_multihop(case.qgraphs)
+def test_convert_batch_multihop_pairs(transpiler: _TestDgraphTranspiler, case: BatchCase) -> None:
+    actual = transpiler.convert_batch_multihop_public(case.qgraphs)
     assert_query_equals(actual, case.expected)
-
 
 @pytest.mark.parametrize("case", RESULTS_CASES, ids=[c.name for c in RESULTS_CASES])
 def test_convert_results_pairs(case: ResultsCase) -> None:
