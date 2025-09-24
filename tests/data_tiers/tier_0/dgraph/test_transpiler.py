@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 
 from retriever.data_tiers.tier_0.dgraph.transpiler import DgraphTranspiler
-from retriever.types.trapi import QueryGraphDict
+from retriever.types.trapi import QueryGraphDict, QNodeDict, QEdgeDict
 
 
 # -----------------------
@@ -51,100 +51,240 @@ class ResultsCase:
 # -----------------------
 
 SIMPLE_QGRAPH: QueryGraphDict = {
-    "nodes": {"n0": {"ids": ["CHEBI:4514"]}, "n1": {"ids": ["UMLS:C1564592"]}},
-    "edges": {"e0": {"object": "n0", "subject": "n1", "predicates": ["subclass_of"]}},
+    "nodes": {
+        "n0": {"ids": ["CHEBI:4514"], "constraints": []},
+        "n1": {"ids": ["UMLS:C1564592"], "constraints": []},
+    },
+    "edges": {
+        "e0": {
+            "object": "n0",
+            "subject": "n1",
+            "predicates": ["subclass_of"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        },
+    },
 }
 
 SIMPLE_QGRAPH_MULTIPLE_IDS: QueryGraphDict = {
-    "nodes": {"n0": {"ids": ["CHEBI:3125", "CHEBI:53448"]}, "n1": {"ids": ["UMLS:C0282090", "CHEBI:10119"]}},
-    "edges": {"e0": {"object": "n0", "subject": "n1", "predicates": ["interacts_with"]}},
+    "nodes": {
+        "n0": {"ids": ["CHEBI:3125", "CHEBI:53448"], "constraints": []},
+        "n1": {"ids": ["UMLS:C0282090", "CHEBI:10119"], "constraints": []},
+    },
+    "edges": {
+        "e0": {
+            "object": "n0",
+            "subject": "n1",
+            "predicates": ["interacts_with"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        },
+    },
 }
 
 TWO_HOP_QGRAPH: QueryGraphDict = {
     "nodes": {
-        "n0": {"ids": ["CHEBI:3125"]},
-        "n1": {"ids": ["UMLS:C0282090"]},
-        "n2": {"ids": ["UMLS:C0496995"]},
+        "n0": {"ids": ["CHEBI:3125"], "constraints": []},
+        "n1": {"ids": ["UMLS:C0282090"], "constraints": []},
+        "n2": {"ids": ["UMLS:C0496995"], "constraints": []},
     },
     "edges": {
-        "e0": {"object": "n0", "subject": "n1", "predicates": ["interacts_with"]},
-        "e1": {"object": "n1", "subject": "n2", "predicates": ["related_to"]},
+        "e0": {
+            "object": "n0",
+            "subject": "n1",
+            "predicates": ["interacts_with"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        },
+        "e1": {
+            "object": "n1",
+            "subject": "n2",
+            "predicates": ["related_to"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        },
     },
 }
 
 THREE_HOP_QGRAPH: QueryGraphDict = {
     "nodes": {
-        "n0": {"ids": ["CHEBI:3125"]},
-        "n1": {"ids": ["UMLS:C0282090"]},
-        "n2": {"ids": ["UMLS:C0496995"]},
-        "n3": {"ids": ["UMLS:C0149720"]},
+        "n0": {"ids": ["CHEBI:3125"], "constraints": []},
+        "n1": {"ids": ["UMLS:C0282090"], "constraints": []},
+        "n2": {"ids": ["UMLS:C0496995"], "constraints": []},
+        "n3": {"ids": ["UMLS:C0149720"], "constraints": []},
     },
     "edges": {
-        "e0": {"object": "n0", "subject": "n1", "predicates": ["interacts_with"]},
-        "e1": {"object": "n1", "subject": "n2", "predicates": ["related_to"]},
-        "e2": {"object": "n2", "subject": "n3", "predicates": ["related_to"]},
+        "e0": {
+            "object": "n0",
+            "subject": "n1",
+            "predicates": ["interacts_with"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        },
+        "e1": {
+            "object": "n1",
+            "subject": "n2",
+            "predicates": ["related_to"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        },
+        "e2": {
+            "object": "n2",
+            "subject": "n3",
+            "predicates": ["related_to"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        },
     },
 }
 
 FOUR_HOP_QGRAPH: QueryGraphDict = {
     "nodes": {
-        "n0": {"ids": ["CHEBI:3125"]},
-        "n1": {"ids": ["UMLS:C0282090"]},
-        "n2": {"ids": ["UMLS:C0496995"]},
-        "n3": {"ids": ["UMLS:C0149720"]},
-        "n4": {"ids": ["UMLS:C0496994"]},
+        "n0": {"ids": ["CHEBI:3125"], "constraints": []},
+        "n1": {"ids": ["UMLS:C0282090"], "constraints": []},
+        "n2": {"ids": ["UMLS:C0496995"], "constraints": []},
+        "n3": {"ids": ["UMLS:C0149720"], "constraints": []},
+        "n4": {"ids": ["UMLS:C0496994"], "constraints": []},
     },
     "edges": {
-        "e0": {"object": "n0", "subject": "n1", "predicates": ["interacts_with"]},
-        "e1": {"object": "n1", "subject": "n2", "predicates": ["related_to"]},
-        "e2": {"object": "n2", "subject": "n3", "predicates": ["related_to"]},
-        "e3": {"object": "n3", "subject": "n4", "predicates": ["related_to"]},
+        "e0": {
+            "object": "n0",
+            "subject": "n1",
+            "predicates": ["interacts_with"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        },
+        "e1": {
+            "object": "n1",
+            "subject": "n2",
+            "predicates": ["related_to"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        },
+        "e2": {
+            "object": "n2",
+            "subject": "n3",
+            "predicates": ["related_to"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        },
+        "e3": {
+            "object": "n3",
+            "subject": "n4",
+            "predicates": ["related_to"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        },
     },
 }
 
 FIVE_HOP_QGRAPH: QueryGraphDict = {
     "nodes": {
-        "n0": {"ids": ["CHEBI:3125"]},
-        "n1": {"ids": ["UMLS:C0282090"]},
-        "n2": {"ids": ["UMLS:C0496995"]},
-        "n3": {"ids": ["UMLS:C0149720"]},
-        "n4": {"ids": ["UMLS:C0496994"]},
-        "n5": {"ids": ["UMLS:C2879715"]},
+        "n0": {"ids": ["CHEBI:3125"], "constraints": []},
+        "n1": {"ids": ["UMLS:C0282090"], "constraints": []},
+        "n2": {"ids": ["UMLS:C0496995"], "constraints": []},
+        "n3": {"ids": ["UMLS:C0149720"], "constraints": []},
+        "n4": {"ids": ["UMLS:C0496994"], "constraints": []},
+        "n5": {"ids": ["UMLS:C2879715"], "constraints": []},
     },
     "edges": {
-        "e0": {"object": "n0", "subject": "n1", "predicates": ["interacts_with"]},
-        "e1": {"object": "n1", "subject": "n2", "predicates": ["related_to"]},
-        "e2": {"object": "n2", "subject": "n3", "predicates": ["related_to"]},
-        "e3": {"object": "n3", "subject": "n4", "predicates": ["related_to"]},
-        "e4": {"object": "n4", "subject": "n5", "predicates": ["related_to"]},
+        "e0": {
+            "object": "n0",
+            "subject": "n1",
+            "predicates": ["interacts_with"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        },
+        "e1": {
+            "object": "n1",
+            "subject": "n2",
+            "predicates": ["related_to"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        },
+        "e2": {
+            "object": "n2",
+            "subject": "n3",
+            "predicates": ["related_to"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        },
+        "e3": {
+            "object": "n3",
+            "subject": "n4",
+            "predicates": ["related_to"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        },
+        "e4": {
+            "object": "n4",
+            "subject": "n5",
+            "predicates": ["related_to"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        },
     },
 }
 
 FIVE_HOP_QGRAPH_MULTIPLE_IDS: QueryGraphDict = {
     "nodes": {
-        "n0": {"ids": ["Q0", "Q1"]},
-        "n1": {"ids": ["Q2", "Q3"]},
-        "n2": {"ids": ["Q4", "Q5"]},
-        "n3": {"ids": ["Q6", "Q7"]},
-        "n4": {"ids": ["Q8", "Q9"]},
-        "n5": {"ids": ["Q10", "Q11"]},
+        "n0": {"ids": ["Q0", "Q1"], "constraints": []},
+        "n1": {"ids": ["Q2", "Q3"], "constraints": []},
+        "n2": {"ids": ["Q4", "Q5"], "constraints": []},
+        "n3": {"ids": ["Q6", "Q7"], "constraints": []},
+        "n4": {"ids": ["Q8", "Q9"], "constraints": []},
+        "n5": {"ids": ["Q10", "Q11"], "constraints": []},
     },
     "edges": {
-        "e0": {"object": "n0", "subject": "n1", "predicates": ["P0"]},
-        "e1": {"object": "n1", "subject": "n2", "predicates": ["P1"]},
-        "e2": {"object": "n2", "subject": "n3", "predicates": ["P2"]},
-        "e3": {"object": "n3", "subject": "n4", "predicates": ["P3"]},
-        "e4": {"object": "n4", "subject": "n5", "predicates": ["P4"]},
+        "e0": {
+            "object": "n0",
+            "subject": "n1",
+            "predicates": ["P0"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        },
+        "e1": {
+            "object": "n1",
+            "subject": "n2",
+            "predicates": ["P1"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        },
+        "e2": {
+            "object": "n2",
+            "subject": "n3",
+            "predicates": ["P2"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        },
+        "e3": {
+            "object": "n3",
+            "subject": "n4",
+            "predicates": ["P3"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        },
+        "e4": {
+            "object": "n4",
+            "subject": "n5",
+            "predicates": ["P4"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        },
     },
 }
 
 CATEGORY_FILTER_QGRAPH: QueryGraphDict = {
-    "nodes": {"n0": {"categories": ["biolink:Gene"]}, "n1": {"categories": ["biolink:Disease"]}},
+    "nodes": {
+        "n0": {"categories": ["biolink:Gene"], "constraints": []},
+        "n1": {"categories": ["biolink:Disease"], "constraints": []}},
     "edges": {
         "e0": {
             "object": "n0",
             "subject": "n1",
             "predicates": ["biolink:gene_associated_with_condition"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
         },
     },
 }
@@ -154,11 +294,15 @@ MULTIPLE_FILTERS_QGRAPH: QueryGraphDict = {
         "n0": {
             "ids": ["CHEBI:3125"],
             "categories": ["biolink:SmallMolecule"],
-            "constraints": [{"id": "description", "name": "description", "operator": "matches", "value": "diphenylmethane"}],
+            "constraints": [
+                {"id": "description", "name": "description", "operator": "matches", "value": "diphenylmethane", "not": False},
+            ],
         },
         "n1": {
             "categories": ["biolink:Drug"],
-            "constraints": [{"id": "description", "name": "description", "operator": "matches", "value": "laxative"}],
+            "constraints": [
+                {"id": "description", "name": "description", "operator": "matches", "value": "laxative", "not": False},
+            ],
         },
     },
     "edges": {
@@ -169,57 +313,149 @@ MULTIPLE_FILTERS_QGRAPH: QueryGraphDict = {
                 "interacts_with",
                 "contributes_to",
             ],
-            "attribute_constraints": [{"id": "knowledge_level", "name": "knowledge_level", "operator": "==", "value": "prediction"}],
+            "attribute_constraints": [
+                {
+                    "id": "knowledge_level",
+                    "name": "knowledge_level",
+                    "operator": "==",
+                    "value": "prediction",
+                    "not": False,
+                }
+            ],
+            "qualifier_constraints": [],
         }
     },
 }
 
 NEGATED_CONSTRAINT_QGRAPH: QueryGraphDict = {
     "nodes": {
-        "n0": {"ids": ["CHEBI:3125"]},
+        "n0": {"ids": ["CHEBI:3125"], "constraints": []},
         "n1": {
             "categories": ["biolink:Drug"],
-            "constraints": [{"id": "description", "name": "description", "operator": "matches", "value": "laxatives", "not": True}],
+            "constraints": [
+                {
+                    "id": "description",
+                    "name": "description",
+                    "operator": "matches",
+                    "value": "laxatives",
+                    "not": True,
+                }
+            ],
         },
     },
-    "edges": {"e0": {"object": "n0", "subject": "n1"}},
-}
-
-PUBLICATION_FILTER_QGRAPH: QueryGraphDict = {
-    "nodes": {"n0": {"ids": ["DOID:14330"]}, "n1": {"constraints": [{"id": "publications", "name": "publications", "operator": "in", "value": "PMID:12345678"}]}},
-    "edges": {"e0": {"object": "n0", "subject": "n1"}},
-}
-
-NUMERIC_FILTER_QGRAPH: QueryGraphDict = {
-    "nodes": {"n0": {"ids": ["DOID:14330"]}, "n1": {"categories": ["biolink:Gene"]}},
-    "edges": {"e0": {"object": "n0", "subject": "n1", "attribute_constraints": [{"id": "edge_id", "name": "edge_id", "operator": ">", "value": "100"}]}},
-}
-
-# Special single-graph inputs to hit specific branches
-SINGLE_STRING_WITH_COMMAS_QGRAPH: QueryGraphDict = {
-    "nodes": {"n0": {"ids": ["Q0, Q1"]}, "n1": {"ids": ["Q2"]}},
-    "edges": {"e0": {"object": "n0", "subject": "n1", "predicates": ["P"]}},
-}
-
-PREDICATES_SINGLE_QGRAPH: QueryGraphDict = {
-    "nodes": {"n0": {"ids": ["A"]}, "n1": {"ids": ["B"]}},
-    "edges": {"e0": {"object": "n0", "subject": "n1", "predicates": ["Ponly"]}},
-}
-
-ATTRIBUTES_ONLY_QGRAPH: QueryGraphDict = {
-    "nodes": {"n0": {"ids": ["A"]}, "n1": {"ids": ["B"]}},
     "edges": {
         "e0": {
             "object": "n0",
             "subject": "n1",
-            "attribute_constraints": [{"id": "knowledge_level", "name": "knowledge_level", "operator": "==", "value": "primary"}],
+            "predicates": [],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        }
+    },
+}
+
+PUBLICATION_FILTER_QGRAPH: QueryGraphDict = {
+    "nodes": {
+        "n0": {"ids": ["DOID:14330"], "constraints": []},
+        "n1": {
+            "constraints": [
+                {
+                    "id": "publications",
+                    "name": "publications",
+                    "operator": "in",
+                    "value": "PMID:12345678",
+                    "not": False,
+                }
+            ]
+        },
+    },
+    "edges": {
+        "e0": {
+            "object": "n0",
+            "subject": "n1",
+            "predicates": [],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        }
+    },
+}
+
+NUMERIC_FILTER_QGRAPH: QueryGraphDict = {
+    "nodes": {"n0": {"ids": ["DOID:14330"], "constraints": []}, "n1": {"categories": ["biolink:Gene"], "constraints": []}},
+    "edges": {
+        "e0": {
+            "object": "n0",
+            "subject": "n1",
+            "predicates": [],
+            "attribute_constraints": [
+                {"id": "edge_id", "name": "edge_id", "operator": ">", "value": "100", "not": False}
+            ],
+            "qualifier_constraints": [],
+        }
+    },
+}
+
+SINGLE_STRING_WITH_COMMAS_QGRAPH: QueryGraphDict = {
+    "nodes": {
+        "n0": {"ids": ["Q0, Q1"], "constraints": []},
+        "n1": {"ids": ["Q2"], "constraints": []},
+    },
+    "edges": {
+        "e0": {
+            "object": "n0",
+            "subject": "n1",
+            "predicates": ["P"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        }
+    },
+}
+
+PREDICATES_SINGLE_QGRAPH: QueryGraphDict = {
+    "nodes": {
+        "n0": {"ids": ["A"], "constraints": []},
+        "n1": {"ids": ["B"], "constraints": []},
+    },
+    "edges": {
+        "e0": {
+            "object": "n0",
+            "subject": "n1",
+            "predicates": ["Ponly"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        }
+    },
+}
+
+ATTRIBUTES_ONLY_QGRAPH: QueryGraphDict = {
+    "nodes": {"n0": {"ids": ["A"], "constraints": []}, "n1": {"ids": ["B"], "constraints": []}},
+    "edges": {
+        "e0": {
+            "object": "n0",
+            "subject": "n1",
+            "predicates": [],
+            "attribute_constraints": [
+                {"id": "knowledge_level", "name": "knowledge_level", "operator": "==", "value": "primary", "not": False}
+            ],
+            "qualifier_constraints": [],
         }
     },
 }
 
 START_OBJECT_WITH_IDS_QGRAPH: QueryGraphDict = {
-    "nodes": {"n0": {"ids": ["X"]}, "n1": {"ids": ["Y"]}},
-    "edges": {"e0": {"object": "n0", "subject": "n1", "predicates": ["rel"]}},
+    "nodes": {
+        "n0": {"ids": ["X"], "constraints": []},
+        "n1": {"ids": ["Y"], "constraints": []},
+    },
+    "edges": {
+        "e0": {
+            "object": "n0",
+            "subject": "n1",
+            "predicates": ["rel"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        }
+    },
 }
 
 # Batch inputs
@@ -237,16 +473,38 @@ BATCH_QGRAPHS_MULTI_HOP: list[QueryGraphDict] = [
 
 BATCH_MULTI_IDS_SINGLE_GRAPH: list[QueryGraphDict] = [
     {
-        "nodes": {"n0": {"ids": ["A", "B"]}, "n1": {"ids": ["C"]}},
-        "edges": {"e0": {"object": "n0", "subject": "n1", "predicates": ["P"]}}
-    },
+        "nodes": {
+            "n0": {"ids": ["A", "B"], "constraints": []},
+            "n1": {"ids": ["C"], "constraints": []},
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["P"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            }
+        },
+    }
 ]
 
 BATCH_NO_IDS_SINGLE_GRAPH: list[QueryGraphDict] = [
     {
-        "nodes": {"n0": {"categories": ["biolink:Gene"]}, "n1": {"ids": ["D"]}},
-        "edges": {"e0": {"object": "n0", "subject": "n1", "predicates": ["R"]}},
-    },
+        "nodes": {
+            "n0": {"categories": ["biolink:Gene"], "constraints": []},
+            "n1": {"ids": ["D"], "constraints": []},
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["R"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            }
+        },
+    }
 ]
 
 
@@ -766,18 +1024,30 @@ def test_convert_results_pairs(case: ResultsCase) -> None:
 # -----------------------
 
 def test_convert_triple_raises_not_implemented(transpiler: DgraphTranspiler) -> None:
-    in_node = {"ids": ["X"]}
-    edge = {"object": "n0", "subject": "n1"}
-    out_node = {"ids": ["Y"]}
+    in_node: QNodeDict = {"ids": ["X"], "constraints": []}
+    out_node: QNodeDict = {"ids": ["Y"], "constraints": []}
+    edge: QEdgeDict = {
+        "object": "n0",
+        "subject": "n1",
+        "predicates": [],
+        "attribute_constraints": [],
+        "qualifier_constraints": [],
+    }
     with pytest.raises(NotImplementedError) as excinfo:
         transpiler.convert_triple(in_node, edge, out_node)
     assert str(excinfo.value) == "Dgraph is Tier 0 only. Use multi-hop methods."
 
 
 def test_convert_batch_triple_raises_not_implemented(transpiler: DgraphTranspiler) -> None:
-    in_node = {"ids": ["X"]}
-    edge = {"object": "n0", "subject": "n1"}
-    out_node = {"ids": ["Y"]}
+    in_node: QNodeDict = {"ids": ["X"], "constraints": []}
+    out_node: QNodeDict = {"ids": ["Y"], "constraints": []}
+    edge: QEdgeDict = {
+        "object": "n0",
+        "subject": "n1",
+        "predicates": [],
+        "attribute_constraints": [],
+        "qualifier_constraints": [],
+    }
     with pytest.raises(NotImplementedError) as excinfo:
         transpiler.convert_batch_triple(in_node, edge, out_node)
     assert str(excinfo.value) == "Dgraph is Tier 0 only. Use batch multi-hop methods."
