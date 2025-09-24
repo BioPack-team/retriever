@@ -1,5 +1,7 @@
 from typing import NotRequired, TypedDict
 
+from retriever.types.trapi import CURIE, BiolinkEntity, BiolinkPredicate, Infores
+
 
 class ESFilterClause(TypedDict):
     """An Elasticsearch filter clause."""
@@ -37,11 +39,11 @@ class ESPublicationsInfo(TypedDict):
 class ESNode(TypedDict):
     """A knowledge node as represented in Elasticsearch."""
 
-    id: str
+    id: CURIE
     name: str
-    category: str
+    category: BiolinkEntity
     all_names: list[str]
-    all_categories: list[str]
+    all_categories: list[BiolinkEntity]
     iri: NotRequired[str]
     description: str
     equivalent_curies: str
@@ -53,8 +55,8 @@ class ESHit(TypedDict):
 
     subject: ESNode
     object: ESNode
-    predicate: str
-    primary_knowledge_source: str
+    predicate: BiolinkPredicate
+    primary_knowledge_source: Infores
     publications: NotRequired[list[str]]
     publications_info: NotRequired[list[ESPublicationsInfo]]
     kg2_ids: list[str]

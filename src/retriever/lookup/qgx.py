@@ -7,11 +7,15 @@ from collections.abc import AsyncGenerator, Hashable
 
 from opentelemetry import trace
 from reasoner_pydantic import (
-    CURIE,
     QueryGraph,
 )
 
-from retriever.lookup.branch import Branch, SuperpositionName
+from retriever.lookup.branch import (
+    Branch,
+    BranchID,
+    SuperpositionHop,
+    SuperpositionID,
+)
 from retriever.lookup.partial import Partial
 from retriever.lookup.subquery import mock_subquery
 from retriever.lookup.utils import get_subgraph, make_mappings
@@ -22,11 +26,11 @@ from retriever.types.general import (
     LookupArtifacts,
     QEdgeIDMap,
     QueryInfo,
-    SuperpositionHop,
 )
 from retriever.types.trapi import (
-    AuxGraphDict,
+    CURIE,
     AuxGraphID,
+    AuxiliaryGraphDict,
     EdgeDict,
     EdgeIdentifier,
     KnowledgeGraphDict,
@@ -162,29 +166,26 @@ class QueryGraphExecutor:
     @tracer.start_as_current_span("run_branches")
     async def run_starting_branches(
         self, starting_branches: list[Branch]
-    ) -> tuple[dict[SuperpositionName, list[Partial]], list[Partial]]:
+    ) -> tuple[dict[BranchID, list[Partial]], list[Partial]]:
         """Run a given set of starting branches and reconcile the partial results they return."""
-        partials = {branch.branch_name: list[Partial]() for branch in starting_branches}
+        partials = {branch.branch_id: list[Partial]() for branch in starting_branches}
         reconciled = list[Partial]()
 
         branch_tasks = [self.execute_branch(branch) for branch in starting_branches]
 
         async for branch, partial in merge_iterators(*branch_tasks):
             # await asyncio.sleep(0)
-            branch_name = branch.branch_name
+            branch_id = branch.branch_id
             partial.node_bindings.append((branch.start_node, branch.curies[0]))
-            partials[branch_name].append(partial)
+            partials[branch_id].append(partial)
 
             if len(partials) == 1:  # No reconciliation to be done
                 reconciled.append(partial)
                 # self.job_log.trace(f"RESULT: {hash(partial)}")
                 continue
 
-            # FIX: have to handle batch cases where two branches are from the same node
-            # Maybe just organize by branch instead of super?
-            # Only attempt reconciliation if all branches have representatives
             other_branches = [
-                parts for s_name, parts in partials.items() if s_name != branch_name
+                parts for s_name, parts in partials.items() if s_name != branch_id
             ]
             if any(len(parts) == 0 for parts in other_branches):
                 self.job_log.trace("No other branches ready.")
@@ -202,8 +203,6 @@ class QueryGraphExecutor:
                     reconciled.append(reconcile_attempt)
             self.job_log.trace("Reconciliation finished!")
 
-        return partials, reconciled
-
     async def execute_branch(
         self, current_branch: Branch
     ) -> AsyncGenerator[tuple[Branch, Partial]]:
@@ -216,11 +215,12 @@ class QueryGraphExecutor:
 
         # Ensure this SuperpositionHop has a lock to work with
         async with self.locks["hop_check"]:
-            if current_branch.hop_name not in self.locks:
-                self.locks[current_branch.hop_name] = asyncio.Lock()
+            if current_branch.hop_id not in self.locks:
+                self.locks[current_branch.hop_id] = asyncio.Lock()
 
         # Execute with the given lock so any other superpositions that cause this hop await the first one's completion
-        async with self.locks[current_branch.hop_name]:
+        async with self.locks[current_branch.hop_id]:
+            self.active_branches.add(current_branch.branch_id)
             subquery_tasks, update_kgraph = await self.get_subquery_tasks(
                 current_branch
             )
@@ -290,7 +290,7 @@ class QueryGraphExecutor:
         Avoids creating duplicate tasks when some superposition is already executing the
         specific hop.
         """
-        if current_branch.hop_name in self.kedges_by_input:
+        if current_branch.hop_id in self.kedges_by_input:
             self.job_log.trace(
                 f"{current_branch.input_curie}-{current_branch.current_edge}: Already executed, referring to KG..."
             )
@@ -302,7 +302,7 @@ class QueryGraphExecutor:
                     asyncio.create_task(
                         get_subgraph(
                             current_branch,
-                            current_branch.hop_name,
+                            current_branch.hop_id,
                             self.kedges_by_input,
                             self.kgraph,
                         ),
@@ -315,7 +315,6 @@ class QueryGraphExecutor:
                 return [], update_kgraph
 
             subquery_tasks = [
-                # Simulate finding a variable number of operations to perform
                 asyncio.create_task(
                     mock_subquery(self.ctx.job_id, current_branch, self.qgraph),
                     name="subquery",
@@ -412,13 +411,13 @@ class QueryGraphExecutor:
 
                 partial_binding = qedge_id, current_branch.input_curie, next_hop_curie
 
-                path_name = f"{current_branch.superposition_name[:-2]}{next_hop_curie}"
+                path_name = f"{current_branch.superposition_name}{next_hop_curie}"
                 async with self.locks["partial_sync"]:
                     if path_name in self.complete_paths:
                         continue  # Prevent yielding duplicate partials
                     self.complete_paths.add(path_name)
                     self.job_log.trace(
-                        f"{current_branch.superposition_name[:-2]}{next_hop_curie}]"
+                        f"{current_branch.superposition_name}{next_hop_curie}]"
                     )
                     yield Partial(
                         [(current_branch.output_node, next_hop_curie)],
@@ -447,11 +446,9 @@ class QueryGraphExecutor:
         if do_update_kgraph:
             update_kgraph(self.kgraph, new_kgraph)
 
-        if current_branch.hop_name not in self.kedges_by_input:
-            self.kedges_by_input[current_branch.hop_name] = list[EdgeDict]()
-        self.kedges_by_input[current_branch.hop_name].extend(
-            new_kgraph["edges"].values()
-        )
+        if current_branch.hop_id not in self.kedges_by_input:
+            self.kedges_by_input[current_branch.hop_id] = list[EdgeDict]()
+        self.kedges_by_input[current_branch.hop_id].extend(new_kgraph["edges"].values())
 
         # Update the k_agraph
         for edge_id, edge in new_kgraph["edges"].items():
@@ -480,7 +477,11 @@ class QueryGraphExecutor:
         new_branch_tasks = list[asyncio.Task[list[Partial]]]()
         for next_branch in next_steps:
             # await asyncio.sleep(0)
-            partial_key = (next_branch.input_curie, current_branch.current_edge)
+            partial_key: SuperpositionHop = (
+                next_branch.input_node,
+                next_branch.input_curie,
+                current_branch.current_edge,
+            )
 
             if partial_key not in partials:
                 self.locks[partial_key] = asyncio.Lock()
@@ -489,15 +490,15 @@ class QueryGraphExecutor:
                 if next_branch.current_edge not in partials[partial_key]:
                     partials[partial_key][next_branch.current_edge] = list[Partial]()
 
-            current_branch.next_steps.add(next_branch.branch_name)
-            if next_branch.branch_name in current_branch.skipped_steps:
+            current_branch.next_steps.add(next_branch.branch_id)
+            if next_branch.branch_id in current_branch.skipped_steps:
                 continue
 
             # Check if superposition has already been created by some other branch
             async with self.locks["hop_check"]:
-                if next_branch.superposition_name in self.active_superpositions:
+                if next_branch.superposition_id in self.active_superpositions:
                     continue
-                self.active_superpositions.add(next_branch.superposition_name)
+                self.active_superpositions.add(next_branch.superposition_id)
 
             new_branch_tasks.append(
                 asyncio.create_task(
@@ -530,13 +531,17 @@ class QueryGraphExecutor:
             if partial is None:
                 # Branch was made invalid by another branch's edge claim
                 self.job_log.trace(
-                    f"{current_branch.superposition_name[:-2]}{next_branch.input_curie}]"
+                    f"{current_branch.superposition_name}{next_branch.input_curie}]"
                 )
-                current_branch.skipped_steps.add(next_branch.branch_name)
+                current_branch.skipped_steps.add(next_branch.branch_id)
                 task_partials.append(Partial([node_bind], [edge_bind]))
                 continue
 
-            partials_key = (next_branch.input_curie, current_branch.current_edge)
+            partials_key: SuperpositionHop = (
+                next_branch.input_node,
+                next_branch.input_curie,
+                current_branch.current_edge,
+            )
             partial.node_bindings.append(node_bind)
             partial.edge_bindings.add(edge_bind)
 

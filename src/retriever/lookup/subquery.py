@@ -53,7 +53,7 @@ async def mock_subquery(
         )
 
         job_log.debug(
-            f"Subquerying Tier 1 for {subject_node.get('ids', [])} -{current_edge.get('predicates', []) or []}-> {object_node.get('ids', []) or []}..."
+            f"Subquerying Tier 1 for {subject_node.get('ids', []) or []} -{current_edge.get('predicates', []) or []}-> {object_node.get('ids', []) or []}..."
         )
 
         response_record = await query_driver.run_query(query_payload)

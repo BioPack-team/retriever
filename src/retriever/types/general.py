@@ -1,14 +1,18 @@
-from typing import Literal, NamedTuple, TypedDict
+from typing import Annotated, Literal, NamedTuple, TypedDict
 
 from fastapi import BackgroundTasks, Request, Response
-from pydantic import BaseModel
-from reasoner_pydantic import CURIE, QEdge
-from reasoner_pydantic.shared import EdgeIdentifier
+from pydantic import BaseModel, BeforeValidator
+from reasoner_pydantic import QEdge
 
 from retriever.types.trapi import (
-    AuxGraphDict,
+    CURIE,
+    AuxGraphID,
+    AuxiliaryGraphDict,
+    EdgeIdentifier,
     KnowledgeGraphDict,
     LogEntryDict,
+    QEdgeID,
+    QNodeID,
     ResultDict,
 )
 from retriever.types.trapi_pydantic import AsyncQuery, Query, TierNumber
@@ -20,21 +24,17 @@ class ErrorDetail(BaseModel):
     detail: str
 
 
-LogLevel = Literal[
-    "TRACE",
-    "trace",
-    "DEBUG",
-    "debug",
-    "INFO",
-    "info",
-    "SUCCESS",
-    "success",
-    "WARNING",
-    "warning",
-    "ERROR",
-    "error",
-    "CRITICAL",
-    "critical",
+LogLevel = Annotated[
+    Literal[
+        "TRACE",
+        "DEBUG",
+        "INFO",
+        "SUCCESS",
+        "WARNING",
+        "ERROR",
+        "CRITICAL",
+    ],
+    BeforeValidator(lambda a: str(a).upper()),
 ]
 
 
@@ -62,7 +62,7 @@ class BackendResult(TypedDict):
 
     results: list[ResultDict]
     knowledge_graph: KnowledgeGraphDict
-    auxiliary_graphs: dict[str, AuxGraphDict]
+    auxiliary_graphs: dict[AuxGraphID, AuxiliaryGraphDict]
 
 
 class LookupArtifacts(NamedTuple):
@@ -73,19 +73,16 @@ class LookupArtifacts(NamedTuple):
 
     results: list[ResultDict]
     kgraph: KnowledgeGraphDict
-    aux_graphs: dict[str, AuxGraphDict]
+    aux_graphs: dict[AuxGraphID, AuxiliaryGraphDict]
     logs: list[LogEntryDict]
     error: bool | None = None
 
 
-AdjacencyGraph = dict[str, dict[str, list[QEdge]]]
+AdjacencyGraph = dict[QNodeID, dict[QNodeID, list[QEdge]]]
 
-KAdjacencyGraph = dict[str, dict[CURIE, dict[CURIE, list[EdgeIdentifier]]]]
+KAdjacencyGraph = dict[QEdgeID, dict[CURIE, dict[CURIE, list[EdgeIdentifier]]]]
 
-QEdgeIDMap = dict[QEdge, str]
+QEdgeIDMap = dict[QEdge, QEdgeID]
 
 # A pair of Qnode and CURIE, used to uniquely identify partial results
-QNodeCURIEPair = tuple[str, CURIE]
-
-# A set of Qnode, CURIE, and QEdgeID, used to uniquely identify subquery results and partials
-SuperpositionHop = tuple[CURIE, str]
+QNodeCURIEPair = tuple[QNodeID, CURIE]

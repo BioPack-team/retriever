@@ -10,7 +10,8 @@ from reasoner_pydantic import (
 
 from retriever.types.general import BackendResult, LookupArtifacts, QueryInfo
 from retriever.types.trapi import (
-    AuxGraphDict,
+    AuxGraphID,
+    AuxiliaryGraphDict,
     KnowledgeGraphDict,
     QueryGraphDict,
     ResultDict,
@@ -35,7 +36,7 @@ class Tier0Query(ABC):
         self.qgraph: QueryGraph = qgraph
         self.job_log: TRAPILogger = TRAPILogger(self.ctx.job_id)
         self.kgraph: KnowledgeGraphDict = initialize_kgraph(self.qgraph)
-        self.aux_graphs: dict[str, AuxGraphDict] = {}
+        self.aux_graphs: dict[AuxGraphID, AuxiliaryGraphDict] = {}
 
     @tracer.start_as_current_span("tier0_execute")
     async def execute(self) -> LookupArtifacts:
@@ -56,7 +57,7 @@ class Tier0Query(ABC):
                 backend_results = BackendResult(
                     results=list[ResultDict](),
                     knowledge_graph=KnowledgeGraphDict(nodes={}, edges={}),
-                    auxiliary_graphs=dict[str, AuxGraphDict](),
+                    auxiliary_graphs=dict[AuxGraphID, AuxiliaryGraphDict](),
                 )
 
             with tracer.start_as_current_span("update_kg"):

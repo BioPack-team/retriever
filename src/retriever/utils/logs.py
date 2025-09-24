@@ -9,11 +9,11 @@ from typing import Any
 import loguru
 import orjson
 from loguru import logger
-from reasoner_pydantic import LogLevel as TRAPILogLevel
 
 from retriever.config.general import CONFIG
 from retriever.types.general import LogLevel
 from retriever.types.trapi import LogEntryDict
+from retriever.types.trapi import LogLevel as TRAPILogLevel
 from retriever.utils.mongo import MONGO_QUEUE
 
 

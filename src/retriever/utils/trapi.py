@@ -11,9 +11,14 @@ from reasoner_pydantic.qgraph import QualifierConstraint
 from reasoner_pydantic.utils import make_hashable
 
 from retriever.types.trapi import (
+    CURIE,
     AttributeDict,
-    AuxGraphDict,
+    AuxGraphID,
+    AuxiliaryGraphDict,
+    BiolinkEntity,
     EdgeDict,
+    EdgeIdentifier,
+    Infores,
     KnowledgeGraphDict,
     MetaAttributeDict,
     NodeBindingDict,
@@ -33,18 +38,20 @@ def initialize_kgraph(qgraph: QueryGraph) -> KnowledgeGraphDict:
         if qnode.ids is None:
             continue
         for curie in qnode.ids:
-            kgraph["nodes"][str(curie)] = NodeDict(
-                categories=list(qnode.categories or []),
+            kgraph["nodes"][CURIE(curie)] = NodeDict(
+                categories=[BiolinkEntity(cat) for cat in (qnode.categories or [])],
                 attributes=[],
             )
     return kgraph
 
 
-def hash_hex(hashint: int) -> str:
+def hash_hex(hashint: int) -> EdgeIdentifier:
     """Convert a regular hash to the type used in pydantic EdgeIdentifier."""
-    return hashlib.blake2b(
-        hashint.to_bytes(16, byteorder="big", signed=True), digest_size=6
-    ).hexdigest()
+    return EdgeIdentifier(
+        hashlib.blake2b(
+            hashint.to_bytes(16, byteorder="big", signed=True), digest_size=6
+        ).hexdigest()
+    )
 
 
 def hash_attribute(attr: AttributeDict) -> int:
@@ -100,7 +107,10 @@ def append_aggregator_source(
     """Append a aggregator source to an edge's provenance, reference the current most downstream source."""
     upstreams = set(
         itertools.chain(
-            *[source.get("upstream_resource_ids", []) for source in edge["sources"]]
+            *[
+                source.get(Infores("upstream_resource_ids"), [])
+                for source in edge["sources"]
+            ]
         )
     )
     most_downstream_source = next(
@@ -115,7 +125,7 @@ def append_aggregator_source(
         raise ValueError("Provenance chain is invalid.")
     edge["sources"].append(
         RetrievalSourceDict(
-            resource_id=source,
+            resource_id=Infores(source),
             resource_role="aggregator_knowledge_source",
             upstream_resource_ids=[most_downstream_source["resource_id"]],
         )
@@ -127,7 +137,7 @@ def hash_edge(edge: EdgeDict) -> int:
     primary_knowledge_source = (
         edge_primary_knowledge_source(edge)
         or RetrievalSourceDict(
-            resource_role="primary_knowledge_source", resource_id="err_missing"
+            resource_role="primary_knowledge_source", resource_id=Infores("err_missing")
         )
     )["resource_id"]
     return hash(
@@ -177,8 +187,8 @@ def update_retrieval_source(
     """Update the first source in-place, merging information from the second."""
     if "upstream_resource_ids" in new:
         source["upstream_resource_ids"] = list(
-            set(source.get("upstream_resource_ids", []))
-            | set(new["upstream_resource_ids"])
+            set(source.get("upstream_resource_ids", []) or [])
+            | set(new["upstream_resource_ids"] or [])
         )
 
 
@@ -186,11 +196,11 @@ def update_edge(edge: EdgeDict, new: EdgeDict) -> None:
     """Update the first edge in-place, merging information from the second."""
     if "attributes" in new:
         old_attributes = {
-            hash_attribute(attr): attr for attr in edge.get("attributes", [])
+            hash_attribute(attr): attr for attr in (edge.get("attributes", []) or [])
         }
         new_attributes = {
             hash_attribute(attr): attr
-            for attr in new.get("attributes", [])
+            for attr in (new.get("attributes", []) or [])
             if attr["attribute_type_id"]  # Don't want multiple KL/AT
             not in ("biolink:knowledge_level", "biolink:agent_type")
         }
@@ -232,14 +242,14 @@ def update_kgraph(kgraph: KnowledgeGraphDict, new: KnowledgeGraphDict) -> None:
 def normalize_kgraph(
     kgraph: KnowledgeGraphDict,
     results: list[ResultDict],
-    aux_graphs: dict[str, AuxGraphDict],
+    aux_graphs: dict[AuxGraphID, AuxiliaryGraphDict],
 ) -> None:
     """Normalize the kgraph ids to their hashes, updating references in results and auxiliary graphs.
 
     All work is done in-place. This function mirrors the reasoner_pydantic method to ensure compatibility.
     """
     # Map old IDs to new IDs for reference fixing
-    edge_id_mapping = dict[str, str]()
+    edge_id_mapping = dict[str, EdgeIdentifier]()
 
     for edge_id in list(kgraph["edges"].keys()):
         edge = kgraph["edges"].pop(edge_id)
@@ -255,6 +265,8 @@ def normalize_kgraph(
 
     for result in results:
         for analysis in result["analyses"]:
+            if "edge_bindings" not in analysis:
+                continue
             for binding_list in analysis["edge_bindings"].values():
                 for binding in binding_list:
                     binding["id"] = edge_id_mapping.get(binding["id"], binding["id"])
@@ -264,20 +276,22 @@ def normalize_kgraph(
 def prune_kg(
     results: list[ResultDict],
     kgraph: KnowledgeGraphDict,
-    aux_graphs: dict[str, AuxGraphDict],
+    aux_graphs: dict[AuxGraphID, AuxiliaryGraphDict],
     job_log: TRAPILogger,
 ) -> None:
     """Use finished results to prune the knowledge graph to only bound knowledge."""
-    bound_edges = set[str]()
-    bound_nodes = set[str]()
+    bound_edges = set[EdgeIdentifier]()
+    bound_nodes = set[CURIE]()
     for result in results:
         for node_binding_set in result["node_bindings"].values():
-            bound_nodes.update([str(binding["id"]) for binding in node_binding_set])
+            bound_nodes.update([binding["id"] for binding in node_binding_set])
         for analysis in result["analyses"]:
+            if "edge_bindings" not in analysis:
+                continue
             for edge_binding_set in analysis["edge_bindings"].values():
-                bound_edges.update([str(binding["id"]) for binding in edge_binding_set])
+                bound_edges.update([binding["id"] for binding in edge_binding_set])
 
-    checked_edges = set[str]()
+    checked_edges = set[EdgeIdentifier]()
     edges_to_check = list(bound_edges)
     while len(edges_to_check) > 0:
         edge_id = edges_to_check.pop()
@@ -290,13 +304,13 @@ def prune_kg(
         edge = kgraph["edges"][edge_id]
 
         bound_edges.add(edge_id)
-        bound_nodes.add(str(edge["subject"]))
-        bound_nodes.add(str(edge["object"]))
+        bound_nodes.add(edge["subject"])
+        bound_nodes.add(edge["object"])
 
         edge_aux_graphs = next(
             (
                 attr
-                for attr in edge.get("attributes", [])
+                for attr in (edge.get("attributes", []) or [])
                 if attr["attribute_type_id"] == "biolink:support_graphs"
             ),
             None,
@@ -305,10 +319,8 @@ def prune_kg(
             continue
         # Have to cast because support graphs always has value of type list[str]
         # But attribute value is generally of type Any
-        for aux_graph_id in cast(list[str], edge_aux_graphs["value"]):
-            edges_to_check.extend(
-                str(edge) for edge in aux_graphs[aux_graph_id]["edges"]
-            )
+        for aux_graph_id in cast(list[AuxGraphID], edge_aux_graphs["value"]):
+            edges_to_check.extend(edge for edge in aux_graphs[aux_graph_id]["edges"])
 
     prior_edge_count = len(kgraph["edges"])
     prior_node_count = len(kgraph["nodes"])

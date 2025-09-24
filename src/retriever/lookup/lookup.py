@@ -8,7 +8,6 @@ import httpx
 from loguru import logger as log
 from opentelemetry import trace
 from reasoner_pydantic import (
-    LogLevel,
     QueryGraph,
 )
 from reasoner_pydantic.qgraph import PathfinderQueryGraph
@@ -21,9 +20,11 @@ from retriever.lookup.validate import validate
 from retriever.metakg.metakg import METAKG_MANAGER
 from retriever.types.general import LookupArtifacts, QueryInfo
 from retriever.types.trapi import (
-    AuxGraphDict,
+    AuxGraphID,
+    AuxiliaryGraphDict,
     KnowledgeGraphDict,
     LogEntryDict,
+    LogLevel,
     MessageDict,
     ParametersDict,
     QueryGraphDict,
@@ -119,11 +120,14 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
         response["status"] = "Complete"
         response["description"] = finish_msg
         # Filter for desired log_level
-        desired_log_level = trapi_level_to_int(query.body.log_level or LogLevel.DEBUG)
+        desired_log_level = trapi_level_to_int(
+            LogLevel(query.body.log_level or LogLevel.DEBUG)
+        )
         response["logs"] = [
             log
             for log in job_log.get_logs()
-            if trapi_level_to_int(log.get("level", LogLevel.DEBUG)) >= desired_log_level
+            if trapi_level_to_int(log.get("level", LogLevel.DEBUG) or LogLevel.DEBUG)
+            >= desired_log_level
         ]
         response["message"]["results"] = results
         response["message"]["knowledge_graph"] = kgraph
@@ -230,7 +234,7 @@ async def qgraph_supported(
     """
     operation_plan = await METAKG_MANAGER.create_operation_plan(qgraph, tiers)
     if isinstance(operation_plan, list):
-        job_log.error(
+        job_log.warning(
             f"MetaEdges could not be found for the following QEdge(s): {operation_plan}"
         )
         response["status"] = "QueryNotTraversable"
@@ -248,7 +252,7 @@ async def run_tiered_lookups(
     """Run lookups against requested tier(s) and combine results."""
     results = dict[int, ResultDict]()
     kgraph = KnowledgeGraphDict(nodes={}, edges={})
-    aux_graphs = dict[str, AuxGraphDict]()
+    aux_graphs = dict[AuxGraphID, AuxiliaryGraphDict]()
     logs = list[LogEntryDict]()
 
     query_tasks = list[asyncio.Task[LookupArtifacts]]()
