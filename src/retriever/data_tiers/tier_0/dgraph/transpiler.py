@@ -116,11 +116,6 @@ class DgraphTranspiler(Transpiler):
         """Build a filter expression for an edge based on its properties."""
         filters: list[str] = []
 
-        # Handle predicate filtering
-        predicate = edge.get("predicate")
-        if predicate:
-            filters.append(f'eq(predicate, "{predicate}")')
-
         # Handle predicates (multiple) filtering
         predicates = edge.get("predicates")
         if predicates:

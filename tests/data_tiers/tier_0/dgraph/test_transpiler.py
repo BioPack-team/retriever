@@ -52,12 +52,12 @@ class ResultsCase:
 
 SIMPLE_QGRAPH: QueryGraphDict = {
     "nodes": {"n0": {"ids": ["CHEBI:4514"]}, "n1": {"ids": ["UMLS:C1564592"]}},
-    "edges": {"e0": {"object": "n0", "subject": "n1", "predicate": "subclass_of"}},
+    "edges": {"e0": {"object": "n0", "subject": "n1", "predicates": ["subclass_of"]}},
 }
 
 SIMPLE_QGRAPH_MULTIPLE_IDS: QueryGraphDict = {
     "nodes": {"n0": {"ids": ["CHEBI:3125", "CHEBI:53448"]}, "n1": {"ids": ["UMLS:C0282090", "CHEBI:10119"]}},
-    "edges": {"e0": {"object": "n0", "subject": "n1", "predicate": "interacts_with"}},
+    "edges": {"e0": {"object": "n0", "subject": "n1", "predicates": ["interacts_with"]}},
 }
 
 TWO_HOP_QGRAPH: QueryGraphDict = {
@@ -67,8 +67,8 @@ TWO_HOP_QGRAPH: QueryGraphDict = {
         "n2": {"ids": ["UMLS:C0496995"]},
     },
     "edges": {
-        "e0": {"object": "n0", "subject": "n1", "predicate": "interacts_with"},
-        "e1": {"object": "n1", "subject": "n2", "predicate": "related_to"},
+        "e0": {"object": "n0", "subject": "n1", "predicates": ["interacts_with"]},
+        "e1": {"object": "n1", "subject": "n2", "predicates": ["related_to"]},
     },
 }
 
@@ -80,9 +80,9 @@ THREE_HOP_QGRAPH: QueryGraphDict = {
         "n3": {"ids": ["UMLS:C0149720"]},
     },
     "edges": {
-        "e0": {"object": "n0", "subject": "n1", "predicate": "interacts_with"},
-        "e1": {"object": "n1", "subject": "n2", "predicate": "related_to"},
-        "e2": {"object": "n2", "subject": "n3", "predicate": "related_to"},
+        "e0": {"object": "n0", "subject": "n1", "predicates": ["interacts_with"]},
+        "e1": {"object": "n1", "subject": "n2", "predicates": ["related_to"]},
+        "e2": {"object": "n2", "subject": "n3", "predicates": ["related_to"]},
     },
 }
 
@@ -95,10 +95,10 @@ FOUR_HOP_QGRAPH: QueryGraphDict = {
         "n4": {"ids": ["UMLS:C0496994"]},
     },
     "edges": {
-        "e0": {"object": "n0", "subject": "n1", "predicate": "interacts_with"},
-        "e1": {"object": "n1", "subject": "n2", "predicate": "related_to"},
-        "e2": {"object": "n2", "subject": "n3", "predicate": "related_to"},
-        "e3": {"object": "n3", "subject": "n4", "predicate": "related_to"},
+        "e0": {"object": "n0", "subject": "n1", "predicates": ["interacts_with"]},
+        "e1": {"object": "n1", "subject": "n2", "predicates": ["related_to"]},
+        "e2": {"object": "n2", "subject": "n3", "predicates": ["related_to"]},
+        "e3": {"object": "n3", "subject": "n4", "predicates": ["related_to"]},
     },
 }
 
@@ -112,11 +112,11 @@ FIVE_HOP_QGRAPH: QueryGraphDict = {
         "n5": {"ids": ["UMLS:C2879715"]},
     },
     "edges": {
-        "e0": {"object": "n0", "subject": "n1", "predicate": "interacts_with"},
-        "e1": {"object": "n1", "subject": "n2", "predicate": "related_to"},
-        "e2": {"object": "n2", "subject": "n3", "predicate": "related_to"},
-        "e3": {"object": "n3", "subject": "n4", "predicate": "related_to"},
-        "e4": {"object": "n4", "subject": "n5", "predicate": "related_to"},
+        "e0": {"object": "n0", "subject": "n1", "predicates": ["interacts_with"]},
+        "e1": {"object": "n1", "subject": "n2", "predicates": ["related_to"]},
+        "e2": {"object": "n2", "subject": "n3", "predicates": ["related_to"]},
+        "e3": {"object": "n3", "subject": "n4", "predicates": ["related_to"]},
+        "e4": {"object": "n4", "subject": "n5", "predicates": ["related_to"]},
     },
 }
 
@@ -130,11 +130,11 @@ FIVE_HOP_QGRAPH_MULTIPLE_IDS: QueryGraphDict = {
         "n5": {"ids": ["Q10", "Q11"]},
     },
     "edges": {
-        "e0": {"object": "n0", "subject": "n1", "predicate": "P0"},
-        "e1": {"object": "n1", "subject": "n2", "predicate": "P1"},
-        "e2": {"object": "n2", "subject": "n3", "predicate": "P2"},
-        "e3": {"object": "n3", "subject": "n4", "predicate": "P3"},
-        "e4": {"object": "n4", "subject": "n5", "predicate": "P4"},
+        "e0": {"object": "n0", "subject": "n1", "predicates": ["P0"]},
+        "e1": {"object": "n1", "subject": "n2", "predicates": ["P1"]},
+        "e2": {"object": "n2", "subject": "n3", "predicates": ["P2"]},
+        "e3": {"object": "n3", "subject": "n4", "predicates": ["P3"]},
+        "e4": {"object": "n4", "subject": "n5", "predicates": ["P4"]},
     },
 }
 
@@ -144,7 +144,7 @@ CATEGORY_FILTER_QGRAPH: QueryGraphDict = {
         "e0": {
             "object": "n0",
             "subject": "n1",
-            "predicate": "biolink:gene_associated_with_condition",
+            "predicates": ["biolink:gene_associated_with_condition"],
         },
     },
 }
@@ -198,7 +198,7 @@ NUMERIC_FILTER_QGRAPH: QueryGraphDict = {
 # Special single-graph inputs to hit specific branches
 SINGLE_STRING_WITH_COMMAS_QGRAPH: QueryGraphDict = {
     "nodes": {"n0": {"ids": ["Q0, Q1"]}, "n1": {"ids": ["Q2"]}},
-    "edges": {"e0": {"object": "n0", "subject": "n1", "predicate": "P"}},
+    "edges": {"e0": {"object": "n0", "subject": "n1", "predicates": ["P"]}},
 }
 
 PREDICATES_SINGLE_QGRAPH: QueryGraphDict = {
@@ -219,7 +219,7 @@ ATTRIBUTES_ONLY_QGRAPH: QueryGraphDict = {
 
 START_OBJECT_WITH_IDS_QGRAPH: QueryGraphDict = {
     "nodes": {"n0": {"ids": ["X"]}, "n1": {"ids": ["Y"]}},
-    "edges": {"e0": {"object": "n0", "subject": "n1", "predicate": "rel"}},
+    "edges": {"e0": {"object": "n0", "subject": "n1", "predicates": ["rel"]}},
 }
 
 # Batch inputs
@@ -238,14 +238,14 @@ BATCH_QGRAPHS_MULTI_HOP: list[QueryGraphDict] = [
 BATCH_MULTI_IDS_SINGLE_GRAPH: list[QueryGraphDict] = [
     {
         "nodes": {"n0": {"ids": ["A", "B"]}, "n1": {"ids": ["C"]}},
-        "edges": {"e0": {"object": "n0", "subject": "n1", "predicate": "P"}}
+        "edges": {"e0": {"object": "n0", "subject": "n1", "predicates": ["P"]}}
     },
 ]
 
 BATCH_NO_IDS_SINGLE_GRAPH: list[QueryGraphDict] = [
     {
         "nodes": {"n0": {"categories": ["biolink:Gene"]}, "n1": {"ids": ["D"]}},
-        "edges": {"e0": {"object": "n0", "subject": "n1", "predicate": "R"}},
+        "edges": {"e0": {"object": "n0", "subject": "n1", "predicates": ["R"]}},
     },
 ]
 
