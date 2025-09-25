@@ -7,7 +7,7 @@ from reasoner_transpiler.cypher import (
 
 from retriever.data_tiers.base_transpiler import Transpiler
 from retriever.types.general import BackendResult
-from retriever.types.trapi import QEdgeDict, QNodeDict, QueryGraphDict
+from retriever.types.trapi import Infores, QEdgeDict, QEdgeID, QNodeDict, QueryGraphDict
 
 
 class Neo4jTranspiler(Transpiler):
@@ -29,7 +29,7 @@ class Neo4jTranspiler(Transpiler):
     ) -> tuple[QueryGraphDict, LiteralString]:
         qgraph = QueryGraphDict(
             nodes={edge["subject"]: in_node, edge["object"]: out_node},
-            edges={"edge": edge},
+            edges={QEdgeID("edge"): edge},
         )
 
         # Special case because we need qgraph for reasoner-transpiler's result conversion
@@ -73,6 +73,6 @@ class Neo4jTranspiler(Transpiler):
                     if source["resource_id"] == "reasoner-transpiler"
                 )
             )
-            transpiler_source["resource_id"] = "infores:automat-robokopkg"
+            transpiler_source["resource_id"] = Infores("infores:automat-robokopkg")
 
         return result

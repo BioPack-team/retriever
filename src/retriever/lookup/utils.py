@@ -1,6 +1,5 @@
 import bmt
 from reasoner_pydantic import (
-    CURIE,
     BiolinkEntity,
     BiolinkPredicate,
     HashableSequence,
@@ -8,16 +7,18 @@ from reasoner_pydantic import (
     QueryGraph,
 )
 
-from retriever.lookup.branch import Branch
+from retriever.lookup.branch import Branch, SuperpositionHop
 from retriever.types.general import (
     AdjacencyGraph,
     QEdgeIDMap,
-    SuperpositionHop,
 )
 from retriever.types.trapi import (
+    CURIE,
     EdgeDict,
     KnowledgeGraphDict,
     LogEntryDict,
+    QEdgeID,
+    QNodeID,
 )
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.trapi import hash_edge, hash_hex
@@ -70,24 +71,26 @@ def make_mappings(qg: QueryGraph) -> tuple[AdjacencyGraph, QEdgeIDMap]:
     agraph: AdjacencyGraph = {}
     edge_id_map: QEdgeIDMap = {}
     for edge_id, edge in qg.edges.items():
-        edge_id_map[edge] = edge_id
-        if edge.subject not in agraph:
-            agraph[edge.subject] = dict[str, list[QEdge]]()
-        if edge.object not in agraph:
-            agraph[edge.object] = dict[str, list[QEdge]]()
-        if edge.object not in agraph[edge.subject]:
-            agraph[edge.subject][edge.object] = list[QEdge]()
-        if edge.subject not in agraph[edge.object]:
-            agraph[edge.object][edge.subject] = list[QEdge]()
-        agraph[edge.subject][edge.object].append(edge)
-        agraph[edge.object][edge.subject].append(edge)
+        edge_id_map[edge] = QEdgeID(edge_id)
+        subject_node = QNodeID(edge.subject)
+        object_node = QNodeID(edge.object)
+        if subject_node not in agraph:
+            agraph[subject_node] = dict[QNodeID, list[QEdge]]()
+        if object_node not in agraph:
+            agraph[object_node] = dict[QNodeID, list[QEdge]]()
+        if object_node not in agraph[subject_node]:
+            agraph[subject_node][object_node] = list[QEdge]()
+        if subject_node not in agraph[object_node]:
+            agraph[object_node][subject_node] = list[QEdge]()
+        agraph[subject_node][object_node].append(edge)
+        agraph[object_node][subject_node].append(edge)
 
     return agraph, edge_id_map
 
 
 async def get_subgraph(
     branch: Branch,
-    key: tuple[CURIE, str],
+    key: SuperpositionHop,
     kedges: dict[SuperpositionHop, list[EdgeDict]],
     kgraph: KnowledgeGraphDict,
 ) -> tuple[KnowledgeGraphDict, list[LogEntryDict]]:
@@ -105,7 +108,7 @@ async def get_subgraph(
 
     kg = KnowledgeGraphDict(
         edges={hash_hex(hash_edge(edge)): edge for edge in edges},
-        nodes={curie: kgraph["nodes"][curie] for curie in curies},
+        nodes={CURIE(curie): kgraph["nodes"][CURIE(curie)] for curie in curies},
     )
 
     return kg, list[LogEntryDict]()

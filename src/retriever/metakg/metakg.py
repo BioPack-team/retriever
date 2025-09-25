@@ -11,13 +11,14 @@ from reasoner_pydantic import QEdge, QueryGraph
 from retriever.config.general import CONFIG
 from retriever.types.metakg import Operation, OperationNode, OperationTable
 from retriever.types.trapi import (
-    BiolinkCategory,
+    BiolinkEntity,
     MetaAttributeDict,
     MetaEdgeDict,
     MetaKnowledgeGraphDict,
     MetaNodeDict,
     MetaQualifierDict,
     QEdgeID,
+    QualifierTypeID,
 )
 from retriever.types.trapi_pydantic import TierNumber
 from retriever.utils.biolink import expand
@@ -51,7 +52,7 @@ class MetaKGManager:
         self,
         metakg_info: TRAPIMetaKGInfo,
         operations: dict[str, list[Operation]],
-        nodes: dict[BiolinkCategory, OperationNode],
+        nodes: dict[BiolinkEntity, OperationNode],
     ) -> None:
         """Parse a TRAPI MetaKG to build operations."""
         metakg, tier, infores = metakg_info
@@ -71,8 +72,10 @@ class MetaKGManager:
                     tier=tier,
                     attributes=edge_dict.get("attributes"),
                     qualifiers={
-                        qualifier["qualifier_type_id"]: qualifier["applicable_values"]
-                        for qualifier in edge_dict.get("qualifiers", [])
+                        qualifier["qualifier_type_id"]: qualifier.get(
+                            "applicable_values", []
+                        )
+                        for qualifier in (edge_dict.get("qualifiers", []) or [])
                     },
                 )
             )
@@ -80,7 +83,7 @@ class MetaKGManager:
             node_dict = MetaNodeDict(**node)
             nodes[category] = OperationNode(
                 prefixes={infores: node_dict.get("id_prefixes", [])},
-                attributes={infores: node_dict.get("attributes", [])},
+                attributes={infores: (node_dict.get("attributes", []) or [])},
             )
 
     async def build_metakg(self) -> None:
@@ -91,7 +94,7 @@ class MetaKGManager:
         logger.info("Building MetaKG...")
 
         operations = dict[str, list[Operation]]()
-        nodes = dict[BiolinkCategory, OperationNode]()
+        nodes = dict[BiolinkEntity, OperationNode]()
 
         metakg_files = {
             0: {
@@ -216,12 +219,12 @@ class MetaKGManager:
         Returns None if any QEdge is unsupported by the current operation table.
         """
         plan = OperationPlan()
-        unsupported_qedges = list[str]()
+        unsupported_qedges = list[QEdgeID]()
         for qedge_id, qedge in qgraph.edges.items():
             operations = await self.find_operations(qedge, qgraph, tiers)
             if len(operations) == 0:
-                unsupported_qedges.append(qedge_id)
-            plan[qedge_id] = operations
+                unsupported_qedges.append(QEdgeID(qedge_id))
+            plan[QEdgeID(qedge_id)] = operations
 
         if len(unsupported_qedges) > 0:
             return unsupported_qedges
@@ -238,8 +241,8 @@ async def get_trapi_metakg(tiers: tuple[TierNumber, ...]) -> MetaKnowledgeGraphD
     This shouldn't be a problem because the lead manager isn't used to answer API calls.
     """
     edges = list[MetaEdgeDict]()
-    mentioned_nodes = set[BiolinkCategory]()
-    nodes = dict[BiolinkCategory, MetaNodeDict]()
+    mentioned_nodes = set[BiolinkEntity]()
+    nodes = dict[BiolinkEntity, MetaNodeDict]()
     op_table = await METAKG_MANAGER.get_metakg()
     for op_list in op_table.operations.values():
         add_edge = False
@@ -271,7 +274,8 @@ async def get_trapi_metakg(tiers: tuple[TierNumber, ...]) -> MetaKnowledgeGraphD
         if add_edge:
             meta_edge["qualifiers"] = [
                 MetaQualifierDict(
-                    qualifier_type_id=qual_type, applicable_values=list(values)
+                    qualifier_type_id=QualifierTypeID(qual_type),
+                    applicable_values=list(values),
                 )
                 for qual_type, values in qualifiers.items()
             ]

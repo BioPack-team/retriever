@@ -14,41 +14,46 @@ A few notes:
 
 from __future__ import annotations
 
-from collections.abc import Hashable
-from typing import Any, NotRequired, TypedDict
+from enum import Enum
+from typing import Any, NewType, NotRequired, TypedDict
 
-from reasoner_pydantic import LogLevel
-from reasoner_pydantic.qgraph import SetInterpretationEnum
+
+class SetInterpretationEnum(str, Enum):
+    """Enumeration for set interpretation."""
+
+    BATCH = "BATCH"
+    ALL = "ALL"
+    MANY = "MANY"
 
 
 class ParametersDict(TypedDict):
     """Query Parameters."""
 
-    tiers: list[int]
-    timeout: float
+    tiers: NotRequired[list[int]]
+    timeout: NotRequired[float]
 
 
 class QueryDict(TypedDict):
     """Query."""
 
     message: MessageDict
-    log_level: NotRequired[LogLevel]
-    workflow: NotRequired[list[Hashable]]
-    submitter: NotRequired[str]
+    log_level: NotRequired[LogLevel | None]
+    workflow: NotRequired[list[dict[str, Any]] | None]
+    submitter: NotRequired[str | None]
     bypass_cache: NotRequired[bool]
 
 
-class AsyncQueryDict(QueryDict):
+class AsyncQuery(QueryDict):
     """AsyncQuery."""
 
-    callback: str
+    callback: URL
 
 
 class AsyncQueryResponseDict(TypedDict):
     """AsyncQueryResponse."""
 
-    status: NotRequired[str]
-    description: NotRequired[str]
+    status: NotRequired[str | None]
+    description: NotRequired[str | None]
     job_id: str
 
 
@@ -58,64 +63,84 @@ class AsyncQueryStatusResponseDict(TypedDict):
     status: str
     description: str
     logs: list[LogEntryDict]
-    response_url: NotRequired[str]
+    response_url: NotRequired[URL | None]
 
 
 class ResponseDict(TypedDict):
     """Response."""
 
     message: MessageDict
-    status: NotRequired[str]
-    description: NotRequired[str]
-    logs: list[LogEntryDict]
-    workflow: NotRequired[list[Hashable]]
-    parameters: ParametersDict
-    schema_version: NotRequired[str]
-    biolink_version: NotRequired[str]
+    status: NotRequired[str | None]
+    description: NotRequired[str | None]
+    logs: NotRequired[list[LogEntryDict]]
+    workflow: NotRequired[list[dict[str, Any]] | None]
+    parameters: NotRequired[ParametersDict | None]
+    schema_version: NotRequired[str | None]
+    biolink_version: NotRequired[str | None]
 
 
 class MessageDict(TypedDict):
     """Message."""
 
-    results: NotRequired[list[ResultDict]]
-    query_graph: NotRequired[QueryGraphDict]
-    knowledge_graph: NotRequired[KnowledgeGraphDict]
-    auxiliary_graphs: NotRequired[dict[AuxGraphID, AuxGraphDict]]
+    results: NotRequired[list[ResultDict] | None]
+    query_graph: NotRequired[QueryGraphDict | PathfinderQueryGraphDict | None]
+    knowledge_graph: NotRequired[KnowledgeGraphDict | None]
+    auxiliary_graphs: NotRequired[dict[AuxGraphID, AuxiliaryGraphDict] | None]
 
 
 class LogEntryDict(TypedDict):
     """LogEntry."""
 
     timestamp: str
-    level: NotRequired[LogLevel]
-    code: NotRequired[str]
+    level: NotRequired[LogLevel | None]
+    code: NotRequired[str | None]
     message: str
+
+
+class LogLevel(str, Enum):
+    """Log level."""
+
+    ERROR = "ERROR"
+    WARNING = "WARNING"
+    INFO = "INFO"
+    DEBUG = "DEBUG"
 
 
 class ResultDict(TypedDict):
     """Result."""
 
     node_bindings: dict[QNodeID, list[NodeBindingDict]]
-    analyses: list[AnalysisDict]
+    analyses: list[AnalysisDict | PathfinderAnalysisDict]
 
 
 class NodeBindingDict(TypedDict):
     """NodeBinding."""
 
     id: CURIE
-    query_id: NotRequired[QNodeID]
+    query_id: NotRequired[QNodeID | None]
     attributes: list[AttributeDict]
 
 
-class AnalysisDict(TypedDict):
-    """Analysis."""
+class BaseAnalysisDict(TypedDict):
+    """Base Analysis, shared by Analysis and PathfinderAnalysis."""
 
     resource_id: Infores
-    score: NotRequired[float]
+    score: NotRequired[float | None]
+    support_graphs: NotRequired[list[AuxGraphID] | None]
+    scoring_method: NotRequired[str | None]
+    attributes: NotRequired[list[AttributeDict] | None]
+
+
+class AnalysisDict(BaseAnalysisDict):
+    """Analysis."""
+
     edge_bindings: dict[QEdgeID, list[EdgeBindingDict]]
-    support_graphs: NotRequired[list[AuxGraphID]]
-    scoring_method: NotRequired[str]
-    attributes: NotRequired[list[AttributeDict]]
+
+
+class PathfinderAnalysisDict(BaseAnalysisDict):
+    """PathfinderAnalysis."""
+
+    path_bindings: dict[QPathID, list[PathBindingDict]]
 
 
 class EdgeBindingDict(TypedDict):
@@ -125,7 +150,13 @@ class EdgeBindingDict(TypedDict):
     attributes: list[AttributeDict]
 
 
-class AuxGraphDict(TypedDict):
+class PathBindingDict(TypedDict):
+    """PathBinding."""
+
+    id: AuxGraphID
+
+
+class AuxiliaryGraphDict(TypedDict):
     """AuxiliaryGraph."""
 
     edges: list[EdgeIdentifier]
@@ -139,53 +170,79 @@ class KnowledgeGraphDict(TypedDict):
     edges: dict[EdgeIdentifier, EdgeDict]
 
 
-class QueryGraphDict(TypedDict):
-    """QueryGraph."""
+class BaseQueryGraphDict(TypedDict):
+    """Base QueryGraph."""
 
     nodes: dict[QNodeID, QNodeDict]
+
+
+class QueryGraphDict(BaseQueryGraphDict):
+    """Normal QueryGraph."""
+
     edges: dict[QEdgeID, QEdgeDict]
+
+
+class PathfinderQueryGraphDict(TypedDict):
+    """Pathfinder QueryGraph."""
+
+    paths: dict[QPathID, QPathDict]
 
 
 class QNodeDict(TypedDict):
     """QNode."""
 
-    ids: NotRequired[list[CURIE]]
-    categories: NotRequired[list[BiolinkCategory]]
-    set_interpretation: NotRequired[SetInterpretationEnum]
-    member_ids: NotRequired[list[CURIE]]
-    constraints: list[AttributeConstraintDict]
+    ids: NotRequired[list[CURIE] | None]
+    categories: NotRequired[list[BiolinkEntity] | None]
+    set_interpretation: NotRequired[SetInterpretationEnum | None]
+    member_ids: NotRequired[list[CURIE] | None]
+    constraints: NotRequired[list[AttributeConstraintDict] | None]
 
 
 class QEdgeDict(TypedDict):
     """QEdge."""
 
-    knowledge_type: NotRequired[str]
-    predicates: NotRequired[list[BiolinkPredicate]]
-    subject: CURIE
-    object: CURIE
-    attribute_constraints: list[AttributeConstraintDict]
-    qualifier_constraints: list[QualifierConstraintDict]
+    knowledge_type: NotRequired[str | None]
+    predicates: NotRequired[list[BiolinkPredicate] | None]
+    subject: QNodeID
+    object: QNodeID
+    attribute_constraints: NotRequired[list[AttributeConstraintDict]]
+    qualifier_constraints: NotRequired[list[QualifierConstraintDict]]
+
+
+class QPathDict(TypedDict):
+    """QPath."""
+
+    subject: QNodeID
+    object: QNodeID
+    predicates: NotRequired[list[BiolinkPredicate] | None]
+    constraints: NotRequired[list[PathConstraintDict] | None]
+
+
+class PathConstraintDict(TypedDict):
+    """PathContraint."""
+
+    intermediate_categories: NotRequired[list[BiolinkEntity] | None]
 
 
 class NodeDict(TypedDict):
     """Node."""
 
-    name: NotRequired[str]
-    categories: list[BiolinkCategory]
+    name: NotRequired[str | None]
+    categories: list[BiolinkEntity]
     attributes: list[AttributeDict]
-    is_set: NotRequired[bool]
+    is_set: NotRequired[bool | None]
 
 
 class AttributeDict(TypedDict):
     """Attribute."""
 
     attribute_type_id: str
-    original_attribute_name: NotRequired[str]
+    original_attribute_name: NotRequired[str | None]
     value: Any
-    value_type_id: NotRequired[str]
-    attribute_source: NotRequired[str]
-    value_url: NotRequired[str]
-    attributes: NotRequired[list[AttributeDict]]
+    value_type_id: NotRequired[str | None]
+    attribute_source: NotRequired[str | None]
+    value_url: NotRequired[URL | None]
+    attributes: NotRequired[list[AttributeDict] | None]
 
 
 class EdgeDict(TypedDict):
@@ -194,8 +251,8 @@ class EdgeDict(TypedDict):
     predicate: BiolinkPredicate
     subject: CURIE
     object: CURIE
-    attributes: NotRequired[list[AttributeDict]]
-    qualifiers: NotRequired[list[QualifierDict]]
+    attributes: NotRequired[list[AttributeDict] | None]
+    qualifiers: NotRequired[list[QualifierDict] | None]
     sources: list[RetrievalSourceDict]
 
 
@@ -212,10 +269,15 @@ class QualifierConstraintDict(TypedDict):
     qualifier_set: list[QualifierDict]
 
 
+BiolinkEntity = NewType("BiolinkEntity", str)
+BiolinkPredicate = NewType("BiolinkPredicate", str)
+CURIE = NewType("CURIE", str)
+
+
 class MetaKnowledgeGraphDict(TypedDict):
     """MetaKnowledgeGraph."""
 
-    nodes: dict[BiolinkCategory, MetaNodeDict]
+    nodes: dict[BiolinkEntity, MetaNodeDict]
     edges: list[MetaEdgeDict]
 
 
@@ -223,35 +285,35 @@ class MetaNodeDict(TypedDict):
     """MetaNode."""
 
     id_prefixes: list[str]
-    attributes: list[MetaAttributeDict]
+    attributes: NotRequired[list[MetaAttributeDict] | None]
 
 
 class MetaEdgeDict(TypedDict):
     """MetaEdge."""
 
-    subject: BiolinkCategory
+    subject: BiolinkEntity
     predicate: BiolinkPredicate
-    object: BiolinkCategory
-    knowledge_types: NotRequired[list[str]]
-    attributes: NotRequired[list[MetaAttributeDict]]
-    qualifiers: NotRequired[list[MetaQualifierDict]]
+    object: BiolinkEntity
+    knowledge_types: NotRequired[list[str] | None]
+    attributes: NotRequired[list[MetaAttributeDict] | None]
+    qualifiers: NotRequired[list[MetaQualifierDict] | None]
 
 
 class MetaQualifierDict(TypedDict):
     """MetaQualifier."""
 
     qualifier_type_id: QualifierTypeID
-    applicable_values: list[str]
+    applicable_values: NotRequired[list[str]]
 
 
 class MetaAttributeDict(TypedDict):
     """MetaAttribute."""
 
     attribute_type_id: str
-    attribute_source: NotRequired[str]
-    original_attribute_names: NotRequired[list[str]]
-    constraint_use: bool
-    constraint_name: NotRequired[str]
+    attribute_source: NotRequired[str | None]
+    original_attribute_names: NotRequired[list[str] | None]
+    constraint_use: NotRequired[bool]
+    constraint_name: NotRequired[str | None]
 
 
 # AttributeConstraint
@@ -260,11 +322,11 @@ AttributeConstraintDict = TypedDict(
     {
         "id": str,
         "name": str,
-        "not": bool,
+        "not": NotRequired[bool],
         "operator": str,
-        "value": Hashable,
-        "unit_id": NotRequired[str],
-        "unit_name": NotRequired[str],
+        "value": Any,
+        "unit_id": NotRequired[str | None],
+        "unit_name": NotRequired[str | None],
     },
 )
 
@@ -274,17 +336,16 @@ class RetrievalSourceDict(TypedDict):
 
     resource_id: Infores
     resource_role: str
-    upstream_resource_ids: NotRequired[list[Infores]]
-    source_record_urls: NotRequired[list[str]]
+    upstream_resource_ids: NotRequired[list[Infores] | None]
+    source_record_urls: NotRequired[list[str] | None]
 
 
 # These don't offer any special behavior, but make type annotation less confusable
-CURIE = str
-EdgeIdentifier = str
-BiolinkCategory = str
-BiolinkPredicate = str
-AuxGraphID = str
-QNodeID = str
-QEdgeID = str
-Infores = str
-QualifierTypeID = str
+EdgeIdentifier = NewType("EdgeIdentifier", str)
+AuxGraphID = NewType("AuxGraphID", str)
+QNodeID = NewType("QNodeID", str)
+QEdgeID = NewType("QEdgeID", str)
+QPathID = NewType("QPathID", str)
+Infores = NewType("Infores", str)
+QualifierTypeID = NewType("QualifierTypeID", str)
+URL = NewType("URL", str)

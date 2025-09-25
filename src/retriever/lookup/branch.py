@@ -2,11 +2,9 @@ import asyncio
 import itertools
 from collections.abc import Iterable
 from functools import cached_property
-from itertools import zip_longest
 from typing import override
 
 from reasoner_pydantic import (
-    CURIE,
     QEdge,
     QueryGraph,
 )
@@ -14,10 +12,13 @@ from reasoner_pydantic import (
 from retriever.metakg.metakg import OperationPlan
 from retriever.types.general import AdjacencyGraph, QEdgeIDMap
 from retriever.types.metakg import Operation
-from retriever.types.trapi import QEdgeID, QNodeID
+from retriever.types.trapi import CURIE, QEdgeID, QNodeID
 
-BranchName = str
-SuperpositionName = str
+BranchHop = tuple[QNodeID, QEdgeID | None]
+SuperpositionHop = tuple[QNodeID, CURIE | None, QEdgeID | None]
+
+BranchID = tuple[BranchHop, ...]
+SuperpositionID = tuple[SuperpositionHop, ...]
 
 QGraphInfo = tuple[QueryGraph, AdjacencyGraph, QEdgeIDMap, OperationPlan]
 
@@ -46,8 +47,8 @@ class Branch:
         self.curies: list[CURIE] = [starting_curie]
         self.edges: list[QEdgeID] = []
         self.reversed: bool = False  # executing reversed relative to current_edge
-        self.next_steps: set[BranchName] = set()
-        self.skipped_steps: set[BranchName] = set()
+        self.next_steps: set[BranchID] = set()
+        self.skipped_steps: set[BranchID] = set()
 
     @override
     def __eq__(self, other: object) -> bool:
@@ -65,37 +66,85 @@ class Branch:
         return hash(self.branch_name)
 
     @cached_property
-    def branch_name(self) -> BranchName:
-        """Return the branch name.
+    def branch_id(self) -> BranchID:
+        """Return the branch identifier.
 
         A Branch is named solely by its QNodes and QEdges.
         """
-        return "-".join(
-            f"{node}-{edge}"
-            for node, edge in zip_longest(self.nodes, self.edges, fillvalue="")
+        return (
+            *[(node, edge) for node, edge in zip(self.nodes, self.edges, strict=False)],
+            (self.output_node, None),
+        )
+
+    @staticmethod
+    def branch_id_to_name(branch_id: BranchID) -> str:
+        """Return a string representation of a given branch ID.
+
+        Cannot be reliably split back.
+        """
+        return (
+            "-".join(
+                "-".join((qnode_id, str(qedge_id)))
+                for qnode_id, qedge_id in branch_id[:-1]
+            )
+            + f"-{branch_id[-1][0]}"
         )
 
     @cached_property
-    def superposition_name(self) -> SuperpositionName:
+    def branch_name(self) -> str:
+        """Return a string representation of the Branch.
+
+        Cannot be reliably split back.
+        """
+        return Branch.branch_id_to_name(self.branch_id)
+
+    @cached_property
+    def superposition_id(self) -> SuperpositionID:
         """Return the superposition name.
 
         A superposition is named taking into account curies.
         """
-        return "-".join(
-            f"{node}[{curie}]-{edge}"
-            for node, curie, edge in zip_longest(
-                self.nodes, self.curies, self.edges, fillvalue=""
+        return (
+            *[
+                (node, curie, edge)
+                for node, curie, edge in zip(
+                    self.nodes, self.curies, self.edges, strict=False
+                )
+            ],
+            (self.output_node, None, None),
+        )
+
+    @staticmethod
+    def superposition_id_to_name(superposition_id: SuperpositionID) -> str:
+        """Return a string representation of a given Superposition.
+
+        Cannot be reliably split back.
+        """
+        return (
+            "-".join(
+                f"{qnode_id}({curie})-{qedge_id}"
+                for qnode_id, curie, qedge_id in superposition_id[:-1]
             )
+            + f"-{superposition_id[-1][0]}"
         )
 
     @cached_property
-    def hop_name(self) -> tuple[CURIE, QEdgeID]:
+    def superposition_name(self) -> str:
+        """Return a string representation of the Superposition.
+
+        Cannot be reliably split back.
+        """
+        return Branch.superposition_id_to_name(self.superposition_id)
+
+    @cached_property
+    def hop_id(self) -> SuperpositionHop:
         """Return a name representing the branch's input superposition.
 
         Used to identify the specific curie-qedge hop, which might be executed by
         other superpositions.
         """
         return (
+            self.input_node,
             self.input_curie,
             self.current_edge,
         )
@@ -239,14 +288,17 @@ class Branch:
         qg, ag, em, tiers = qgraph_info
         start = list[Branch]()
         for node_id, node in qg.nodes.items():
+            node_id = QNodeID(node_id)  # noqa:PLW2901
             if node.ids is None:  # Only start on nodes with curies
                 continue
             for curie in node.ids:
                 for edge in itertools.chain(*ag[node_id].values()):
                     edge_id = em[edge]
-                    next_node = edge.object if edge.subject == node_id else edge.subject
+                    next_node = QNodeID(
+                        edge.object if edge.subject == node_id else edge.subject
+                    )
                     reverse = edge.object == node_id
-                    branch = Branch(node_id, curie, (qg, ag, em, tiers)).advance(
+                    branch = Branch(node_id, CURIE(curie), (qg, ag, em, tiers)).advance(
                         edge_id, next_node, reverse=reverse
                     )
                     if await branch.has_claim(qedge_claims, lock):

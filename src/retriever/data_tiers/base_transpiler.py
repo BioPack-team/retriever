@@ -13,7 +13,7 @@ class Transpiler(ABC):
 
     def process_qgraph(self, qgraph: QueryGraphDict) -> Any:
         """Take in a TRAPI query graph and convert it to the target query language."""
-        batch = any(len(node.get("ids", [])) for node in qgraph["nodes"].values())
+        batch = any(len(node.get("ids", []) or []) for node in qgraph["nodes"].values())
         if len(qgraph["nodes"]) == 2:  # noqa:PLR2004 This number will not change unless the laws of nature do :P
             edge = next(iter(qgraph["edges"].values()))
             subject_node = qgraph["nodes"][edge["subject"]]

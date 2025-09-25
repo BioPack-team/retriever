@@ -1,9 +1,10 @@
 from typing import Any, NamedTuple
 
 from retriever.types.trapi import (
-    BiolinkCategory,
+    BiolinkEntity,
     BiolinkPredicate,
     MetaAttributeDict,
+    QualifierTypeID,
 )
 
 TripleName = str
@@ -19,19 +20,19 @@ class OperationNode(NamedTuple):
 class Operation(NamedTuple):
     """A single unit of operable subquerying."""
 
-    subject: BiolinkCategory
+    subject: BiolinkEntity
     predicate: BiolinkPredicate
-    object: BiolinkCategory
+    object: BiolinkEntity
     api: str
     tier: int
     association: str | None = None
     tier_meta: Any | None = None
     attributes: list[MetaAttributeDict] | None = None
-    qualifiers: dict[str, list[str]] | None = None
+    qualifiers: dict[QualifierTypeID, list[str]] | None = None
 
 
 class OperationTable(NamedTuple):
     """A table of operations and related node information."""
 
     operations: dict[TripleName, list[Operation]]
-    nodes: dict[BiolinkCategory, OperationNode]
+    nodes: dict[BiolinkEntity, OperationNode]

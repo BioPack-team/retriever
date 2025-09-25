@@ -100,13 +100,25 @@ def as_task[T](iterator: AsyncIterator[T]) -> asyncio.Task[T]:
     return asyncio.create_task(await_next(iterator))
 
 
-async def merge_iterators[T](*iterators: AsyncIterator[T]) -> AsyncIterable[T]:
+class EmptyIteratorError(Exception):
+    """An iterator terminated before yielding anything."""
+
+    def __init__(self, message: str, index: int) -> None:
+        """Instantiate an EmptyIteratorError."""
+        super().__init__(message)
+        self.iterator: int = index
+
+
+async def merge_iterators[T](
+    *iterators: AsyncIterator[T], raise_on_empty: bool = False
+) -> AsyncIterable[T]:
     """Merge multiple async iterators, yielding values as they are completed.
 
     Based on Alex Peter's solution: https://stackoverflow.com/a/76643550
     """
     next_tasks = {iterator: as_task(iterator) for iterator in iterators}
     backmap = {v: k for k, v in next_tasks.items()}
+    yielded = dict.fromkeys(iterators, False)
 
     while next_tasks:
         done, _ = await asyncio.wait(
@@ -118,9 +130,15 @@ async def merge_iterators[T](*iterators: AsyncIterator[T]) -> AsyncIterable[T]:
 
             try:
                 yield task.result()
-            except StopAsyncIteration:
+                yielded[iterator] = True
+            except StopAsyncIteration as e:
                 del next_tasks[iterator]
                 del backmap[task]
+                if raise_on_empty and not yielded[iterator]:
+                    raise EmptyIteratorError(
+                        f"Iterator {iterators.index(iterator)} terminated before yielding anything.",
+                        iterators.index(iterator),
+                    ) from e
             except Exception as e:
                 raise e
             else:

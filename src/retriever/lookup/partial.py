@@ -1,15 +1,16 @@
 from typing import override
 
 import orjson
-from reasoner_pydantic import (
-    CURIE,
-)
 
 from retriever.types.general import KAdjacencyGraph
 from retriever.types.trapi import (
+    CURIE,
     AnalysisDict,
     EdgeBindingDict,
+    Infores,
     NodeBindingDict,
+    QEdgeID,
+    QNodeID,
     ResultDict,
 )
 
@@ -19,12 +20,12 @@ class Partial:
 
     def __init__(
         self,
-        node_bindings: list[tuple[str, CURIE]],
-        edge_bindings: list[tuple[str, CURIE, CURIE]],
+        node_bindings: list[tuple[QNodeID, CURIE]],
+        edge_bindings: list[tuple[QEdgeID, CURIE, CURIE]],
     ) -> None:
         """Initialize a partial result."""
-        self.node_bindings: list[tuple[str, CURIE]] = node_bindings
-        self.edge_bindings: set[tuple[str, CURIE, CURIE]] = set(edge_bindings)
+        self.node_bindings: list[tuple[QNodeID, CURIE]] = node_bindings
+        self.edge_bindings: set[tuple[QEdgeID, CURIE, CURIE]] = set(edge_bindings)
 
     @override
     def __str__(self) -> str:
@@ -88,12 +89,12 @@ class Partial:
         """Return a result generated from the Partial's node and edge bindings."""
         return ResultDict(
             node_bindings={
-                qnode: [NodeBindingDict(id=curie, attributes=[])]
-                for qnode, curie in self.node_bindings
+                qnode_id: [NodeBindingDict(id=curie, attributes=[])]
+                for qnode_id, curie in self.node_bindings
             },
             analyses=[
                 AnalysisDict(
-                    resource_id="infores:retriever",
+                    resource_id=Infores("infores:retriever"),
                     edge_bindings={
                         qedge_id: [
                             EdgeBindingDict(id=kedge_id, attributes=[])
@@ -104,37 +105,3 @@ class Partial:
                 )
             ],
         )
-        # return Result.model_construct(
-        #     node_bindings=HashableMapping(
-        #         {
-        #             qnode: HashableSet(
-        #                 {NodeBinding(id=curie, attributes=HashableSet())}
-        #             )
-        #             for qnode, curie in self.node_bindings
-        #         }
-        #     ),
-        #     analyses=HashableSet(
-        #         {
-        #             Analysis(
-        #                 resource_id=CURIE("infores:retriever"),
-        #                 edge_bindings=HashableMapping(
-        #                     {
-        #                         kedge_key[0]: HashableSet(
-        #                             {
-        #                                 EdgeBinding(
-        #                                     id=EdgeIdentifier(str(hash(kedge))),
-        #                                     attributes=HashableSet(),
-        #                                 )
-        #                                 for kedge in k_agraph[kedge_key[0]][
-        #                                     kedge_key[1]
-        #                                 ][kedge_key[2]]
-        #                             }
-        #                         )
-        #                         for kedge_key in self.edge_bindings
-        #                     }
-        #                 ),
-        #             )
-        #         }
-        #     ),
-        # )
-        # return Result.model_validate(result_dict)

@@ -14,11 +14,14 @@ from retriever.types.trapi import (
     AttributeDict,
     EdgeDict,
     EdgeIdentifier,
+    Infores,
     KnowledgeGraphDict,
     NodeDict,
     QEdgeDict,
+    QEdgeID,
     QNodeDict,
     QualifierDict,
+    QualifierTypeID,
     QueryGraphDict,
     RetrievalSourceDict,
 )
@@ -122,7 +125,7 @@ class ElasticsearchTranspiler(Transpiler):
         """Provide an ES query body for given trio of Q-dicts."""
         qgraph = QueryGraphDict(
             nodes={edge["subject"]: in_node, edge["object"]: out_node},
-            edges={"edge": edge},
+            edges={QEdgeID("edge"): edge},
         )
 
         # Use "merged_edges" schema for now
@@ -190,7 +193,7 @@ class ElasticsearchTranspiler(Transpiler):
                         resource_role="primary_knowledge_source",
                     ),
                     RetrievalSourceDict(
-                        resource_id="infores:rtx-kg2",
+                        resource_id=Infores("infores:rtx-kg2"),
                         resource_role="aggregator_knowledge_source",
                         upstream_resource_ids=[hit["primary_knowledge_source"]],
                     ),
@@ -200,7 +203,7 @@ class ElasticsearchTranspiler(Transpiler):
 
             for attribute_type_id in ("knowledge_level", "agent_type", "publications"):
                 if value := hit.get(attribute_type_id):
-                    if "attributes" not in edge:
+                    if "attributes" not in edge or edge["attributes"] is None:
                         edge["attributes"] = []
                     edge["attributes"].append(
                         AttributeDict(
@@ -210,7 +213,7 @@ class ElasticsearchTranspiler(Transpiler):
                     )
 
             if "publications_info" in hit:
-                if "attributes" not in edge:
+                if "attributes" not in edge or edge["attributes"] is None:
                     edge["attributes"] = []
                 for info in hit["publications_info"]:
                     edge["attributes"].append(
@@ -244,11 +247,11 @@ class ElasticsearchTranspiler(Transpiler):
                         f"qualified_{qualifier_type_id.replace('_qualifier', '')}"
                     )
                 if value := hit.get(qualifier_key):
-                    if "qualifiers" not in edge:
+                    if "qualifiers" not in edge or edge["qualifiers"] is None:
                         edge["qualifiers"] = []
                     edge["qualifiers"].append(
                         QualifierDict(
-                            qualifier_type_id=qualifier_type_id,
+                            qualifier_type_id=QualifierTypeID(qualifier_type_id),
                             qualifier_value=value,
                         )
                     )
