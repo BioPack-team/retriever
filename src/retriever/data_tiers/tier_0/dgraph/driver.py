@@ -1,15 +1,9 @@
 import asyncio
-from loguru import logger as log
-from opentelemetry import trace
-from typing import (
-    Any,
-    Protocol,
-    TypedDict,
-    cast,
-    override,
-)
+from typing import Any, Protocol, TypedDict, cast, override
 
 import pydgraph
+from loguru import logger as log
+from opentelemetry import trace
 
 from retriever.config.general import CONFIG
 from retriever.data_tiers.base_driver import DatabaseDriver
@@ -56,6 +50,8 @@ class DgraphDriver(DatabaseDriver):
 
     settings: Any
     endpoint: str
+    query_timeout: float
+    connect_retries: int
     _client_stub: DgraphClientStubProtocol | None
     _client: pydgraph.DgraphClient | None
 
@@ -76,9 +72,12 @@ class DgraphDriver(DatabaseDriver):
             self._client = pydgraph.DgraphClient(self._client_stub)
             log.success("Dgraph connection successful!")
         except Exception as e:
-            await self._client_stub.close()
+            # Safely close stub only if it was created
+            if self._client_stub is not None:
+                self._client_stub.close()
             self._client_stub = None
-            if retries <= self.connect_retries:
+            self._client = None
+            if retries < self.connect_retries:
                 await asyncio.sleep(1)
                 log.error(
                     f"Could not establish connection to dgraph, trying again... retry {retries + 1}"
@@ -112,12 +111,12 @@ class DgraphDriver(DatabaseDriver):
             resp: DgraphResponse = await asyncio.wait_for(
                 future, timeout=self.query_timeout
             )
-        except asyncio.TimeoutError as te:
+        except TimeoutError as e:
             if otel_span is not None:
                 otel_span.add_event("dgraph_query_timeout")
             raise TimeoutError(
                 f"Dgraph query exceeded {self.query_timeout}s timeout"
-            ) from te
+            ) from e
 
         if otel_span is not None:
             otel_span.add_event("dgraph_query_end")
