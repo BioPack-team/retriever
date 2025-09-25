@@ -10,12 +10,25 @@ from retriever.data_tiers.tier_0.dgraph.driver import (
 )
 
 
-def _load_result(result: DgraphQueryResult) -> dict[str, Any]:
+def _load_result(result: Any) -> dict[str, Any]:
+    """
+    Normalize a Dgraph query result of varying runtime types into a dict.
+    Using Any for the parameter avoids pyright assuming a single dict type
+    (which made previous isinstance branches unreachable).
+    """
+    if isinstance(result, dict):
+        return cast(dict[str, Any], result)
     if isinstance(result, (bytes, bytearray)):
-        return json.loads(result.decode("utf-8"))
-    if isinstance(result, str):
-        return json.loads(result)
-    raise TypeError(f"Unexpected result type: {type(result)}")
+        text = result.decode("utf-8")
+    elif isinstance(result, str):
+        text = result
+    else:
+        raise TypeError(f"Unexpected result type: {type(result)}")
+
+    data = json.loads(text)
+    if not isinstance(data, dict):
+        raise TypeError("Decoded JSON is not a dict")
+    return cast(dict[str, Any], data)
 
 
 @pytest.mark.asyncio
@@ -24,12 +37,11 @@ async def test_dgraph_live_with_default_settings():
     try:
         await driver.connect()
         assert driver.client is not None
-
-        raw = await driver.run_query("{ node(func: has(id), first: 1) { id } }")
+        raw: DgraphQueryResult = await driver.run_query("{ node(func: has(id), first: 1) { id } }")
         data = _load_result(raw)
-        assert isinstance(data, dict)
-        if "node" in data and data["node"]:
-            assert "id" in data["node"][0]
+        container = data.get("data", data)
+        if "node" in container and container["node"]:
+            assert "id" in container["node"][0]
     except Exception as e:
         pytest.skip(f"Skipping live Dgraph test: {e}")
     finally:
@@ -47,11 +59,11 @@ async def test_dgraph_live_with_settings(monkeypatch: pytest.MonkeyPatch):
 
     try:
         await driver.connect()
-        raw = await driver.run_query('{ node(func: has(id), first: 1) { id } }')
+        raw: DgraphQueryResult = await driver.run_query('{ node(func: has(id), first: 1) { id } }')
         data = _load_result(raw)
-        assert isinstance(data, dict)
-        if "node" in data and data["node"]:
-            assert "id" in data["node"][0]
+        container = data.get("data", data)
+        if "node" in container and container["node"]:
+            assert "id" in container["node"][0]
     except Exception as e:
         pytest.skip(f"Skipping live Dgraph test (cannot connect or query): {e}")
     finally:
@@ -65,11 +77,11 @@ async def test_dgraph_mock():
     class MockDgraphDriver(DgraphDriver):
         @override
         async def connect(self) -> None:
-            self._client = cast(Any, object())  # internal; tests only read via .client
+            self._client = cast(Any, object())
 
         @override
         async def run_query(self, query: str) -> DgraphQueryResult:
-            return b'{"data": {"node": [{"id": "test_id"}]}}'
+            return {"data": {"node": [{"id": "test_id"}]}}
 
         @override
         async def close(self) -> None:
