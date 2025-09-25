@@ -129,8 +129,3 @@ class DgraphDriver(DatabaseDriver):
             self._client_stub.close()
             self._client_stub = None
             self._client = None
-
-    @property
-    def client(self) -> pydgraph.DgraphClient | None:
-        """Public accessor for the underlying Dgraph client (avoids private attribute access in tests)."""
-        return self._client

@@ -1,6 +1,7 @@
 import json
 from typing import Any, cast, final, override
 
+import pydgraph
 import pytest
 
 from retriever.config.general import CONFIG, DgraphSettings
@@ -9,13 +10,13 @@ from retriever.data_tiers.tier_0.dgraph.driver import (
     DgraphQueryResult,
 )
 
+# Test-only subclass exposing the client property
+class _TestDgraphDriver(DgraphDriver):
+    @property
+    def client(self) -> pydgraph.DgraphClient | None:
+        return self._client
 
 def _load_result(result: Any) -> dict[str, Any]:
-    """
-    Normalize a Dgraph query result of varying runtime types into a dict.
-    Using Any for the parameter avoids pyright assuming a single dict type
-    (which made previous isinstance branches unreachable).
-    """
     if isinstance(result, dict):
         return cast(dict[str, Any], result)
     if isinstance(result, (bytes, bytearray)):
@@ -24,16 +25,14 @@ def _load_result(result: Any) -> dict[str, Any]:
         text = result
     else:
         raise TypeError(f"Unexpected result type: {type(result)}")
-
     data = json.loads(text)
     if not isinstance(data, dict):
         raise TypeError("Decoded JSON is not a dict")
     return cast(dict[str, Any], data)
 
-
 @pytest.mark.asyncio
 async def test_dgraph_live_with_default_settings():
-    driver = DgraphDriver()
+    driver = _TestDgraphDriver()
     try:
         await driver.connect()
         assert driver.client is not None
@@ -48,13 +47,12 @@ async def test_dgraph_live_with_default_settings():
         await driver.close()
         assert driver.client is None
 
-
 @pytest.mark.asyncio
 async def test_dgraph_live_with_settings(monkeypatch: pytest.MonkeyPatch):
     settings = DgraphSettings(host="localhost", http_port=8080, grpc_port=9080, use_tls=False)
     monkeypatch.setattr(CONFIG.tier0, "dgraph", settings, raising=False)
 
-    driver = DgraphDriver()
+    driver = _TestDgraphDriver()
     driver.endpoint = f"{settings.host}:{settings.grpc_port}"
 
     try:
@@ -70,13 +68,12 @@ async def test_dgraph_live_with_settings(monkeypatch: pytest.MonkeyPatch):
         await driver.close()
         assert driver.client is None
 
-
 @pytest.mark.asyncio
 async def test_dgraph_mock():
     @final
-    class MockDgraphDriver(DgraphDriver):
+    class MockDgraphDriver(_TestDgraphDriver):
         @override
-        async def connect(self) -> None:
+        async def connect(self, retries: int = 0) -> None:
             self._client = cast(Any, object())
 
         @override
