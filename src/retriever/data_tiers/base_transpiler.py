@@ -27,7 +27,7 @@ class Transpiler(ABC):
             return (
                 self._convert_multihop(qgraph)
                 if not batch
-                else self._convert_batch_multihop([qgraph])
+                else self._convert_batch_multihop(qgraph)
             )
 
     @abstractmethod
