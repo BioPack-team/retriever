@@ -135,7 +135,7 @@ class ElasticsearchTranspiler(Transpiler):
         raise NotImplementedError
 
     @override
-    def _convert_batch_multihop(self, qgraph: QueryGraphDict) -> Any:
+    def _convert_batch_multihop(self, qgraphs: list[QueryGraphDict]) -> Any:
         raise NotImplementedError
 
     def build_nodes(self, hits: list[ESHit]) -> dict[CURIE, NodeDict]:

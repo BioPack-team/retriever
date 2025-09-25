@@ -221,10 +221,39 @@ class Neo4jSettings(BaseModel):
     database_name: str = "neo4j"
 
 
+class DgraphSettings(BaseModel):
+    """Settings for the Tier 0 Dgraph interface."""
+
+    host: str = "localhost"
+    http_port: int = 8080
+    grpc_port: int = 9080
+    use_tls: bool = False
+    query_timeout: Annotated[
+        int, Field(description="Time in seconds before a Dgraph query should time out.")
+    ] = 1600
+    connect_retries: Annotated[
+        int,
+        Field(description="Number of retries before declaring a connection failure."),
+    ] = 25
+
+    @property
+    def http_endpoint(self) -> str:
+        """Get the complete HTTP endpoint URL for Dgraph HTTP API."""
+        scheme = "https" if self.use_tls else "http"
+        return f"{scheme}://{self.host}:{self.http_port}/query"
+
+    @property
+    def grpc_endpoint(self) -> str:
+        """Get the complete gRPC endpoint URL for Dgraph gRPC API."""
+        scheme = "https" if self.use_tls else "http"
+        return f"{scheme}://{self.host}:{self.grpc_port}"
+
+
 class Tier0Settings(BaseModel):
     """Settings concern Tier 0 abstraction layers."""
 
     neo4j: Neo4jSettings = Neo4jSettings()
+    dgraph: DgraphSettings = DgraphSettings()
 
 
 class GeneralConfig(CommentedSettings):

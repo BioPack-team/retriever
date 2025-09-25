@@ -15,7 +15,7 @@ class Neo4jTranspiler(Transpiler):
 
     @override
     def process_qgraph(self, qgraph: QueryGraphDict) -> LiteralString:
-        return self._convert_batch_multihop(qgraph)
+        return self._convert_batch_multihop([qgraph])
 
     @override
     def convert_triple(
@@ -33,20 +33,25 @@ class Neo4jTranspiler(Transpiler):
         )
 
         # Special case because we need qgraph for reasoner-transpiler's result conversion
-        return qgraph, self._convert_batch_multihop(qgraph, subclass=False)
+        return qgraph, self._convert_batch_multihop([qgraph], subclass=False)
 
     @override
     def _convert_multihop(self, qgraph: QueryGraphDict) -> LiteralString:
-        return self._convert_batch_multihop(qgraph)
+        return self._convert_batch_multihop([qgraph])
 
     @override
     def _convert_batch_multihop(
-        self, qgraph: QueryGraphDict, subclass: bool = True
+        self, qgraphs: list[QueryGraphDict], subclass: bool = True
     ) -> LiteralString:
+        # Neo4j/robokopkg backend only supports one graph at a time
+        if len(qgraphs) != 1:
+            raise NotImplementedError(
+                f"Neo4jTranspiler expects exactly one query graph, got {len(qgraphs)}"
+            )
         # This is a special case where we don't do any internal logic
         # Soley because reasoner-transpiler exists for this case
         # (This only works for Neo4j and the robokopkg backend)
-        return get_query(qgraph, subclass=subclass)
+        return get_query(qgraphs[0], subclass=subclass)
 
     @override
     def convert_results(self, qgraph: QueryGraphDict, results: Any) -> BackendResult:
