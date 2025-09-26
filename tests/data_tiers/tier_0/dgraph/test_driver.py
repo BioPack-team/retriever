@@ -40,7 +40,7 @@ async def test_dgraph_live_with_default_settings():
 
 @pytest.mark.asyncio
 async def test_dgraph_live_with_settings(monkeypatch: pytest.MonkeyPatch):
-    settings = DgraphSettings(host="transltr.biothings.io", http_port=8080, grpc_port=9080, use_tls=False)
+    settings = DgraphSettings(host="localhost", http_port=8080, grpc_port=9080, use_tls=False)
     monkeypatch.setattr(CONFIG.tier0, "dgraph", settings, raising=False)
 
     driver = _TestDgraphDriver()
