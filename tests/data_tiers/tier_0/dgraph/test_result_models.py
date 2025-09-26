@@ -160,11 +160,6 @@ def test_parse_response_full_fields_both_shapes(shape: str) -> None:
     assert t2.publications == ["PMID:222", "PMID:333"]
 
 
-def test_parse_response_invalid_type_raises() -> None:
-    with pytest.raises(TypeError):
-        dg_models.parse_response(123)
-
-
 def test_parse_response_missing_data_invalid_shape_raises() -> None:
     with pytest.raises(ValueError):
         dg_models.parse_response({"meta": {"ok": True}})

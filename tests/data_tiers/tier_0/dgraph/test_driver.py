@@ -2,7 +2,6 @@ from typing import Any, cast, final, override
 
 import pydgraph
 import pytest
-from loguru import logger as log
 
 from retriever.config.general import CONFIG, DgraphSettings
 from retriever.data_tiers.tier_0.dgraph.driver import DgraphDriver

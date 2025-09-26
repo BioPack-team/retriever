@@ -1,7 +1,7 @@
 import re
 from dataclasses import dataclass
 from textwrap import dedent
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -12,14 +12,6 @@ from retriever.types.trapi import QueryGraphDict, QNodeDict, QEdgeDict
 # -----------------------
 # Helpers
 # -----------------------
-
-def normalize(s: str) -> str:
-    return re.sub(r"\s+", " ", s.strip())
-
-
-def assert_query_equals(actual: str, expected: str) -> None:
-    assert normalize(actual) == normalize(expected)
-
 
 @dataclass(frozen=True)
 class QueryCase:
@@ -55,11 +47,34 @@ class _TestDgraphTranspiler(DgraphTranspiler):
         return self._convert_batch_multihop(qgraphs)
 
 
+def normalize(s: str) -> str:
+    return re.sub(r"\s+", " ", s.strip())
+
+
+def assert_query_equals(actual: str, expected: str) -> None:
+    assert normalize(actual) == normalize(expected)
+
+
+def qg(d: dict[str, Any]) -> QueryGraphDict:
+    """Cast a raw qgraph dict into a QueryGraphDict for type-checking in tests."""
+    return cast(QueryGraphDict, cast(object, d))
+
+
+def qn(d: dict[str, Any]) -> QNodeDict:
+    """Cast a raw node dict into a QNodeDict for type-checking in tests."""
+    return cast(QNodeDict, cast(object, d))
+
+
+def qe(d: dict[str, Any]) -> QEdgeDict:
+    """Cast a raw edge dict into a QEdgeDict for type-checking in tests."""
+    return cast(QEdgeDict, cast(object, d))
+
+
 # -----------------------
 # Query graph inputs
 # -----------------------
 
-SIMPLE_QGRAPH: QueryGraphDict = {
+SIMPLE_QGRAPH: QueryGraphDict = qg({
     "nodes": {
         "n0": {"ids": ["CHEBI:4514"], "constraints": []},
         "n1": {"ids": ["UMLS:C1564592"], "constraints": []},
@@ -73,9 +88,9 @@ SIMPLE_QGRAPH: QueryGraphDict = {
             "qualifier_constraints": [],
         },
     },
-}
+})
 
-SIMPLE_QGRAPH_MULTIPLE_IDS: QueryGraphDict = {
+SIMPLE_QGRAPH_MULTIPLE_IDS: QueryGraphDict = qg({
     "nodes": {
         "n0": {"ids": ["CHEBI:3125", "CHEBI:53448"], "constraints": []},
         "n1": {"ids": ["UMLS:C0282090", "CHEBI:10119"], "constraints": []},
@@ -89,9 +104,9 @@ SIMPLE_QGRAPH_MULTIPLE_IDS: QueryGraphDict = {
             "qualifier_constraints": [],
         },
     },
-}
+})
 
-TWO_HOP_QGRAPH: QueryGraphDict = {
+TWO_HOP_QGRAPH: QueryGraphDict = qg({
     "nodes": {
         "n0": {"ids": ["CHEBI:3125"], "constraints": []},
         "n1": {"ids": ["UMLS:C0282090"], "constraints": []},
@@ -113,9 +128,9 @@ TWO_HOP_QGRAPH: QueryGraphDict = {
             "qualifier_constraints": [],
         },
     },
-}
+})
 
-THREE_HOP_QGRAPH: QueryGraphDict = {
+THREE_HOP_QGRAPH: QueryGraphDict = qg({
     "nodes": {
         "n0": {"ids": ["CHEBI:3125"], "constraints": []},
         "n1": {"ids": ["UMLS:C0282090"], "constraints": []},
@@ -145,9 +160,9 @@ THREE_HOP_QGRAPH: QueryGraphDict = {
             "qualifier_constraints": [],
         },
     },
-}
+})
 
-FOUR_HOP_QGRAPH: QueryGraphDict = {
+FOUR_HOP_QGRAPH: QueryGraphDict = qg({
     "nodes": {
         "n0": {"ids": ["CHEBI:3125"], "constraints": []},
         "n1": {"ids": ["UMLS:C0282090"], "constraints": []},
@@ -185,9 +200,9 @@ FOUR_HOP_QGRAPH: QueryGraphDict = {
             "qualifier_constraints": [],
         },
     },
-}
+})
 
-FIVE_HOP_QGRAPH: QueryGraphDict = {
+FIVE_HOP_QGRAPH: QueryGraphDict = qg({
     "nodes": {
         "n0": {"ids": ["CHEBI:3125"], "constraints": []},
         "n1": {"ids": ["UMLS:C0282090"], "constraints": []},
@@ -233,9 +248,9 @@ FIVE_HOP_QGRAPH: QueryGraphDict = {
             "qualifier_constraints": [],
         },
     },
-}
+})
 
-FIVE_HOP_QGRAPH_MULTIPLE_IDS: QueryGraphDict = {
+FIVE_HOP_QGRAPH_MULTIPLE_IDS: QueryGraphDict = qg({
     "nodes": {
         "n0": {"ids": ["Q0", "Q1"], "constraints": []},
         "n1": {"ids": ["Q2", "Q3"], "constraints": []},
@@ -281,9 +296,9 @@ FIVE_HOP_QGRAPH_MULTIPLE_IDS: QueryGraphDict = {
             "qualifier_constraints": [],
         },
     },
-}
+})
 
-CATEGORY_FILTER_QGRAPH: QueryGraphDict = {
+CATEGORY_FILTER_QGRAPH: QueryGraphDict = qg({
     "nodes": {
         "n0": {"categories": ["biolink:Gene"], "constraints": []},
         "n1": {"categories": ["biolink:Disease"], "constraints": []}},
@@ -296,9 +311,9 @@ CATEGORY_FILTER_QGRAPH: QueryGraphDict = {
             "qualifier_constraints": [],
         },
     },
-}
+})
 
-MULTIPLE_FILTERS_QGRAPH: QueryGraphDict = {
+MULTIPLE_FILTERS_QGRAPH: QueryGraphDict = qg({
     "nodes": {
         "n0": {
             "ids": ["CHEBI:3125"],
@@ -334,9 +349,9 @@ MULTIPLE_FILTERS_QGRAPH: QueryGraphDict = {
             "qualifier_constraints": [],
         }
     },
-}
+})
 
-NEGATED_CONSTRAINT_QGRAPH: QueryGraphDict = {
+NEGATED_CONSTRAINT_QGRAPH: QueryGraphDict = qg({
     "nodes": {
         "n0": {"ids": ["CHEBI:3125"], "constraints": []},
         "n1": {
@@ -361,9 +376,9 @@ NEGATED_CONSTRAINT_QGRAPH: QueryGraphDict = {
             "qualifier_constraints": [],
         }
     },
-}
+})
 
-PUBLICATION_FILTER_QGRAPH: QueryGraphDict = {
+PUBLICATION_FILTER_QGRAPH: QueryGraphDict = qg({
     "nodes": {
         "n0": {"ids": ["DOID:14330"], "constraints": []},
         "n1": {
@@ -387,9 +402,9 @@ PUBLICATION_FILTER_QGRAPH: QueryGraphDict = {
             "qualifier_constraints": [],
         }
     },
-}
+})
 
-NUMERIC_FILTER_QGRAPH: QueryGraphDict = {
+NUMERIC_FILTER_QGRAPH: QueryGraphDict = qg({
     "nodes": {"n0": {"ids": ["DOID:14330"], "constraints": []}, "n1": {"categories": ["biolink:Gene"], "constraints": []}},
     "edges": {
         "e0": {
@@ -402,9 +417,9 @@ NUMERIC_FILTER_QGRAPH: QueryGraphDict = {
             "qualifier_constraints": [],
         }
     },
-}
+})
 
-SINGLE_STRING_WITH_COMMAS_QGRAPH: QueryGraphDict = {
+SINGLE_STRING_WITH_COMMAS_QGRAPH: QueryGraphDict = qg({
     "nodes": {
         "n0": {"ids": ["Q0, Q1"], "constraints": []},
         "n1": {"ids": ["Q2"], "constraints": []},
@@ -418,9 +433,9 @@ SINGLE_STRING_WITH_COMMAS_QGRAPH: QueryGraphDict = {
             "qualifier_constraints": [],
         }
     },
-}
+})
 
-PREDICATES_SINGLE_QGRAPH: QueryGraphDict = {
+PREDICATES_SINGLE_QGRAPH: QueryGraphDict = qg({
     "nodes": {
         "n0": {"ids": ["A"], "constraints": []},
         "n1": {"ids": ["B"], "constraints": []},
@@ -434,9 +449,9 @@ PREDICATES_SINGLE_QGRAPH: QueryGraphDict = {
             "qualifier_constraints": [],
         }
     },
-}
+})
 
-ATTRIBUTES_ONLY_QGRAPH: QueryGraphDict = {
+ATTRIBUTES_ONLY_QGRAPH: QueryGraphDict = qg({
     "nodes": {"n0": {"ids": ["A"], "constraints": []}, "n1": {"ids": ["B"], "constraints": []}},
     "edges": {
         "e0": {
@@ -449,9 +464,9 @@ ATTRIBUTES_ONLY_QGRAPH: QueryGraphDict = {
             "qualifier_constraints": [],
         }
     },
-}
+})
 
-START_OBJECT_WITH_IDS_QGRAPH: QueryGraphDict = {
+START_OBJECT_WITH_IDS_QGRAPH: QueryGraphDict = qg({
     "nodes": {
         "n0": {"ids": ["X"], "constraints": []},
         "n1": {"ids": ["Y"], "constraints": []},
@@ -465,7 +480,7 @@ START_OBJECT_WITH_IDS_QGRAPH: QueryGraphDict = {
             "qualifier_constraints": [],
         }
     },
-}
+})
 
 # Batch inputs
 BATCH_QGRAPHS: list[QueryGraphDict] = [
@@ -481,7 +496,7 @@ BATCH_QGRAPHS_MULTI_HOP: list[QueryGraphDict] = [
 ]
 
 BATCH_MULTI_IDS_SINGLE_GRAPH: list[QueryGraphDict] = [
-    {
+    qg({
         "nodes": {
             "n0": {"ids": ["A", "B"], "constraints": []},
             "n1": {"ids": ["C"], "constraints": []},
@@ -495,11 +510,11 @@ BATCH_MULTI_IDS_SINGLE_GRAPH: list[QueryGraphDict] = [
                 "qualifier_constraints": [],
             }
         },
-    }
+    })
 ]
 
 BATCH_NO_IDS_SINGLE_GRAPH: list[QueryGraphDict] = [
-    {
+    qg({
         "nodes": {
             "n0": {"categories": ["biolink:Gene"], "constraints": []},
             "n1": {"ids": ["D"], "constraints": []},
@@ -513,7 +528,7 @@ BATCH_NO_IDS_SINGLE_GRAPH: list[QueryGraphDict] = [
                 "qualifier_constraints": [],
             }
         },
-    }
+    })
 ]
 
 
@@ -1030,30 +1045,30 @@ def test_convert_results_pairs(case: ResultsCase) -> None:
 # -----------------------
 
 def test_convert_triple_raises_not_implemented(transpiler: DgraphTranspiler) -> None:
-    in_node: QNodeDict = {"ids": ["X"], "constraints": []}
-    out_node: QNodeDict = {"ids": ["Y"], "constraints": []}
-    edge: QEdgeDict = {
+    in_node: QNodeDict = qn({"ids": ["X"], "constraints": []})
+    out_node: QNodeDict = qn({"ids": ["Y"], "constraints": []})
+    edge: QEdgeDict = qe({
         "object": "n0",
         "subject": "n1",
         "predicates": [],
         "attribute_constraints": [],
         "qualifier_constraints": [],
-    }
+    })
     with pytest.raises(NotImplementedError) as excinfo:
         transpiler.convert_triple(in_node, edge, out_node)
     assert str(excinfo.value) == "Dgraph is Tier 0 only. Use multi-hop methods."
 
 
 def test_convert_batch_triple_raises_not_implemented(transpiler: DgraphTranspiler) -> None:
-    in_node: QNodeDict = {"ids": ["X"], "constraints": []}
-    out_node: QNodeDict = {"ids": ["Y"], "constraints": []}
-    edge: QEdgeDict = {
+    in_node: QNodeDict = qn({"ids": ["X"], "constraints": []})
+    out_node: QNodeDict = qn({"ids": ["Y"], "constraints": []})
+    edge: QEdgeDict = qe({
         "object": "n0",
         "subject": "n1",
         "predicates": [],
         "attribute_constraints": [],
         "qualifier_constraints": [],
-    }
+    })
     with pytest.raises(NotImplementedError) as excinfo:
         transpiler.convert_batch_triple(in_node, edge, out_node)
     assert str(excinfo.value) == "Dgraph is Tier 0 only. Use batch multi-hop methods."
