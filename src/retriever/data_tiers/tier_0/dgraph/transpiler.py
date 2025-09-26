@@ -4,9 +4,9 @@ from typing import Any, Protocol, TypeAlias, override
 from retriever.data_tiers.base_transpiler import Transpiler
 from retriever.types.general import BackendResult
 from retriever.types.trapi import (
+    CURIE,
     AttributeConstraintDict,
     BiolinkEntity,
-    CURIE,
     QEdgeDict,
     QEdgeID,
     QNodeDict,
