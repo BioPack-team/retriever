@@ -7,14 +7,15 @@ from opentelemetry import trace
 
 from retriever.config.general import CONFIG
 from retriever.data_tiers.base_driver import DatabaseDriver
+from retriever.data_tiers.tier_0.dgraph import result_models as dg_models
 
 
-class DgraphResponse(Protocol):
-    """Protocol for Dgraph response object."""
+class PydgraphResponse(Protocol):
+    """Protocol for Dgraph response object returned by pydgraph."""
 
     @property
     def json(self) -> Any:
-        """Return the JSON content of the response."""
+        """Return the JSON content of the response (bytes/str/dict depending on client)."""
         ...
 
 
@@ -34,13 +35,13 @@ class DgraphTxnProtocol(Protocol):
         query: str,
         variables: Any = None,
         resp_format: str = "JSON",
-    ) -> DgraphResponse:
-        """Run a query and return a DgraphResponse."""
+    ) -> PydgraphResponse:
+        """Run a query and return a pydgraph Response-like object."""
         ...
 
 
 class DgraphQueryResult(TypedDict, total=False):
-    """TypedDict for Dgraph query result."""
+    """TypedDict for legacy Dgraph query result (kept for backward compat where needed)."""
     data: Any
     errors: Any
 
@@ -88,8 +89,8 @@ class DgraphDriver(DatabaseDriver):
                 raise e
 
     @override
-    async def run_query(self, query: str, *args: Any, **kwargs: Any) -> DgraphQueryResult:
-        """Execute a query against the Dgraph database."""
+    async def run_query(self, query: str, *args: Any, **kwargs: Any) -> dg_models.DgraphResponse:
+        """Execute a query against the Dgraph database and parse into dataclasses."""
         if not self._client:
             raise RuntimeError("DgraphDriver not connected. Call connect() first.")
 
@@ -97,7 +98,7 @@ class DgraphDriver(DatabaseDriver):
         txn = self._client.txn(read_only=True)
         txn_protocol: DgraphTxnProtocol = cast(DgraphTxnProtocol, cast(object, txn))
 
-        def _query() -> DgraphResponse:
+        def _query() -> PydgraphResponse:
             return txn_protocol.query(query)
 
         otel_span = trace.get_current_span()
@@ -108,7 +109,7 @@ class DgraphDriver(DatabaseDriver):
 
         future = loop.run_in_executor(None, _query)
         try:
-            resp: DgraphResponse = await asyncio.wait_for(
+            resp: PydgraphResponse = await asyncio.wait_for(
                 future, timeout=self.query_timeout
             )
         except TimeoutError as e:
@@ -120,7 +121,10 @@ class DgraphDriver(DatabaseDriver):
 
         if otel_span is not None:
             otel_span.add_event("dgraph_query_end")
-        return resp.json
+
+        # pydgraph exposes Response.json as a property (bytes/str/dict)
+        result = dg_models.parse_response(resp.json)
+        return result
 
     @override
     async def close(self) -> None:
