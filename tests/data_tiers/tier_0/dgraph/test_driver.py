@@ -25,7 +25,7 @@ class _TestDgraphGrpcDriver(DgraphGrpcDriver):
 
 @pytest.mark.asyncio
 async def test_dgraph_http_live_with_settings(monkeypatch: pytest.MonkeyPatch):
-    settings = DgraphSettings(host="transltr.biothings.io", http_port=8080, grpc_port=9080, use_tls=False, query_timeout=3, connect_retries=0)
+    settings = DgraphSettings(host="localhost", http_port=8080, grpc_port=9080, use_tls=False, query_timeout=3, connect_retries=0)
     monkeypatch.setattr(CONFIG.tier0, "dgraph", settings, raising=False)
 
     driver = _TestDgraphHttpDriver()
@@ -51,7 +51,7 @@ async def test_dgraph_http_live_with_settings(monkeypatch: pytest.MonkeyPatch):
 
 @pytest.mark.asyncio
 async def test_dgraph_grpc_live_with_settings(monkeypatch: pytest.MonkeyPatch):
-    settings = DgraphSettings(host="transltr.biothings.io", http_port=8080, grpc_port=9080, use_tls=False, query_timeout=3, connect_retries=0)
+    settings = DgraphSettings(host="localhost", http_port=8080, grpc_port=9080, use_tls=False, query_timeout=3, connect_retries=0)
     monkeypatch.setattr(CONFIG.tier0, "dgraph", settings, raising=False)
 
     driver = _TestDgraphGrpcDriver()
