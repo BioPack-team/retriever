@@ -205,12 +205,10 @@ class DgraphTranspiler(Transpiler):
     def _create_in_filter(self, field_name: str, value: FilterValue) -> str:
         """Create a filter expression for 'in' operator."""
         if isinstance(value, list):
-            # value is list[FilterScalar] here; ensure string formatting
             quoted_items = [f'"{item!s}"' for item in value] if value else []
             values_str = ", ".join(quoted_items)
             return f'eq({field_name}, [{values_str}])'
         else:
-            # Single scalar value
             return f'eq({field_name}, "{value!s}")'
 
     def _create_id_filter(self, ids: Sequence[str] | Sequence[CURIE]) -> str:

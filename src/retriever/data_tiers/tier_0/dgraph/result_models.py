@@ -14,7 +14,6 @@ class Node:
     id: str
     name: str
     category: str
-    # Additional node attributes
     all_names: list[str] = field(default_factory=list)
     all_categories: list[str] = field(default_factory=list)
     iri: str | None = None
@@ -28,7 +27,6 @@ class InEdge:
     """Inbound edge with predicate, qualifiers, and a nested target Node."""
     predicate: str
     node: Node
-    # Additional edge attributes
     primary_knowledge_source: str | None = None
     knowledge_level: str | None = None
     agent_type: str | None = None
@@ -40,12 +38,10 @@ class InEdge:
 @dataclass(frozen=True)
 class NodeResult:
     """Root node result for each query key, including its inbound edges."""
-    # Root node fields (same as Node) plus in_edges
     id: str
     name: str
     category: str
     in_edges: list[InEdge]
-    # Additional node attributes (duplicated here so root nodes expose them too)
     all_names: list[str] = field(default_factory=list)
     all_categories: list[str] = field(default_factory=list)
     iri: str | None = None
@@ -57,7 +53,6 @@ class NodeResult:
 @dataclass(frozen=True)
 class DgraphResponse:
     """Parsed Dgraph response mapping query names to lists of NodeResult."""
-    # query_name -> list of nodes
     data: dict[str, list[NodeResult]]
 
 
@@ -120,7 +115,7 @@ def parse_noderesult(node_dict: Mapping[str, Any]) -> NodeResult:
         mapped_edges: list[dict[str, Any]] = []
         for e in items:
             if hasattr(e, "keys") and hasattr(e, "values"):
-                with suppress(TypeError, ValueError):  # SIM105: use suppress instead of try/except/pass
+                with suppress(TypeError, ValueError):
                     mapped_edges.append(dict(e))
         in_edges = [parse_inedge(e) for e in mapped_edges]
     return NodeResult(
@@ -159,7 +154,6 @@ def _extract_data_map(obj_dict: dict[str, Any]) -> dict[str, Any]:
             return data_map_dict
         raise ValueError("'data' field is not a mapping")
     elif all(isinstance(v, list) for v in obj_dict.values()) or not obj_dict:
-        # If top-level looks like the data map (keys -> lists), use it directly
         return obj_dict
     else:
         raise ValueError("Response missing 'data' field or it is not a mapping")
@@ -187,7 +181,7 @@ def parse_response(raw: str | bytes | bytearray | Mapping[str, Any]) -> DgraphRe
     # Load into a concrete dict for precise typing
     obj_dict: dict[str, Any]
 
-    if isinstance(raw, str | bytes | bytearray):  # UP038: use union instead of tuple
+    if isinstance(raw, str | bytes | bytearray):
         obj_dict = _parse_json_to_dict(raw)
     elif hasattr(raw, "items"):
         obj_dict = {}
