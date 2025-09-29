@@ -14,6 +14,7 @@ from retriever.data_tiers.tier_0.dgraph import result_models as dg_models
 
 # Factory helpers to create drivers AFTER module reload, exposing internals
 def new_http_driver() -> driver_mod.DgraphHttpDriver:
+    # Test-only subclass exposing the client property
     class _TestDgraphHttpDriver(driver_mod.DgraphHttpDriver):
         @property
         def http_session(self) -> aiohttp.ClientSession | None:
@@ -21,7 +22,9 @@ def new_http_driver() -> driver_mod.DgraphHttpDriver:
     return _TestDgraphHttpDriver()
 
 
+# Factory helpers to create drivers AFTER module reload, exposing internals
 def new_grpc_driver() -> driver_mod.DgraphGrpcDriver:
+    # Test-only subclass exposing the client property
     class _TestDgraphGrpcDriver(driver_mod.DgraphGrpcDriver):
         @property
         def client(self) -> pydgraph.DgraphClient | None:
