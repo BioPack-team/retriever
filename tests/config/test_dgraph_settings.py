@@ -11,29 +11,29 @@ def test_dgraph_settings_defaults_properties():
     assert s.query_timeout == 1600
     assert s.connect_retries == 25
 
-    assert s.http_endpoint == "http://localhost:8080/query"
-    assert s.grpc_endpoint == "http://localhost:9080"
+    assert s.http_endpoint == "http://localhost:8080"
+    assert s.grpc_endpoint == "localhost:9080"
 
 
 def test_dgraph_settings_tls_properties():
     from retriever.config.general import DgraphSettings
 
     s = DgraphSettings(host="example.org", http_port=18080, grpc_port=19080, use_tls=True)
-    assert s.http_endpoint == "https://example.org:18080/query"
-    assert s.grpc_endpoint == "https://example.org:19080"
+    assert s.http_endpoint == "https://example.org:18080"
+    assert s.grpc_endpoint == "example.org:19080"
 
 
 def test_dgraph_settings_runtime_mutation_updates_endpoints():
     from retriever.config.general import DgraphSettings
 
     s = DgraphSettings()
-    assert s.http_endpoint == "http://localhost:8080/query"
-    assert s.grpc_endpoint == "http://localhost:9080"
+    assert s.http_endpoint == "http://localhost:8080"
+    assert s.grpc_endpoint == "localhost:9080"
 
     s.host = "dgraph.local"
     s.http_port = 1234
     s.grpc_port = 5678
     s.use_tls = True
 
-    assert s.http_endpoint == "https://dgraph.local:1234/query"
-    assert s.grpc_endpoint == "https://dgraph.local:5678"
+    assert s.http_endpoint == "https://dgraph.local:1234"
+    assert s.grpc_endpoint == "dgraph.local:5678"

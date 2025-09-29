@@ -82,10 +82,9 @@ class DgraphDriver(DatabaseDriver):
 
         # Set endpoint based on protocol
         if protocol == DgraphProtocol.GRPC:
-            self.endpoint = f"{self.settings.host}:{self.settings.grpc_port}"
+            self.endpoint = self.settings.grpc_endpoint
         else:  # HTTP
-            schema = "https" if self.settings.use_tls else "http"
-            self.endpoint = f"{schema}://{self.settings.host}:{self.settings.http_port}"
+            self.endpoint = self.settings.http_endpoint
 
     @override
     async def connect(self, retries: int = 0) -> None:

@@ -240,13 +240,12 @@ class DgraphSettings(BaseModel):
     def http_endpoint(self) -> str:
         """Get the complete HTTP endpoint URL for Dgraph HTTP API."""
         scheme = "https" if self.use_tls else "http"
-        return f"{scheme}://{self.host}:{self.http_port}/query"
+        return f"{scheme}://{self.host}:{self.http_port}"
 
     @property
     def grpc_endpoint(self) -> str:
         """Get the complete gRPC endpoint URL for Dgraph gRPC API."""
-        scheme = "https" if self.use_tls else "http"
-        return f"{scheme}://{self.host}:{self.grpc_port}"
+        return f"{self.host}:{self.grpc_port}"
 
 
 class Tier0Settings(BaseModel):

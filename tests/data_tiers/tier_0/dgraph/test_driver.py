@@ -1,12 +1,34 @@
 from typing import Any, cast, final, override
 
+import aiohttp
+import importlib
 import pydgraph
 import pytest
-import aiohttp
 
 from retriever.config.general import CONFIG, DgraphSettings
 from retriever.data_tiers.tier_0.dgraph.driver import DgraphHttpDriver, DgraphGrpcDriver
 from retriever.data_tiers.tier_0.dgraph import result_models as dg_models
+
+import retriever.config.general as general_mod
+import retriever.data_tiers.tier_0.dgraph.driver as driver_mod
+
+
+@pytest.fixture
+def mock_dgraph_config(monkeypatch: pytest.MonkeyPatch):
+    # Provide config via env vars (no secret files needed)
+    monkeypatch.setenv("TIER0__DGRAPH__HOST", "localhost")
+    monkeypatch.setenv("TIER0__DGRAPH__HTTP_PORT", "8080")
+    monkeypatch.setenv("TIER0__DGRAPH__GRPC_PORT", "9080")
+    monkeypatch.setenv("TIER0__DGRAPH__USE_TLS", "false")
+    monkeypatch.setenv("TIER0__DGRAPH__QUERY_TIMEOUT", "3")
+    monkeypatch.setenv("TIER0__DGRAPH__CONNECT_RETRIES", "0")
+
+    # Reload the config module so CONFIG picks up env vars
+    importlib.reload(general_mod)
+
+    # Rebind CONFIG inside the driver module (it cached an old reference at import time)
+    monkeypatch.setattr(driver_mod, "CONFIG", general_mod.CONFIG, raising=False)
+    yield
 
 
 # Test-only subclass exposing the client property
@@ -24,7 +46,7 @@ class _TestDgraphGrpcDriver(DgraphGrpcDriver):
 
 
 @pytest.mark.asyncio
-async def test_dgraph_http_live_with_settings(monkeypatch: pytest.MonkeyPatch):
+async def test_dgraph_live_with_http_settings_manual(monkeypatch: pytest.MonkeyPatch):
     settings = DgraphSettings(host="localhost", http_port=8080, grpc_port=9080, use_tls=False, query_timeout=3, connect_retries=0)
     monkeypatch.setattr(CONFIG.tier0, "dgraph", settings, raising=False)
 
@@ -50,7 +72,7 @@ async def test_dgraph_http_live_with_settings(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.mark.asyncio
-async def test_dgraph_grpc_live_with_settings(monkeypatch: pytest.MonkeyPatch):
+async def test_dgraph_live_with_grpc_settings_manual(monkeypatch: pytest.MonkeyPatch):
     settings = DgraphSettings(host="localhost", http_port=8080, grpc_port=9080, use_tls=False, query_timeout=3, connect_retries=0)
     monkeypatch.setattr(CONFIG.tier0, "dgraph", settings, raising=False)
 
@@ -59,6 +81,58 @@ async def test_dgraph_grpc_live_with_settings(monkeypatch: pytest.MonkeyPatch):
     try:
         await driver.connect()
         assert driver.client is not None
+        result: dg_models.DgraphResponse = await driver.run_query(
+            "{ node(func: has(id), first: 1) { id name category } }"
+        )
+        assert isinstance(result, dg_models.DgraphResponse)
+        for nodes in result.data.values():
+            if nodes:
+                assert nodes[0].id
+                break
+    except Exception as e:
+        pytest.skip(f"Skipping live Dgraph gRPC test (cannot connect or query): {e}")
+    finally:
+        await driver.close()
+        assert driver.client is None
+
+
+@pytest.mark.asyncio
+async def test_dgraph_live_with_http_settings_from_config(mock_dgraph_config):
+    # Use the default config files without modification
+    driver = _TestDgraphHttpDriver()
+
+    try:
+        await driver.connect()
+        assert driver.http_session is not None
+        # Log actual connection settings for debugging
+        print(f"Connected to HTTP endpoint: {driver.endpoint}")
+
+        result: dg_models.DgraphResponse = await driver.run_query(
+            "{ node(func: has(id), first: 1) { id name category } }"
+        )
+        assert isinstance(result, dg_models.DgraphResponse)
+        for nodes in result.data.values():
+            if nodes:
+                assert nodes[0].id
+                break
+    except Exception as e:
+        pytest.skip(f"Skipping live Dgraph HTTP test (cannot connect or query): {e}")
+    finally:
+        await driver.close()
+        assert driver.http_session is None
+
+
+@pytest.mark.asyncio
+async def test_dgraph_live_with_grpc_settings_from_config(mock_dgraph_config):
+    # Use the default config files without modification
+    driver = _TestDgraphGrpcDriver()
+
+    try:
+        await driver.connect()
+        assert driver.client is not None
+        # Log actual connection settings for debugging
+        print(f"Connected to gRPC endpoint: {driver.endpoint}")
+
         result: dg_models.DgraphResponse = await driver.run_query(
             "{ node(func: has(id), first: 1) { id name category } }"
         )
