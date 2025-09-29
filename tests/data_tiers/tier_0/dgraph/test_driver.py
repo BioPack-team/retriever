@@ -1,6 +1,6 @@
-from typing import Any, cast, final, override
-from collections.abc import Iterator
 import importlib
+from collections.abc import Iterator
+from typing import Any, cast, final, override
 
 import aiohttp
 import pydgraph
@@ -12,23 +12,25 @@ from retriever.config.general import DgraphSettings
 from retriever.data_tiers.tier_0.dgraph import result_models as dg_models
 
 
-# Factory helpers to create drivers AFTER module reload, exposing internals
-def new_http_driver() -> driver_mod.DgraphHttpDriver:
-    # Test-only subclass exposing the client property
-    class _TestDgraphHttpDriver(driver_mod.DgraphHttpDriver):
-        @property
-        def http_session(self) -> aiohttp.ClientSession | None:
-            return self._http_session
+# Test-only subclass exposing the client property
+class _TestDgraphHttpDriver(driver_mod.DgraphHttpDriver):
+    @property
+    def http_session(self) -> aiohttp.ClientSession | None:
+        return self._http_session
+
+
+# Test-only subclass exposing the client property
+class _TestDgraphGrpcDriver(driver_mod.DgraphGrpcDriver):
+    @property
+    def client(self) -> pydgraph.DgraphClient | None:
+        return self._client
+
+
+def new_http_driver() -> _TestDgraphHttpDriver:
     return _TestDgraphHttpDriver()
 
 
-# Factory helpers to create drivers AFTER module reload, exposing internals
-def new_grpc_driver() -> driver_mod.DgraphGrpcDriver:
-    # Test-only subclass exposing the client property
-    class _TestDgraphGrpcDriver(driver_mod.DgraphGrpcDriver):
-        @property
-        def client(self) -> pydgraph.DgraphClient | None:
-            return self._client
+def new_grpc_driver() -> _TestDgraphGrpcDriver:
     return _TestDgraphGrpcDriver()
 
 
@@ -84,7 +86,7 @@ def manual_dgraph_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[DgraphSe
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config")
-async def test_dgraph_live_with_http_settings_from_config():
+async def test_dgraph_live_with_http_settings_from_config() -> None:
     driver = new_http_driver()
     try:
         await driver.connect()
@@ -102,7 +104,7 @@ async def test_dgraph_live_with_http_settings_from_config():
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config")
-async def test_dgraph_live_with_grpc_settings_from_config():
+async def test_dgraph_live_with_grpc_settings_from_config() -> None:
     driver = new_grpc_driver()
     try:
         await driver.connect()
@@ -120,7 +122,7 @@ async def test_dgraph_live_with_grpc_settings_from_config():
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("manual_dgraph_settings")
-async def test_dgraph_live_with_http_settings_manual():
+async def test_dgraph_live_with_http_settings_manual() -> None:
     driver = new_http_driver()
     try:
         await driver.connect()
@@ -138,7 +140,7 @@ async def test_dgraph_live_with_http_settings_manual():
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("manual_dgraph_settings")
-async def test_dgraph_live_with_grpc_settings_manual():
+async def test_dgraph_live_with_grpc_settings_manual() -> None:
     driver = new_grpc_driver()
     try:
         await driver.connect()
@@ -155,7 +157,7 @@ async def test_dgraph_live_with_grpc_settings_manual():
 
 
 @pytest.mark.asyncio
-async def test_dgraph_mock():
+async def test_dgraph_mock() -> None:
     @final
     class MockDgraphDriver(driver_mod.DgraphGrpcDriver):
         @override
