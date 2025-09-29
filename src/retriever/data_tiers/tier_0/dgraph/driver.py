@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Callable
 from enum import Enum
 from http import HTTPStatus
 from typing import Any, Protocol, TypedDict, cast, override
@@ -30,6 +31,14 @@ class PydgraphResponse(Protocol):
         ...
 
 
+class _GrpcFuture(Protocol):
+    """Minimal protocol for the future returned by pydgraph async_query."""
+
+    def result(self, timeout: float | None = None) -> Any:
+        """Get the result of the future, with optional timeout."""
+        ...
+
+
 class DgraphClientStubProtocol(Protocol):
     """Protocol for Dgraph client stub."""
 
@@ -47,7 +56,22 @@ class DgraphTxnProtocol(Protocol):
         variables: Any = None,
         resp_format: str = "JSON",
     ) -> PydgraphResponse:
-        """Run a query and return a pydgraph Response-like object."""
+        """Run a synchronous query and return the response."""
+        ...
+
+    def async_query(
+        self,
+        query: str,
+        variables: dict[str, Any] | None = None,
+        timeout: float | None = None,
+        credentials: Any | None = None,
+        resp_format: str = "JSON",
+    ) -> _GrpcFuture:
+        """Run an async query and return a future."""
+        ...
+
+    def discard(self) -> None:
+        """Discard the transaction."""
         ...
 
 
@@ -162,19 +186,17 @@ class DgraphDriver(DatabaseDriver):
         """Execute query using gRPC protocol."""
         assert self._client is not None, "gRPC client not initialized"
 
-        loop = asyncio.get_running_loop()
         txn = self._client.txn(read_only=True)
         txn_protocol: DgraphTxnProtocol = cast(DgraphTxnProtocol, cast(object, txn))
 
-        def _query() -> PydgraphResponse:
-            return txn_protocol.query(query)
+        future: _GrpcFuture = txn_protocol.async_query(query=query, variables=None, timeout=self.query_timeout, credentials=None, resp_format="JSON")
 
-        future = loop.run_in_executor(None, _query)
-        resp: PydgraphResponse = await asyncio.wait_for(
-            future, timeout=self.query_timeout
-        )
+        # Cast the untyped pydgraph helper to a typed callable
+        handle_query_future = cast(Callable[[_GrpcFuture], PydgraphResponse], pydgraph.Txn.handle_query_future)
 
-        return dg_models.parse_response(resp.json)
+        response: PydgraphResponse = handle_query_future(future)
+        raw: Any = response.json
+        return dg_models.parse_response(raw)
 
     async def _run_http_query(self, query: str) -> dg_models.DgraphResponse:
         """Execute query using HTTP protocol with DQL."""
@@ -196,7 +218,7 @@ class DgraphDriver(DatabaseDriver):
             raw_data = await response.json()
 
             if "errors" in raw_data:
-                raise RuntimeError(f"DQL query returned errors: {raw_data['errors']}")
+                raise RuntimeError(f"Dgraph query returned errors: {raw_data['errors']}")
 
             return dg_models.parse_response(raw_data)
 
