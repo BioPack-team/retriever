@@ -39,6 +39,7 @@ dependencies = [
     "click>=8.1.8",
     "elasticsearch[async]>=8,<9",
     "pydgraph>=24.3.0",
+    "aiohttp>=3.9.0",
 ]
 
 [project.scripts]

@@ -1,11 +1,16 @@
+from collections.abc import Mapping, Sequence
 from typing import Any, Protocol, TypeAlias, override
 
 from retriever.data_tiers.base_transpiler import Transpiler
 from retriever.types.general import BackendResult
 from retriever.types.trapi import (
+    CURIE,
     AttributeConstraintDict,
+    BiolinkEntity,
     QEdgeDict,
+    QEdgeID,
     QNodeDict,
+    QNodeID,
     QueryGraphDict,
 )
 
@@ -55,7 +60,11 @@ class DgraphTranspiler(Transpiler):
         # Build query from the starting node
         return "{ " + self._build_node_query(start_node_id, nodes, edges) + "}"
 
-    def _find_start_node(self, nodes: dict[str, QNodeDict], edges: dict[str, QEdgeDict]) -> str:
+    def _find_start_node(
+        self,
+        nodes: Mapping[QNodeID, QNodeDict],
+        edges: Mapping[QEdgeID, QEdgeDict],
+    ) -> QNodeID:
         """Find the best node to start the traversal from."""
         # Start with a node that has IDs and is the object of at least one edge
         for node_id, node in nodes.items():
@@ -196,38 +205,39 @@ class DgraphTranspiler(Transpiler):
     def _create_in_filter(self, field_name: str, value: FilterValue) -> str:
         """Create a filter expression for 'in' operator."""
         if isinstance(value, list):
-            # value is list[FilterScalar] here; ensure string formatting
             quoted_items = [f'"{item!s}"' for item in value] if value else []
             values_str = ", ".join(quoted_items)
             return f'eq({field_name}, [{values_str}])'
         else:
-            # Single scalar value
             return f'eq({field_name}, "{value!s}")'
 
-    def _create_id_filter(self, ids: list[str]) -> str:
+    def _create_id_filter(self, ids: Sequence[str] | Sequence[CURIE]) -> str:
         """Create a filter for ID fields."""
-        if len(ids) == 1:
-            id_value = ids[0]
+        id_list = [str(i) for i in ids]
+        if len(id_list) == 1:
+            id_value = id_list[0]
             if "," in id_value:
                 # Multiple IDs in a single string - split them
-                id_list = [id_val.strip() for id_val in id_value.split(",")]
-                ids_str = ', '.join(f'"{id_val}"' for id_val in id_list)
+                split_ids = [id_val.strip() for id_val in id_value.split(",")]
+                ids_str = ", ".join(f'"{id_val}"' for id_val in split_ids)
                 return f'eq(id, [{ids_str}])'
-            else:
-                # Single ID - most selective query
-                return f'eq(id, "{id_value}")'
-        else:
-            # Multiple IDs in array
-            ids_str = ', '.join(f'"{id_val}"' for id_val in ids)
-            return f'eq(id, [{ids_str}])'
+            # Single ID - most selective query
+            return f'eq(id, "{id_value}")'
 
-    def _create_category_filter(self, categories: list[str]) -> str:
+        # Multiple IDs in array
+        ids_str = ", ".join(f'"{id_val}"' for id_val in id_list)
+        return f'eq(id, [{ids_str}])'
+
+    def _create_category_filter(
+        self,
+        categories: Sequence[str] | Sequence[BiolinkEntity],
+    ) -> str:
         """Create a filter for category fields."""
-        if len(categories) == 1:
-            return f'eq(category, "{categories[0]}")'
-        else:
-            categories_str = ', '.join(f'"{cat}"' for cat in categories)
-            return f'eq(category, [{categories_str}])'
+        cat_vals = [str(c) for c in categories]
+        if len(cat_vals) == 1:
+            return f'eq(category, "{cat_vals[0]}")'
+        categories_str = ", ".join(f'"{cat}"' for cat in cat_vals)
+        return f'eq(category, [{categories_str}])'
 
     def _get_primary_and_secondary_filters(self, node: QNodeDict) -> tuple[str, list[str]]:
         """Extract primary and secondary filters from a node."""
@@ -287,9 +297,9 @@ class DgraphTranspiler(Transpiler):
 
         def __init__(
             self,
-            nodes: dict[str, QNodeDict],
-            edges: dict[str, QEdgeDict],
-            visited: set[str]
+            nodes: Mapping[QNodeID, QNodeDict],
+            edges: Mapping[QEdgeID, QEdgeDict],
+            visited: set[QNodeID],
         ) -> None:
             """Initialize edge connection context.
 
@@ -298,15 +308,15 @@ class DgraphTranspiler(Transpiler):
                 edges: Dictionary of query edges
                 visited: Set of already visited node IDs
             """
-            self.nodes: dict[str, QNodeDict] = nodes
-            self.edges: dict[str, QEdgeDict] = edges
-            self.visited: set[str] = visited
+            self.nodes: Mapping[QNodeID, QNodeDict] = nodes
+            self.edges: Mapping[QEdgeID, QEdgeDict] = edges
+            self.visited: set[QNodeID] = visited
 
     def _process_edge_connection(
         self,
         edge: QEdgeDict,
         source: QNodeDict,
-        source_id: str,
+        source_id: QNodeID,
         context: EdgeConnectionContext,
     ) -> str:
         """Process an edge connection and build the query for it."""
@@ -349,9 +359,9 @@ class DgraphTranspiler(Transpiler):
 
     def _build_node_query(
         self,
-        node_id: str,
-        nodes: dict[str, QNodeDict],
-        edges: dict[str, QEdgeDict],
+        node_id: QNodeID,
+        nodes: Mapping[QNodeID, QNodeDict],
+        edges: Mapping[QEdgeID, QEdgeDict],
     ) -> str:
         """Recursively build a query for a node and its connected nodes."""
         node = nodes[node_id]
@@ -372,11 +382,10 @@ class DgraphTranspiler(Transpiler):
         query += self._add_standard_node_fields()
 
         # Find incoming edges to this node (where this node is the OBJECT)
-        connected_edges: dict[str, list[QEdgeDict]] = {}
+        connected_edges: dict[QNodeID, list[QEdgeDict]] = {}
         for edge in edges.values():
             if edge["object"] == node_id:
-                # Get the source node and predicate
-                source_id = edge["subject"]
+                source_id: QNodeID = edge["subject"]
                 if source_id not in connected_edges:
                     connected_edges[source_id] = []
                 connected_edges[source_id].append(edge)
@@ -386,7 +395,6 @@ class DgraphTranspiler(Transpiler):
 
         # For each source node, build the edge traversal
         for source_id, source_edges in connected_edges.items():
-            # Use the first edge
             edge = source_edges[0]
             source = nodes[source_id]
             query += self._process_edge_connection(
@@ -402,10 +410,10 @@ class DgraphTranspiler(Transpiler):
 
     def _build_further_hops(
         self,
-        node_id: str,
-        nodes: dict[str, QNodeDict],
-        edges: dict[str, QEdgeDict],
-        visited: set[str]
+        node_id: QNodeID,
+        nodes: Mapping[QNodeID, QNodeDict],
+        edges: Mapping[QEdgeID, QEdgeDict],
+        visited: set[QNodeID],
     ) -> str:
         """Build query for further hops beyond the first one."""
         # Prevent cycles
