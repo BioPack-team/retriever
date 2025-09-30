@@ -81,6 +81,18 @@ class DgraphQueryResult(TypedDict, total=False):
     errors: Any
 
 
+class DgraphClientProtocol(Protocol):
+    """Protocol for the pydgraph.DgraphClient."""
+
+    def txn(self, read_only: bool = False, best_effort: bool = False) -> DgraphTxnProtocol:
+        """Create a new Dgraph transaction."""
+        ...
+
+    def check_version(self, timeout: float | None = None) -> Any:
+        """Check the version of the Dgraph server."""
+        ...
+
+
 class DgraphDriver(DatabaseDriver):
     """Driver for Dgraph supporting both gRPC and HTTP protocols."""
 
@@ -90,7 +102,8 @@ class DgraphDriver(DatabaseDriver):
     query_timeout: float
     connect_retries: int
     _client_stub: DgraphClientStubProtocol | None = None
-    _client: pydgraph.DgraphClient | None = None
+    # _client: pydgraph.DgraphClient | None = None
+    _client: DgraphClientProtocol | None = None
     _http_session: aiohttp.ClientSession | None = None
 
     def __init__(self, protocol: DgraphProtocol = DgraphProtocol.GRPC) -> None:
@@ -135,7 +148,22 @@ class DgraphDriver(DatabaseDriver):
     async def _connect_grpc(self) -> None:
         """Establish gRPC connection to Dgraph."""
         self._client_stub = pydgraph.DgraphClientStub(self.endpoint)
-        self._client = pydgraph.DgraphClient(self._client_stub)
+        self._client = cast(DgraphClientProtocol, cast(object, pydgraph.DgraphClient(self._client_stub)))
+
+        try:
+            assert self._client is not None
+            # The pydgraph client is synchronous, so `check_version()` is a blocking
+            # network call. We use `asyncio.to_thread()` to run it in a separate
+            # thread, which prevents it from freezing the main application's event
+            # loop. `asyncio.wait_for()` is used to enforce a timeout.
+            await asyncio.wait_for(
+                asyncio.to_thread(self._client.check_version),
+                timeout=self.query_timeout,
+            )
+        except Exception as e:
+            # If verification fails, clean up immediately and raise a clear error.
+            await self._cleanup_connections()
+            raise ConnectionError(f"Failed to verify gRPC connection to {self.endpoint}") from e
 
     async def _connect_http(self) -> None:
         """Establish HTTP connection to Dgraph."""
