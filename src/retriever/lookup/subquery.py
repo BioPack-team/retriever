@@ -14,6 +14,7 @@ from retriever.types.trapi import (
     LogEntryDict,
     QEdgeDict,
     QNodeDict,
+    QueryGraphDict,
 )
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.trapi import append_aggregator_source, normalize_kgraph
@@ -49,9 +50,15 @@ async def mock_subquery(
         else:
             object_node["ids"] = [branch.input_curie]
 
-        qgraph, query_payload = transpiler.convert_batch_triple(
-            subject_node, current_edge, object_node
+        qgraph = QueryGraphDict(
+            nodes={
+                current_edge["subject"]: subject_node,
+                current_edge["object"]: object_node,
+            },
+            edges={edge_id: current_edge},
         )
+
+        query_payload = transpiler.process_qgraph(qgraph)
 
         job_log.debug(
             f"Subquerying Tier 1 for {subject_node.get('ids', []) or []} -{current_edge.get('predicates', []) or []}-> {object_node.get('ids', []) or []}..."

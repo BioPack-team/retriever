@@ -5,53 +5,44 @@ from reasoner_transpiler.cypher import (
     transform_result,  # pyright:ignore[reportUnknownVariableType]
 )
 
-from retriever.data_tiers.base_transpiler import Transpiler
+from retriever.data_tiers.base_transpiler import (
+    Tier0Transpiler,
+    Tier1Transpiler,
+)
 from retriever.types.general import BackendResult
-from retriever.types.trapi import Infores, QEdgeDict, QEdgeID, QNodeDict, QueryGraphDict
+from retriever.types.trapi import Infores, QueryGraphDict
 
 
-class Neo4jTranspiler(Transpiler):
+class Neo4jTranspiler(Tier0Transpiler, Tier1Transpiler):
     """Transpiler for TRAPI -> Neo4j and back."""
 
     @override
-    def process_qgraph(self, qgraph: QueryGraphDict) -> LiteralString:
-        return self._convert_batch_multihop([qgraph])
+    def process_qgraph(
+        self, qgraph: QueryGraphDict, *additional_qgraphs: QueryGraphDict
+    ) -> LiteralString:
+        return super().process_qgraph(qgraph, *additional_qgraphs)
 
     @override
     def convert_triple(
-        self, in_node: QNodeDict, edge: QEdgeDict, out_node: QNodeDict
-    ) -> tuple[QueryGraphDict, LiteralString]:
-        return self.convert_batch_triple(in_node, edge, out_node)
+        self, qgraph: QueryGraphDict, subclass: bool = True
+    ) -> LiteralString:
+        return self.convert_multihop(qgraph, subclass)
 
     @override
-    def convert_batch_triple(
-        self, in_node: QNodeDict, edge: QEdgeDict, out_node: QNodeDict
-    ) -> tuple[QueryGraphDict, LiteralString]:
-        qgraph = QueryGraphDict(
-            nodes={edge["subject"]: in_node, edge["object"]: out_node},
-            edges={QEdgeID("edge"): edge},
-        )
-
-        # Special case because we need qgraph for reasoner-transpiler's result conversion
-        return qgraph, self._convert_batch_multihop([qgraph], subclass=False)
+    def convert_batch_triple(self, qgraphs: list[QueryGraphDict]) -> LiteralString:
+        raise NotImplementedError("Neo4jTranspiler does not support batching.")
 
     @override
-    def _convert_multihop(self, qgraph: QueryGraphDict) -> LiteralString:
-        return self._convert_batch_multihop([qgraph])
+    def convert_multihop(
+        self, qgraph: QueryGraphDict, subclass: bool = True
+    ) -> LiteralString:
+        return get_query(qgraph, subclass=subclass)
 
     @override
-    def _convert_batch_multihop(
+    def convert_batch_multihop(
         self, qgraphs: list[QueryGraphDict], subclass: bool = True
     ) -> LiteralString:
-        # Neo4j/robokopkg backend only supports one graph at a time
-        if len(qgraphs) != 1:
-            raise NotImplementedError(
-                f"Neo4jTranspiler expects exactly one query graph, got {len(qgraphs)}"
-            )
-        # This is a special case where we don't do any internal logic
-        # Soley because reasoner-transpiler exists for this case
-        # (This only works for Neo4j and the robokopkg backend)
-        return get_query(qgraphs[0], subclass=subclass)
+        raise NotImplementedError("Neo4jTranspiler does not support batching.")
 
     @override
     def convert_results(self, qgraph: QueryGraphDict, results: Any) -> BackendResult:

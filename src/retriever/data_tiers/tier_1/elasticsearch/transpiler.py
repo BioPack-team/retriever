@@ -1,6 +1,6 @@
-from typing import Any, Literal, override
+from typing import Literal, override
 
-from retriever.data_tiers.base_transpiler import Transpiler
+from retriever.data_tiers.base_transpiler import Tier1Transpiler
 from retriever.data_tiers.tier_1.elasticsearch.types import (
     ESBooleanQuery,
     ESFilterClause,
@@ -18,7 +18,6 @@ from retriever.types.trapi import (
     KnowledgeGraphDict,
     NodeDict,
     QEdgeDict,
-    QEdgeID,
     QNodeDict,
     QualifierDict,
     QualifierTypeID,
@@ -33,8 +32,14 @@ from retriever.utils.trapi import hash_edge, hash_hex
 # Or just a built-in annotation
 
 
-class ElasticsearchTranspiler(Transpiler):
+class ElasticsearchTranspiler(Tier1Transpiler):
     """Transpiler for TRAPI to/from Elasticsearch queries."""
+
+    @override
+    def process_qgraph(
+        self, qgraph: QueryGraphDict, *additional_qgraphs: QueryGraphDict
+    ) -> ESPayload:
+        return super().process_qgraph(qgraph, *additional_qgraphs)
 
     def generate_query_term(self, target: str, value: list[str]) -> ESFilterClause:
         """Common utility function to generate a termed query based on key-value pairs."""
@@ -112,34 +117,18 @@ class ElasticsearchTranspiler(Transpiler):
         )
 
     @override
-    def convert_triple(
-        self, in_node: QNodeDict, edge: QEdgeDict, out_node: QNodeDict
-    ) -> tuple[QueryGraphDict, ESPayload]:
-        """Special case of convert_batch_triple."""
-        return self.convert_batch_triple(in_node, edge, out_node)
-
-    @override
-    def convert_batch_triple(
-        self, in_node: QNodeDict, edge: QEdgeDict, out_node: QNodeDict
-    ) -> tuple[QueryGraphDict, ESPayload]:
+    def convert_triple(self, qgraph: QueryGraphDict) -> ESPayload:
         """Provide an ES query body for given trio of Q-dicts."""
-        qgraph = QueryGraphDict(
-            nodes={edge["subject"]: in_node, edge["object"]: out_node},
-            edges={QEdgeID("edge"): edge},
-        )
-
-        # Use "merged_edges" schema for now
-        # TODO: "adjacency list schema", when updated
-
-        return qgraph, self.generate_query_for_merged_edges(in_node, edge, out_node)
+        edge = next(iter(qgraph["edges"].values()), None)
+        if edge is None:
+            raise ValueError("Query graph must contain exactly one edge.")
+        in_node = qgraph["nodes"][edge["subject"]]
+        out_node = qgraph["nodes"][edge["object"]]
+        return self.generate_query_for_merged_edges(in_node, edge, out_node)
 
     @override
-    def _convert_multihop(self, qgraph: QueryGraphDict) -> Any:
-        raise NotImplementedError
-
-    @override
-    def _convert_batch_multihop(self, qgraphs: list[QueryGraphDict]) -> Any:
-        raise NotImplementedError
+    def convert_batch_triple(self, qgraphs: list[QueryGraphDict]) -> ESPayload:
+        raise NotImplementedError("Batching is not supported.")
 
     def build_nodes(self, hits: list[ESHit]) -> dict[CURIE, NodeDict]:
         """Build TRAPI nodes from backend representation."""

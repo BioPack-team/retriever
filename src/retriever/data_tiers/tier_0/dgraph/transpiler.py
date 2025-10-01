@@ -1,7 +1,7 @@
 from collections.abc import Mapping, Sequence
 from typing import Any, Protocol, TypeAlias, override
 
-from retriever.data_tiers.base_transpiler import Transpiler
+from retriever.data_tiers.base_transpiler import Tier0Transpiler
 from retriever.types.general import BackendResult
 from retriever.types.trapi import (
     CURIE,
@@ -22,34 +22,20 @@ class FilterValueProtocol(Protocol):
     def __str__(self) -> str: ...
 
 
-class DgraphTranspiler(Transpiler):
+class DgraphTranspiler(Tier0Transpiler):
     """Transpiler for converting TRAPI queries into Dgraph GraphQL queries."""
 
     FilterScalar: TypeAlias = str | int | float | bool  # noqa: UP040
     FilterValue: TypeAlias = FilterScalar | list[FilterScalar]  # noqa: UP040
 
     @override
-    def convert_triple(
-        self, in_node: QNodeDict, edge: QEdgeDict, out_node: QNodeDict
+    def process_qgraph(
+        self, qgraph: QueryGraphDict, *additional_qgraphs: QueryGraphDict
     ) -> str:
-        """Convert a single triple to Dgraph query format.
-
-        Not implemented for Dgraph as it's Tier 0 only.
-        """
-        raise NotImplementedError("Dgraph is Tier 0 only. Use multi-hop methods.")
+        return super().process_qgraph(qgraph, *additional_qgraphs)
 
     @override
-    def convert_batch_triple(
-        self, in_node: QNodeDict, edge: QEdgeDict, out_node: QNodeDict
-    ) -> str:
-        """Convert a batch of triples to Dgraph query format.
-
-        Not implemented for Dgraph as it's Tier 0 only.
-        """
-        raise NotImplementedError("Dgraph is Tier 0 only. Use batch multi-hop methods.")
-
-    @override
-    def _convert_multihop(self, qgraph: QueryGraphDict) -> str:
+    def convert_multihop(self, qgraph: QueryGraphDict) -> str:
         """Convert a TRAPI multi-hop graph to a proper Dgraph multihop query."""
         nodes = qgraph["nodes"]
         edges = qgraph["edges"]
@@ -87,15 +73,15 @@ class DgraphTranspiler(Transpiler):
                 if "," in id_value:
                     # Multiple IDs in a single string - split them
                     id_list = [id_val.strip() for id_val in id_value.split(",")]
-                    ids_str = ', '.join(f'"{id_val}"' for id_val in id_list)
-                    filters.append(f'eq(id, [{ids_str}])')
+                    ids_str = ", ".join(f'"{id_val}"' for id_val in id_list)
+                    filters.append(f"eq(id, [{ids_str}])")
                 else:
                     # Single ID
                     filters.append(f'eq(id, "{id_value}")')
             else:
                 # Multiple IDs in array
-                ids_str = ', '.join(f'"{id_val}"' for id_val in ids)
-                filters.append(f'eq(id, [{ids_str}])')
+                ids_str = ", ".join(f'"{id_val}"' for id_val in ids)
+                filters.append(f"eq(id, [{ids_str}])")
 
         # Handle category filtering
         categories = node.get("categories")
@@ -103,8 +89,8 @@ class DgraphTranspiler(Transpiler):
             if len(categories) == 1:
                 filters.append(f'eq(category, "{categories[0]}")')
             elif len(categories) > 1:
-                categories_str = ', '.join(f'"{cat}"' for cat in categories)
-                filters.append(f'eq(category, [{categories_str}])')
+                categories_str = ", ".join(f'"{cat}"' for cat in categories)
+                filters.append(f"eq(category, [{categories_str}])")
 
         # Handle attribute constraints
         constraints = node.get("constraints")
@@ -131,8 +117,8 @@ class DgraphTranspiler(Transpiler):
             if len(predicates) == 1:
                 filters.append(f'eq(predicate, "{predicates[0]}")')
             elif len(predicates) > 1:
-                predicates_str = ', '.join(f'"{pred}"' for pred in predicates)
-                filters.append(f'eq(predicate, [{predicates_str}])')
+                predicates_str = ", ".join(f'"{pred}"' for pred in predicates)
+                filters.append(f"eq(predicate, [{predicates_str}])")
 
         # Handle attribute constraints
         attribute_constraints = edge.get("attribute_constraints")
@@ -149,7 +135,9 @@ class DgraphTranspiler(Transpiler):
         else:
             return " AND ".join(filters)
 
-    def _convert_constraints_to_filters(self, constraints: list[AttributeConstraintDict]) -> list[str]:
+    def _convert_constraints_to_filters(
+        self, constraints: list[AttributeConstraintDict]
+    ) -> list[str]:
         """Convert TRAPI attribute constraints to Dgraph filter expressions."""
         filters: list[str] = []
 
@@ -171,7 +159,7 @@ class DgraphTranspiler(Transpiler):
 
         # Handle negation
         if is_negated:
-            filter_expr = f'NOT({filter_expr})'
+            filter_expr = f"NOT({filter_expr})"
 
         return filter_expr
 
@@ -207,7 +195,7 @@ class DgraphTranspiler(Transpiler):
         if isinstance(value, list):
             quoted_items = [f'"{item!s}"' for item in value] if value else []
             values_str = ", ".join(quoted_items)
-            return f'eq({field_name}, [{values_str}])'
+            return f"eq({field_name}, [{values_str}])"
         else:
             return f'eq({field_name}, "{value!s}")'
 
@@ -220,13 +208,13 @@ class DgraphTranspiler(Transpiler):
                 # Multiple IDs in a single string - split them
                 split_ids = [id_val.strip() for id_val in id_value.split(",")]
                 ids_str = ", ".join(f'"{id_val}"' for id_val in split_ids)
-                return f'eq(id, [{ids_str}])'
+                return f"eq(id, [{ids_str}])"
             # Single ID - most selective query
             return f'eq(id, "{id_value}")'
 
         # Multiple IDs in array
         ids_str = ", ".join(f'"{id_val}"' for id_val in id_list)
-        return f'eq(id, [{ids_str}])'
+        return f"eq(id, [{ids_str}])"
 
     def _create_category_filter(
         self,
@@ -237,9 +225,11 @@ class DgraphTranspiler(Transpiler):
         if len(cat_vals) == 1:
             return f'eq(category, "{cat_vals[0]}")'
         categories_str = ", ".join(f'"{cat}"' for cat in cat_vals)
-        return f'eq(category, [{categories_str}])'
+        return f"eq(category, [{categories_str}])"
 
-    def _get_primary_and_secondary_filters(self, node: QNodeDict) -> tuple[str, list[str]]:
+    def _get_primary_and_secondary_filters(
+        self, node: QNodeDict
+    ) -> tuple[str, list[str]]:
         """Extract primary and secondary filters from a node."""
         primary_filter = "has(id)"  # Default
         secondary_filters: list[str] = []
@@ -270,17 +260,21 @@ class DgraphTranspiler(Transpiler):
 
     def _add_standard_node_fields(self) -> str:
         """Generate standard node fields."""
-        return ("id name category "
-                "all_names all_categories "
-                "iri equivalent_curies "
-                "description publications ")
+        return (
+            "id name category "
+            "all_names all_categories "
+            "iri equivalent_curies "
+            "description publications "
+        )
 
     def _add_standard_edge_fields(self) -> str:
         """Generate standard edge fields."""
-        return ("predicate primary_knowledge_source "
-                "knowledge_level agent_type "
-                "kg2_ids domain_range_exclusion "
-                "edge_id ")
+        return (
+            "predicate primary_knowledge_source "
+            "knowledge_level agent_type "
+            "kg2_ids domain_range_exclusion "
+            "edge_id "
+        )
 
     def _build_filter_clause(self, filters: list[str]) -> str:
         """Build filter clause from a list of filters."""
@@ -330,7 +324,9 @@ class DgraphTranspiler(Transpiler):
         query += self._add_standard_edge_fields()
 
         # Get primary and secondary filters for source node
-        primary_filter, secondary_filters = self._get_primary_and_secondary_filters(source)
+        primary_filter, secondary_filters = self._get_primary_and_secondary_filters(
+            source
+        )
 
         # Create the source filter clause
         source_filter_clause = ""
@@ -338,7 +334,9 @@ class DgraphTranspiler(Transpiler):
             if not secondary_filters:
                 source_filter_clause = f" @filter({primary_filter})"
             else:
-                source_filter_clause = f" @filter({primary_filter} AND {' AND '.join(secondary_filters)})"
+                source_filter_clause = (
+                    f" @filter({primary_filter} AND {' AND '.join(secondary_filters)})"
+                )
         elif secondary_filters:
             source_filter_clause = self._build_filter_clause(secondary_filters)
 
@@ -367,7 +365,9 @@ class DgraphTranspiler(Transpiler):
         node = nodes[node_id]
 
         # Get primary and secondary filters
-        primary_filter, secondary_filters = self._get_primary_and_secondary_filters(node)
+        primary_filter, secondary_filters = self._get_primary_and_secondary_filters(
+            node
+        )
 
         # Start the query with the primary filter
         query = f"node(func: {primary_filter})"
@@ -391,7 +391,9 @@ class DgraphTranspiler(Transpiler):
                 connected_edges[source_id].append(edge)
 
         # Create a context object for edge processing
-        context = self.EdgeConnectionContext(nodes=nodes, edges=edges, visited={node_id})
+        context = self.EdgeConnectionContext(
+            nodes=nodes, edges=edges, visited={node_id}
+        )
 
         # For each source node, build the edge traversal
         for source_id, source_edges in connected_edges.items():
@@ -445,7 +447,9 @@ class DgraphTranspiler(Transpiler):
 
                 # Build source node filter using the node_filter helper
                 source_filter = self._build_node_filter(source)
-                source_filter_clause = f" @filter({source_filter})" if source_filter != "has(id)" else ""
+                source_filter_clause = (
+                    f" @filter({source_filter})" if source_filter != "has(id)" else ""
+                )
 
                 query += f"node: target{source_filter_clause} {{ "
 
@@ -462,7 +466,7 @@ class DgraphTranspiler(Transpiler):
         return query
 
     @override
-    def _convert_batch_multihop(self, qgraphs: list[QueryGraphDict]) -> str:
+    def convert_batch_multihop(self, qgraphs: list[QueryGraphDict]) -> str:
         """Convert a TRAPI multi-hop batch graph to a batch of Dgraph queries.
 
         Returns:
@@ -472,7 +476,7 @@ class DgraphTranspiler(Transpiler):
         blocks: list[str] = []
         for i, sub_qgraph in enumerate(qgraphs):
             sub_qgraph_typed: QueryGraphDict = sub_qgraph
-            query = self._convert_multihop(sub_qgraph_typed)
+            query = self.convert_multihop(sub_qgraph_typed)
             query = query.replace("node(func:", f"node{i}(func:", 1)
             blocks.append(query.strip()[1:-1])
 
@@ -480,13 +484,8 @@ class DgraphTranspiler(Transpiler):
         return "{" + "".join(q.strip("{}") for q in blocks) + "}"
 
     @override
-    def convert_results(
-        self, qgraph: QueryGraphDict, results: Any
-    ) -> BackendResult:
+    def convert_results(self, qgraph: QueryGraphDict, results: Any) -> BackendResult:
         """Convert Dgraph JSON results back to TRAPI BackendResults."""
         # Create a properly structured BackendResult with all required fields
-        return BackendResult(
-            results=results,
-            knowledge_graph={"nodes": {}, "edges": {}},  # KnowledgeGraphDict requires nodes and edges
-            auxiliary_graphs={}  # Required field in BackendResult
-        )
+
+        raise NotImplementedError("Results translation not implemented!")
