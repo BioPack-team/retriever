@@ -18,6 +18,7 @@ from retriever.data_tiers.tier_0.dgraph import result_models as dg_models
 
 class DgraphProtocol(str, Enum):
     """Enum for Dgraph connection protocols."""
+
     GRPC = "grpc"
     HTTP = "http"
 
@@ -77,6 +78,7 @@ class DgraphTxnProtocol(Protocol):
 
 class DgraphQueryResult(TypedDict, total=False):
     """TypedDict for legacy Dgraph query result (kept for backward compat where needed)."""
+
     data: Any
     errors: Any
 
@@ -84,7 +86,9 @@ class DgraphQueryResult(TypedDict, total=False):
 class DgraphClientProtocol(Protocol):
     """Protocol for the pydgraph.DgraphClient."""
 
-    def txn(self, read_only: bool = False, best_effort: bool = False) -> DgraphTxnProtocol:
+    def txn(
+        self, read_only: bool = False, best_effort: bool = False
+    ) -> DgraphTxnProtocol:
         """Create a new Dgraph transaction."""
         ...
 
@@ -137,8 +141,8 @@ class DgraphDriver(DatabaseDriver):
             if retries < self.connect_retries:
                 await asyncio.sleep(1)
                 log.error(
-                    f"Could not establish connection to Dgraph via {self.protocol}, " +
-                    f"trying again... retry {retries + 1}"
+                    f"Could not establish connection to Dgraph via {self.protocol}, "
+                    + f"trying again... retry {retries + 1}"
                 )
                 await self.connect(retries + 1)
             else:
@@ -148,7 +152,9 @@ class DgraphDriver(DatabaseDriver):
     async def _connect_grpc(self) -> None:
         """Establish gRPC connection to Dgraph."""
         self._client_stub = pydgraph.DgraphClientStub(self.endpoint)
-        self._client = cast(DgraphClientProtocol, cast(object, pydgraph.DgraphClient(self._client_stub)))
+        self._client = cast(
+            DgraphClientProtocol, cast(object, pydgraph.DgraphClient(self._client_stub))
+        )
 
         try:
             assert self._client is not None
@@ -163,7 +169,9 @@ class DgraphDriver(DatabaseDriver):
         except Exception as e:
             # If verification fails, clean up immediately and raise a clear error.
             await self._cleanup_connections()
-            raise ConnectionError(f"Failed to verify gRPC connection to {self.endpoint}") from e
+            raise ConnectionError(
+                f"Failed to verify gRPC connection to {self.endpoint}"
+            ) from e
 
     async def _connect_http(self) -> None:
         """Establish HTTP connection to Dgraph."""
@@ -177,19 +185,29 @@ class DgraphDriver(DatabaseDriver):
         ) as response:
             if response.status != HTTPStatus.OK:
                 text = await response.text()
-                raise ConnectionError(f"HTTP connection failed with status {response.status}: {text}")
+                raise ConnectionError(
+                    f"HTTP connection failed with status {response.status}: {text}"
+                )
 
     @override
-    async def run_query(self, query: str, *args: Any, **kwargs: Any) -> dg_models.DgraphResponse:
+    async def run_query(
+        self, query: str, *args: Any, **kwargs: Any
+    ) -> dg_models.DgraphResponse:
         """Execute a query against the Dgraph database and parse into dataclasses."""
         if self.protocol == DgraphProtocol.GRPC and not self._client:
-            raise RuntimeError("DgraphDriver (gRPC) not connected. Call connect() first.")
+            raise RuntimeError(
+                "DgraphDriver (gRPC) not connected. Call connect() first."
+            )
         if self.protocol == DgraphProtocol.HTTP and not self._http_session:
-            raise RuntimeError("DgraphDriver (HTTP) not connected. Call connect() first.")
+            raise RuntimeError(
+                "DgraphDriver (HTTP) not connected. Call connect() first."
+            )
 
         otel_span = trace.get_current_span()
         if otel_span and otel_span.is_recording():
-            otel_span.add_event("dgraph_query_start", attributes={"dgraph_query": query})
+            otel_span.add_event(
+                "dgraph_query_start", attributes={"dgraph_query": query}
+            )
         else:
             otel_span = None
 
@@ -217,14 +235,22 @@ class DgraphDriver(DatabaseDriver):
         txn = self._client.txn(read_only=True)
         txn_protocol: DgraphTxnProtocol = cast(DgraphTxnProtocol, cast(object, txn))
 
-        future: _GrpcFuture = txn_protocol.async_query(query=query, variables=None, timeout=self.query_timeout, credentials=None, resp_format="JSON")
+        future: _GrpcFuture = txn_protocol.async_query(
+            query=query,
+            variables=None,
+            timeout=self.query_timeout,
+            credentials=None,
+            resp_format="JSON",
+        )
 
         # Cast the untyped pydgraph helper to a typed callable
-        handle_query_future = cast(Callable[[_GrpcFuture], PydgraphResponse], pydgraph.Txn.handle_query_future)
+        handle_query_future = cast(
+            Callable[[_GrpcFuture], PydgraphResponse], pydgraph.Txn.handle_query_future
+        )
 
         response: PydgraphResponse = handle_query_future(future)
         raw: Any = response.json
-        return dg_models.parse_response(raw)
+        return dg_models.DgraphResponse.parse(raw)
 
     async def _run_http_query(self, query: str) -> dg_models.DgraphResponse:
         """Execute query using HTTP protocol with DQL."""
@@ -241,14 +267,18 @@ class DgraphDriver(DatabaseDriver):
         ) as response:
             if response.status != HTTPStatus.OK:
                 text = await response.text()
-                raise RuntimeError(f"Dgraph HTTP query failed with status {response.status}: {text}")
+                raise RuntimeError(
+                    f"Dgraph HTTP query failed with status {response.status}: {text}"
+                )
 
             raw_data = await response.json()
 
             if "errors" in raw_data:
-                raise RuntimeError(f"Dgraph query returned errors: {raw_data['errors']}")
+                raise RuntimeError(
+                    f"Dgraph query returned errors: {raw_data['errors']}"
+                )
 
-            return dg_models.parse_response(raw_data)
+            return dg_models.DgraphResponse.parse(raw_data)
 
     async def _cleanup_connections(self) -> None:
         """Clean up any open connections."""
