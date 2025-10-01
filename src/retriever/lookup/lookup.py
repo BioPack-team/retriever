@@ -13,7 +13,7 @@ from reasoner_pydantic import (
 from reasoner_pydantic.qgraph import PathfinderQueryGraph
 
 from retriever.config.openapi import OPENAPI_CONFIG
-from retriever.data_tiers.tier_0.neo4j.query import Neo4jQuery
+from retriever.data_tiers.tier_0.dgraph.query import DgraphQuery
 from retriever.lookup.qgx import QueryGraphExecutor
 from retriever.lookup.utils import expand_qgraph
 from retriever.lookup.validate import validate
@@ -258,7 +258,7 @@ async def run_tiered_lookups(
     query_tasks = list[asyncio.Task[LookupArtifacts]]()
     job_log = TRAPILogger(query.job_id)
 
-    handlers = (Neo4jQuery, QueryGraphExecutor)
+    handlers = (DgraphQuery, QueryGraphExecutor)
     for i, called_for in enumerate(
         (0 in query.tiers, not set(query.tiers).isdisjoint({1, 2}))
     ):
