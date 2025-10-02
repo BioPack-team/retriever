@@ -95,7 +95,7 @@ def test_parse_response_full_fields_both_shapes(shape: str) -> None:
     else:
         raise AssertionError("Unknown shape")
 
-    result = dg_models.parse_response(raw)
+    result = dg_models.DgraphResponse.parse(raw)
 
     # We should have both queries present
     assert set(result.data.keys()) == {"q1", "q2"}
@@ -185,4 +185,4 @@ def test_parse_response_full_fields_both_shapes(shape: str) -> None:
 
 def test_parse_response_missing_data_invalid_shape_raises() -> None:
     with pytest.raises(ValueError):
-        dg_models.parse_response({"meta": {"ok": True}})
+        dg_models.DgraphResponse.parse({"meta": {"ok": True}})

@@ -96,7 +96,7 @@ async def test_dgraph_mock() -> None:
 
         @override
         async def run_query(self, query: str, *args: Any, **kwargs: Any) -> dg_models.DgraphResponse:
-            return dg_models.parse_response(
+            return dg_models.DgraphResponse.parse(
                 {"data": {"node": [{"id": "test_id", "name": "name", "category": "cat"}]}}
             )
 

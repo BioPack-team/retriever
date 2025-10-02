@@ -261,35 +261,3 @@ def _parse_node_items(node_list: list[Any]) -> list[NodeResult]:
                     node_dict[str(k)] = v
                 node_results.append(NodeResult.from_dict(node_dict))
     return node_results
-
-def parse_response(raw: str | bytes | bytearray | Mapping[str, Any]) -> DgraphResponse:
-    """Parse a Dgraph response into dataclasses.
-
-    Supports both:
-    - HTTP shape: {"data": {...}}
-    - gRPC shape: {...} (top-level is already the data map)
-    """
-    # Load into a concrete dict for precise typing
-    obj_dict: dict[str, Any]
-
-    if isinstance(raw, str | bytes | bytearray):
-        obj_dict = _parse_json_to_dict(raw)
-    elif hasattr(raw, "items"):
-        obj_dict = {}
-        for k, v in raw.items():
-            obj_dict[str(k)] = v
-    else:
-        raise TypeError(f"Unsupported response type: {type(raw)}. Expected str, bytes, or a mapping.")
-
-    # Determine where the data map lives
-    data_map_dict = _extract_data_map(obj_dict)
-
-    # Parse each query result
-    parsed: dict[str, list[NodeResult]] = {}
-    for query_name, nodes in data_map_dict.items():
-        if isinstance(nodes, list):
-            parsed[str(query_name)] = _parse_node_items(cast(list[Any], nodes))
-        else:
-            parsed[str(query_name)] = []
-
-    return DgraphResponse(data=parsed)
