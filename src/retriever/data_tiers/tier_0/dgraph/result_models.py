@@ -44,8 +44,8 @@ class Node:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class InEdge:
-    """Inbound edge with predicate, qualifiers, and a nested target Node."""
+class _EdgeBase:
+    """Base class for shared edge attributes and parsing logic."""
 
     predicate: str
     node: Node
@@ -58,7 +58,7 @@ class InEdge:
 
     @classmethod
     def from_dict(cls, edge_dict: Mapping[str, Any]) -> Self:
-        """Parse an edge mapping into an InEdge dataclass (including nested Node)."""
+        """Parse an edge mapping into an Edge dataclass (including nested Node)."""
         node_val: Any = edge_dict.get("node", {})
         node_mapping: dict[str, Any] = {}
         if hasattr(node_val, "keys") and hasattr(node_val, "values"):
@@ -92,51 +92,13 @@ class InEdge:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class OutEdge:
+class InEdge(_EdgeBase):
+    """Inbound edge with predicate, qualifiers, and a nested target Node."""
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class OutEdge(_EdgeBase):
     """Outbound edge with predicate, qualifiers, and a nested target Node."""
-
-    predicate: str
-    node: Node
-    primary_knowledge_source: str | None = None
-    knowledge_level: str | None = None
-    agent_type: str | None = None
-    kg2_ids: list[str] = field(default_factory=list)
-    domain_range_exclusion: bool | None = None
-    edge_id: str | None = None
-
-    @classmethod
-    def from_dict(cls, edge_dict: Mapping[str, Any]) -> Self:
-        """Parse an edge mapping into an OutEdge dataclass (including nested Node)."""
-        node_val: Any = edge_dict.get("node", {})
-        node_mapping: dict[str, Any] = {}
-        if hasattr(node_val, "keys") and hasattr(node_val, "values"):
-            with suppress(TypeError, ValueError):
-                node_mapping = dict(node_val)
-
-        return cls(
-            predicate=str(edge_dict.get("predicate", "")),
-            node=Node.from_dict(node_mapping),
-            primary_knowledge_source=(
-                str(edge_dict["primary_knowledge_source"])
-                if "primary_knowledge_source" in edge_dict
-                else None
-            ),
-            knowledge_level=(
-                str(edge_dict["knowledge_level"])
-                if "knowledge_level" in edge_dict
-                else None
-            ),
-            agent_type=(
-                str(edge_dict["agent_type"]) if "agent_type" in edge_dict else None
-            ),
-            kg2_ids=_to_str_list(edge_dict.get("kg2_ids")),
-            domain_range_exclusion=(
-                bool(edge_dict["domain_range_exclusion"])
-                if "domain_range_exclusion" in edge_dict
-                else None
-            ),
-            edge_id=(str(edge_dict["edge_id"]) if "edge_id" in edge_dict else None),
-        )
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
