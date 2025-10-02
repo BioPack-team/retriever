@@ -115,9 +115,9 @@ class DgraphTranspiler(Tier0Transpiler):
         predicates = edge.get("predicates")
         if predicates:
             if len(predicates) == 1:
-                filters.append(f'eq(predicate, "{predicates[0]}")')
+                filters.append(f'eq(predicate, "{predicates[0].replace("biolink:", "")}")')
             elif len(predicates) > 1:
-                predicates_str = ", ".join(f'"{pred}"' for pred in predicates)
+                predicates_str = ", ".join(f'"{pred.replace("biolink:", "")}"' for pred in predicates)
                 filters.append(f"eq(predicate, [{predicates_str}])")
 
         # Handle attribute constraints
@@ -381,30 +381,9 @@ class DgraphTranspiler(Tier0Transpiler):
         # Include all standard node fields
         query += self._add_standard_node_fields()
 
-        # Find incoming edges to this node (where this node is the OBJECT)
-        connected_edges: dict[QNodeID, list[QEdgeDict]] = {}
-        for edge in edges.values():
-            if edge["object"] == node_id:
-                source_id: QNodeID = edge["subject"]
-                if source_id not in connected_edges:
-                    connected_edges[source_id] = []
-                connected_edges[source_id].append(edge)
-
-        # Create a context object for edge processing
-        context = self.EdgeConnectionContext(
-            nodes=nodes, edges=edges, visited={node_id}
-        )
-
-        # For each source node, build the edge traversal
-        for source_id, source_edges in connected_edges.items():
-            edge = source_edges[0]
-            source = nodes[source_id]
-            query += self._process_edge_connection(
-                edge=edge,
-                source=source,
-                source_id=source_id,
-                context=context,
-            )
+        # Start the recursive traversal
+        visited = {node_id}
+        query += self._build_further_hops(node_id, nodes, edges, visited)
 
         # Close the node block
         query += "} "
@@ -417,50 +396,65 @@ class DgraphTranspiler(Tier0Transpiler):
         edges: Mapping[QEdgeID, QEdgeDict],
         visited: set[QNodeID],
     ) -> str:
-        """Build query for further hops beyond the first one."""
-        # Prevent cycles
-        if node_id in visited:
-            return ""
-
-        visited.add(node_id)
-
+        """Recursively build query for all hops connected to the current node_id."""
         query = ""
 
-        # Find incoming edges to this node
+        # Find outgoing edges from this node (where this node is the SUBJECT)
         for edge in edges.values():
-            if edge["object"] == node_id:
-                # Get the source node and predicate
-                source_id = edge["subject"]
-                if source_id in visited:
-                    continue  # Skip already visited nodes
+            if edge["subject"] == node_id:
+                object_id: QNodeID = edge["object"]
+                if object_id in visited:
+                    continue  # Skip cycles
 
-                source = nodes[source_id]
-
-                # Build edge filter
+                object_node = nodes[object_id]
                 edge_filter = self._build_edge_filter(edge)
                 filter_clause = f" @filter({edge_filter})" if edge_filter else ""
 
-                query += f"in_edges: ~source{filter_clause} {{ "
-
-                # Include all standard edge fields
+                # Use `source` for outgoing edges
+                query += f"out_edges: ~target{filter_clause} {{ "
                 query += self._add_standard_edge_fields()
 
-                # Build source node filter using the node_filter helper
-                source_filter = self._build_node_filter(source)
+                object_filter = self._build_node_filter(object_node)
+                object_filter_clause = (
+                    f" @filter({object_filter})" if object_filter != "has(id)" else ""
+                )
+
+                query += f"node: source{object_filter_clause} {{ "
+                query += self._add_standard_node_fields()
+
+                # Recurse from the newly connected object node
+                new_visited = visited | {object_id}
+                query += self._build_further_hops(object_id, nodes, edges, new_visited)
+
+                query += "} } "
+
+        # Find incoming edges to this node (where this node is the OBJECT)
+        for edge in edges.values():
+            if edge["object"] == node_id:
+                source_id: QNodeID = edge["subject"]
+                if source_id in visited:
+                    continue  # Skip cycles
+
+                source_node = nodes[source_id]
+                edge_filter = self._build_edge_filter(edge)
+                filter_clause = f" @filter({edge_filter})" if edge_filter else ""
+
+                # Use `~source` for incoming edges
+                query += f"in_edges: ~source{filter_clause} {{ "
+                query += self._add_standard_edge_fields()
+
+                source_filter = self._build_node_filter(source_node)
                 source_filter_clause = (
                     f" @filter({source_filter})" if source_filter != "has(id)" else ""
                 )
 
                 query += f"node: target{source_filter_clause} {{ "
-
-                # Include all standard node fields for the target
                 query += self._add_standard_node_fields()
 
-                # Recursively add further hops with updated context
-                new_visited = visited.copy()
+                # Recurse from the newly connected source node
+                new_visited = visited | {source_id}
                 query += self._build_further_hops(source_id, nodes, edges, new_visited)
 
-                # Close the blocks
                 query += "} } "
 
         return query
@@ -486,6 +480,4 @@ class DgraphTranspiler(Tier0Transpiler):
     @override
     def convert_results(self, qgraph: QueryGraphDict, results: Any) -> BackendResult:
         """Convert Dgraph JSON results back to TRAPI BackendResults."""
-        # Create a properly structured BackendResult with all required fields
-
         raise NotImplementedError("Results translation not implemented!")

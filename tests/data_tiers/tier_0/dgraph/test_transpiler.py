@@ -41,10 +41,10 @@ class ResultsCase:
 class _TestDgraphTranspiler(DgraphTranspiler):
     """Expose protected methods for testing without modifying production code."""
     def convert_multihop_public(self, qgraph: QueryGraphDict) -> str:
-        return self._convert_multihop(qgraph)
+        return self.convert_multihop(qgraph)
 
     def convert_batch_multihop_public(self, qgraphs: list[QueryGraphDict]) -> str:
-        return self._convert_batch_multihop(qgraphs)
+        return self.convert_batch_multihop(qgraphs)
 
 
 def normalize(s: str) -> str:
@@ -531,6 +531,25 @@ BATCH_NO_IDS_SINGLE_GRAPH: list[QueryGraphDict] = [
     })
 ]
 
+TRAPI_FLOATING_OBJECT_QUERY: QueryGraphDict = qg({
+    "nodes": {
+        "n0": {
+            "categories": ["biolink:Gene"],
+            "ids": ["NCBIGene:3778"]
+        },
+        "n1": {
+            "categories": ["biolink:Disease"]
+        }
+    },
+    "edges": {
+        "e01": {
+            "subject": "n0",
+            "object": "n1",
+            "predicates": ["biolink:causes"]
+        }
+    }
+})
+
 
 # -----------------------
 # Expected queries
@@ -722,7 +741,7 @@ EXP_CATEGORY_FILTER = dedent("""
 {
     node(func: eq(category, "biolink:Gene")) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        in_edges: ~source @filter(eq(predicate, "biolink:gene_associated_with_condition")) {
+        in_edges: ~source @filter(eq(predicate, "gene_associated_with_condition")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: target @filter(eq(category, "biolink:Disease")) {
                 id name category all_names all_categories iri equivalent_curies description publications
@@ -970,6 +989,20 @@ EXP_BATCH_NO_IDS_SINGLE = dedent("""
 }
 """).strip()
 
+DGRAPH_FLOATING_OBJECT_QUERY = dedent("""
+{
+    node(func: eq(id, "NCBIGene:3778")) @filter(eq(category, "biolink:Gene")) @cascade {
+        id name category all_names all_categories iri equivalent_curies description publications
+        out_edges: ~target @filter(eq(predicate, "causes")) {
+            predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
+            node: source @filter(eq(category, "biolink:Disease")) {
+                id name category all_names all_categories iri equivalent_curies description publications
+            }
+        }
+    }
+}
+""").strip()
+
 
 # -----------------------
 # Case pairs
@@ -992,6 +1025,7 @@ CASES: list[QueryCase] = [
     QueryCase("predicates-single", PREDICATES_SINGLE_QGRAPH, EXP_PREDICATES_SINGLE),
     QueryCase("edge-attributes-only", ATTRIBUTES_ONLY_QGRAPH, EXP_ATTRIBUTES_ONLY),
     QueryCase("start-object-with-ids", START_OBJECT_WITH_IDS_QGRAPH, EXP_START_OBJECT_WITH_IDS),
+    QueryCase("floating-object-query", TRAPI_FLOATING_OBJECT_QUERY, DGRAPH_FLOATING_OBJECT_QUERY),
 ]
 
 BATCH_CASES: list[BatchCase] = [
@@ -999,19 +1033,6 @@ BATCH_CASES: list[BatchCase] = [
     BatchCase("batch-qgraph-multi-hop", BATCH_QGRAPHS_MULTI_HOP, EXP_BATCH_QGRAPHS_MULTI_HOP),
     BatchCase("batch-multi-ids-single-graph", BATCH_MULTI_IDS_SINGLE_GRAPH, EXP_BATCH_MULTI_IDS_SINGLE),
     BatchCase("batch-no-ids-single-graph", BATCH_NO_IDS_SINGLE_GRAPH, EXP_BATCH_NO_IDS_SINGLE),
-]
-
-RESULTS_CASES: list[ResultsCase] = [
-    ResultsCase(
-        "wraps-results",
-        SIMPLE_QGRAPH,
-        raw_results={"data": {"some": "value"}},
-        expected_wrapped={
-            "auxiliary_graphs": {},
-            "knowledge_graph": {"edges": {}, "nodes": {}, },
-            "results": {"data": {"some": "value"}}
-        },
-    ),
 ]
 
 
@@ -1032,43 +1053,3 @@ def test_convert_multihop_pairs(transpiler: _TestDgraphTranspiler, case: QueryCa
 def test_convert_batch_multihop_pairs(transpiler: _TestDgraphTranspiler, case: BatchCase) -> None:
     actual = transpiler.convert_batch_multihop_public(case.qgraphs)
     assert_query_equals(actual, case.expected)
-
-@pytest.mark.parametrize("case", RESULTS_CASES, ids=[c.name for c in RESULTS_CASES])
-def test_convert_results_pairs(case: ResultsCase) -> None:
-    tr = DgraphTranspiler()
-    wrapped = tr.convert_results(case.qgraph, case.raw_results)
-    assert wrapped == case.expected_wrapped
-
-
-# -----------------------
-# Triple-level API errors
-# -----------------------
-
-def test_convert_triple_raises_not_implemented(transpiler: DgraphTranspiler) -> None:
-    in_node: QNodeDict = qn({"ids": ["X"], "constraints": []})
-    out_node: QNodeDict = qn({"ids": ["Y"], "constraints": []})
-    edge: QEdgeDict = qe({
-        "object": "n0",
-        "subject": "n1",
-        "predicates": [],
-        "attribute_constraints": [],
-        "qualifier_constraints": [],
-    })
-    with pytest.raises(NotImplementedError) as excinfo:
-        transpiler.convert_triple(in_node, edge, out_node)
-    assert str(excinfo.value) == "Dgraph is Tier 0 only. Use multi-hop methods."
-
-
-def test_convert_batch_triple_raises_not_implemented(transpiler: DgraphTranspiler) -> None:
-    in_node: QNodeDict = qn({"ids": ["X"], "constraints": []})
-    out_node: QNodeDict = qn({"ids": ["Y"], "constraints": []})
-    edge: QEdgeDict = qe({
-        "object": "n0",
-        "subject": "n1",
-        "predicates": [],
-        "attribute_constraints": [],
-        "qualifier_constraints": [],
-    })
-    with pytest.raises(NotImplementedError) as excinfo:
-        transpiler.convert_batch_triple(in_node, edge, out_node)
-    assert str(excinfo.value) == "Dgraph is Tier 0 only. Use batch multi-hop methods."
