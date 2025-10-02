@@ -44,6 +44,18 @@ def test_parse_response_full_fields_both_shapes(shape: str) -> None:
             },
             "junk_edge_should_be_ignored",
         ],
+        "out_edges": [
+            {
+                "predicate": "causes",
+                "primary_knowledge_source": "infores:arax",
+                "knowledge_level": "hypothesis",
+                "agent_type": "computational_model",
+                "kg2_ids": ["KG2:999"],
+                "domain_range_exclusion": True,
+                "edge_id": "edge-out-1",
+                "node": target_node,
+            }
+        ],
     }
 
     root_node_q2 = {
@@ -112,6 +124,17 @@ def test_parse_response_full_fields_both_shapes(shape: str) -> None:
     assert e1.kg2_ids == ["KG2:123", "KG2:456"]
     assert e1.domain_range_exclusion is False
     assert e1.edge_id == "edge-1"
+
+    # q1 out-edges
+    assert len(n1.out_edges) == 1
+    oe1 = n1.out_edges[0]
+    assert oe1.predicate == "causes"
+    assert oe1.primary_knowledge_source == "infores:arax"
+    assert oe1.knowledge_level == "hypothesis"
+    assert oe1.agent_type == "computational_model"
+    assert oe1.kg2_ids == ["KG2:999"]
+    assert oe1.domain_range_exclusion is True
+    assert oe1.edge_id == "edge-out-1"
 
     # nested target node on e1
     t1 = e1.node
