@@ -174,13 +174,13 @@ class NodeResult:
         out_edges_raw: Any = node_dict.get("out_edges", [])
         out_edges: list[OutEdge] = []
         if isinstance(out_edges_raw, list):
-            items: list[Any] = cast(list[Any], out_edges_raw)
-            mapped_edges: list[dict[str, Any]] = []
-            for e in items:
+            out_items: list[Any] = cast(list[Any], out_edges_raw)
+            out_mapped_edges: list[dict[str, Any]] = []
+            for e in out_items:
                 if hasattr(e, "keys") and hasattr(e, "values"):
                     with suppress(TypeError, ValueError):
-                        mapped_edges.append(dict(e))
-            out_edges = [OutEdge.from_dict(e) for e in mapped_edges]
+                        out_mapped_edges.append(dict(e))
+            out_edges = [OutEdge.from_dict(e) for e in out_mapped_edges]
 
         return cls(
             id=str(node_dict.get("id", "")),
