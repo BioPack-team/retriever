@@ -550,6 +550,25 @@ TRAPI_FLOATING_OBJECT_QUERY: QueryGraphDict = qg({
     }
 })
 
+TRAPI_FLOATING_OBJECT_QUERY_TWO_CATEGORIES: QueryGraphDict = qg({
+    "nodes": {
+        "n0": {
+            "categories": ["biolink:Gene", "biolink:Protein"],
+            "ids": ["NCBIGene:3778"]
+        },
+        "n1": {
+            "categories": ["biolink:Disease"]
+        }
+    },
+    "edges": {
+        "e01": {
+            "subject": "n0",
+            "object": "n1",
+            "predicates": ["biolink:causes"]
+        }
+    }
+})
+
 
 # -----------------------
 # Expected queries
@@ -1004,6 +1023,21 @@ DGRAPH_FLOATING_OBJECT_QUERY = dedent("""
 """).strip()
 
 
+DGRAPH_FLOATING_OBJECT_QUERY_TWO_CATEGORIES = dedent("""
+{
+    node(func: eq(id, "NCBIGene:3778")) @filter(eq(all_categories, ["biolink:Gene", "biolink:Protein"])) @cascade {
+        id name category all_names all_categories iri equivalent_curies description publications
+        out_edges: ~target @filter(eq(predicate, "causes")) {
+            predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
+            node: source @filter(eq(all_categories, "biolink:Disease")) {
+                id name category all_names all_categories iri equivalent_curies description publications
+            }
+        }
+    }
+}
+""").strip()
+
+
 # -----------------------
 # Case pairs
 # -----------------------
@@ -1026,6 +1060,8 @@ CASES: list[QueryCase] = [
     QueryCase("edge-attributes-only", ATTRIBUTES_ONLY_QGRAPH, EXP_ATTRIBUTES_ONLY),
     QueryCase("start-object-with-ids", START_OBJECT_WITH_IDS_QGRAPH, EXP_START_OBJECT_WITH_IDS),
     QueryCase("floating-object-query", TRAPI_FLOATING_OBJECT_QUERY, DGRAPH_FLOATING_OBJECT_QUERY),
+    QueryCase("floating-object-query-two-categories", TRAPI_FLOATING_OBJECT_QUERY_TWO_CATEGORIES, DGRAPH_FLOATING_OBJECT_QUERY_TWO_CATEGORIES),
+    
 ]
 
 BATCH_CASES: list[BatchCase] = [
