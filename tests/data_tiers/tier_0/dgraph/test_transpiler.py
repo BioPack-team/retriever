@@ -739,11 +739,11 @@ EXP_FIVE_HOP_MULTIPLE_IDS = dedent("""
 
 EXP_CATEGORY_FILTER = dedent("""
 {
-    node(func: eq(category, "biolink:Gene")) @cascade {
+    node(func: eq(all_categories, "biolink:Gene")) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
         in_edges: ~source @filter(eq(predicate, "gene_associated_with_condition")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
-            node: target @filter(eq(category, "biolink:Disease")) {
+            node: target @filter(eq(all_categories, "biolink:Disease")) {
                 id name category all_names all_categories iri equivalent_curies description publications
             }
         }
@@ -753,11 +753,11 @@ EXP_CATEGORY_FILTER = dedent("""
 
 EXP_MULTIPLE_FILTERS = dedent("""
 {
-    node(func: eq(id, "CHEBI:3125")) @filter(eq(category, "biolink:SmallMolecule") AND anyoftext(description, "diphenylmethane")) @cascade {
+    node(func: eq(id, "CHEBI:3125")) @filter(eq(all_categories, "biolink:SmallMolecule") AND anyoftext(description, "diphenylmethane")) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
         in_edges: ~source @filter(eq(predicate, ["interacts_with", "contributes_to"]) AND eq(knowledge_level, "prediction")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
-            node: target @filter(eq(category, "biolink:Drug") AND anyoftext(description, "laxative")) {
+            node: target @filter(eq(all_categories, "biolink:Drug") AND anyoftext(description, "laxative")) {
                 id name category all_names all_categories iri equivalent_curies description publications
             }
         }
@@ -771,7 +771,7 @@ EXP_NEGATED_CONSTRAINT = dedent("""
         id name category all_names all_categories iri equivalent_curies description publications
         in_edges: ~source {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
-            node: target @filter(eq(category, "biolink:Drug") AND NOT(anyoftext(description, "laxatives"))) {
+            node: target @filter(eq(all_categories, "biolink:Drug") AND NOT(anyoftext(description, "laxatives"))) {
                 id name category all_names all_categories iri equivalent_curies description publications
             }
         }
@@ -799,7 +799,7 @@ EXP_NUMERIC_FILTER = dedent("""
         id name category all_names all_categories iri equivalent_curies description publications
         in_edges: ~source @filter(gt(edge_id, "100")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
-            node: target @filter(eq(category, "biolink:Gene")) {
+            node: target @filter(eq(all_categories, "biolink:Gene")) {
                 id name category all_names all_categories iri equivalent_curies description publications
             }
         }
@@ -977,7 +977,7 @@ EXP_BATCH_MULTI_IDS_SINGLE = dedent("""
 
 EXP_BATCH_NO_IDS_SINGLE = dedent("""
 {
-    node0(func: eq(category, "biolink:Gene")) @cascade {
+    node0(func: eq(all_categories, "biolink:Gene")) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
         in_edges: ~source @filter(eq(predicate, "R")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
@@ -991,11 +991,11 @@ EXP_BATCH_NO_IDS_SINGLE = dedent("""
 
 DGRAPH_FLOATING_OBJECT_QUERY = dedent("""
 {
-    node(func: eq(id, "NCBIGene:3778")) @filter(eq(category, "biolink:Gene")) @cascade {
+    node(func: eq(id, "NCBIGene:3778")) @filter(eq(all_categories, "biolink:Gene")) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
         out_edges: ~target @filter(eq(predicate, "causes")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
-            node: source @filter(eq(category, "biolink:Disease")) {
+            node: source @filter(eq(all_categories, "biolink:Disease")) {
                 id name category all_names all_categories iri equivalent_curies description publications
             }
         }

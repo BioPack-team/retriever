@@ -87,10 +87,10 @@ class DgraphTranspiler(Tier0Transpiler):
         categories = node.get("categories")
         if categories:
             if len(categories) == 1:
-                filters.append(f'eq(category, "{categories[0]}")')
+                filters.append(f'eq(all_categories, "{categories[0]}")')
             elif len(categories) > 1:
                 categories_str = ", ".join(f'"{cat}"' for cat in categories)
-                filters.append(f"eq(category, [{categories_str}])")
+                filters.append(f"eq(all_categories, [{categories_str}])")
 
         # Handle attribute constraints
         constraints = node.get("constraints")
@@ -223,9 +223,9 @@ class DgraphTranspiler(Tier0Transpiler):
         """Create a filter for category fields."""
         cat_vals = [str(c) for c in categories]
         if len(cat_vals) == 1:
-            return f'eq(category, "{cat_vals[0]}")'
+            return f'eq(all_categories, "{cat_vals[0]}")'
         categories_str = ", ".join(f'"{cat}"' for cat in cat_vals)
-        return f"eq(category, [{categories_str}])"
+        return f"eq(all_categories, [{categories_str}])"
 
     def _get_primary_and_secondary_filters(
         self, node: QNodeDict
@@ -402,6 +402,7 @@ class DgraphTranspiler(Tier0Transpiler):
         # Find outgoing edges from this node (where this node is the SUBJECT)
         for edge in edges.values():
             if edge["subject"] == node_id:
+                # Get the source node and predicate
                 object_id: QNodeID = edge["object"]
                 if object_id in visited:
                     continue  # Skip cycles
@@ -410,7 +411,7 @@ class DgraphTranspiler(Tier0Transpiler):
                 edge_filter = self._build_edge_filter(edge)
                 filter_clause = f" @filter({edge_filter})" if edge_filter else ""
 
-                # Use `source` for outgoing edges
+                # Use `~target` for outgoing edges
                 query += f"out_edges: ~target{filter_clause} {{ "
                 query += self._add_standard_edge_fields()
 
@@ -431,6 +432,7 @@ class DgraphTranspiler(Tier0Transpiler):
         # Find incoming edges to this node (where this node is the OBJECT)
         for edge in edges.values():
             if edge["object"] == node_id:
+                # Get the target node and predicate
                 source_id: QNodeID = edge["subject"]
                 if source_id in visited:
                     continue  # Skip cycles
