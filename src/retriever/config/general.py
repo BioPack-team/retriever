@@ -229,12 +229,32 @@ class DgraphSettings(BaseModel):
     grpc_port: int = 9080
     use_tls: bool = False
     query_timeout: Annotated[
-        int, Field(description="Time in seconds before a Dgraph query should time out.")
-    ] = 1600
+        int, Field(
+            description="Time in seconds before a Dgraph query should time out.",
+            default=60
+        ),
+    ]
     connect_retries: Annotated[
         int,
-        Field(description="Number of retries before declaring a connection failure."),
-    ] = 25
+        Field(
+            description="Number of retries before declaring a connection failure.",
+            default=25
+        ),
+    ]
+    grpc_max_send_message_length: Annotated[
+        int,
+        Field(
+            description="gRPC max send message length in bytes (-1 for unlimited).",
+            default=-1,
+        ),
+    ]
+    grpc_max_receive_message_length: Annotated[
+        int,
+        Field(
+            description="gRPC max receive message length in bytes (-1 for unlimited).",
+            default=-1,
+        ),
+    ]
 
     @property
     def http_endpoint(self) -> str:

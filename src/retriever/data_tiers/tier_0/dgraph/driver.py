@@ -151,7 +151,19 @@ class DgraphDriver(DatabaseDriver):
 
     async def _connect_grpc(self) -> None:
         """Establish gRPC connection to Dgraph."""
-        self._client_stub = pydgraph.DgraphClientStub(self.endpoint)
+        grpc_options = [
+            (
+                "grpc.max_send_message_length",
+                self.settings.grpc_max_send_message_length,
+            ),
+            (
+                "grpc.max_receive_message_length",
+                self.settings.grpc_max_receive_message_length,
+            ),
+        ]
+        self._client_stub = pydgraph.DgraphClientStub(
+            self.endpoint, options=grpc_options
+        )
         self._client = cast(
             DgraphClientProtocol, cast(object, pydgraph.DgraphClient(self._client_stub))
         )
