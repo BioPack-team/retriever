@@ -9,7 +9,7 @@ def test_dgraph_settings_defaults_properties():
     assert s.grpc_port == 9080
     assert s.use_tls is False
     assert s.query_timeout == 60
-    assert s.connect_retries == 3
+    assert s.connect_retries == 25
     assert s.grpc_max_send_message_length == -1
     assert s.grpc_max_receive_message_length == -1
     assert s.http_endpoint == "http://localhost:8080"
