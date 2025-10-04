@@ -87,9 +87,9 @@ class DgraphTranspiler(Tier0Transpiler):
         categories = node.get("categories")
         if categories:
             if len(categories) == 1:
-                filters.append(f'eq(all_categories, "{categories[0]}")')
+                filters.append(f'eq(all_categories, "{categories[0].replace("biolink:", "")}")')
             elif len(categories) > 1:
-                categories_str = ", ".join(f'"{cat}"' for cat in categories)
+                categories_str = ", ".join(f'"{cat.replace("biolink:", "")}"' for cat in categories)
                 filters.append(f"eq(all_categories, [{categories_str}])")
 
         # Handle attribute constraints
@@ -221,9 +221,9 @@ class DgraphTranspiler(Tier0Transpiler):
         categories: Sequence[str] | Sequence[BiolinkEntity],
     ) -> str:
         """Create a filter for category fields."""
-        cat_vals = [str(c) for c in categories]
+        cat_vals = [str(c).replace("biolink:", "") for c in categories]
         if len(cat_vals) == 1:
-            return f'eq(all_categories, "{cat_vals[0]}")'
+            return f'eq(all_categories, "{cat_vals[0].replace("biolink:", "")}")'
         categories_str = ", ".join(f'"{cat}"' for cat in cat_vals)
         return f"eq(all_categories, [{categories_str}])"
 
