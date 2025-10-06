@@ -87,9 +87,13 @@ class DgraphTranspiler(Tier0Transpiler):
         categories = node.get("categories")
         if categories:
             if len(categories) == 1:
-                filters.append(f'eq(all_categories, "{categories[0].replace("biolink:", "")}")')
+                filters.append(
+                    f'eq(all_categories, "{categories[0].replace("biolink:", "")}")'
+                )
             elif len(categories) > 1:
-                categories_str = ", ".join(f'"{cat.replace("biolink:", "")}"' for cat in categories)
+                categories_str = ", ".join(
+                    f'"{cat.replace("biolink:", "")}"' for cat in categories
+                )
                 filters.append(f"eq(all_categories, [{categories_str}])")
 
         # Handle attribute constraints
@@ -115,10 +119,14 @@ class DgraphTranspiler(Tier0Transpiler):
         predicates = edge.get("predicates")
         if predicates:
             if len(predicates) == 1:
-                filters.append(f'eq(predicate, "{predicates[0].replace("biolink:", "")}")')
+                filters.append(
+                    f'eq(all_predicates, "{predicates[0].replace("biolink:", "")}")'
+                )
             elif len(predicates) > 1:
-                predicates_str = ", ".join(f'"{pred.replace("biolink:", "")}"' for pred in predicates)
-                filters.append(f"eq(predicate, [{predicates_str}])")
+                predicates_str = ", ".join(
+                    f'"{pred.replace("biolink:", "")}"' for pred in predicates
+                )
+                filters.append(f"eq(all_predicates, [{predicates_str}])")
 
         # Handle attribute constraints
         attribute_constraints = edge.get("attribute_constraints")
