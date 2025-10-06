@@ -19,12 +19,11 @@ class DgraphQuery(Tier0Query):
         backend_driver = DgraphGrpcDriver()
         transpiler = DgraphTranspiler()
 
-        # Transpile to cypher
+        # Transpile to backend QL
         query_payload = transpiler.process_qgraph(qgraph)
         self.job_log.trace(query_payload)
 
         backend_record = await backend_driver.run_query(query_payload)
-        self.job_log.trace(str(backend_record))
 
         # Convert neo4j record response to TRAPI
         with tracer.start_as_current_span("transform_results"):
