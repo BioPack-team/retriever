@@ -148,12 +148,15 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                                 attribute_type_id="biolink:xref",
                                 value=node["equivalent_curies"],
                             ),
-                            AttributeDict(
-                                attribute_type_id="biolink:synonym",
-                                value=node["all_names"],
-                            ),
                         ],
                     )
+                    if synonyms := node.get("all_names"):
+                        trapi_node["attributes"].append(
+                            AttributeDict(
+                                attribute_type_id="biolink:synonym",
+                                value=synonyms,
+                            )
+                        )
 
                     for attribute_type_id in ("publications",):  # iri?
                         if attribute_type_id not in node:

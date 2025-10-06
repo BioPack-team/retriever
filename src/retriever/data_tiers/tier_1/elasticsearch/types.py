@@ -42,7 +42,7 @@ class ESNode(TypedDict):
     id: CURIE
     name: str
     category: BiolinkEntity
-    all_names: list[str]
+    all_names: NotRequired[list[str]]
     all_categories: list[BiolinkEntity]
     iri: NotRequired[str]
     description: str
