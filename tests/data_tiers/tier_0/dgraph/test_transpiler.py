@@ -578,7 +578,7 @@ EXP_SIMPLE = dedent("""
 {
     node(func: eq(id, "CHEBI:4514")) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        in_edges: ~source @filter(eq(predicate, "subclass_of")) {
+        in_edges: ~source @filter(eq(all_predicates, "subclass_of")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: target @filter(eq(id, "UMLS:C1564592")) {
                 id name category all_names all_categories iri equivalent_curies description publications
@@ -592,7 +592,7 @@ EXP_SIMPLE_MULTIPLE_IDS = dedent("""
 {
     node(func: eq(id, ["CHEBI:3125", "CHEBI:53448"])) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        in_edges: ~source @filter(eq(predicate, "interacts_with")) {
+        in_edges: ~source @filter(eq(all_predicates, "interacts_with")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: target @filter(eq(id, ["UMLS:C0282090", "CHEBI:10119"])) {
                 id name category all_names all_categories iri equivalent_curies description publications
@@ -606,11 +606,11 @@ EXP_TWO_HOP = dedent("""
 {
     node(func: eq(id, "CHEBI:3125")) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        in_edges: ~source @filter(eq(predicate, "interacts_with")) {
+        in_edges: ~source @filter(eq(all_predicates, "interacts_with")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: target @filter(eq(id, "UMLS:C0282090")) {
                 id name category all_names all_categories iri equivalent_curies description publications
-                    in_edges: ~source @filter(eq(predicate, "related_to")) {
+                    in_edges: ~source @filter(eq(all_predicates, "related_to")) {
                     predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                     node: target @filter(eq(id, "UMLS:C0496995")) {
                         id name category all_names all_categories iri equivalent_curies description publications
@@ -626,15 +626,15 @@ EXP_THREE_HOP = dedent("""
 {
     node(func: eq(id, "CHEBI:3125")) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        in_edges: ~source @filter(eq(predicate, "interacts_with")) {
+        in_edges: ~source @filter(eq(all_predicates, "interacts_with")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: target @filter(eq(id, "UMLS:C0282090")) {
                 id name category all_names all_categories iri equivalent_curies description publications
-                in_edges: ~source @filter(eq(predicate, "related_to")) {
+                in_edges: ~source @filter(eq(all_predicates, "related_to")) {
                     predicate primary_knowledge_source knowledge level agent_type kg2_ids domain_range_exclusion edge_id
                     node: target @filter(eq(id, "UMLS:C0496995")) {
                         id name category all_names all_categories iri equivalent_curies description publications
-                        in_edges: ~source @filter(eq(predicate, "related_to")) {
+                        in_edges: ~source @filter(eq(all_predicates, "related_to")) {
                             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                             node: target @filter(eq(id, "UMLS:C0149720")) {
                                 id name category all_names all_categories iri equivalent_curies description publications
@@ -652,19 +652,19 @@ EXP_FOUR_HOP = dedent("""
 {
     node(func: eq(id, "CHEBI:3125")) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        in_edges: ~source @filter(eq(predicate, "interacts_with")) {
+        in_edges: ~source @filter(eq(all_predicates, "interacts_with")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: target @filter(eq(id, "UMLS:C0282090")) {
                 id name category all_names all_categories iri equivalent_curies description publications
-                in_edges: ~source @filter(eq(predicate, "related_to")) {
+                in_edges: ~source @filter(eq(all_predicates, "related_to")) {
                     predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                     node: target @filter(eq(id, "UMLS:C0496995")) {
                         id name category all_names all_categories iri equivalent_curies description publications
-                        in_edges: ~source @filter(eq(predicate, "related_to")) {
+                        in_edges: ~source @filter(eq(all_predicates, "related_to")) {
                             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                             node: target @filter(eq(id, "UMLS:C0149720")) {
                                 id name category all_names all_categories iri equivalent_curies description publications
-                                in_edges: ~source @filter(eq(predicate, "related_to")) {
+                                in_edges: ~source @filter(eq(all_predicates, "related_to")) {
                                     predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                                     node: target @filter(eq(id, "UMLS:C0496994")) {
                                         id name category all_names all_categories iri equivalent_curies description publications
@@ -684,23 +684,23 @@ EXP_FIVE_HOP = dedent("""
 {
     node(func: eq(id, "CHEBI:3125")) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        in_edges: ~source @filter(eq(predicate, "interacts_with")) {
+        in_edges: ~source @filter(eq(all_predicates, "interacts_with")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: target @filter(eq(id, "UMLS:C0282090")) {
                 id name category all_names all_categories iri equivalent_curies description publications
-                in_edges: ~source @filter(eq(predicate, "related_to")) {
+                in_edges: ~source @filter(eq(all_predicates, "related_to")) {
                     predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                     node: target @filter(eq(id, "UMLS:C0496995")) {
                         id name category all_names all_categories iri equivalent_curies description publications
-                        in_edges: ~source @filter(eq(predicate, "related_to")) {
+                        in_edges: ~source @filter(eq(all_predicates, "related_to")) {
                             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                             node: target @filter(eq(id, "UMLS:C0149720")) {
                                 id name category all_names all_categories iri equivalent_curies description publications
-                                in_edges: ~source @filter(eq(predicate, "related_to")) {
+                                in_edges: ~source @filter(eq(all_predicates, "related_to")) {
                                     predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                                     node: target @filter(eq(id, "UMLS:C0496994")) {
                                         id name category all_names all_categories iri equivalent_curies description publications
-                                        in_edges: ~source @filter(eq(predicate, "related_to")) {
+                                        in_edges: ~source @filter(eq(all_predicates, "related_to")) {
                                             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                                             node: target @filter(eq(id, "UMLS:C2879715")) {
                                                 id name category all_names all_categories iri equivalent_curies description publications
@@ -722,23 +722,23 @@ EXP_FIVE_HOP_MULTIPLE_IDS = dedent("""
 {
     node(func: eq(id, ["Q0", "Q1"])) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        in_edges: ~source @filter(eq(predicate, "P0")) {
+        in_edges: ~source @filter(eq(all_predicates, "P0")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: target @filter(eq(id, ["Q2", "Q3"])) {
                 id name category all_names all_categories iri equivalent_curies description publications
-                in_edges: ~source @filter(eq(predicate, "P1")) {
+                in_edges: ~source @filter(eq(all_predicates, "P1")) {
                     predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                     node: target @filter(eq(id, ["Q4", "Q5"])) {
                         id name category all_names all_categories iri equivalent_curies description publications
-                        in_edges: ~source @filter(eq(predicate, "P2")) {
+                        in_edges: ~source @filter(eq(all_predicates, "P2")) {
                             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                             node: target @filter(eq(id, ["Q6", "Q7"])) {
                                 id name category all_names all_categories iri equivalent_curies description publications
-                                in_edges: ~source @filter(eq(predicate, "P3")) {
+                                in_edges: ~source @filter(eq(all_predicates, "P3")) {
                                     predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                                     node: target @filter(eq(id, ["Q8", "Q9"])) {
                                         id name category all_names all_categories iri equivalent_curies description publications
-                                        in_edges: ~source @filter(eq(predicate, "P4")) {
+                                        in_edges: ~source @filter(eq(all_predicates, "P4")) {
                                             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                                             node: target @filter(eq(id, ["Q10", "Q11"])) {
                                                 id name category all_names all_categories iri equivalent_curies description publications
@@ -760,7 +760,7 @@ EXP_CATEGORY_FILTER = dedent("""
 {
     node(func: eq(all_categories, "Gene")) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        in_edges: ~source @filter(eq(predicate, "gene_associated_with_condition")) {
+        in_edges: ~source @filter(eq(all_predicates, "gene_associated_with_condition")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: target @filter(eq(all_categories, "Disease")) {
                 id name category all_names all_categories iri equivalent_curies description publications
@@ -774,7 +774,7 @@ EXP_MULTIPLE_FILTERS = dedent("""
 {
     node(func: eq(id, "CHEBI:3125")) @filter(eq(all_categories, "SmallMolecule") AND anyoftext(description, "diphenylmethane")) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        in_edges: ~source @filter(eq(predicate, ["interacts_with", "contributes_to"]) AND eq(knowledge_level, "prediction")) {
+        in_edges: ~source @filter(eq(all_predicates, ["interacts_with", "contributes_to"]) AND eq(knowledge_level, "prediction")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: target @filter(eq(all_categories, "Drug") AND anyoftext(description, "laxative")) {
                 id name category all_names all_categories iri equivalent_curies description publications
@@ -830,7 +830,7 @@ EXP_SINGLE_STRING_WITH_COMMAS = dedent("""
 {
     node(func: eq(id, ["Q0", "Q1"])) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        in_edges: ~source @filter(eq(predicate, "P")) {
+        in_edges: ~source @filter(eq(all_predicates, "P")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: target @filter(eq(id, "Q2")) {
                 id name category all_names all_categories iri equivalent_curies description publications
@@ -844,7 +844,7 @@ EXP_PREDICATES_SINGLE = dedent("""
 {
     node(func: eq(id, "A")) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        in_edges: ~source @filter(eq(predicate, "Ponly")) {
+        in_edges: ~source @filter(eq(all_predicates, "Ponly")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: target @filter(eq(id, "B")) {
                 id name category all_names all_categories iri equivalent_curies description publications
@@ -872,7 +872,7 @@ EXP_START_OBJECT_WITH_IDS = dedent("""
 {
     node(func: eq(id, "X")) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        in_edges: ~source @filter(eq(predicate, "rel")) {
+        in_edges: ~source @filter(eq(all_predicates, "rel")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: target @filter(eq(id, "Y")) {
                 id name category all_names all_categories iri equivalent_curies description publications
@@ -886,7 +886,7 @@ EXP_BATCH_QGRAPHS = dedent("""
 {
     node0(func: eq(id, "CHEBI:4514")) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        in_edges: ~source @filter(eq(predicate, "subclass_of")) {
+        in_edges: ~source @filter(eq(all_predicates, "subclass_of")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: target @filter(eq(id, "UMLS:C1564592")) {
                 id name category all_names all_categories iri equivalent_curies description publications
@@ -896,7 +896,7 @@ EXP_BATCH_QGRAPHS = dedent("""
 
     node1(func: eq(id, ["CHEBI:3125", "CHEBI:53448"])) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        in_edges: ~source @filter(eq(predicate, "interacts_with")) {
+        in_edges: ~source @filter(eq(all_predicates, "interacts_with")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: target @filter(eq(id, ["UMLS:C0282090", "CHEBI:10119"])) {
                 id name category all_names all_categories iri equivalent_curies description publications
@@ -910,7 +910,7 @@ EXP_BATCH_QGRAPHS_MULTI_HOP = dedent("""
 {
     node0(func: eq(id, "CHEBI:4514")) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        in_edges: ~source @filter(eq(predicate, "subclass_of")) {
+        in_edges: ~source @filter(eq(all_predicates, "subclass_of")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: target @filter(eq(id, "UMLS:C1564592")) {
                 id name category all_names all_categories iri equivalent_curies description publications
@@ -920,7 +920,7 @@ EXP_BATCH_QGRAPHS_MULTI_HOP = dedent("""
 
     node1(func: eq(id, ["CHEBI:3125", "CHEBI:53448"])) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        in_edges: ~source @filter(eq(predicate, "interacts_with")) {
+        in_edges: ~source @filter(eq(all_predicates, "interacts_with")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: target @filter(eq(id, ["UMLS:C0282090", "CHEBI:10119"])) {
                 id name category all_names all_categories iri equivalent_curies description publications
@@ -930,11 +930,11 @@ EXP_BATCH_QGRAPHS_MULTI_HOP = dedent("""
 
     node2(func: eq(id, "CHEBI:3125")) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        in_edges: ~source @filter(eq(predicate, "interacts_with")) {
+        in_edges: ~source @filter(eq(all_predicates, "interacts_with")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: target @filter(eq(id, "UMLS:C0282090")) {
                 id name category all_names all_categories iri equivalent_curies description publications
-                    in_edges: ~source @filter(eq(predicate, "related_to")) {
+                    in_edges: ~source @filter(eq(all_predicates, "related_to")) {
                     predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                     node: target @filter(eq(id, "UMLS:C0496995")) {
                         id name category all_names all_categories iri equivalent_curies description publications
@@ -946,23 +946,23 @@ EXP_BATCH_QGRAPHS_MULTI_HOP = dedent("""
 
     node3(func: eq(id, ["Q0", "Q1"])) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        in_edges: ~source @filter(eq(predicate, "P0")) {
+        in_edges: ~source @filter(eq(all_predicates, "P0")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: target @filter(eq(id, ["Q2", "Q3"])) {
                 id name category all_names all_categories iri equivalent_curies description publications
-                in_edges: ~source @filter(eq(predicate, "P1")) {
+                in_edges: ~source @filter(eq(all_predicates, "P1")) {
                     predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                     node: target @filter(eq(id, ["Q4", "Q5"])) {
                         id name category all_names all_categories iri equivalent_curies description publications
-                        in_edges: ~source @filter(eq(predicate, "P2")) {
+                        in_edges: ~source @filter(eq(all_predicates, "P2")) {
                             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                             node: target @filter(eq(id, ["Q6", "Q7"])) {
                                 id name category all_names all_categories iri equivalent_curies description publications
-                                in_edges: ~source @filter(eq(predicate, "P3")) {
+                                in_edges: ~source @filter(eq(all_predicates, "P3")) {
                                     predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                                     node: target @filter(eq(id, ["Q8", "Q9"])) {
                                         id name category all_names all_categories iri equivalent_curies description publications
-                                        in_edges: ~source @filter(eq(predicate, "P4")) {
+                                        in_edges: ~source @filter(eq(all_predicates, "P4")) {
                                             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                                             node: target @filter(eq(id, ["Q10", "Q11"])) {
                                                 id name category all_names all_categories iri equivalent_curies description publications
@@ -984,7 +984,7 @@ EXP_BATCH_MULTI_IDS_SINGLE = dedent("""
 {
     node0(func: eq(id, ["A", "B"])) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        in_edges: ~source @filter(eq(predicate, "P")) {
+        in_edges: ~source @filter(eq(all_predicates, "P")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: target @filter(eq(id, "C")) {
                 id name category all_names all_categories iri equivalent_curies description publications
@@ -998,7 +998,7 @@ EXP_BATCH_NO_IDS_SINGLE = dedent("""
 {
     node0(func: eq(all_categories, "Gene")) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        in_edges: ~source @filter(eq(predicate, "R")) {
+        in_edges: ~source @filter(eq(all_predicates, "R")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: target @filter(eq(id, "D")) {
                 id name category all_names all_categories iri equivalent_curies description publications
@@ -1012,7 +1012,7 @@ DGRAPH_FLOATING_OBJECT_QUERY = dedent("""
 {
     node(func: eq(id, "NCBIGene:3778")) @filter(eq(all_categories, "Gene")) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        out_edges: ~target @filter(eq(predicate, "causes")) {
+        out_edges: ~target @filter(eq(all_predicates, "causes")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: source @filter(eq(all_categories, "Disease")) {
                 id name category all_names all_categories iri equivalent_curies description publications
@@ -1027,7 +1027,7 @@ DGRAPH_FLOATING_OBJECT_QUERY_TWO_CATEGORIES = dedent("""
 {
     node(func: eq(id, "NCBIGene:3778")) @filter(eq(all_categories, ["Gene", "Protein"])) @cascade {
         id name category all_names all_categories iri equivalent_curies description publications
-        out_edges: ~target @filter(eq(predicate, "causes")) {
+        out_edges: ~target @filter(eq(all_predicates, "causes")) {
             predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
             node: source @filter(eq(all_categories, "Disease")) {
                 id name category all_names all_categories iri equivalent_curies description publications
