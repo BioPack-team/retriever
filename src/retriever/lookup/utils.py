@@ -1,4 +1,3 @@
-import bmt
 from reasoner_pydantic import (
     BiolinkEntity,
     BiolinkPredicate,
@@ -23,11 +22,9 @@ from retriever.types.trapi import (
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.trapi import hash_edge, hash_hex
 
-biolink = bmt.Toolkit()
-
 
 def expand_qgraph(qg: QueryGraph, job_log: TRAPILogger) -> QueryGraph:
-    """Ensure all nodes in qgraph have all descendent categories.
+    """Ensure all nodes in qgraph have all descendant categories.
 
     See https://biolink.github.io/biolink-model/categories.html
     """
@@ -37,14 +34,21 @@ def expand_qgraph(qg: QueryGraph, job_log: TRAPILogger) -> QueryGraph:
         new_categories = set[BiolinkEntity]()
         if len(categories) == 0:
             categories.add("biolink:NamedThing")
-        # Can probably handle this in subquery dispatcher/abstraction layers
-        # for category in categories:
-        #     new_categories.update(biolink.get_descendants(category, formatted=True))
-
-        if len(new_categories):
             job_log.info(
-                f"QNode {qnode_id}: Added descendent categories {new_categories}."
+                f"QNode {qnode_id}: Inferred NamedThing from empty category list."
             )
+        # Not necessary because backends check against descendants
+        # new_categories = biolink.expand(categories) - categories
+        #
+        # if "biolink:NamedThing" in categories:
+        #     job_log.info(
+        #         f"QNode {qnode_id}: Expanded to all categories (original had NamedThing)."
+        #     )
+        # elif len(new_categories):
+        #     job_log.info(
+        #         f"QNode {qnode_id}: Added descendant categories {new_categories}."
+        #     )
+        #
         qnode.categories = HashableSequence[BiolinkEntity](
             [*categories, *new_categories]
         )
@@ -54,14 +58,24 @@ def expand_qgraph(qg: QueryGraph, job_log: TRAPILogger) -> QueryGraph:
         new_predicates = set[BiolinkPredicate]()
         if len(predicates) == 0:
             predicates.add("biolink:related_to")
-        # Can probably handle this in subquery dispatcher/abstraction layers
-        # for predicate in predicates:
-        #     new_predicates.update(biolink.get_descendants(predicate, formatted=True))
-
-        if len(new_predicates):
             job_log.info(
-                f"QEdge {qedge_id}: Added descendent predicates {new_predicates}."
+                f"QEdge {qedge_id}: Inferred related_to from empty predicate list."
             )
+        # Expand predicates: backends don't match against hierarchy
+        # new_predicates = biolink.expand(predicates) - predicates
+        #
+        # if "biolink:related_to" in predicates:
+        #     job_log.info(
+        #         f"QEdge {qedge_id}: Expanded to all predicates (original had related_to)."
+        #     )
+        # elif len(new_predicates):
+        #     job_log.info(
+        #         f"QEdge {qedge_id}: Added descendant predicates {new_predicates}."
+        #     )
+
+        qedge.predicates = HashableSequence[BiolinkPredicate](
+            [*predicates, *new_predicates]
+        )
 
     return qg
 
