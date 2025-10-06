@@ -377,8 +377,8 @@ class DgraphTranspiler(Tier0Transpiler):
             node
         )
 
-        # Start the query with the primary filter
-        query = f"node(func: {primary_filter})"
+        # Start the query with the primary filter, using the node_id as the key
+        query = f"node_{node_id}(func: {primary_filter})"
 
         # Add secondary filters if present
         query += self._build_filter_clause(secondary_filters)
@@ -408,9 +408,8 @@ class DgraphTranspiler(Tier0Transpiler):
         query = ""
 
         # Find outgoing edges from this node (where this node is the SUBJECT)
-        for edge in edges.values():
+        for edge_id, edge in edges.items():
             if edge["subject"] == node_id:
-                # Get the source node and predicate
                 object_id: QNodeID = edge["object"]
                 if object_id in visited:
                     continue  # Skip cycles
@@ -420,7 +419,7 @@ class DgraphTranspiler(Tier0Transpiler):
                 filter_clause = f" @filter({edge_filter})" if edge_filter else ""
 
                 # Use `~target` for outgoing edges
-                query += f"out_edges: ~target{filter_clause} {{ "
+                query += f"out_edges_{edge_id}: ~target{filter_clause} {{ "
                 query += self._add_standard_edge_fields()
 
                 object_filter = self._build_node_filter(object_node)
@@ -428,7 +427,8 @@ class DgraphTranspiler(Tier0Transpiler):
                     f" @filter({object_filter})" if object_filter != "has(id)" else ""
                 )
 
-                query += f"node: source{object_filter_clause} {{ "
+                # Use `node_{object_id}` for the connected node
+                query += f"node_{object_id}: source{object_filter_clause} {{ "
                 query += self._add_standard_node_fields()
 
                 # Recurse from the newly connected object node
@@ -438,7 +438,7 @@ class DgraphTranspiler(Tier0Transpiler):
                 query += "} } "
 
         # Find incoming edges to this node (where this node is the OBJECT)
-        for edge in edges.values():
+        for edge_id, edge in edges.items():
             if edge["object"] == node_id:
                 # Get the target node and predicate
                 source_id: QNodeID = edge["subject"]
@@ -449,8 +449,8 @@ class DgraphTranspiler(Tier0Transpiler):
                 edge_filter = self._build_edge_filter(edge)
                 filter_clause = f" @filter({edge_filter})" if edge_filter else ""
 
-                # Use `~source` for incoming edges
-                query += f"in_edges: ~source{filter_clause} {{ "
+                # Use `in_edges_{edge_id}` for incoming edges
+                query += f"in_edges_{edge_id}: ~source{filter_clause} {{ "
                 query += self._add_standard_edge_fields()
 
                 source_filter = self._build_node_filter(source_node)
@@ -458,7 +458,8 @@ class DgraphTranspiler(Tier0Transpiler):
                     f" @filter({source_filter})" if source_filter != "has(id)" else ""
                 )
 
-                query += f"node: target{source_filter_clause} {{ "
+                # Use `node_{source_id}` for the connected node
+                query += f"node_{source_id}: target{source_filter_clause} {{ "
                 query += self._add_standard_node_fields()
 
                 # Recurse from the newly connected source node
@@ -481,11 +482,11 @@ class DgraphTranspiler(Tier0Transpiler):
         for i, sub_qgraph in enumerate(qgraphs):
             sub_qgraph_typed: QueryGraphDict = sub_qgraph
             query = self.convert_multihop(sub_qgraph_typed)
-            query = query.replace("node(func:", f"node{i}(func:", 1)
-            blocks.append(query.strip()[1:-1])
+            # The root node key is already unique, so we just need to alias the query block
+            blocks.append(f" q{i}_" + query.strip()[2:-1])
 
         # Combine all queries into one batch query
-        return "{" + "".join(q.strip("{}") for q in blocks) + "}"
+        return "{" + " ".join(blocks) + "}"
 
     @override
     def convert_results(self, qgraph: QueryGraphDict, results: Any) -> BackendResult:
