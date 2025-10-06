@@ -18,6 +18,7 @@ class ElasticSearchDriver(DatabaseDriver):
     """An Elasticsesarch driver."""
 
     es_connection: AsyncElasticsearch | None = None
+    _failed: bool = False
 
     def setup_es_connection(self) -> None:
         """Setup connection to Elasticsearch instance."""
@@ -60,6 +61,7 @@ class ElasticSearchDriver(DatabaseDriver):
         except Exception as e:
             # Failed to get connection info
             log.error(f"Could not establish connection to elasticsearch, error: {e}")
+            self._failed = True
             raise e
         finally:
             await self.close()

@@ -11,6 +11,13 @@ class DatabaseDriver(ABC, metaclass=Singleton):
     and responding in whatever format.
     """
 
+    _failed: bool = False
+
+    @property
+    def is_failed(self) -> bool:
+        """Returns True if the backend connection has failed unrecoverably."""
+        return self._failed
+
     @abstractmethod
     async def connect(self) -> None:
         """Initialize a persistent connection to the database backend.

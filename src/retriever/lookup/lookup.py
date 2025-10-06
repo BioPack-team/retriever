@@ -12,8 +12,9 @@ from reasoner_pydantic import (
 )
 from reasoner_pydantic.qgraph import PathfinderQueryGraph
 
+from retriever.config.general import CONFIG
 from retriever.config.openapi import OPENAPI_CONFIG
-from retriever.data_tiers.tier_0.dgraph.query import DgraphQuery
+from retriever.data_tiers.utils import BACKEND_DRIVERS, QUERY_HANDLERS
 from retriever.lookup.qgx import QueryGraphExecutor
 from retriever.lookup.utils import expand_qgraph
 from retriever.lookup.validate import validate
@@ -258,11 +259,17 @@ async def run_tiered_lookups(
     query_tasks = list[asyncio.Task[LookupArtifacts]]()
     job_log = TRAPILogger(query.job_id)
 
-    handlers = (DgraphQuery, QueryGraphExecutor)
+    handlers = (QUERY_HANDLERS[CONFIG.tier0.backend], QueryGraphExecutor)
     for i, called_for in enumerate(
         (0 in query.tiers, not set(query.tiers).isdisjoint({1, 2}))
     ):
         if not called_for:
+            continue
+        if (
+            BACKEND_DRIVERS[CONFIG.tier0.backend],
+            BACKEND_DRIVERS[CONFIG.tier1.backend],
+        )[i].is_failed:
+            job_log.error(f"Tier {i} backend connection failed, tier must be skipped.")
             continue
         query_handler = handlers[i](expanded_qgraph, query)
         query_tasks.append(asyncio.create_task(query_handler.execute()))

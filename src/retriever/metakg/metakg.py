@@ -1,6 +1,5 @@
 import asyncio
 import itertools
-from pathlib import Path
 from typing import NamedTuple
 
 import aiofiles
@@ -99,10 +98,10 @@ class MetaKGManager:
         # TODO: make this part of config
         metakg_files = {
             0: {
-                "infores:rtx-kg2": Path("data/rtx-kg2-metakg.json"),
+                CONFIG.tier0.backend_infores: CONFIG.tier0.metakg_file,
             },
             1: {
-                "infores:rtx-kg2": Path("data/rtx-kg2-metakg.json"),
+                CONFIG.tier1.backend_infores: CONFIG.tier1.metakg_file,
             },
         }
 

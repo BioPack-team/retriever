@@ -109,6 +109,7 @@ class DgraphDriver(DatabaseDriver):
     # _client: pydgraph.DgraphClient | None = None
     _client: DgraphClientProtocol | None = None
     _http_session: aiohttp.ClientSession | None = None
+    _failed: bool = False
 
     def __init__(self, protocol: DgraphProtocol = DgraphProtocol.GRPC) -> None:
         """Initialize the Dgraph driver with connection settings.
@@ -147,6 +148,7 @@ class DgraphDriver(DatabaseDriver):
                 await self.connect(retries + 1)
             else:
                 log.error(f"Could not establish connection to Dgraph, error: {e}")
+                self._failed = True
                 raise e
 
     async def _connect_grpc(self) -> None:

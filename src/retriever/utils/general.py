@@ -61,6 +61,8 @@ class CommentedSettings(BaseSettings):
                 adjusted_value = [
                     CommentedSettings.to_commented(v) for v in adjusted_value
                 ]
+            elif not isinstance(adjusted_value, None | int | float | str | list | dict):
+                adjusted_value = str(adjusted_value)
 
             commented[field] = adjusted_value
             if (

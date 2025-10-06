@@ -1,7 +1,8 @@
 import warnings
+from pathlib import Path
 from typing import Annotated, ClassVar, override
 
-from pydantic import AfterValidator, BaseModel, Field, SecretStr
+from pydantic import AfterValidator, BaseModel, Field, FilePath, SecretStr
 from pydantic_file_secrets import FileSecretsSettingsSource, SettingsConfigDict
 from pydantic_settings import (
     BaseSettings,
@@ -189,7 +190,7 @@ class ElasticSearchSettings(BaseModel):
     connect_retries: Annotated[
         int,
         Field(description="Number of retries before declaring a connection failure."),
-    ] = 25
+    ] = 5
     host: str = ""
     port: int = 9200
     database_name: str = "elasticsearch"
@@ -201,6 +202,9 @@ class ElasticSearchSettings(BaseModel):
 class Tier1Settings(BaseModel):
     """Settings concern Tier 1 abstraction layers."""
 
+    backend: str = "elasticsearch"
+    metakg_file: FilePath = Path("data/rtx-kg2-metakg.json")
+    backend_infores: str = "infores:rtx-kg2"
     elasticsearch: ElasticSearchSettings = ElasticSearchSettings()
 
 
@@ -213,7 +217,7 @@ class Neo4jSettings(BaseModel):
     connect_retries: Annotated[
         int,
         Field(description="Number of retries before declaring a connection failure."),
-    ] = 25
+    ] = 5
     host: str = ""
     bolt_port: int = 7687
     username: str = ""
@@ -229,32 +233,29 @@ class DgraphSettings(BaseModel):
     grpc_port: int = 9080
     use_tls: bool = False
     query_timeout: Annotated[
-        int, Field(
+        int,
+        Field(
             description="Time in seconds before a Dgraph query should time out.",
-            default=60
         ),
-    ]
+    ] = 60
     connect_retries: Annotated[
         int,
         Field(
             description="Number of retries before declaring a connection failure.",
-            default=25
         ),
-    ]
+    ] = 5
     grpc_max_send_message_length: Annotated[
         int,
         Field(
             description="gRPC max send message length in bytes (-1 for unlimited).",
-            default=-1,
         ),
-    ]
+    ] = -1
     grpc_max_receive_message_length: Annotated[
         int,
         Field(
             description="gRPC max receive message length in bytes (-1 for unlimited).",
-            default=-1,
         ),
-    ]
+    ] = -1
 
     @property
     def http_endpoint(self) -> str:
@@ -271,6 +272,9 @@ class DgraphSettings(BaseModel):
 class Tier0Settings(BaseModel):
     """Settings concern Tier 0 abstraction layers."""
 
+    backend: str = "dgraph"
+    metakg_file: FilePath = Path("data/rtx-kg2-metakg.json")
+    backend_infores: str = "infores:automat-robokop"
     neo4j: Neo4jSettings = Neo4jSettings()
     dgraph: DgraphSettings = DgraphSettings()
 

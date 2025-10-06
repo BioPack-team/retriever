@@ -5,8 +5,8 @@ import time
 from opentelemetry import trace
 from reasoner_pydantic import QueryGraph
 
-from retriever.data_tiers.tier_1.elasticsearch.driver import ElasticSearchDriver
-from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
+from retriever.config.general import CONFIG
+from retriever.data_tiers.utils import BACKEND_DRIVERS, TRANSPILERS
 from retriever.lookup.branch import Branch
 from retriever.types.trapi import (
     Infores,
@@ -35,8 +35,8 @@ async def mock_subquery(
         job_log: TRAPILogger = TRAPILogger(job_id)
         start = time.time()
 
-        transpiler = ElasticsearchTranspiler()
-        query_driver = ElasticSearchDriver()
+        transpiler = TRANSPILERS[CONFIG.tier1.backend]
+        query_driver = BACKEND_DRIVERS[CONFIG.tier1.backend]
 
         # branch comes in execution direction
         # edge it refers to is in query direction
