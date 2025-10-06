@@ -24,14 +24,42 @@ class Node:
     equivalent_curies: list[str] = field(default_factory=list)
     description: str | None = None
     publications: list[str] = field(default_factory=list)
+    in_edges: list[InEdge] = field(default_factory=list)
+    out_edges: list[OutEdge] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, node_dict: Mapping[str, Any]) -> Self:
-        """Parse a node mapping into a Node dataclass."""
+        """Parse a root node mapping (with edges) into a NodeResult dataclass."""
+        # Parse in_edges
+        in_edges_raw: Any = node_dict.get("in_edges", [])
+        in_edges: list[InEdge] = []
+        if isinstance(in_edges_raw, list):
+            items: list[Any] = cast(list[Any], in_edges_raw)
+            mapped_edges: list[dict[str, Any]] = []
+            for e in items:
+                if hasattr(e, "keys") and hasattr(e, "values"):
+                    with suppress(TypeError, ValueError):
+                        mapped_edges.append(dict(e))
+            in_edges = [InEdge.from_dict(e) for e in mapped_edges]
+
+        # Parse out_edges
+        out_edges_raw: Any = node_dict.get("out_edges", [])
+        out_edges: list[OutEdge] = []
+        if isinstance(out_edges_raw, list):
+            out_items: list[Any] = cast(list[Any], out_edges_raw)
+            out_mapped_edges: list[dict[str, Any]] = []
+            for e in out_items:
+                if hasattr(e, "keys") and hasattr(e, "values"):
+                    with suppress(TypeError, ValueError):
+                        out_mapped_edges.append(dict(e))
+            out_edges = [OutEdge.from_dict(e) for e in out_mapped_edges]
+
         return cls(
             id=str(node_dict.get("id", "")),
             name=str(node_dict.get("name", "")),
             category=str(node_dict.get("category", "")),
+            in_edges=in_edges,
+            out_edges=out_edges,
             all_names=_to_str_list(node_dict.get("all_names")),
             all_categories=_to_str_list(node_dict.get("all_categories")),
             iri=(str(node_dict["iri"]) if "iri" in node_dict else None),
@@ -102,70 +130,10 @@ class OutEdge(_EdgeBase):
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class NodeResult:
-    """Root node result for each query key, including its inbound edges."""
-
-    id: str
-    name: str
-    category: str
-    in_edges: list[InEdge] = field(default_factory=list)
-    out_edges: list[OutEdge] = field(default_factory=list)
-    all_names: list[str] = field(default_factory=list)
-    all_categories: list[str] = field(default_factory=list)
-    iri: str | None = None
-    equivalent_curies: list[str] = field(default_factory=list)
-    description: str | None = None
-    publications: list[str] = field(default_factory=list)
-
-    @classmethod
-    def from_dict(cls, node_dict: Mapping[str, Any]) -> Self:
-        """Parse a root node mapping (with edges) into a NodeResult dataclass."""
-        # Parse in_edges
-        in_edges_raw: Any = node_dict.get("in_edges", [])
-        in_edges: list[InEdge] = []
-        if isinstance(in_edges_raw, list):
-            items: list[Any] = cast(list[Any], in_edges_raw)
-            mapped_edges: list[dict[str, Any]] = []
-            for e in items:
-                if hasattr(e, "keys") and hasattr(e, "values"):
-                    with suppress(TypeError, ValueError):
-                        mapped_edges.append(dict(e))
-            in_edges = [InEdge.from_dict(e) for e in mapped_edges]
-
-        # Parse out_edges
-        out_edges_raw: Any = node_dict.get("out_edges", [])
-        out_edges: list[OutEdge] = []
-        if isinstance(out_edges_raw, list):
-            out_items: list[Any] = cast(list[Any], out_edges_raw)
-            out_mapped_edges: list[dict[str, Any]] = []
-            for e in out_items:
-                if hasattr(e, "keys") and hasattr(e, "values"):
-                    with suppress(TypeError, ValueError):
-                        out_mapped_edges.append(dict(e))
-            out_edges = [OutEdge.from_dict(e) for e in out_mapped_edges]
-
-        return cls(
-            id=str(node_dict.get("id", "")),
-            name=str(node_dict.get("name", "")),
-            category=str(node_dict.get("category", "")),
-            in_edges=in_edges,
-            out_edges=out_edges,
-            all_names=_to_str_list(node_dict.get("all_names")),
-            all_categories=_to_str_list(node_dict.get("all_categories")),
-            iri=(str(node_dict["iri"]) if "iri" in node_dict else None),
-            equivalent_curies=_to_str_list(node_dict.get("equivalent_curies")),
-            description=(
-                str(node_dict["description"]) if "description" in node_dict else None
-            ),
-            publications=_to_str_list(node_dict.get("publications")),
-        )
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
 class DgraphResponse:
     """Parsed Dgraph response mapping query names to lists of NodeResult."""
 
-    data: dict[str, list[NodeResult]]
+    data: dict[str, list[Node]]
 
     @classmethod
     def parse(cls, raw: str | bytes | bytearray | Mapping[str, Any]) -> Self:
@@ -193,7 +161,7 @@ class DgraphResponse:
         data_map_dict = _extract_data_map(obj_dict)
 
         # Parse each query result
-        parsed: dict[str, list[NodeResult]] = {}
+        parsed: dict[str, list[Node]] = {}
         for query_name, nodes in data_map_dict.items():
             if isinstance(nodes, list):
                 parsed[str(query_name)] = _parse_node_items(cast(list[Any], nodes))
@@ -249,9 +217,9 @@ def _extract_data_map(obj_dict: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Response missing 'data' field or it is not a mapping")
 
 
-def _parse_node_items(node_list: list[Any]) -> list[NodeResult]:
-    """Parse a list of raw nodes into NodeResult objects."""
-    node_results: list[NodeResult] = []
+def _parse_node_items(node_list: list[Any]) -> list[Node]:
+    """Parse a list of raw nodes into Node objects."""
+    node_results: list[Node] = []
     for n_raw in node_list:
         n: Any = n_raw
         if n is not None and hasattr(n, "items"):
@@ -259,5 +227,5 @@ def _parse_node_items(node_list: list[Any]) -> list[NodeResult]:
                 node_dict: dict[str, Any] = {}
                 for k, v in cast(Mapping[str, Any], n).items():
                     node_dict[str(k)] = v
-                node_results.append(NodeResult.from_dict(node_dict))
+                node_results.append(Node.from_dict(node_dict))
     return node_results
