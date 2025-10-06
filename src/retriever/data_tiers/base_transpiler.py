@@ -24,10 +24,11 @@ class Transpiler(ABC):
                 f"Class {self.__class__.__name__} must be abstract, no transpiling methods are implemented."
             )
 
-        if multihop or not is_tier0:
+        if multihop and not is_tier0:
             raise ValueError("Multi-hop query graphs are not supported by this class.")
 
-        if multihop or not is_tier1:
+        # is_tier0 is implied by multihop because of the above check
+        if (multihop and is_tier0) or not is_tier1:
             convert = self.convert_multihop
             batch_convert = self.convert_batch_multihop
         else:
