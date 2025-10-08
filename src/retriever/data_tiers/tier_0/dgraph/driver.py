@@ -106,7 +106,6 @@ class DgraphDriver(DatabaseDriver):
     query_timeout: float
     connect_retries: int
     _client_stub: DgraphClientStubProtocol | None = None
-    # _client: pydgraph.DgraphClient | None = None
     _client: DgraphClientProtocol | None = None
     _http_session: aiohttp.ClientSession | None = None
     _failed: bool = False

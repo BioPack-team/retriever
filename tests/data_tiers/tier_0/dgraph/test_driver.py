@@ -96,9 +96,15 @@ async def test_dgraph_mock() -> None:
 
         @override
         async def run_query(self, query: str, *args: Any, **kwargs: Any) -> dg_models.DgraphResponse:
-            return dg_models.DgraphResponse.parse(
-                {"data": {"node": [{"id": "test_id", "name": "name", "category": "cat"}]}}
-            )
+            # The mock should construct the final DgraphResponse object directly,
+            # simulating what the real driver's parsing step would do.
+            parsed_nodes = [
+                dg_models.Node.from_dict(
+                    {"id": "test_id", "name": "name", "category": "cat"},
+                    binding="n0",
+                )
+            ]
+            return dg_models.DgraphResponse(data={"q0": parsed_nodes})
 
         @override
         async def close(self) -> None:
@@ -109,7 +115,16 @@ async def test_dgraph_mock() -> None:
 
     result = await driver.run_query("test query")
     assert isinstance(result, dg_models.DgraphResponse)
-    nodes = result.data.get("node", [])
-    assert nodes and nodes[0].id == "test_id"
+
+    # The parser normalizes all results into a dictionary keyed by the query index.
+    # For a single query, this key is "q0".
+    nodes = result.data.get("q0")
+    assert nodes is not None, "Nodes should be parsed under the 'q0' key"
+    assert len(nodes) == 1
+
+    # The parser correctly extracts the binding "n0" from the "q0_node_n0" key.
+    node = nodes[0]
+    assert node.binding == "n0"
+    assert node.id == "test_id"
 
     await driver.close()

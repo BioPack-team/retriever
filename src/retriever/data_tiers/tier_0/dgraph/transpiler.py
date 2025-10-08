@@ -43,8 +43,8 @@ class DgraphTranspiler(Tier0Transpiler):
         # Identify the starting node
         start_node_id = self._find_start_node(nodes, edges)
 
-        # Build query from the starting node
-        return "{ " + self._build_node_query(start_node_id, nodes, edges) + "}"
+        # Build query from the starting node, providing a default query_index of 0
+        return "{ " + self._build_node_query(start_node_id, nodes, edges, query_index=0) + "}"
 
     def _find_start_node(
         self,
@@ -368,6 +368,7 @@ class DgraphTranspiler(Tier0Transpiler):
         node_id: QNodeID,
         nodes: Mapping[QNodeID, QNodeDict],
         edges: Mapping[QEdgeID, QEdgeDict],
+        query_index: int | None = None,
     ) -> str:
         """Recursively build a query for a node and its connected nodes."""
         node = nodes[node_id]
@@ -377,8 +378,13 @@ class DgraphTranspiler(Tier0Transpiler):
             node
         )
 
-        # Start the query with the primary filter, using the node_id as the key
-        query = f"node_{node_id}(func: {primary_filter})"
+        # Create the root node key, with an optional query index prefix
+        root_node_key = f"node_{node_id}"
+        if query_index is not None:
+            root_node_key = f"q{query_index}_{root_node_key}"
+
+        # Start the query with the primary filter, using the generated key
+        query = f"{root_node_key}(func: {primary_filter})"
 
         # Add secondary filters if present
         query += self._build_filter_clause(secondary_filters)
@@ -481,12 +487,14 @@ class DgraphTranspiler(Tier0Transpiler):
         blocks: list[str] = []
         for i, sub_qgraph in enumerate(qgraphs):
             sub_qgraph_typed: QueryGraphDict = sub_qgraph
-            query = self.convert_multihop(sub_qgraph_typed)
-            # The root node key is already unique, so we just need to alias the query block
-            blocks.append(f" q{i}_" + query.strip()[2:-1])
+            nodes = sub_qgraph_typed["nodes"]
+            edges = sub_qgraph_typed["edges"]
+            start_node_id = self._find_start_node(nodes, edges)
+            # Build each query block with its corresponding batch index
+            blocks.append(self._build_node_query(start_node_id, nodes, edges, query_index=i))
 
         # Combine all queries into one batch query
-        return "{" + " ".join(blocks) + "}"
+        return "{ " + " ".join(blocks) + " }"
 
     @override
     def convert_results(self, qgraph: QueryGraphDict, results: Any) -> BackendResult:

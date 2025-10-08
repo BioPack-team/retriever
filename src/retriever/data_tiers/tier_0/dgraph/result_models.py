@@ -1,80 +1,30 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping
 from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Any, Self, cast
 
+from retriever.types.trapi import CURIE
+
+
+# Regex to find the node binding, ignoring an optional batch prefix like "q0_"
+# It captures the part after the optional prefix and "node_"
+NODE_KEY_PATTERN = re.compile(r"(?:q\d+_)?node_(\w+)")
+
+
 # -----------------
 # Dataclasses
 # -----------------
 
-
 @dataclass(frozen=True, slots=True, kw_only=True)
-class Node:
-    """Node attributes returned by Dgraph (target or nested edge node)."""
+class Edge:
+    """Represents a directed edge with its properties and a target node."""
 
-    id: str
-    name: str
-    category: str
-    all_names: list[str] = field(default_factory=list)
-    all_categories: list[str] = field(default_factory=list)
-    iri: str | None = None
-    equivalent_curies: list[str] = field(default_factory=list)
-    description: str | None = None
-    publications: list[str] = field(default_factory=list)
-    in_edges: list[InEdge] = field(default_factory=list)
-    out_edges: list[OutEdge] = field(default_factory=list)
-
-    @classmethod
-    def from_dict(cls, node_dict: Mapping[str, Any]) -> Self:
-        """Parse a root node mapping (with edges) into a NodeResult dataclass."""
-        # Parse in_edges
-        in_edges_raw: Any = node_dict.get("in_edges", [])
-        in_edges: list[InEdge] = []
-        if isinstance(in_edges_raw, list):
-            items: list[Any] = cast(list[Any], in_edges_raw)
-            mapped_edges: list[dict[str, Any]] = []
-            for e in items:
-                if hasattr(e, "keys") and hasattr(e, "values"):
-                    with suppress(TypeError, ValueError):
-                        mapped_edges.append(dict(e))
-            in_edges = [InEdge.from_dict(e) for e in mapped_edges]
-
-        # Parse out_edges
-        out_edges_raw: Any = node_dict.get("out_edges", [])
-        out_edges: list[OutEdge] = []
-        if isinstance(out_edges_raw, list):
-            out_items: list[Any] = cast(list[Any], out_edges_raw)
-            out_mapped_edges: list[dict[str, Any]] = []
-            for e in out_items:
-                if hasattr(e, "keys") and hasattr(e, "values"):
-                    with suppress(TypeError, ValueError):
-                        out_mapped_edges.append(dict(e))
-            out_edges = [OutEdge.from_dict(e) for e in out_mapped_edges]
-
-        return cls(
-            id=str(node_dict.get("id", "")),
-            name=str(node_dict.get("name", "")),
-            category=str(node_dict.get("category", "")),
-            in_edges=in_edges,
-            out_edges=out_edges,
-            all_names=_to_str_list(node_dict.get("all_names")),
-            all_categories=_to_str_list(node_dict.get("all_categories")),
-            iri=(str(node_dict["iri"]) if "iri" in node_dict else None),
-            equivalent_curies=_to_str_list(node_dict.get("equivalent_curies")),
-            description=(
-                str(node_dict["description"]) if "description" in node_dict else None
-            ),
-            publications=_to_str_list(node_dict.get("publications")),
-        )
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class _EdgeBase:
-    """Base class for shared edge attributes and parsing logic."""
-
+    binding: str
+    direction: str  # "in" or "out"
     predicate: str
     node: Node
     primary_knowledge_source: str | None = None
@@ -85,17 +35,23 @@ class _EdgeBase:
     edge_id: str | None = None
 
     @classmethod
-    def from_dict(cls, edge_dict: Mapping[str, Any]) -> Self:
-        """Parse an edge mapping into an Edge dataclass (including nested Node)."""
-        node_val: Any = edge_dict.get("node", {})
-        node_mapping: dict[str, Any] = {}
-        if hasattr(node_val, "keys") and hasattr(node_val, "values"):
-            with suppress(TypeError, ValueError):
-                node_mapping = dict(node_val)
+    def from_dict(
+        cls, edge_dict: Mapping[str, Any], binding: str, direction: str
+    ) -> Self:
+        """Parse an edge mapping into an Edge dataclass."""
+        # Find the nested node and its binding (e.g., "node_n1")
+        node_val: Any = next(
+            (v for k, v in edge_dict.items() if k.startswith("node_")), {}
+        )
+        node_binding = next(
+            (k.split("_", 1)[1] for k in edge_dict if k.startswith("node_")), ""
+        )
 
         return cls(
+            binding=binding,
+            direction=direction,
             predicate=str(edge_dict.get("predicate", "")),
-            node=Node.from_dict(node_mapping),
+            node=Node.from_dict(node_val, binding=node_binding),
             primary_knowledge_source=(
                 str(edge_dict["primary_knowledge_source"])
                 if "primary_knowledge_source" in edge_dict
@@ -115,66 +71,119 @@ class _EdgeBase:
                 if "domain_range_exclusion" in edge_dict
                 else None
             ),
-            edge_id=(str(edge_dict["edge_id"]) if "edge_id" in edge_dict else None),
+            # The edge_id is the binding from the dynamic key (e.g., "e0" from "in_edges_e0").
+            edge_id=binding,
         )
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class InEdge(_EdgeBase):
-    """Inbound edge with predicate, qualifiers, and a nested target Node."""
+class Node:
+    """Represents a node in the graph, with its properties and connected edges."""
 
+    binding: str
+    id: str
+    name: str
+    category: str
+    edges: list[Edge] = field(default_factory=list)
+    all_names: list[str] = field(default_factory=list)
+    all_categories: list[str] = field(default_factory=list)
+    iri: str | None = None
+    equivalent_curies: list[str] = field(default_factory=list)
+    description: str | None = None
+    publications: list[str] = field(default_factory=list)
 
-@dataclass(frozen=True, slots=True, kw_only=True)
-class OutEdge(_EdgeBase):
-    """Outbound edge with predicate, qualifiers, and a nested target Node."""
+    @classmethod
+    def from_dict(cls, node_dict: Mapping[str, Any], binding: str) -> Self:
+        """Parse a node mapping into a Node dataclass, normalizing dynamic keys."""
+        edges: list[Edge] = []
+        for key, value in node_dict.items():
+            if key.startswith("in_edges_"):
+                edge_binding = key.split("_", 2)[2]
+                if isinstance(value, list):
+                    edges.extend(
+                        Edge.from_dict(e, binding=edge_binding, direction="in")
+                        for e in value
+                        if isinstance(e, Mapping)
+                    )
+            elif key.startswith("out_edges_"):
+                edge_binding = key.split("_", 2)[2]
+                if isinstance(value, list):
+                    edges.extend(
+                        Edge.from_dict(e, binding=edge_binding, direction="out")
+                        for e in value
+                        if isinstance(e, Mapping)
+                    )
+
+        return cls(
+            binding=binding,
+            id=str(node_dict.get("id", "")),
+            name=str(node_dict.get("name", "")),
+            category=str(node_dict.get("category", "")),
+            edges=edges,
+            all_names=_to_str_list(node_dict.get("all_names")),
+            all_categories=_to_str_list(node_dict.get("all_categories")),
+            iri=(str(node_dict["iri"]) if "iri" in node_dict else None),
+            equivalent_curies=_to_str_list(node_dict.get("equivalent_curies")),
+            description=(
+                str(node_dict["description"]) if "description" in node_dict else None
+            ),
+            publications=_to_str_list(node_dict.get("publications")),
+        )
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class DgraphResponse:
-    """Parsed Dgraph response mapping query names to lists of NodeResult."""
+    """Parsed Dgraph response mapping query names to lists of Node objects."""
 
     data: dict[str, list[Node]]
 
     @classmethod
     def parse(cls, raw: str | bytes | bytearray | Mapping[str, Any]) -> Self:
-        """Parse a Dgraph response into dataclasses.
-
-        Supports both:
-        - HTTP shape: {"data": {...}}
-        - gRPC shape: {...} (top-level is already the data map)
-        """
-        # Load into a concrete dict for precise typing
-        obj_dict: dict[str, Any]
-
-        if isinstance(raw, str | bytes | bytearray):
-            obj_dict = _parse_json_to_dict(raw)
-        elif hasattr(raw, "items"):
-            obj_dict = {}
-            for k, v in raw.items():
-                obj_dict[str(k)] = v
+        """Parse a raw Dgraph response into a structured DgraphResponse object."""
+        parsed_data: dict[str, Any]
+        if isinstance(raw, Mapping):
+            parsed_data = dict(raw)
         else:
-            raise TypeError(
-                f"Unsupported response type: {type(raw)}. Expected str, bytes, or a mapping."
-            )
+            parsed_data = json.loads(raw)
 
-        # Determine where the data map lives
-        data_map_dict = _extract_data_map(obj_dict)
+        processed_data: dict[str, list[Node]] = {}
+        # The top-level keys are the query aliases (e.g., "q0_node_n0")
+        for query_alias, results in parsed_data.items():
+            match = NODE_KEY_PATTERN.match(query_alias)
+            if not match:
+                continue
 
-        # Parse each query result
-        parsed: dict[str, list[Node]] = {}
-        for query_name, nodes in data_map_dict.items():
-            if isinstance(nodes, list):
-                parsed[str(query_name)] = _parse_node_items(cast(list[Any], nodes))
-            else:
-                parsed[str(query_name)] = []
+            # Extract the TRAPI node binding (e.g., "n0") from the key
+            node_binding = match.group(1)
 
-        return cls(data=parsed)
+            # Determine the batch query key (e.g., "q0")
+            query_key = "q0"
+            if "_" in query_alias:
+                prefix = query_alias.split("_")[0]
+                if prefix.startswith("q") and prefix[1:].isdigit():
+                    query_key = prefix
+
+            if query_key not in processed_data:
+                processed_data[query_key] = []
+
+            if not isinstance(results, list):
+                continue
+
+            # Each item in the 'results' list is a node dictionary.
+            # We parse it directly using Node.from_dict.
+            for node_data in results:
+                if isinstance(node_data, Mapping):
+                    with suppress(Exception):
+                        processed_data[query_key].append(
+                            Node.from_dict(node_data, binding=node_binding)
+                        )
+
+        return cls(data=processed_data)
 
 
 # -----------------
 # Parsing helpers
 # -----------------
-
 
 def _to_str_list(value: Any) -> list[str]:
     """Coerce a scalar or list value to a list[str]."""
@@ -188,44 +197,24 @@ def _to_str_list(value: Any) -> list[str]:
     return []
 
 
-def _parse_json_to_dict(raw_data: str | bytes | bytearray) -> dict[str, Any]:
-    """Parse JSON string or bytes to dict."""
-    if isinstance(raw_data, bytes | bytearray):
-        tmp = json.loads(raw_data.decode("utf-8"))
-    else:
-        tmp = json.loads(raw_data)
-
-    if not isinstance(tmp, dict):
-        raise ValueError("Response is not a JSON object")
-    return cast(dict[str, Any], tmp)
-
-
-def _extract_data_map(obj_dict: dict[str, Any]) -> dict[str, Any]:
-    """Extract data map from response object."""
-    if "data" in obj_dict:
-        data_val = obj_dict["data"]
-        if hasattr(data_val, "items"):
-            data_map_dict: dict[str, Any] = {}
-            with suppress(TypeError, ValueError):
-                for k, v in cast(Mapping[str, Any], data_val).items():
-                    data_map_dict[str(k)] = v
-            return data_map_dict
-        raise ValueError("'data' field is not a mapping")
-    elif all(isinstance(v, list) for v in obj_dict.values()) or not obj_dict:
-        return obj_dict
-    else:
-        raise ValueError("Response missing 'data' field or it is not a mapping")
-
-
 def _parse_node_items(node_list: list[Any]) -> list[Node]:
     """Parse a list of raw nodes into Node objects."""
-    node_results: list[Node] = []
+    nodes: list[Node] = []
     for n_raw in node_list:
-        n: Any = n_raw
-        if n is not None and hasattr(n, "items"):
+        if n_raw is not None and hasattr(n_raw, "items"):
             with suppress(Exception):
-                node_dict: dict[str, Any] = {}
-                for k, v in cast(Mapping[str, Any], n).items():
-                    node_dict[str(k)] = v
-                node_results.append(Node.from_dict(node_dict))
-    return node_results
+                # Find the dynamic root node key (e.g., "node_n0" or "q0_node_n0")
+                node_key = next(
+                    (k for k in n_raw if NODE_KEY_PATTERN.match(k)), None
+                )
+                if node_key:
+                    # Extract the binding (e.g., "n0") using the regex
+                    match = NODE_KEY_PATTERN.match(node_key)
+                    if match:
+                        node_binding = match.group(1)
+                        node_data = n_raw[node_key]
+                        if isinstance(node_data, Mapping):
+                            nodes.append(
+                                Node.from_dict(node_data, binding=node_binding)
+                            )
+    return nodes
