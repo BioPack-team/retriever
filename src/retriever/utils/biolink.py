@@ -9,7 +9,7 @@ def expand(items: set[str]) -> set[str]:
     """Expand a set of biolink categories or predicates."""
     expanded = set(items)
     for item in items:
-        expanded.update(biolink.get_descendants(item))
+        expanded.update(biolink.get_descendants(item, formatted=True))
     return expanded
 
 
