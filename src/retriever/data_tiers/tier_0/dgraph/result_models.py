@@ -5,10 +5,7 @@ import re
 from collections.abc import Mapping
 from contextlib import suppress
 from dataclasses import dataclass, field
-from typing import Any, Self, cast
-
-from retriever.types.trapi import CURIE
-
+from typing import Any, Self, TypeGuard, cast
 
 # Regex to find the node binding, ignoring an optional batch prefix like "q0_"
 # It captures the part after the optional prefix and "node_"
@@ -41,7 +38,8 @@ class Edge:
         """Parse an edge mapping into an Edge dataclass."""
         # Find the nested node and its binding (e.g., "node_n1")
         node_val: Any = next(
-            (v for k, v in edge_dict.items() if k.startswith("node_")), {}
+            (v for k, v in edge_dict.items() if k.startswith("node_")),
+            cast(Mapping[str, Any], {}),
         )
         node_binding = next(
             (k.split("_", 1)[1] for k in edge_dict if k.startswith("node_")), ""
@@ -100,18 +98,18 @@ class Node:
             if key.startswith("in_edges_"):
                 edge_binding = key.split("_", 2)[2]
                 if isinstance(value, list):
+                    # Explicitly cast the list to satisfy the static checker
                     edges.extend(
                         Edge.from_dict(e, binding=edge_binding, direction="in")
-                        for e in value
-                        if isinstance(e, Mapping)
+                        for e in filter(_is_mapping, cast(list[Any], value))
                     )
             elif key.startswith("out_edges_"):
                 edge_binding = key.split("_", 2)[2]
                 if isinstance(value, list):
+                    # Explicitly cast the list to satisfy the static checker
                     edges.extend(
                         Edge.from_dict(e, binding=edge_binding, direction="out")
-                        for e in value
-                        if isinstance(e, Mapping)
+                        for e in filter(_is_mapping, cast(list[Any], value))
                     )
 
         return cls(
@@ -140,11 +138,10 @@ class DgraphResponse:
     @classmethod
     def parse(cls, raw: str | bytes | bytearray | Mapping[str, Any]) -> Self:
         """Parse a raw Dgraph response into a structured DgraphResponse object."""
-        parsed_data: dict[str, Any]
-        if isinstance(raw, Mapping):
-            parsed_data = dict(raw)
-        else:
-            parsed_data = json.loads(raw)
+        # Use ternary operator per ruff (SIM108)
+        parsed_data: dict[str, Any] = (
+            dict(raw) if isinstance(raw, Mapping) else json.loads(raw)
+        )
 
         processed_data: dict[str, list[Node]] = {}
         # The top-level keys are the query aliases (e.g., "q0_node_n0")
@@ -169,14 +166,12 @@ class DgraphResponse:
             if not isinstance(results, list):
                 continue
 
-            # Each item in the 'results' list is a node dictionary.
-            # We parse it directly using Node.from_dict.
-            for node_data in results:
-                if isinstance(node_data, Mapping):
-                    with suppress(Exception):
-                        processed_data[query_key].append(
-                            Node.from_dict(node_data, binding=node_binding)
-                        )
+            # Explicitly cast the list to satisfy the static checker
+            for node_data in filter(_is_mapping, cast(list[Any], results)):
+                with suppress(Exception):
+                    processed_data[query_key].append(
+                        Node.from_dict(node_data, binding=node_binding)
+                    )
 
         return cls(data=processed_data)
 
@@ -197,24 +192,6 @@ def _to_str_list(value: Any) -> list[str]:
     return []
 
 
-def _parse_node_items(node_list: list[Any]) -> list[Node]:
-    """Parse a list of raw nodes into Node objects."""
-    nodes: list[Node] = []
-    for n_raw in node_list:
-        if n_raw is not None and hasattr(n_raw, "items"):
-            with suppress(Exception):
-                # Find the dynamic root node key (e.g., "node_n0" or "q0_node_n0")
-                node_key = next(
-                    (k for k in n_raw if NODE_KEY_PATTERN.match(k)), None
-                )
-                if node_key:
-                    # Extract the binding (e.g., "n0") using the regex
-                    match = NODE_KEY_PATTERN.match(node_key)
-                    if match:
-                        node_binding = match.group(1)
-                        node_data = n_raw[node_key]
-                        if isinstance(node_data, Mapping):
-                            nodes.append(
-                                Node.from_dict(node_data, binding=node_binding)
-                            )
-    return nodes
+def _is_mapping(item: Any) -> TypeGuard[Mapping[str, Any]]:
+    """A TypeGuard to check if an item is a mapping."""
+    return isinstance(item, Mapping)

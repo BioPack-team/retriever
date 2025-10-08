@@ -1,4 +1,5 @@
 import pytest
+from typing import Any
 
 from retriever.data_tiers.tier_0.dgraph import result_models as dg_models
 
@@ -176,7 +177,7 @@ def test_parse_with_junk_data():
 
 
 @pytest.mark.parametrize(
-    "case_name, raw_response, expected_key",
+    "_case_name, raw_response, expected_key",
     [
         # A query that returns no results should have an empty list.
         ("Empty List", {"q0_node_n0": []}, "q0"),
@@ -187,7 +188,7 @@ def test_parse_with_junk_data():
     ],
 )
 def test_parse_empty_and_null_cases(
-    case_name: str, raw_response: dict, expected_key: str | None
+    _case_name: str, raw_response: dict[str, Any], expected_key: str | None
 ):
     """Test that the parser handles empty and null inputs correctly."""
     parsed = dg_models.DgraphResponse.parse(raw_response)
