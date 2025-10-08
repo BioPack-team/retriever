@@ -4,7 +4,7 @@ from typing import Any
 from retriever.data_tiers.tier_0.dgraph import result_models as dg_models
 
 
-def test_parse_success_case():
+def test_parse_single_success_case():
     """Test parsing of a well-formed, multi-hop Dgraph response."""
     # The raw response must match the actual Dgraph output format:
     # 1. The root key includes the query index prefix (e.g., "q0_").
