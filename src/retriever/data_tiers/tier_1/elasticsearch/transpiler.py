@@ -38,7 +38,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
     @override
     def process_qgraph(
         self, qgraph: QueryGraphDict, *additional_qgraphs: QueryGraphDict
-    ) -> ESPayload:
+    ) -> ESPayload | list[ESPayload]:
         return super().process_qgraph(qgraph, *additional_qgraphs)
 
     def generate_query_term(self, target: str, value: list[str]) -> ESFilterClause:
@@ -130,8 +130,8 @@ class ElasticsearchTranspiler(Tier1Transpiler):
         return self.generate_query_for_merged_edges(in_node, edge, out_node)
 
     @override
-    def convert_batch_triple(self, qgraphs: list[QueryGraphDict]) -> ESPayload:
-        raise NotImplementedError("Batching is not supported.")
+    def convert_batch_triple(self, qgraphs: list[QueryGraphDict]) -> list[ESPayload]:
+        return [self.convert_triple(qgraph) for qgraph in qgraphs]
 
     def build_nodes(self, hits: list[ESHit]) -> dict[CURIE, NodeDict]:
         """Build TRAPI nodes from backend representation."""

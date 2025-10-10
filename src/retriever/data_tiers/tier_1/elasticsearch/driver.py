@@ -95,7 +95,21 @@ class ElasticSearchDriver(DatabaseDriver):
             await self.es_connection.close()
         self.es_connection = None
 
-    async def run(self, query: ESPayload) -> list[ESHit] | None:
+    async def run_batch(self, query: list[ESPayload]):
+        transformed_query = []
+
+        # todo
+        # 0. make query in batch, if necessary
+        # 1. query result handling, especially pagination
+
+        for payload in query:
+            # add query header to payload
+            transformed_query.extend([{}, payload])
+
+        return self.es_connection.msearch(index=CONFIG.tier1.elasticsearch.index, body=transformed_query)
+
+
+    async def run(self, query: ESPayload | list[ESPayload]) -> list[ESHit] | None:
         """Execute query logic."""
         # Check ES connection instance
         if self.es_connection is None:
@@ -104,7 +118,10 @@ class ElasticSearchDriver(DatabaseDriver):
             )
 
         try:
-            response = await self.es_connection.search(
+            if type(query) is list:
+                response = await self.run_batch(query)
+            else:
+                response = await self.es_connection.search(
                 index=CONFIG.tier1.elasticsearch.index_name,
                 body=dict(query),
             )
@@ -136,7 +153,7 @@ class ElasticSearchDriver(DatabaseDriver):
     @override
     @tracer.start_as_current_span("elasticsearch_query")
     async def run_query(
-        self, query: ESPayload, *args: Any, **kwargs: Any
+        self, query: ESPayload | list[ESPayload], *args: Any, **kwargs: Any
     ) -> list[ESHit] | None:
         """Use ES async client to execute query via the `_search` endpoint."""
         otel_span = trace.get_current_span()
