@@ -50,7 +50,7 @@ async def _main_inner() -> None:
         log_config=logging_config,
         workers=n_workers,
         loop="uvloop",
-        proxy_headers=True,
+        proxy_headers=CONFIG.trust_proxy,
     )
     server = uvicorn.Server(config)
 
