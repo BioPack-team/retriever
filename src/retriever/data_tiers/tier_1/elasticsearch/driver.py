@@ -108,6 +108,52 @@ class ElasticSearchDriver(DatabaseDriver):
 
         return self.es_connection.msearch(index=CONFIG.tier1.elasticsearch.index, body=transformed_query)
 
+    async def run_batch_query(self, queries: list[ESPayload]):
+        size = 1000 + 1
+        query_collection = [
+            {
+                **query,
+                "search_after": None,
+            } for query in queries
+        ]
+
+        results = [[] for _ in query_collection]
+
+        current_query_indices = range(0, len(query_collection))
+        
+        while current_query_indices:
+            next_query_indices = []
+
+            query_body_list = [
+                {
+                    "size": size,
+                    "query": query_collection[i]['query'],
+                    "sort": [{"id": "asc"}],
+                    **({
+                        "search_after": query_collection[i]['search_after'],
+                    } if query_collection[i]['search_after'] is not None else {})
+                }
+               for i in current_query_indices
+            ]
+
+            responses = await self.start_query(query_body_list)
+
+            for current_query_order, collection_index in enumerate(current_query_indices):
+                response = responses["responses"][current_query_order]
+                hits, search_after = parse_response(response)
+
+                # update results
+                results[collection_index].extend(hits)
+                # update query_collection
+                query_collection[collection_index]['search_after'] = search_after
+
+                if search_after is not None:
+                    current_query_indices.remove(collection_index)
+
+            current_query_indices = next_query_indices
+            
+            
+
 
     async def run(self, query: ESPayload | list[ESPayload]) -> list[ESHit] | None:
         """Execute query logic."""
