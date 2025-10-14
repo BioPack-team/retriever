@@ -2,7 +2,6 @@ import asyncio
 from typing import Any, cast, override
 
 import orjson
-from elastic_transport import ObjectApiResponse
 from elasticsearch import AsyncElasticsearch
 from elasticsearch import exceptions as es_exceptions
 from loguru import logger as log
@@ -10,6 +9,7 @@ from opentelemetry import trace
 
 from retriever.config.general import CONFIG
 from retriever.data_tiers.base_driver import DatabaseDriver
+from retriever.data_tiers.tier_1.elasticsearch.aggregating_querier import run_batch_query, run_single_query
 from retriever.data_tiers.tier_1.elasticsearch.types import ESHit, ESPayload
 
 tracer = trace.get_tracer("lookup.execution.tracer")
@@ -96,115 +96,6 @@ class ElasticSearchDriver(DatabaseDriver):
             await self.es_connection.close()
         self.es_connection = None
 
-    async def run_batch(self, query: list[ESPayload]):
-        transformed_query = []
-
-        # todo
-        # 0. make query in batch, if necessary
-        # 1. query result handling, especially pagination
-
-        for payload in query:
-            # add query header to payload
-            transformed_query.extend([{}, payload])
-
-        return self.es_connection.msearch(index=CONFIG.tier1.elasticsearch.index, body=transformed_query)
-
-    async def start_query(self, query: list) -> ObjectApiResponse:
-        return await self.es_connection.msearch(index=CONFIG.tier1.elasticsearch.index, body=query)
-
-    async def parse_response(self, response, page_size: int) -> tuple[list[ESHit], str | None]:
-        if 'hits' not in response:
-            raise RuntimeError(f"Invalid ES response: no hits in response body: {response}")
-
-        hits = response['hits']['hits']
-
-        search_after = None
-
-        # next page exists
-        if len(hits) == page_size:
-            search_after = hits[-1]['sort']
-
-        for hit in hits:
-            hit.pop('sort', None)
-
-        return hits, search_after
-
-    async def run_single_query(self, payload: ESPayload) -> list[ESHit]:
-        page_size = 1000
-        search_after = None
-        results = []
-
-        while True:
-            query_body = {
-                        "size": page_size,
-                        "query": payload["query"],
-                        "sort": [{"id": "asc"}],
-                        **({
-                               "search_after": search_after,
-                           } if search_after is not None else {})
-                    }
-
-            response = await self.es_connection.search(index=CONFIG.tier1.elasticsearch.index, body=query_body)
-            hits, search_after = await self.parse_response(response, page_size)
-
-            results.extend(hits)
-
-            if search_after is None:
-                break
-
-        return results
-
-    async def run_batch_query(self, queries: list[ESPayload]) -> list[list[ESHit]]:
-        page_size = 1000
-        query_collection = [
-            {
-                **query,
-                "search_after": None,
-            } for query in queries
-        ]
-
-        results = [[] for _ in query_collection]
-
-        current_query_indices = range(0, len(query_collection))
-        
-        while current_query_indices:
-            next_query_indices = []
-
-            query_body_list = []
-            for i in current_query_indices:
-                query_body_list.extend([
-                    {},
-                    {
-                        "size": page_size,
-                        "query": query_collection[i]['query'],
-                        "sort": [{"id": "asc"}],
-                        **({
-                               "search_after": query_collection[i]['search_after'],
-                           } if query_collection[i]['search_after'] is not None else {})
-                    }
-                ])
-
-
-            responses = await self.start_query(query_body_list)
-
-            for current_query_order, collection_index in enumerate(current_query_indices):
-                response = responses["responses"][current_query_order]
-                hits, search_after = self.parse_response(response, page_size)
-
-                # update results
-                results[collection_index].extend(hits)
-                # update query_collection
-                query_collection[collection_index]['search_after'] = search_after
-
-                if search_after is not None:
-                    next_query_indices.append(collection_index)
-
-            current_query_indices = next_query_indices
-
-        return results
-            
-
-
     async def run(self, query: ESPayload | list[ESPayload]) -> list[ESHit] | None:
         """Execute query logic."""
         # Check ES connection instance
@@ -214,13 +105,14 @@ class ElasticSearchDriver(DatabaseDriver):
             )
 
         try:
+            # select query method based on incoming payload
             if type(query) is list:
-                response = await self.run_batch(query)
+                response = await run_batch_query(es_connection=self.es_connection, index_name=CONFIG.tier1.elasticsearch.index_name, queries=query)
             else:
-                response = await self.es_connection.search(
-                index=CONFIG.tier1.elasticsearch.index_name,
-                body=dict(query),
-            )
+                response = await run_single_query(es_connection=self.es_connection, index_name=CONFIG.tier1.elasticsearch.index_name, query=query)
+        except es_exceptions.ConnectionTimeout as e:
+            log.exception(f"query timed out: {e}")
+            raise e
         except es_exceptions.ConnectionError:
             await self.connect()
             return await self.run(query)
