@@ -129,6 +129,30 @@ class ElasticSearchDriver(DatabaseDriver):
 
         return hits, search_after
 
+    async def run_single_query(self, payload: ESPayload) -> list[ESHit]:
+        page_size = 1000
+        search_after = None
+        results = []
+
+        while True:
+            query_body = {
+                        "size": page_size,
+                        "query": payload["query"],
+                        "sort": [{"id": "asc"}],
+                        **({
+                               "search_after": search_after,
+                           } if search_after is not None else {})
+                    }
+
+            response = await self.es_connection.search(index=CONFIG.tier1.elasticsearch.index, body=query_body)
+            hits, search_after = await self.parse_response(response, page_size)
+
+            results.extend(hits)
+
+            if search_after is None:
+                break
+
+        return results
 
     async def run_batch_query(self, queries: list[ESPayload]) -> list[list[ESHit]]:
         page_size = 1000
