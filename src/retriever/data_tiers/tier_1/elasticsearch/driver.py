@@ -2,6 +2,7 @@ import asyncio
 from typing import Any, cast, override
 
 import orjson
+from elastic_transport import ObjectApiResponse
 from elasticsearch import AsyncElasticsearch
 from elasticsearch import exceptions as es_exceptions
 from loguru import logger as log
@@ -108,8 +109,29 @@ class ElasticSearchDriver(DatabaseDriver):
 
         return self.es_connection.msearch(index=CONFIG.tier1.elasticsearch.index, body=transformed_query)
 
-    async def run_batch_query(self, queries: list[ESPayload]):
-        size = 1000 + 1
+    async def start_query(self, query: list) -> ObjectApiResponse:
+        return await self.es_connection.msearch(index=CONFIG.tier1.elasticsearch.index, body=query)
+
+    async def parse_response(self, response, page_size: int) -> tuple[list[ESHit], str | None]:
+        if 'hits' not in response:
+            raise RuntimeError(f"Invalid ES response: no hits in response body: {response}")
+
+        hits = response['hits']['hits']
+
+        search_after = None
+
+        # next page exists
+        if len(hits) == page_size:
+            search_after = hits[-1]['sort']
+
+        for hit in hits:
+            hit.pop('sort', None)
+
+        return hits, search_after
+
+
+    async def run_batch_query(self, queries: list[ESPayload]) -> list[list[ESHit]]:
+        page_size = 1000
         query_collection = [
             {
                 **query,
@@ -124,23 +146,26 @@ class ElasticSearchDriver(DatabaseDriver):
         while current_query_indices:
             next_query_indices = []
 
-            query_body_list = [
-                {
-                    "size": size,
-                    "query": query_collection[i]['query'],
-                    "sort": [{"id": "asc"}],
-                    **({
-                        "search_after": query_collection[i]['search_after'],
-                    } if query_collection[i]['search_after'] is not None else {})
-                }
-               for i in current_query_indices
-            ]
+            query_body_list = []
+            for i in current_query_indices:
+                query_body_list.extend([
+                    {},
+                    {
+                        "size": page_size,
+                        "query": query_collection[i]['query'],
+                        "sort": [{"id": "asc"}],
+                        **({
+                               "search_after": query_collection[i]['search_after'],
+                           } if query_collection[i]['search_after'] is not None else {})
+                    }
+                ])
+
 
             responses = await self.start_query(query_body_list)
 
             for current_query_order, collection_index in enumerate(current_query_indices):
                 response = responses["responses"][current_query_order]
-                hits, search_after = parse_response(response)
+                hits, search_after = self.parse_response(response, page_size)
 
                 # update results
                 results[collection_index].extend(hits)
@@ -148,10 +173,11 @@ class ElasticSearchDriver(DatabaseDriver):
                 query_collection[collection_index]['search_after'] = search_after
 
                 if search_after is not None:
-                    current_query_indices.remove(collection_index)
+                    next_query_indices.append(collection_index)
 
             current_query_indices = next_query_indices
-            
+
+        return results
             
 
 
