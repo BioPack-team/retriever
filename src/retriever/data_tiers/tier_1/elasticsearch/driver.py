@@ -106,7 +106,7 @@ class ElasticSearchDriver(DatabaseDriver):
 
         try:
             # select query method based on incoming payload
-            if type(query) is list:
+            if isinstance(query, list):
                 response = await run_batch_query(es_connection=self.es_connection, index_name=CONFIG.tier1.elasticsearch.index_name, queries=query)
             else:
                 response = await run_single_query(es_connection=self.es_connection, index_name=CONFIG.tier1.elasticsearch.index_name, query=query)
