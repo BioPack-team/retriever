@@ -327,6 +327,7 @@ class GeneralConfig(CommentedSettings):
         description="A list of category conflation sets where a QNode having one member in the set will inheret the others",
         default_factory=lambda: [
             {"biolink:Gene", "biolink:Protein"},
+            {"biolink:Drug", "biolink:ChemicalEntity"},
         ],
     )
 
