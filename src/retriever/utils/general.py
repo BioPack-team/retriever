@@ -1,6 +1,6 @@
 import asyncio
 from abc import ABCMeta
-from collections.abc import AsyncIterable, AsyncIterator
+from collections.abc import AsyncIterable, AsyncIterator, Iterable, Mapping
 from pathlib import Path
 from typing import Any, ClassVar, cast, override
 
@@ -9,6 +9,8 @@ from pydantic_core import PydanticUndefinedType
 from pydantic_settings import BaseSettings
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
+
+from retriever.types.general import JsonSerializable
 
 yaml = YAML()
 
@@ -26,17 +28,36 @@ class Singleton(ABCMeta):
         return cls._instances[cls]
 
 
+CommentedSerializable = JsonSerializable | list[CommentedMap] | dict[str, CommentedMap]
+
+
 class CommentedSettings(BaseSettings):
     """Pydantic BaseSettings with support for yaml output with comment."""
+
+    @staticmethod
+    def recurse_common_types(obj: Any) -> CommentedSerializable | CommentedMap:
+        """Recursively ensure an object is able to be dumped to yaml."""
+        if isinstance(obj, BaseModel) or hasattr(obj, "model_fields"):
+            return CommentedSettings.to_commented(obj)
+        if isinstance(obj, str) or not isinstance(obj, Iterable | Mapping):
+            if isinstance(obj, None | int | float | bool):
+                return obj
+            return str(obj)
+        if not isinstance(obj, Mapping):
+            return [CommentedSettings.recurse_common_types(o) for o in obj]
+        return {
+            str(key): CommentedSettings.recurse_common_types(value)  # pyright:ignore[reportUnknownArgumentType]
+            for key, value in obj.items()  # pyright:ignore[reportUnknownVariableType]
+        }
 
     @staticmethod
     def to_commented(obj: BaseModel | type[BaseModel]) -> CommentedMap:
         """Recursively populate a commented mapping from a BaseModel."""
         commented = CommentedMap()
-        is_instance = isinstance(obj, BaseModel)
-        iterator = obj.__dict__.items() if is_instance else obj.model_fields.items()
+        is_basemodel = isinstance(obj, BaseModel)
+        iterator = obj.__dict__.items() if is_basemodel else obj.model_fields.items()
         for field, value in iterator:
-            if is_instance:
+            if is_basemodel:
                 adjusted_value = value
             else:
                 adjusted_value = (
@@ -47,9 +68,7 @@ class CommentedSettings(BaseSettings):
                 if isinstance(adjusted_value, PydanticUndefinedType):
                     continue
 
-            if isinstance(adjusted_value, Secret | SecretStr | SecretBytes):
-                adjusted_value = adjusted_value.get_secret_value()  # pyright:ignore[reportUnknownVariableType] Secrets use unknowns
-            elif isinstance(adjusted_value, BaseModel):
+            if isinstance(adjusted_value, BaseModel):
                 adjusted_value = CommentedSettings.to_commented(adjusted_value)
             elif (
                 isinstance(adjusted_value, list)
@@ -61,12 +80,14 @@ class CommentedSettings(BaseSettings):
                 adjusted_value = [
                     CommentedSettings.to_commented(v) for v in adjusted_value
                 ]
-            elif not isinstance(adjusted_value, None | int | float | str | list | dict):
-                adjusted_value = str(adjusted_value)
+            else:
+                if isinstance(adjusted_value, Secret | SecretStr | SecretBytes):
+                    adjusted_value = adjusted_value.get_secret_value()  # pyright:ignore[reportUnknownVariableType] Secrets use unknowns
+                adjusted_value = CommentedSettings.recurse_common_types(adjusted_value)
 
             commented[field] = adjusted_value
             if (
-                desc := (type(obj) if is_instance else obj)
+                desc := (type(obj) if is_basemodel else obj)
                 .model_fields[field]
                 .description
             ):

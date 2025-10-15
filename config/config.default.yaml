@@ -18,6 +18,9 @@ cors:
   - '*'
 workers: # Number of workers, defaults to n_cpus if unset.
 allow_profiler: true # Allow all queries to enable profiling with a query parameter.
+category_conflations: # A list of category conflation sets where a QNode having one member in the set will inheret the others
+- - biolink:Protein
+  - biolink:Gene
 job:
   callback:
     retries: 3  # Number of times to retry the callback.

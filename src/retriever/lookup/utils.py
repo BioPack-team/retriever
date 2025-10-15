@@ -6,6 +6,7 @@ from reasoner_pydantic import (
     QueryGraph,
 )
 
+from retriever.config.general import CONFIG
 from retriever.lookup.branch import Branch, SuperpositionHop
 from retriever.types.general import (
     AdjacencyGraph,
@@ -37,18 +38,25 @@ def expand_qgraph(qg: QueryGraph, job_log: TRAPILogger) -> QueryGraph:
             job_log.info(
                 f"QNode {qnode_id}: Inferred NamedThing from empty category list."
             )
+        for conflation in CONFIG.category_conflations:
+            if match := categories & conflation:
+                job_log.info(
+                    f"QNode {qnode_id}: Added conflated categories {conflation - categories} from original {match}"
+                )
+
+                categories.update(conflation)
         # Not necessary because backends check against descendants
         # new_categories = biolink.expand(categories) - categories
-        #
-        # if "biolink:NamedThing" in categories:
-        #     job_log.info(
-        #         f"QNode {qnode_id}: Expanded to all categories (original had NamedThing)."
-        #     )
-        # elif len(new_categories):
-        #     job_log.info(
-        #         f"QNode {qnode_id}: Added descendant categories {new_categories}."
-        #     )
-        #
+
+        if "biolink:NamedThing" in categories:
+            job_log.info(
+                f"QNode {qnode_id}: Expanded to all categories (original had NamedThing)."
+            )
+        elif len(new_categories):
+            job_log.info(
+                f"QNode {qnode_id}: Added descendant categories {new_categories}."
+            )
+
         qnode.categories = HashableSequence[BiolinkEntity](
             [*categories, *new_categories]
         )
@@ -61,17 +69,17 @@ def expand_qgraph(qg: QueryGraph, job_log: TRAPILogger) -> QueryGraph:
             job_log.info(
                 f"QEdge {qedge_id}: Inferred related_to from empty predicate list."
             )
-        # Expand predicates: backends don't match against hierarchy
+        # Not necessary because backends check against descendants
         # new_predicates = biolink.expand(predicates) - predicates
-        #
-        # if "biolink:related_to" in predicates:
-        #     job_log.info(
-        #         f"QEdge {qedge_id}: Expanded to all predicates (original had related_to)."
-        #     )
-        # elif len(new_predicates):
-        #     job_log.info(
-        #         f"QEdge {qedge_id}: Added descendant predicates {new_predicates}."
-        #     )
+
+        if "biolink:related_to" in predicates:
+            job_log.info(
+                f"QEdge {qedge_id}: Expanded to all predicates (original had related_to)."
+            )
+        elif len(new_predicates):
+            job_log.info(
+                f"QEdge {qedge_id}: Added descendant predicates {new_predicates}."
+            )
 
         qedge.predicates = HashableSequence[BiolinkPredicate](
             [*predicates, *new_predicates]

@@ -320,6 +320,12 @@ class GeneralConfig(CommentedSettings):
             description="Allow all queries to enable profiling with a query parameter."
         ),
     ] = True
+    category_conflations: list[set[str]] = Field(
+        description="A list of category conflation sets where a QNode having one member in the set will inheret the others",
+        default_factory=lambda: [
+            {"biolink:Gene", "biolink:Protein"},
+        ],
+    )
 
     job: JobSettings = JobSettings()
     log: LogSettings = LogSettings()
