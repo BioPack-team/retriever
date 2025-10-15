@@ -1,10 +1,11 @@
 # Build via compose: docker compose build
 # Build manual: docker build --rm --force-rm --compress -t biopack-team/retriever .
-FROM python:3-alpine
+FROM python:3.13-alpine
 
 # Ensure requirements
 RUN apk add --no-cache git
-RUN apk add rust cargo # For building on non-amd64
+# Build requirements
+RUN apk add --no-cache rust cargo g++ file make
 RUN pip install --upgrade pip
 
 RUN adduser -D python

@@ -8,6 +8,7 @@ instance_idx: 0 # Instance index. Use when multiple Retriever instances are run,
 log_level: DEBUG # Level of application logs to print/keep.
 host: 0.0.0.0 # Uvicorn listen host.
 port: 8080 # Uvicorn listen port.
+trust_proxy: true # Use proxy IP headers (such as in nginx cases)
 cors:
   allow_origins:  # Origins allowed to make cross-origin requests.
   - '*'

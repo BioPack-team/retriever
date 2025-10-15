@@ -30,7 +30,7 @@ def expand(items: str | set[str]) -> set[str]:
     expanded = set(initial)
     for item in initial:
         # Have to strip biolink prefix due to bug in bmt, see https://github.com/biolink/biolink-model-toolkit/issues/154
-        lookup = item.replace("biolink:", "")
+        lookup = rmprefix(item)
         expanded.update(biolink.get_descendants(lookup, formatted=True))
     return expanded
 
