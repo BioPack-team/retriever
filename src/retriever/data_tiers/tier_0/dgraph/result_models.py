@@ -5,7 +5,7 @@ import re
 from collections.abc import Mapping
 from contextlib import suppress
 from dataclasses import dataclass, field
-from typing import Any, Self, TypeGuard, cast
+from typing import Any, Literal, Self, TypeGuard, cast
 
 # Regex to find the node binding, ignoring an optional batch prefix like "q0_"
 # It captures the part after the optional prefix and "node_"
@@ -16,12 +16,13 @@ NODE_KEY_PATTERN = re.compile(r"(?:q\d+_)?node_(\w+)")
 # Dataclasses
 # -----------------
 
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Edge:
     """Represents a directed edge with its properties and a target node."""
 
     binding: str
-    direction: str  # "in" or "out"
+    direction: Literal["in"] | Literal["out"]
     predicate: str
     node: Node
     primary_knowledge_source: str | None = None
@@ -47,7 +48,7 @@ class Edge:
 
         return cls(
             binding=binding,
-            direction=direction,
+            direction="in" if direction == "in" else "out",
             predicate=str(edge_dict.get("predicate", "")),
             node=Node.from_dict(node_val, binding=node_binding),
             primary_knowledge_source=(
@@ -179,6 +180,7 @@ class DgraphResponse:
 # -----------------
 # Parsing helpers
 # -----------------
+
 
 def _to_str_list(value: Any) -> list[str]:
     """Coerce a scalar or list value to a list[str]."""

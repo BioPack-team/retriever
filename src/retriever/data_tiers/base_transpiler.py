@@ -9,6 +9,7 @@ class Transpiler(ABC):
     """A class which handles converting a given TRAPI query graph to a target query language.
 
     Also handles back-converting the response to TRAPI.
+    Note that Transpilers are NOT Singleton, and each instance should only be used once.
     """
 
     def process_qgraph(

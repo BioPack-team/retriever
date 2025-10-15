@@ -135,7 +135,7 @@ class QueryGraphExecutor:
                 results = list[ResultDict]()
                 for part in reconciled:
                     await asyncio.sleep(0)
-                    results.append(await part.as_result(self.k_agraph))
+                    results.append(part.as_result(self.k_agraph))
 
             timeout_task.cancel()
             end_time = time.time()

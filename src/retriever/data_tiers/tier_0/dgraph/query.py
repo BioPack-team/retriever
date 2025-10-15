@@ -27,6 +27,6 @@ class DgraphQuery(Tier0Query):
 
         # Convert neo4j record response to TRAPI
         with tracer.start_as_current_span("transform_results"):
-            result = transpiler.convert_results(qgraph, backend_record)
+            result = transpiler.convert_results(qgraph, backend_record.data["q0"])
 
         return result
