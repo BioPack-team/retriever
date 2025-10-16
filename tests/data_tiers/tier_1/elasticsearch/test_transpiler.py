@@ -3,6 +3,7 @@ from typing import cast, Any
 import pytest
 
 from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
+from retriever.data_tiers.tier_1.elasticsearch.types import ESPayload
 from retriever.types.trapi import QueryGraphDict
 
 
@@ -48,16 +49,11 @@ def es_transpiler() -> ElasticsearchTranspiler:
     return ElasticsearchTranspiler()
 
 
-@pytest.mark.parametrize(
-    "q_graph",
-    [
-        SIMPLE_QGRAPH,
-        SIMPLE_QGRAPH_MULTIPLE_IDS,
-    ],
-    ids = ["single id", "multiple ids"],
-)
-def test_convert_triple(q_graph: QueryGraphDict, es_transpiler: ElasticsearchTranspiler) -> None:
-    generated_payload = es_transpiler.convert_triple(q_graph)
+
+
+def check_single_query_payload(
+    q_graph: QueryGraphDict, generated_payload:ESPayload
+):
     assert generated_payload is not None
 
     filter_content = generated_payload["query"]["bool"]["filter"]
@@ -77,5 +73,30 @@ def test_convert_triple(q_graph: QueryGraphDict, es_transpiler: ElasticsearchTra
         if "all_predicates" in terms:
             assert q_edge["predicates"] == terms["all_predicates"]
 
-def test_convert_batch_triple() -> None:
-    pass
+
+Q_GRAPH_CASES = (
+    "q_graph",
+    [SIMPLE_QGRAPH, SIMPLE_QGRAPH_MULTIPLE_IDS],
+)
+
+Q_GRAPH_CASES_IDS = ["single id", "multiple ids"]
+
+@pytest.mark.parametrize(*Q_GRAPH_CASES, ids=Q_GRAPH_CASES_IDS)
+def test_convert_triple(q_graph: QueryGraphDict, es_transpiler: ElasticsearchTranspiler) -> None:
+    generated_payload = es_transpiler.convert_triple(q_graph)
+    check_single_query_payload(q_graph, generated_payload)
+
+
+@pytest.mark.parametrize(*Q_GRAPH_CASES, ids=Q_GRAPH_CASES_IDS)
+def test_convert_batch_triple(q_graph: QueryGraphDict, es_transpiler: ElasticsearchTranspiler) -> None:
+    batch_q_graphs = [
+        q_graph
+        for i in range(10)
+    ]
+
+    generated_payload_list = es_transpiler.convert_batch_triple(batch_q_graphs)
+    for generated_payload in generated_payload_list:
+        check_single_query_payload(q_graph, generated_payload)
+
+
+# todo convert_results
