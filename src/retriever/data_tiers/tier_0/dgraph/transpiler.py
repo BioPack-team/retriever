@@ -116,13 +116,13 @@ class DgraphTranspiler(Tier0Transpiler):
         if categories:
             if len(categories) == 1:
                 filters.append(
-                    f'eq(category, "{categories[0].replace("biolink:", "")}")'
+                    f'eq(all_categories, "{categories[0].replace("biolink:", "")}")'
                 )
             elif len(categories) > 1:
                 categories_str = ", ".join(
                     f'"{cat.replace("biolink:", "")}"' for cat in categories
                 )
-                filters.append(f"eq(category, [{categories_str}])")
+                filters.append(f"eq(all_categories, [{categories_str}])")
 
         # Handle attribute constraints
         constraints = node.get("constraints")
@@ -148,13 +148,13 @@ class DgraphTranspiler(Tier0Transpiler):
         if predicates:
             if len(predicates) == 1:
                 filters.append(
-                    f'eq(predicate, "{predicates[0].replace("biolink:", "")}")'
+                    f'eq(all_predicates, "{predicates[0].replace("biolink:", "")}")'
                 )
             elif len(predicates) > 1:
                 predicates_str = ", ".join(
                     f'"{pred.replace("biolink:", "")}"' for pred in predicates
                 )
-                filters.append(f"eq(predicate, [{predicates_str}])")
+                filters.append(f"eq(all_predicates, [{predicates_str}])")
 
         # Handle attribute constraints
         attribute_constraints = edge.get("attribute_constraints")
@@ -259,9 +259,9 @@ class DgraphTranspiler(Tier0Transpiler):
         """Create a filter for category fields."""
         cat_vals = [str(c).replace("biolink:", "") for c in categories]
         if len(cat_vals) == 1:
-            return f'eq(category, "{cat_vals[0].replace("biolink:", "")}")'
+            return f'eq(all_categories, "{cat_vals[0].replace("biolink:", "")}")'
         categories_str = ", ".join(f'"{cat}"' for cat in cat_vals)
-        return f"eq(category, [{categories_str}])"
+        return f"eq(all_categories, [{categories_str}])"
 
     def _get_primary_and_secondary_filters(
         self, node: QNodeDict

@@ -6,8 +6,7 @@ from typing import Any, cast
 import pytest
 
 from retriever.data_tiers.tier_0.dgraph.transpiler import DgraphTranspiler
-from retriever.types.trapi import QueryGraphDict, QNodeDict, QEdgeDict
-
+from retriever.types.trapi import QEdgeDict, QNodeDict, QueryGraphDict
 
 # -----------------------
 # Helpers
@@ -1061,7 +1060,7 @@ CASES: list[QueryCase] = [
     QueryCase("start-object-with-ids", START_OBJECT_WITH_IDS_QGRAPH, EXP_START_OBJECT_WITH_IDS),
     QueryCase("floating-object-query", TRAPI_FLOATING_OBJECT_QUERY, DGRAPH_FLOATING_OBJECT_QUERY),
     QueryCase("floating-object-query-two-categories", TRAPI_FLOATING_OBJECT_QUERY_TWO_CATEGORIES, DGRAPH_FLOATING_OBJECT_QUERY_TWO_CATEGORIES),
-    
+
 ]
 
 BATCH_CASES: list[BatchCase] = [
