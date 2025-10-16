@@ -587,6 +587,20 @@ EXP_SIMPLE = dedent("""
 }
 """).strip()
 
+EXP_SIMPLE_WITH_VERSION = dedent("""
+{
+    q0_node_n0(func: eq(v1_id, "CHEBI:4514")) @cascade {
+        id: v1_id name: v1_name category: v1_category all_names: v1_all_names all_categories: v1_all_categories iri: v1_iri equivalent_curies: v1_equivalent_curies description: v1_description publications: v1_publications
+        in_edges_e0: ~v1_source @filter(eq(v1_all_predicates, "subclass_of")) {
+            predicate: v1_predicate primary_knowledge_source: v1_primary_knowledge_source knowledge_level: v1_knowledge_level agent_type: v1_agent_type kg2_ids: v1_kg2_ids domain_range_exclusion: v1_domain_range_exclusion edge_id: v1_edge_id
+            node_n1: v1_target @filter(eq(v1_id, "UMLS:C1564592")) {
+                id: v1_id name: v1_name category: v1_category all_names: v1_all_names all_categories: v1_all_categories iri: v1_iri equivalent_curies: v1_equivalent_curies description: v1_description publications: v1_publications
+            }
+        }
+    }
+}
+""").strip()
+
 EXP_SIMPLE_MULTIPLE_IDS = dedent("""
 {
     q0_node_n0(func: eq(id, ["CHEBI:3125", "CHEBI:53448"])) @cascade {
@@ -613,6 +627,26 @@ EXP_TWO_HOP = dedent("""
                     predicate primary_knowledge_source knowledge_level agent_type kg2_ids domain_range_exclusion edge_id
                     node_n2: target @filter(eq(id, "UMLS:C0496995")) {
                         id name category all_names all_categories iri equivalent_curies description publications
+                    }
+                }
+            }
+        }
+    }
+}
+""").strip()
+
+EXP_TWO_HOP_WITH_VERSION = dedent("""
+{
+    q0_node_n0(func: eq(v1_id, "CHEBI:3125")) @cascade {
+        id: v1_id name: v1_name category: v1_category all_names: v1_all_names all_categories: v1_all_categories iri: v1_iri equivalent_curies: v1_equivalent_curies description: v1_description publications: v1_publications
+        in_edges_e0: ~v1_source @filter(eq(v1_all_predicates, "interacts_with")) {
+            predicate: v1_predicate primary_knowledge_source: v1_primary_knowledge_source knowledge_level: v1_knowledge_level agent_type: v1_agent_type kg2_ids: v1_kg2_ids domain_range_exclusion: v1_domain_range_exclusion edge_id: v1_edge_id
+            node_n1: v1_target @filter(eq(v1_id, "UMLS:C0282090")) {
+                id: v1_id name: v1_name category: v1_category all_names: v1_all_names all_categories: v1_all_categories iri: v1_iri equivalent_curies: v1_equivalent_curies description: v1_description publications: v1_publications
+                    in_edges_e1: ~v1_source @filter(eq(v1_all_predicates, "related_to")) {
+                    predicate: v1_predicate primary_knowledge_source: v1_primary_knowledge_source knowledge_level: v1_knowledge_level agent_type: v1_agent_type kg2_ids: v1_kg2_ids domain_range_exclusion: v1_domain_range_exclusion edge_id: v1_edge_id
+                    node_n2: v1_target @filter(eq(v1_id, "UMLS:C0496995")) {
+                        id: v1_id name: v1_name category: v1_category all_names: v1_all_names all_categories: v1_all_categories iri: v1_iri equivalent_curies: v1_equivalent_curies description: v1_description publications: v1_publications
                     }
                 }
             }
@@ -1021,6 +1055,19 @@ DGRAPH_FLOATING_OBJECT_QUERY = dedent("""
 }
 """).strip()
 
+DGRAPH_FLOATING_OBJECT_QUERY_WITH_VERSION = dedent("""
+{
+    q0_node_n0(func: eq(v1_id, "NCBIGene:3778")) @filter(eq(v1_all_categories, "Gene")) @cascade {
+        id: v1_id name: v1_name category: v1_category all_names: v1_all_names all_categories: v1_all_categories iri: v1_iri equivalent_curies: v1_equivalent_curies description: v1_description publications: v1_publications
+        out_edges_e01: ~v1_target @filter(eq(v1_all_predicates, "causes")) {
+            predicate: v1_predicate primary_knowledge_source: v1_primary_knowledge_source knowledge_level: v1_knowledge_level agent_type: v1_agent_type kg2_ids: v1_kg2_ids domain_range_exclusion: v1_domain_range_exclusion edge_id: v1_edge_id
+            node_n1: v1_source @filter(eq(v1_all_categories, "Disease")) {
+                id: v1_id name: v1_name category: v1_category all_names: v1_all_names all_categories: v1_all_categories iri: v1_iri equivalent_curies: v1_equivalent_curies description: v1_description publications: v1_publications
+            }
+        }
+    }
+}
+""").strip()
 
 DGRAPH_FLOATING_OBJECT_QUERY_TWO_CATEGORIES = dedent("""
 {
@@ -1042,7 +1089,7 @@ DGRAPH_FLOATING_OBJECT_QUERY_TWO_CATEGORIES = dedent("""
 # -----------------------
 
 CASES: list[QueryCase] = [
-    QueryCase("simple", SIMPLE_QGRAPH, EXP_SIMPLE),
+    QueryCase("simple-one", SIMPLE_QGRAPH, EXP_SIMPLE),
     QueryCase("simple-multiple-ids", SIMPLE_QGRAPH_MULTIPLE_IDS, EXP_SIMPLE_MULTIPLE_IDS),
     QueryCase("two-hop", TWO_HOP_QGRAPH, EXP_TWO_HOP),
     QueryCase("three-hop", THREE_HOP_QGRAPH, EXP_THREE_HOP),
@@ -1063,6 +1110,12 @@ CASES: list[QueryCase] = [
 
 ]
 
+CASES_VERSIONED: list[QueryCase] = [
+    QueryCase("simple-one-versioned", SIMPLE_QGRAPH, EXP_SIMPLE_WITH_VERSION),
+    QueryCase("two-hop-versioned", TWO_HOP_QGRAPH, EXP_TWO_HOP_WITH_VERSION),
+    QueryCase("floating-object-query-versioned", TRAPI_FLOATING_OBJECT_QUERY, DGRAPH_FLOATING_OBJECT_QUERY_WITH_VERSION),
+]
+
 BATCH_CASES: list[BatchCase] = [
     BatchCase("batch-qgraphs", BATCH_QGRAPHS, EXP_BATCH_QGRAPHS),
     BatchCase("batch-qgraph-multi-hop", BATCH_QGRAPHS_MULTI_HOP, EXP_BATCH_QGRAPHS_MULTI_HOP),
@@ -1081,6 +1134,12 @@ def transpiler() -> _TestDgraphTranspiler:
 
 @pytest.mark.parametrize("case", CASES, ids=[c.name for c in CASES])
 def test_convert_multihop_pairs(transpiler: _TestDgraphTranspiler, case: QueryCase) -> None:
+    actual = transpiler.convert_multihop_public(case.qgraph)
+    assert_query_equals(actual, case.expected)
+
+@pytest.mark.parametrize("case", CASES_VERSIONED, ids=[c.name for c in CASES_VERSIONED])
+def test_convert_multihop_pairs_with_version(transpiler: _TestDgraphTranspiler, case: QueryCase) -> None:
+    transpiler = _TestDgraphTranspiler(version="v1")
     actual = transpiler.convert_multihop_public(case.qgraph)
     assert_query_equals(actual, case.expected)
 
