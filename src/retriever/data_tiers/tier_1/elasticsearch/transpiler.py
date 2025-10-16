@@ -12,6 +12,8 @@ from retriever.types.general import BackendResult
 from retriever.types.trapi import (
     CURIE,
     AttributeDict,
+    BiolinkEntity,
+    BiolinkPredicate,
     EdgeDict,
     EdgeIdentifier,
     Infores,
@@ -145,7 +147,10 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                 if node_id not in nodes:
                     trapi_node = NodeDict(
                         name=node["name"],
-                        categories=node["all_categories"],
+                        categories=[
+                            BiolinkEntity(biolink.ensure_prefix(cat))
+                            for cat in node["all_categories"]
+                        ],
                         attributes=[
                             AttributeDict(
                                 attribute_type_id="biolink:xref",
@@ -237,7 +242,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
         edges = dict[EdgeIdentifier, EdgeDict]()
         for hit in hits:
             edge = EdgeDict(
-                predicate=hit["predicate"],
+                predicate=BiolinkPredicate(biolink.ensure_prefix(hit["predicate"])),
                 subject=hit["subject"]["id"],
                 object=hit["object"]["id"],
                 sources=[

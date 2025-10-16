@@ -1,6 +1,6 @@
 from typing import NotRequired, TypedDict
 
-from retriever.types.trapi import CURIE, BiolinkEntity, BiolinkPredicate, Infores
+from retriever.types.trapi import CURIE, Infores
 
 
 class ESFilterClause(TypedDict):
@@ -41,9 +41,9 @@ class ESNode(TypedDict):
 
     id: CURIE
     name: str
-    category: BiolinkEntity
+    category: str
     all_names: NotRequired[list[str]]
-    all_categories: list[BiolinkEntity]
+    all_categories: list[str]
     iri: NotRequired[str]
     description: str
     equivalent_curies: str
@@ -55,7 +55,7 @@ class ESHit(TypedDict):
 
     subject: ESNode
     object: ESNode
-    predicate: BiolinkPredicate
+    predicate: str
     primary_knowledge_source: Infores
     publications: NotRequired[list[str]]
     publications_info: NotRequired[list[ESPublicationsInfo | None]]
