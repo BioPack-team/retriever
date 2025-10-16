@@ -1,165 +1,203 @@
-import json
-
 import pytest
+from typing import Any
 
 from retriever.data_tiers.tier_0.dgraph import result_models as dg_models
 
 
-@pytest.mark.parametrize("shape", ["grpc_bytes", "http_wrapped"])
-def test_parse_response_full_fields_both_shapes(shape: str) -> None:
-    # Build a fully-populated nested node used by an in-edge
-    target_node = {
-        "id": "UMLS:C0282090",
-        "name": "Laxatives",
-        "category": "biolink:Drug",
-        "all_names": ["Laxatives", "Laxative agents"],
-        "all_categories": ["biolink:Drug", "biolink:NamedThing"],
-        "iri": "http://example.org/UMLS:C0282090",
-        "equivalent_curies": ["RXCUI:12345"],
-        "description": "Target description",
-        "publications": ["PMID:222", "PMID:333"],
+def test_parse_single_success_case():
+    """Test parsing of a well-formed, multi-hop Dgraph response."""
+    # The raw response must match the actual Dgraph output format:
+    # 1. The root key includes the query index prefix (e.g., "q0_").
+    # 2. The value is a LIST of node objects.
+    raw_response = {
+        "q0_node_n0": [
+            {
+                "id": "CHEBI:3125",
+                "name": "Bisacodyl",
+                "in_edges_e0": [
+                    {
+                        "predicate": "interacts_with",
+                        "node_n1": {
+                            "id": "UMLS:C0282090",
+                            "name": "Laxatives",
+                            "out_edges_e2": [
+                                {
+                                    "predicate": "is_a",
+                                    "node_n3": {"id": "UMLS:C12345"},
+                                }
+                            ],
+                        },
+                    }
+                ],
+                "out_edges_e1": [
+                    {
+                        "predicate": "causes",
+                        "node_n2": {
+                            "id": "UMLS:C0012345",
+                            "name": "SideEffect",
+                        },
+                    }
+                ],
+            }
+        ]
     }
 
-    # Root node (NodeResult) with all fields plus in_edges that include one valid and one junk entry
-    root_node_q1 = {
-        "id": "CHEBI:3125",
-        "name": "Bisacodyl",
-        "category": "biolink:SmallMolecule",
-        "all_names": ["Bisacodyl", "C18H13Cl2NO5"],
-        "all_categories": ["biolink:SmallMolecule", "biolink:NamedThing"],
-        "iri": "http://example.org/CHEBI:3125",
-        "equivalent_curies": ["CHEMBL:CHEBI_3125"],
-        "description": "A stimulant laxative",
-        "publications": ["PMID:111", "PMID:112"],
-        "in_edges": [
+    # 1. Parse the response
+    parsed = dg_models.DgraphResponse.parse(raw_response)
+    assert "q0" in parsed.data
+    print(f"Parsed data keys: {parsed.data}")
+    assert len(parsed.data["q0"]) == 1
+
+    # 2. Assertions for the root node
+    root_node = parsed.data["q0"][0]
+    assert root_node.binding == "n0"
+    assert root_node.id == "CHEBI:3125"
+    assert len(root_node.edges) == 2
+
+    # 3. Find and assert the 'in' edge
+    in_edge = next((e for e in root_node.edges if e.direction == "in"), None)
+    assert in_edge is not None
+    assert in_edge.binding == "e0"
+    assert in_edge.edge_id == "e0"
+    assert in_edge.predicate == "interacts_with"
+
+    # 4. Find and assert the 'out' edge
+    out_edge = next((e for e in root_node.edges if e.direction == "out"), None)
+    assert out_edge is not None
+    assert out_edge.binding == "e1"
+    assert out_edge.edge_id == "e1"
+    assert out_edge.predicate == "causes"
+
+    # 5. Assertions for the first level of nested nodes
+    nested_node_in = in_edge.node
+    assert nested_node_in.binding == "n1"
+    assert nested_node_in.id == "UMLS:C0282090"
+    assert len(nested_node_in.edges) == 1
+
+    # 6. Assertions for the second level of nesting
+    deep_edge = nested_node_in.edges[0]
+    assert deep_edge.binding == "e2"
+    assert deep_edge.direction == "out"
+    assert deep_edge.node.binding == "n3"
+    assert deep_edge.node.id == "UMLS:C12345"
+
+
+def test_parse_batch_success_case():
+    """Test parsing of a well-formed batch query response."""
+    # A batch response with two queries, q0 and q1.
+    raw_response = {
+        "q0_node_n0": [
             {
-                "predicate": "interacts_with",
-                "primary_knowledge_source": "infores:kp",
-                "knowledge_level": "prediction",
-                "agent_type": "automated_agent",
-                "kg2_ids": ["KG2:123", "KG2:456"],
-                "domain_range_exclusion": False,
-                "edge_id": "edge-1",
-                "node": target_node,
-            },
-            "junk_edge_should_be_ignored",
+                "id": "CHEBI:3125",
+                "name": "Bisacodyl",
+                "in_edges_e0": [
+                    {
+                        "predicate": "interacts_with",
+                        "node_n1": {"id": "UMLS:C0282090"},
+                    }
+                ],
+            }
         ],
-    }
-
-    root_node_q2 = {
-        "id": "CHEBI:4514",
-        "name": "Acetylsalicylic acid",
-        "category": "biolink:SmallMolecule",
-        "all_names": ["Aspirin"],
-        "all_categories": ["biolink:SmallMolecule"],
-        "iri": "http://example.org/CHEBI:4514",
-        "equivalent_curies": ["CHEMBL:CHEBI_4514"],
-        "description": "Pain reliever",
-        "publications": ["PMID:444"],
-        "in_edges": [
+        "q1_node_n0": [
             {
-                "predicate": "related_to",
-                "primary_knowledge_source": "infores:kg",
-                "knowledge_level": "assertion",
-                "agent_type": "manual_agent",
-                "kg2_ids": ["KG2:777"],
-                "domain_range_exclusion": True,
-                "edge_id": "edge-2",
-                "node": target_node,
+                "id": "GENE:1234",
+                "name": "BRCA1",
+                "out_edges_e0": [
+                    {
+                        "predicate": "related_to",
+                        "node_n1": {"id": "DISEASE:5678"},
+                    }
+                ],
             }
         ],
     }
 
-    # Include a non-mapping item in q1 list to exercise ignore logic
-    data_map = {
-        "q1": [root_node_q1, 123],
-        "q2": [root_node_q2],
+    # 1. Parse the response
+    parsed = dg_models.DgraphResponse.parse(raw_response)
+
+    # 2. Assert both query keys are present
+    assert "q0" in parsed.data
+    assert "q1" in parsed.data
+    assert len(parsed.data) == 2
+
+    # 3. Assertions for the first query (q0)
+    assert len(parsed.data["q0"]) == 1
+    q0_node = parsed.data["q0"][0]
+    assert q0_node.binding == "n0"
+    assert q0_node.id == "CHEBI:3125"
+    assert len(q0_node.edges) == 1
+    assert q0_node.edges[0].binding == "e0"
+    assert q0_node.edges[0].node.binding == "n1"
+
+    # 4. Assertions for the second query (q1)
+    assert len(parsed.data["q1"]) == 1
+    q1_node = parsed.data["q1"][0]
+    assert q1_node.binding == "n0"
+    assert q1_node.id == "GENE:1234"
+    assert len(q1_node.edges) == 1
+    assert q1_node.edges[0].binding == "e0"
+    assert q1_node.edges[0].node.binding == "n1"
+
+
+def test_parse_with_junk_data():
+    """Test that the parser gracefully ignores malformed data."""
+    # This raw response simulates a batch query with valid keys,
+    # keys that don't match the pattern, and junk data inside valid structures.
+    raw_response = {
+        "q1_node_n0": [{"id": "CHEBI:111"}],  # Valid node
+        "no_node_key": [{"id": "CHEBI:222"}],  # Invalid key, should be ignored
+        "q1_node_n1": [
+            {
+                "id": "CHEBI:333",
+                "in_edges_e0": [
+                    None,  # Should be ignored
+                    {"predicate": "pred1", "node_n2": {"id": "CHEBI:444"}},
+                    "a string is not a dict",  # Should be ignored
+                ],
+            }
+        ],
+        "q1_node_n_bad": "not a list",  # Invalid value, should be ignored
     }
 
-    if shape == "grpc_bytes":
-        raw = json.dumps(data_map).encode("utf-8")
-    elif shape == "http_wrapped":
-        raw = {"data": data_map, "extensions": {"server_latency": {"total_ns": 1}}}
+    parsed = dg_models.DgraphResponse.parse(raw_response)
+
+    # The parser should find one valid query key: "q1"
+    assert "q1" in parsed.data
+    assert len(parsed.data) == 1
+
+    # It should parse two valid nodes for the "q1" query
+    assert len(parsed.data["q1"]) == 2
+
+    # Check the node that should have one valid edge parsed from the junk
+    node_with_edge = next((n for n in parsed.data["q1"] if n.binding == "n1"), None)
+    assert node_with_edge is not None
+    assert len(node_with_edge.edges) == 1
+    assert node_with_edge.edges[0].binding == "e0"
+    assert node_with_edge.edges[0].node.binding == "n2"
+
+
+@pytest.mark.parametrize(
+    "_case_name, raw_response, expected_key",
+    [
+        # A query that returns no results should have an empty list.
+        ("Empty List", {"q0_node_n0": []}, "q0"),
+        # A key with a null value should be gracefully handled.
+        ("Null Value", {"q0_node_n0": None}, "q0"),
+        # An empty response from Dgraph.
+        ("Empty Response", {}, None),
+    ],
+)
+def test_parse_empty_and_null_cases(
+    _case_name: str, raw_response: dict[str, Any], expected_key: str | None
+):
+    """Test that the parser handles empty and null inputs correctly."""
+    parsed = dg_models.DgraphResponse.parse(raw_response)
+
+    if expected_key:
+        # For cases that should produce a query key,
+        # assert the key exists and its value is an empty list.
+        assert expected_key in parsed.data
+        assert parsed.data[expected_key] == []
     else:
-        raise AssertionError("Unknown shape")
-
-    result = dg_models.parse_response(raw)
-
-    # We should have both queries present
-    assert set(result.data.keys()) == {"q1", "q2"}
-
-    # q1
-    q1_nodes = result.data["q1"]
-    assert len(q1_nodes) == 1  # non-mapping list item ignored
-    n1 = q1_nodes[0]
-    assert n1.id == "CHEBI:3125"
-    assert n1.name == "Bisacodyl"
-    assert n1.category == "biolink:SmallMolecule"
-    assert n1.all_names == ["Bisacodyl", "C18H13Cl2NO5"]
-    assert n1.all_categories == ["biolink:SmallMolecule", "biolink:NamedThing"]
-    assert n1.iri == "http://example.org/CHEBI:3125"
-    assert n1.equivalent_curies == ["CHEMBL:CHEBI_3125"]
-    assert n1.description == "A stimulant laxative"
-    assert n1.publications == ["PMID:111", "PMID:112"]
-
-    # q1 in-edges
-    assert len(n1.in_edges) == 1  # junk in_edge ignored
-    e1 = n1.in_edges[0]
-    assert e1.predicate == "interacts_with"
-    assert e1.primary_knowledge_source == "infores:kp"
-    assert e1.knowledge_level == "prediction"
-    assert e1.agent_type == "automated_agent"
-    assert e1.kg2_ids == ["KG2:123", "KG2:456"]
-    assert e1.domain_range_exclusion is False
-    assert e1.edge_id == "edge-1"
-
-    # nested target node on e1
-    t1 = e1.node
-    assert t1.id == "UMLS:C0282090"
-    assert t1.name == "Laxatives"
-    assert t1.category == "biolink:Drug"
-    assert t1.all_names == ["Laxatives", "Laxative agents"]
-    assert t1.all_categories == ["biolink:Drug", "biolink:NamedThing"]
-    assert t1.iri == "http://example.org/UMLS:C0282090"
-    assert t1.equivalent_curies == ["RXCUI:12345"]
-    assert t1.description == "Target description"
-    assert t1.publications == ["PMID:222", "PMID:333"]
-
-    # q2
-    q2_nodes = result.data["q2"]
-    assert len(q2_nodes) == 1
-    n2 = q2_nodes[0]
-    assert n2.id == "CHEBI:4514"
-    assert n2.name == "Acetylsalicylic acid"
-    assert n2.category == "biolink:SmallMolecule"
-    assert n2.all_names == ["Aspirin"]
-    assert n2.all_categories == ["biolink:SmallMolecule"]
-    assert n2.iri == "http://example.org/CHEBI:4514"
-    assert n2.equivalent_curies == ["CHEMBL:CHEBI_4514"]
-    assert n2.description == "Pain reliever"
-    assert n2.publications == ["PMID:444"]
-
-    e2 = n2.in_edges[0]
-    assert e2.predicate == "related_to"
-    assert e2.primary_knowledge_source == "infores:kg"
-    assert e2.knowledge_level == "assertion"
-    assert e2.agent_type == "manual_agent"
-    assert e2.kg2_ids == ["KG2:777"]
-    assert e2.domain_range_exclusion is True
-    assert e2.edge_id == "edge-2"
-
-    t2 = e2.node
-    assert t2.id == "UMLS:C0282090"
-    assert t2.name == "Laxatives"
-    assert t2.category == "biolink:Drug"
-    assert t2.all_names == ["Laxatives", "Laxative agents"]
-    assert t2.all_categories == ["biolink:Drug", "biolink:NamedThing"]
-    assert t2.iri == "http://example.org/UMLS:C0282090"
-    assert t2.equivalent_curies == ["RXCUI:12345"]
-    assert t2.description == "Target description"
-    assert t2.publications == ["PMID:222", "PMID:333"]
-
-
-def test_parse_response_missing_data_invalid_shape_raises() -> None:
-    with pytest.raises(ValueError):
-        dg_models.parse_response({"meta": {"ok": True}})
+        # For an empty response, the data should be an empty dict.
+        assert parsed.data == {}

@@ -5,8 +5,8 @@ import time
 from opentelemetry import trace
 from reasoner_pydantic import QueryGraph
 
-from retriever.data_tiers.tier_1.elasticsearch.driver import ElasticSearchDriver
-from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
+from retriever.config.general import CONFIG
+from retriever.data_tiers.utils import BACKEND_DRIVERS, TRANSPILERS
 from retriever.lookup.branch import Branch
 from retriever.types.trapi import (
     Infores,
@@ -35,8 +35,8 @@ async def mock_subquery(
         job_log: TRAPILogger = TRAPILogger(job_id)
         start = time.time()
 
-        transpiler = ElasticsearchTranspiler()
-        query_driver = ElasticSearchDriver()
+        transpiler = TRANSPILERS[CONFIG.tier1.backend]
+        query_driver = BACKEND_DRIVERS[CONFIG.tier1.backend]
 
         # branch comes in execution direction
         # edge it refers to is in query direction
@@ -59,9 +59,25 @@ async def mock_subquery(
         )
 
         query_payload = transpiler.process_qgraph(qgraph)
+        job_log.trace(str(query_payload))
 
+        subject_info = (
+            subject_node.get("ids", None) or subject_node.get("categories", []) or []
+        )
+        if "biolink:NamedThing" in subject_info:
+            subject_info = ["biolink:NamedThing"]
+        object_info = (
+            object_node.get("ids", None) or object_node.get("categories", []) or []
+        )
+        if "biolink:NamedThing" in object_info:
+            object_info = ["biolink:NamedThing"]
+        predicate_info = current_edge.get("predicates", ["biolink:related_to"]) or [
+            "biolink:related_to"
+        ]
+        if "biolink:related_to" in predicate_info:
+            predicate_info = ["biolink:related_to"]
         job_log.debug(
-            f"Subquerying Tier 1 for {subject_node.get('ids', []) or []} -{current_edge.get('predicates', []) or []}-> {object_node.get('ids', []) or []}..."
+            f"Subquerying Tier 1 for {subject_info} -{predicate_info}-> {object_info}..."
         )
 
         response_record = await query_driver.run_query(query_payload)

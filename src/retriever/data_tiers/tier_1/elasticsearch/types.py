@@ -31,9 +31,9 @@ class ESPublicationsInfo(TypedDict):
     """Information regarding publications."""
 
     pmid: str
-    publication_date: str
-    sentence: str
-    subject_score: str
+    publication_date: NotRequired[str]
+    sentence: NotRequired[str]
+    subject_score: NotRequired[str]
 
 
 class ESNode(TypedDict):
@@ -42,7 +42,7 @@ class ESNode(TypedDict):
     id: CURIE
     name: str
     category: BiolinkEntity
-    all_names: list[str]
+    all_names: NotRequired[list[str]]
     all_categories: list[BiolinkEntity]
     iri: NotRequired[str]
     description: str
@@ -58,11 +58,11 @@ class ESHit(TypedDict):
     predicate: BiolinkPredicate
     primary_knowledge_source: Infores
     publications: NotRequired[list[str]]
-    publications_info: NotRequired[list[ESPublicationsInfo]]
+    publications_info: NotRequired[list[ESPublicationsInfo | None]]
     kg2_ids: list[str]
     domain_range_exclusion: bool
-    knowledge_level: str
-    agent_type: str
+    knowledge_level: str | None
+    agent_type: str | None
     id: int
     qualified_object_aspect: NotRequired[str]
     qualified_object_direction: NotRequired[str]

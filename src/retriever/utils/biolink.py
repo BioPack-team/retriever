@@ -5,11 +5,33 @@ import bmt
 biolink = bmt.Toolkit()
 
 
-def expand(items: set[str]) -> set[str]:
-    """Expand a set of biolink categories or predicates."""
-    expanded = set(items)
-    for item in items:
-        expanded.update(biolink.get_descendants(item, formatted=True))
+def ensure_prefix(item: str) -> str:
+    """Add a `biolink:` prefix to the given string.
+
+    Replaces the prefix if it's already present.
+    """
+    return f"biolink:{rmprefix(item)}"
+
+
+def rmprefix(item: str) -> str:
+    """Remove the `biolink:` prefix from the given string.
+
+    Returns the string if it has no prefix.
+    """
+    return item.removeprefix("biolink:")
+
+
+def expand(items: str | set[str]) -> set[str]:
+    """Safely expand a set of biolink categories or predicates to their descendants.
+
+    Accepts either with or without biolink prefix, but always outputs with biolink prefix.
+    """
+    initial = {items} if isinstance(items, str) else items
+    expanded = set(initial)
+    for item in initial:
+        # Have to strip biolink prefix due to bug in bmt, see https://github.com/biolink/biolink-model-toolkit/issues/154
+        lookup = rmprefix(item)
+        expanded.update(biolink.get_descendants(lookup, formatted=True))
     return expanded
 
 

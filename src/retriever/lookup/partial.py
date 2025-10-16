@@ -85,7 +85,7 @@ class Partial:
             list(combined_nodes.items()), [*self.edge_bindings, *other.edge_bindings]
         )
 
-    async def as_result(self, k_agraph: KAdjacencyGraph) -> ResultDict:
+    def as_result(self, k_agraph: KAdjacencyGraph) -> ResultDict:
         """Return a result generated from the Partial's node and edge bindings."""
         return ResultDict(
             node_bindings={

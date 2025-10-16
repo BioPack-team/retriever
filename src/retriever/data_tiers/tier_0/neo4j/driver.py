@@ -17,6 +17,7 @@ class Neo4jDriver(DatabaseDriver):
     """A Neo4j driver."""
 
     neo4j_driver: neo4j.AsyncDriver | None = None
+    _failed: bool = False
 
     @override
     async def connect(self, retries: int = 0) -> None:
@@ -46,6 +47,7 @@ class Neo4jDriver(DatabaseDriver):
                 await self.connect(retries + 1)
             else:
                 log.error(f"Could not establish connection to neo4j, error: {e}")
+                self._failed = True
                 raise e
 
     @override

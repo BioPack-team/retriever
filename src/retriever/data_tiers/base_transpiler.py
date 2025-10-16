@@ -9,6 +9,7 @@ class Transpiler(ABC):
     """A class which handles converting a given TRAPI query graph to a target query language.
 
     Also handles back-converting the response to TRAPI.
+    Note that Transpilers are NOT Singleton, and each instance should only be used once.
     """
 
     def process_qgraph(
@@ -27,6 +28,7 @@ class Transpiler(ABC):
         if multihop and not is_tier0:
             raise ValueError("Multi-hop query graphs are not supported by this class.")
 
+        # is_tier0 is implied by multihop because of the above check
         if (multihop and is_tier0) or not is_tier1:
             convert = self.convert_multihop
             batch_convert = self.convert_batch_multihop

@@ -46,14 +46,17 @@ class ElasticsearchTranspiler(Tier1Transpiler):
         if type(value) is not list:
             raise TypeError("value must be a list")
 
-        return {"terms": {f"{target}.keyword": value}}
+        adjusted_value = value
+        if "categor" in target or "predicate" in target:
+            adjusted_value = [biolink.rmprefix(cat) for cat in value]
+        return {"terms": {f"{target}": adjusted_value}}
 
     def process_qnode(
         self, qnode: QNodeDict, side: Literal["subject", "object"]
     ) -> list[ESFilterClause]:
         """Provide query terms based on given side and fields of a QNodeDict.
 
-        Example return value: { "terms": { "subject.id.keyword": ["NCBIGene:22828"] }},
+        Example return value: { "terms": { "subject.id": ["NCBIGene:22828"] }},
         """
         field_mapping = {
             "ids": "id",
@@ -69,7 +72,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
     def process_qedge(self, qedge: QEdgeDict) -> list[ESFilterClause]:
         """Provide query terms based on a given QEdgeDict.
 
-        Example return value: { "terms": { "predicates.keyword": ["biolink:Gene"] }},
+        Example return value: { "terms": { "predicates": ["biolink:Gene"] }},
         """
         # Check required field
         predicates = qedge.get("predicates")
@@ -79,7 +82,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
 
         # Scalable to more fields
         field_mapping = {
-            "predicates": "predicate",
+            "predicates": "all_predicates",
         }
 
         return [
@@ -99,8 +102,8 @@ class ElasticsearchTranspiler(Tier1Transpiler):
           "query": {
             "bool": {
               "filter": [
-                { "terms": { "subject.id.keyword": ["NCBIGene:22828"] }},
-                { "terms": { "object.id.keyword": ["NCBIGene:2801"] }}
+                { "terms": { "subject.id": ["NCBIGene:22828"] }},
+                { "terms": { "object.id": ["NCBIGene:2801"] }}
               ]
             }
           }
@@ -148,12 +151,15 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                                 attribute_type_id="biolink:xref",
                                 value=node["equivalent_curies"],
                             ),
-                            AttributeDict(
-                                attribute_type_id="biolink:synonym",
-                                value=node["all_names"],
-                            ),
                         ],
                     )
+                    if synonyms := node.get("all_names"):
+                        trapi_node["attributes"].append(
+                            AttributeDict(
+                                attribute_type_id="biolink:synonym",
+                                value=synonyms,
+                            )
+                        )
 
                     for attribute_type_id in ("publications",):  # iri?
                         if attribute_type_id not in node:
@@ -167,6 +173,64 @@ class ElasticsearchTranspiler(Tier1Transpiler):
 
                     nodes[node_id] = trapi_node
         return nodes
+
+    def populate_edge_attributes(self, hit: ESHit, edge: EdgeDict) -> None:
+        """Populate the `attributes` field of an edge using a given hit."""
+        if "attributes" not in edge or edge["attributes"] is None:
+            edge["attributes"] = []
+        edge["attributes"].extend(
+            (
+                AttributeDict(
+                    attribute_type_id="biolink:knowledge_level",
+                    value=hit["knowledge_level"] or "not_provided",
+                ),
+                AttributeDict(
+                    attribute_type_id="biolink:agent_type",
+                    value=hit["agent_type"] or "not_provided",
+                ),
+            )
+        )
+        if "publications" in hit:
+            edge["attributes"].append(
+                AttributeDict(
+                    attribute_type_id="biolink:publications",
+                    value=hit["publications"],
+                )
+            )
+
+        if "publications_info" in hit:
+            for info in hit["publications_info"]:
+                if info is None:
+                    continue
+                study_attr = AttributeDict(
+                    attribute_type_id="biolink:has_supporting_study_result",
+                    value=info["pmid"],
+                    attributes=[],
+                )
+                sub_attrs = list[AttributeDict](
+                    (
+                        AttributeDict(
+                            attribute_type_id="biolink:publications",
+                            value=[info["pmid"]],
+                        ),
+                    )
+                )
+                if "sentence" in info:
+                    sub_attrs.append(
+                        AttributeDict(
+                            attribute_type_id="biolink:supporting_text",
+                            value=info["sentence"],
+                        )
+                    )
+                if "publication_date" in info:
+                    sub_attrs.append(
+                        AttributeDict(
+                            attribute_type_id="biolink:publication_date",
+                            value=info["publication_date"],
+                        )
+                    )
+                study_attr["attributes"] = sub_attrs
+                edge["attributes"].append(study_attr)
 
     def build_edges(self, hits: list[ESHit]) -> dict[EdgeIdentifier, EdgeDict]:
         """Build TRAPI edges from backend representation."""
@@ -190,41 +254,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                 attributes=[],
             )
 
-            for attribute_type_id in ("knowledge_level", "agent_type", "publications"):
-                if value := hit.get(attribute_type_id):
-                    if "attributes" not in edge or edge["attributes"] is None:
-                        edge["attributes"] = []
-                    edge["attributes"].append(
-                        AttributeDict(
-                            attribute_type_id=f"biolink:{attribute_type_id}",
-                            value=value,
-                        )
-                    )
-
-            if "publications_info" in hit:
-                if "attributes" not in edge or edge["attributes"] is None:
-                    edge["attributes"] = []
-                for info in hit["publications_info"]:
-                    edge["attributes"].append(
-                        AttributeDict(
-                            attribute_type_id="biolink:has_supporting_study_result",
-                            value=info["pmid"],
-                            attributes=[
-                                AttributeDict(
-                                    attribute_type_id="biolink:publications",
-                                    value=[info["pmid"]],
-                                ),
-                                AttributeDict(
-                                    attribute_type_id="biolink:supporting_text",
-                                    value=info["sentence"],
-                                ),
-                                AttributeDict(
-                                    attribute_type_id="biolink:publication_date",
-                                    value=info["publication_date"],
-                                ),
-                            ],
-                        )
-                    )
+            self.populate_edge_attributes(hit, edge)
 
             for qualifier_type_id in biolink.get_all_qualifiers():
                 if qualifier_type_id == "qualifier":

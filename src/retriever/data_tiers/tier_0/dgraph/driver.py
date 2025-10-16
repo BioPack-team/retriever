@@ -106,9 +106,9 @@ class DgraphDriver(DatabaseDriver):
     query_timeout: float
     connect_retries: int
     _client_stub: DgraphClientStubProtocol | None = None
-    # _client: pydgraph.DgraphClient | None = None
     _client: DgraphClientProtocol | None = None
     _http_session: aiohttp.ClientSession | None = None
+    _failed: bool = False
 
     def __init__(self, protocol: DgraphProtocol = DgraphProtocol.GRPC) -> None:
         """Initialize the Dgraph driver with connection settings.
@@ -147,11 +147,24 @@ class DgraphDriver(DatabaseDriver):
                 await self.connect(retries + 1)
             else:
                 log.error(f"Could not establish connection to Dgraph, error: {e}")
+                self._failed = True
                 raise e
 
     async def _connect_grpc(self) -> None:
         """Establish gRPC connection to Dgraph."""
-        self._client_stub = pydgraph.DgraphClientStub(self.endpoint)
+        grpc_options = [
+            (
+                "grpc.max_send_message_length",
+                self.settings.grpc_max_send_message_length,
+            ),
+            (
+                "grpc.max_receive_message_length",
+                self.settings.grpc_max_receive_message_length,
+            ),
+        ]
+        self._client_stub = pydgraph.DgraphClientStub(
+            self.endpoint, options=grpc_options
+        )
         self._client = cast(
             DgraphClientProtocol, cast(object, pydgraph.DgraphClient(self._client_stub))
         )
