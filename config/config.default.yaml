@@ -20,10 +20,10 @@ cors:
 workers: # Number of workers, defaults to n_cpus if unset.
 allow_profiler: true # Allow all queries to enable profiling with a query parameter.
 category_conflations: # A list of category conflation sets where a QNode having one member in the set will inheret the others
-- - biolink:Protein
-  - biolink:Gene
 - - biolink:ChemicalEntity
   - biolink:Drug
+- - biolink:Gene
+  - biolink:Protein
 job:
   callback:
     retries: 3  # Number of times to retry the callback.
@@ -86,7 +86,7 @@ tier1:
     host: ''
     port: 9200
     database_name: elasticsearch
-    index_name: rtx_kg2_edges_merged
+    index_name: rtx_kg2
 telemetry:
   otel_enabled: false
   otel_host: jaeger-otel-collector.sri

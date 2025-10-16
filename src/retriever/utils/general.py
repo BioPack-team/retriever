@@ -44,7 +44,7 @@ class CommentedSettings(BaseSettings):
                 return obj
             return str(obj)
         if not isinstance(obj, Mapping):
-            return [CommentedSettings.recurse_common_types(o) for o in obj]
+            return sorted([CommentedSettings.recurse_common_types(o) for o in obj])
         return {
             str(key): CommentedSettings.recurse_common_types(value)  # pyright:ignore[reportUnknownArgumentType]
             for key, value in obj.items()  # pyright:ignore[reportUnknownVariableType]
