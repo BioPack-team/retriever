@@ -107,9 +107,9 @@ class ElasticSearchDriver(DatabaseDriver):
         try:
             # select query method based on incoming payload
             if isinstance(query, list):
-                response = await run_batch_query(es_connection=self.es_connection, index_name=CONFIG.tier1.elasticsearch.index_name, queries=query)
+                results = await run_batch_query(es_connection=self.es_connection, index_name=CONFIG.tier1.elasticsearch.index_name, queries=query)
             else:
-                response = await run_single_query(es_connection=self.es_connection, index_name=CONFIG.tier1.elasticsearch.index_name, query=query)
+                results = await run_single_query(es_connection=self.es_connection, index_name=CONFIG.tier1.elasticsearch.index_name, query=query)
         except es_exceptions.ConnectionTimeout as e:
             log.exception(f"query timed out: {e}")
             raise e
@@ -128,10 +128,6 @@ class ElasticSearchDriver(DatabaseDriver):
             log.exception("An unexpected exception occurred during Elasticsearch query")
             raise e
 
-        # extract results
-        raw_results = response["hits"]["hits"]
-        results = [r["_source"] for r in raw_results]
-
         # empty array
         if not results:
             return None
@@ -142,8 +138,8 @@ class ElasticSearchDriver(DatabaseDriver):
     @tracer.start_as_current_span("elasticsearch_query")
     async def run_query(
         self, query: ESPayload | list[ESPayload], *args: Any, **kwargs: Any
-    ) -> list[ESHit] | None:
-        """Use ES async client to execute query via the `_search` endpoint."""
+    ) -> list[ESHit] | list[list[ESHit]] | None:
+        """Use ES async client to execute query via the `_search/_msearch` endpoints."""
         otel_span = trace.get_current_span()
         if not otel_span or not otel_span.is_recording():
             otel_span = None

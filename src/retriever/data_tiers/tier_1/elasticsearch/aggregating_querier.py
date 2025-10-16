@@ -33,8 +33,7 @@ async def parse_response(response, page_size: int) -> tuple[list[ESHit], str | N
     if len(hits) == page_size:
         search_after = hits[-1]['sort']
 
-    for hit in hits:
-        hit.pop('sort', None)
+    hits = [hit['_source'] for hit in hits]
 
     return hits, search_after
 
@@ -89,7 +88,7 @@ async def run_batch_query(es_connection: AsyncElasticsearch, index_name: str, qu
         } for query in queries
     ]
 
-    results = [[] for _ in query_collection]
+    results: list[list[ESHit]] = [[] for _ in query_collection]
 
     current_query_indices = range(0, len(query_collection))
 
@@ -107,7 +106,7 @@ async def run_batch_query(es_connection: AsyncElasticsearch, index_name: str, qu
 
         for current_query_order, collection_index in enumerate(current_query_indices):
             response = responses["responses"][current_query_order]
-            hits, search_after = parse_response(response, page_size)
+            hits, search_after = await parse_response(response, page_size)
 
             # update results
             results[collection_index].extend(hits)
