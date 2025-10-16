@@ -6,35 +6,42 @@ from retriever.data_tiers.tier_0.dgraph import result_models as dg_models
 
 def test_parse_single_success_case():
     """Test parsing of a well-formed, multi-hop Dgraph response."""
-    # The raw response must match the actual Dgraph output format:
-    # 1. The root key includes the query index prefix (e.g., "q0_").
-    # 2. The value is a LIST of node objects.
+    # The raw response must match the actual Dgraph output format.
+    # A well-formed response with data for all node and edge properties.
     raw_response = {
         "q0_node_n0": [
             {
                 "id": "CHEBI:3125",
                 "name": "Bisacodyl",
+                "category": "biolink:SmallMolecule",
+                "all_names": ["Biscodyl", "Bisacodyl"],
+                "all_categories": ["SmallMolecule", "Drug"],
+                "iri": "http://purl.obolibrary.org/obo/CHEBI_3125",
+                "equivalent_curies": ["PUBCHEM.COMPOUND:2391"],
+                "description": "A stimulant laxative.",
+                "publications": ["PMID:12345"],
                 "in_edges_e0": [
                     {
                         "predicate": "interacts_with",
+                        "primary_knowledge_source": "infores:test-ks",
+                        "knowledge_level": "knowledge-level-val",
+                        "agent_type": "agent-type-val",
+                        "kg2_ids": ["kg2:abc"],
+                        "domain_range_exclusion": True,
+                        "qualified_object_aspect": "aspect-val",
+                        "qualified_object_direction": "direction-val",
+                        "qualified_predicate": "qualified-pred-val",
+                        "publications_info": "pub-info-val",
                         "node_n1": {
                             "id": "UMLS:C0282090",
                             "name": "Laxatives",
-                            "out_edges_e2": [
-                                {
-                                    "predicate": "is_a",
-                                    "node_n3": {"id": "UMLS:C12345"},
-                                }
-                            ],
-                        },
-                    }
-                ],
-                "out_edges_e1": [
-                    {
-                        "predicate": "causes",
-                        "node_n2": {
-                            "id": "UMLS:C0012345",
-                            "name": "SideEffect",
+                            "category": "biolink:Drug",
+                            "all_names": ["Laxative"],
+                            "all_categories": ["Drug"],
+                            "iri": "http://purl.obolibrary.org/obo/UMLS_C0282090",
+                            "equivalent_curies": [],
+                            "description": "A substance that promotes defecation.",
+                            "publications": [],
                         },
                     }
                 ],
@@ -45,41 +52,50 @@ def test_parse_single_success_case():
     # 1. Parse the response
     parsed = dg_models.DgraphResponse.parse(raw_response)
     assert "q0" in parsed.data
-    print(f"Parsed data keys: {parsed.data}")
     assert len(parsed.data["q0"]) == 1
 
-    # 2. Assertions for the root node
+    # 2. Assertions for the root node (n0)
     root_node = parsed.data["q0"][0]
     assert root_node.binding == "n0"
     assert root_node.id == "CHEBI:3125"
-    assert len(root_node.edges) == 2
+    assert root_node.name == "Bisacodyl"
+    assert root_node.category == "biolink:SmallMolecule"
+    assert root_node.all_names == ["Biscodyl", "Bisacodyl"]
+    assert root_node.all_categories == ["SmallMolecule", "Drug"]
+    assert root_node.iri == "http://purl.obolibrary.org/obo/CHEBI_3125"
+    assert root_node.equivalent_curies == ["PUBCHEM.COMPOUND:2391"]
+    assert root_node.description == "A stimulant laxative."
+    assert root_node.publications == ["PMID:12345"]
+    assert len(root_node.edges) == 1
 
-    # 3. Find and assert the 'in' edge
-    in_edge = next((e for e in root_node.edges if e.direction == "in"), None)
-    assert in_edge is not None
+    # 3. Assertions for the incoming edge (e0)
+    in_edge = root_node.edges[0]
     assert in_edge.binding == "e0"
-    assert in_edge.edge_id == "e0"
+    assert in_edge.direction == "in"
     assert in_edge.predicate == "interacts_with"
+    assert in_edge.primary_knowledge_source == "infores:test-ks"
+    assert in_edge.knowledge_level == "knowledge-level-val"
+    assert in_edge.agent_type == "agent-type-val"
+    assert in_edge.kg2_ids == ["kg2:abc"]
+    assert in_edge.domain_range_exclusion is True
+    assert in_edge.edge_id == "e0"  # Derived from the key
+    assert in_edge.qualified_object_aspect == "aspect-val"
+    assert in_edge.qualified_object_direction == "direction-val"
+    assert in_edge.qualified_predicate == "qualified-pred-val"
+    assert in_edge.publications_info == "pub-info-val"
 
-    # 4. Find and assert the 'out' edge
-    out_edge = next((e for e in root_node.edges if e.direction == "out"), None)
-    assert out_edge is not None
-    assert out_edge.binding == "e1"
-    assert out_edge.edge_id == "e1"
-    assert out_edge.predicate == "causes"
-
-    # 5. Assertions for the first level of nested nodes
-    nested_node_in = in_edge.node
-    assert nested_node_in.binding == "n1"
-    assert nested_node_in.id == "UMLS:C0282090"
-    assert len(nested_node_in.edges) == 1
-
-    # 6. Assertions for the second level of nesting
-    deep_edge = nested_node_in.edges[0]
-    assert deep_edge.binding == "e2"
-    assert deep_edge.direction == "out"
-    assert deep_edge.node.binding == "n3"
-    assert deep_edge.node.id == "UMLS:C12345"
+    # 4. Assertions for the connected node (n1)
+    connected_node = in_edge.node
+    assert connected_node.binding == "n1"
+    assert connected_node.id == "UMLS:C0282090"
+    assert connected_node.name == "Laxatives"
+    assert connected_node.category == "biolink:Drug"
+    assert connected_node.all_names == ["Laxative"]
+    assert connected_node.all_categories == ["Drug"]
+    assert connected_node.iri == "http://purl.obolibrary.org/obo/UMLS_C0282090"
+    assert connected_node.equivalent_curies == []
+    assert connected_node.description == "A substance that promotes defecation."
+    assert connected_node.publications == []
 
 
 def test_parse_batch_success_case():

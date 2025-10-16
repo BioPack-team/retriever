@@ -337,6 +337,10 @@ class DgraphTranspiler(Tier0Transpiler):
             "kg2_ids",
             "domain_range_exclusion",
             "edge_id",
+            "qualified_object_aspect",
+            "qualified_object_direction",
+            "qualified_predicate",
+            "publications_info",
         ]
         return self._aliased_fields(fields)
 

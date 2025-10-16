@@ -31,6 +31,10 @@ class Edge:
     kg2_ids: list[str] = field(default_factory=list)
     domain_range_exclusion: bool | None = None
     edge_id: str | None = None
+    qualified_object_aspect: str | None = None
+    qualified_object_direction: str | None = None
+    qualified_predicate: str | None = None
+    publications_info: str | None = None
 
     @classmethod
     def from_dict(
@@ -72,6 +76,26 @@ class Edge:
             ),
             # The edge_id is the binding from the dynamic key (e.g., "e0" from "in_edges_e0").
             edge_id=binding,
+            qualified_object_aspect=(
+                str(edge_dict["qualified_object_aspect"])
+                if "qualified_object_aspect" in edge_dict
+                else None
+            ),
+            qualified_object_direction=(
+                str(edge_dict["qualified_object_direction"])
+                if "qualified_object_direction" in edge_dict
+                else None
+            ),
+            qualified_predicate=(
+                str(edge_dict["qualified_predicate"])
+                if "qualified_predicate" in edge_dict
+                else None
+            ),
+            publications_info=(
+                str(edge_dict["publications_info"])
+                if "publications_info" in edge_dict
+                else None
+            ),
         )
 
 
