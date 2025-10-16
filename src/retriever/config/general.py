@@ -196,7 +196,7 @@ class ElasticSearchSettings(BaseModel):
     database_name: str = "elasticsearch"
 
     # use merged edges index
-    index_name: str = "rtx_kg2_edges_merged"
+    index_name: str = "rtx_kg2"
 
 
 class Tier1Settings(BaseModel):
