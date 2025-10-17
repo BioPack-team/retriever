@@ -130,6 +130,11 @@ class DgraphDriver(DatabaseDriver):
         else:  # HTTP
             self.endpoint = self.settings.http_endpoint
 
+    def clear_version_cache(self) -> None:
+        """Clears the internal schema version cache. Primarily for testing."""
+        log.debug("Clearing Dgraph schema version cache.")
+        self._version_cache.clear()
+
     async def get_active_version(self) -> str | None:
         """Queries Dgraph for the active schema version and caches the result.
 

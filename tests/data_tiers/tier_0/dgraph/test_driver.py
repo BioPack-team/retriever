@@ -134,7 +134,9 @@ async def test_dgraph_mock() -> None:
 
 @pytest.mark.asyncio
 @patch("pydgraph.DgraphClient")
-async def test_get_active_version_success_and_cached(mock_dgraph_client_class, monkeypatch: pytest.MonkeyPatch):
+async def test_get_active_version_success_and_cached(
+    mock_dgraph_client_class: MagicMock
+):
     """Test get_active_version when a version is found and that it's cached."""
     # Mock the response object that the query will return
     mock_response = MagicMock()
@@ -153,7 +155,7 @@ async def test_get_active_version_success_and_cached(mock_dgraph_client_class, m
     await driver.connect()
 
     # Clear cache before test
-    driver._version_cache.clear()
+    driver.clear_version_cache()
 
     # First call should trigger the query
     version = await driver.get_active_version()
@@ -169,7 +171,9 @@ async def test_get_active_version_success_and_cached(mock_dgraph_client_class, m
 
 @pytest.mark.asyncio
 @patch("pydgraph.DgraphClient")
-async def test_get_active_version_not_found(mock_dgraph_client_class, monkeypatch: pytest.MonkeyPatch):
+async def test_get_active_version_not_found(
+    mock_dgraph_client_class: MagicMock
+):
     """Test get_active_version when no active version is in the database."""
     mock_response = MagicMock()
     mock_response.json = json.dumps({"versions": []}).encode("utf-8")
@@ -179,7 +183,7 @@ async def test_get_active_version_not_found(mock_dgraph_client_class, monkeypatc
 
     driver = new_grpc_driver()
     await driver.connect()
-    driver._version_cache.clear()
+    driver.clear_version_cache()
 
     version = await driver.get_active_version()
     assert version is None
@@ -187,7 +191,9 @@ async def test_get_active_version_not_found(mock_dgraph_client_class, monkeypatc
 
 @pytest.mark.asyncio
 @patch("pydgraph.DgraphClient")
-async def test_get_active_version_query_fails(mock_dgraph_client_class, monkeypatch: pytest.MonkeyPatch):
+async def test_get_active_version_query_fails(
+    mock_dgraph_client_class: MagicMock
+):
     """Test get_active_version when the database query raises an exception."""
     mock_txn = MagicMock()
     mock_txn.query.side_effect = Exception("DB connection failed")
@@ -195,7 +201,7 @@ async def test_get_active_version_query_fails(mock_dgraph_client_class, monkeypa
 
     driver = new_grpc_driver()
     await driver.connect()
-    driver._version_cache.clear()
+    driver.clear_version_cache()
 
     version = await driver.get_active_version()
     assert version is None
