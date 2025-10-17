@@ -1,5 +1,6 @@
-from typing import NotRequired
+from typing import NotRequired, Any
 
+from elastic_transport import ObjectApiResponse
 from elasticsearch import AsyncElasticsearch
 
 from retriever.data_tiers.tier_1.elasticsearch.types import ESHit, ESPayload, ESResponse
@@ -11,11 +12,11 @@ class QueryInfo(ESPayload):
 
 class QueryBody(QueryInfo):
     """Full payload body for a paginated query."""
-    sort: list
+    sort: list[Any]
     size: int
 
 
-async def parse_response(response: ESResponse, page_size: int) -> tuple[list[ESHit], str | None]:
+async def parse_response(response: ObjectApiResponse[ESResponse], page_size: int) -> tuple[list[ESHit], str | None]:
     """Parse an ES response and for 0) list of hits, and 1) search_after i.e. the pagination anchor for next query."""
     if 'hits' not in response:
         raise RuntimeError(f"Invalid ES response: no hits in response body: {response}")
@@ -37,14 +38,16 @@ def generate_query_body(query_info: QueryInfo, page_size: int) -> QueryBody:
     query = query_info.get('query')
     search_after = query_info.get('search_after', None)
 
-    return {
+    body: QueryBody = {
             "size": page_size,
             "query": query,
             "sort": [{"id": "asc"}],
-            **({
-                   "search_after": search_after,
-               } if search_after is not None else {})
     }
+
+    if search_after is not None:
+        body['search_after'] = search_after
+
+    return body
 
 async def run_single_query(es_connection: AsyncElasticsearch, index_name: str, query: ESPayload, page_size:int = 1000) -> list[ESHit]:
     """Adapter for running single query through _search and aggregating all hits."""
@@ -53,7 +56,7 @@ async def run_single_query(es_connection: AsyncElasticsearch, index_name: str, q
         "search_after":None,
     }
 
-    results = []
+    results: list[ESHit] = []
 
     while True:
         query_body = generate_query_body(query_info, page_size)
@@ -83,9 +86,9 @@ async def run_batch_query(es_connection: AsyncElasticsearch, index_name: str, qu
     current_query_indices = range(0, len(query_collection))
 
     while current_query_indices:
-        next_query_indices = []
+        next_query_indices: list[int] = []
+        query_body_list: list[QueryBody | dict[Any, Any]] = []
 
-        query_body_list = []
         for i in current_query_indices:
             query_body_list.extend([
                 {},

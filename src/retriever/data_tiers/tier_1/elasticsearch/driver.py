@@ -99,7 +99,7 @@ class ElasticSearchDriver(DatabaseDriver):
             await self.es_connection.close()
         self.es_connection = None
 
-    async def run(self, query: ESPayload | list[ESPayload]) -> list[ESHit] | None:
+    async def run(self, query: ESPayload | list[ESPayload]) -> list[ESHit] | list[list[ESHit]] | None:
         """Execute query logic."""
         # Check ES connection instance
         if self.es_connection is None:
