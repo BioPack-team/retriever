@@ -9,6 +9,10 @@ from opentelemetry import trace
 
 from retriever.config.general import CONFIG
 from retriever.data_tiers.base_driver import DatabaseDriver
+from retriever.data_tiers.tier_1.elasticsearch.aggregating_querier import (
+    run_batch_query,
+    run_single_query,
+)
 from retriever.data_tiers.tier_1.elasticsearch.types import ESHit, ESPayload
 
 tracer = trace.get_tracer("lookup.execution.tracer")
@@ -95,7 +99,7 @@ class ElasticSearchDriver(DatabaseDriver):
             await self.es_connection.close()
         self.es_connection = None
 
-    async def run(self, query: ESPayload) -> list[ESHit] | None:
+    async def run(self, query: ESPayload | list[ESPayload]) -> list[ESHit] | list[list[ESHit]] | None:
         """Execute query logic."""
         # Check ES connection instance
         if self.es_connection is None:
@@ -104,10 +108,14 @@ class ElasticSearchDriver(DatabaseDriver):
             )
 
         try:
-            response = await self.es_connection.search(
-                index=CONFIG.tier1.elasticsearch.index_name,
-                body=dict(query),
-            )
+            # select query method based on incoming payload
+            if isinstance(query, list):
+                results = await run_batch_query(es_connection=self.es_connection, index_name=CONFIG.tier1.elasticsearch.index_name, queries=query)
+            else:
+                results = await run_single_query(es_connection=self.es_connection, index_name=CONFIG.tier1.elasticsearch.index_name, query=query)
+        except es_exceptions.ConnectionTimeout as e:
+            log.exception(f"query timed out: {e}")
+            raise e
         except es_exceptions.ConnectionError:
             await self.connect()
             return await self.run(query)
@@ -123,10 +131,6 @@ class ElasticSearchDriver(DatabaseDriver):
             log.exception("An unexpected exception occurred during Elasticsearch query")
             raise e
 
-        # extract results
-        raw_results = response["hits"]["hits"]
-        results = [r["_source"] for r in raw_results]
-
         # empty array
         if not results:
             return None
@@ -136,9 +140,9 @@ class ElasticSearchDriver(DatabaseDriver):
     @override
     @tracer.start_as_current_span("elasticsearch_query")
     async def run_query(
-        self, query: ESPayload, *args: Any, **kwargs: Any
-    ) -> list[ESHit] | None:
-        """Use ES async client to execute query via the `_search` endpoint."""
+        self, query: ESPayload | list[ESPayload], *args: Any, **kwargs: Any
+    ) -> list[ESHit] | list[list[ESHit]] | None:
+        """Use ES async client to execute query via the `_search/_msearch` endpoints."""
         otel_span = trace.get_current_span()
         if not otel_span or not otel_span.is_recording():
             otel_span = None

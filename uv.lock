@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = "==3.13.*"
 
 [[package]]
@@ -2026,6 +2026,7 @@ dependencies = [
     { name = "aiohttp" },
     { name = "bmt" },
     { name = "click" },
+    { name = "elastic-transport" },
     { name = "elasticsearch", extra = ["async"] },
     { name = "fastapi", extra = ["standard"] },
     { name = "httpx" },
@@ -2078,6 +2079,7 @@ requires-dist = [
     { name = "aiohttp", specifier = ">=3.9.0" },
     { name = "bmt", specifier = ">=1.4.4" },
     { name = "click", specifier = ">=8.1.8" },
+    { name = "elastic-transport", specifier = ">=8,<9" },
     { name = "elasticsearch", extras = ["async"], specifier = ">=8,<9" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.115.6,<0.116" },
     { name = "httpx", specifier = ">=0.28.1,<0.29" },
