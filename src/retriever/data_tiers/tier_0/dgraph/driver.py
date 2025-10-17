@@ -9,7 +9,7 @@ from urllib.parse import urljoin
 import aiohttp
 import pydgraph
 from aiohttp import ClientTimeout
-from cachetools import TTLCache, cached
+from cachetools import TTLCache
 from loguru import logger as log
 from opentelemetry import trace
 
@@ -131,8 +131,7 @@ class DgraphDriver(DatabaseDriver):
             self.endpoint = self.settings.http_endpoint
 
     async def get_active_version(self) -> str | None:
-        """
-        Queries Dgraph for the active schema version and caches the result.
+        """Queries Dgraph for the active schema version and caches the result.
 
         This method implements manual caching to be async-safe.
         """

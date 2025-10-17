@@ -67,8 +67,7 @@ class DgraphTranspiler(Tier0Transpiler):
         driver: DgraphDriver,
         version: str | None = None,
     ) -> "DgraphTranspiler":
-        """
-        Asynchronously create a DgraphTranspiler, determining the schema version.
+        """Asynchronously create a DgraphTranspiler, determining the schema version.
 
         The version is determined with the following priority:
         1. The explicit `version` string passed to this factory.
