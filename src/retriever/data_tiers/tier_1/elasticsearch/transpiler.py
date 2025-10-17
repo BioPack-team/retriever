@@ -290,3 +290,11 @@ class ElasticsearchTranspiler(Tier1Transpiler):
             knowledge_graph=KnowledgeGraphDict(nodes=nodes, edges=edges),
             auxiliary_graphs={},
         )
+
+    def convert_batch_results(
+        self, qgraph_list: list[QueryGraphDict], results: list[list[ESHit]] | None
+    ) -> list[BackendResult]:
+        return [
+            self.convert_results(qgraph, result)
+            for qgraph, result in zip(qgraph_list, results)
+        ]
