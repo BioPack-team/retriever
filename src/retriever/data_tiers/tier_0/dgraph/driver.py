@@ -1,4 +1,5 @@
 import asyncio
+import json
 from collections.abc import Callable
 from enum import Enum
 from http import HTTPStatus
@@ -8,6 +9,7 @@ from urllib.parse import urljoin
 import aiohttp
 import pydgraph
 from aiohttp import ClientTimeout
+from cachetools import TTLCache, cached
 from loguru import logger as log
 from opentelemetry import trace
 
@@ -109,6 +111,7 @@ class DgraphDriver(DatabaseDriver):
     _client: DgraphClientProtocol | None = None
     _http_session: aiohttp.ClientSession | None = None
     _failed: bool = False
+    _version_cache: TTLCache[str, str | None] = TTLCache(maxsize=1, ttl=60)
 
     def __init__(self, protocol: DgraphProtocol = DgraphProtocol.GRPC) -> None:
         """Initialize the Dgraph driver with connection settings.
@@ -126,6 +129,63 @@ class DgraphDriver(DatabaseDriver):
             self.endpoint = self.settings.grpc_endpoint
         else:  # HTTP
             self.endpoint = self.settings.http_endpoint
+
+    async def get_active_version(self) -> str | None:
+        """
+        Queries Dgraph for the active schema version and caches the result.
+
+        This method implements manual caching to be async-safe.
+        """
+        # Manually check the cache first
+        try:
+            cached_version = self._version_cache["active_version"]
+            log.debug("Returning cached Dgraph schema version.")
+            return cached_version
+        except KeyError:
+            log.debug("Querying for active Dgraph schema version (cache miss)...")
+            # Not in cache, proceed to fetch
+
+        query = """
+            query active_version() {
+              versions(func: type(SchemaVersion)) @filter(eq(is_active, true)) {
+                version
+              }
+            }
+        """
+        try:
+            if self.protocol == DgraphProtocol.GRPC:
+                assert self._client is not None, "gRPC client not initialized"
+                txn = self._client.txn(read_only=True)
+                response = await asyncio.to_thread(txn.query, query)
+                raw_data = json.loads(response.json)
+            else:  # HTTP
+                assert self._http_session is not None, "HTTP session not initialized"
+                async with self._http_session.post(
+                    urljoin(self.endpoint, "/query"),
+                    json={"query": query},
+                    timeout=ClientTimeout(total=self.query_timeout),
+                ) as response:
+                    if response.status != HTTPStatus.OK:
+                        self._version_cache["active_version"] = None
+                        return None
+                    raw_data = await response.json()
+
+            versions = raw_data.get("versions", [])
+            version = versions[0].get("version") if versions else None
+
+            if version:
+                log.info(f"Found and cached active Dgraph schema version: {version}")
+            else:
+                log.warning("No active Dgraph schema version found. Caching null result.")
+
+            # Manually store the result in the cache before returning
+            self._version_cache["active_version"] = version
+            return version
+        except Exception as e:
+            log.error(f"Failed to query for active Dgraph schema version: {e}")
+            # Cache the failure as None to prevent retrying on every call
+            self._version_cache["active_version"] = None
+            return None
 
     @override
     async def connect(self, retries: int = 0) -> None:

@@ -7,6 +7,7 @@ from loguru import logger
 
 from retriever.data_tiers.base_transpiler import Tier0Transpiler
 from retriever.data_tiers.tier_0.dgraph import result_models as dg
+from retriever.data_tiers.tier_0.dgraph.driver import DgraphDriver
 from retriever.lookup.partial import Partial
 from retriever.types.general import BackendResult, KAdjacencyGraph
 from retriever.types.trapi import (
@@ -59,6 +60,33 @@ class DgraphTranspiler(Tier0Transpiler):
         self.k_agraph: KAdjacencyGraph
         self.version = version
         self.prefix = f"{version}_" if version else ""
+
+    @classmethod
+    async def create(
+        cls,
+        driver: DgraphDriver,
+        version: str | None = None,
+    ) -> "DgraphTranspiler":
+        """
+        Asynchronously create a DgraphTranspiler, determining the schema version.
+
+        The version is determined with the following priority:
+        1. The explicit `version` string passed to this factory.
+        2. The active version fetched from the database via the `driver`.
+        3. No version (default behavior).
+
+        Args:
+            driver: The DgraphDriver used to fetch the active version.
+            version: An optional, explicit version string to override the database.
+
+        Returns:
+            A fully initialized DgraphTranspiler instance.
+        """
+        final_version = version
+        if final_version is None:
+            final_version = await driver.get_active_version()
+
+        return cls(version=final_version)
 
     def _v(self, field: str) -> str:
         """Return the versioned field name."""
@@ -336,10 +364,10 @@ class DgraphTranspiler(Tier0Transpiler):
             "agent_type",
             "kg2_ids",
             "domain_range_exclusion",
-            "edge_id",
             "qualified_object_aspect",
             "qualified_object_direction",
             "qualified_predicate",
+            "publications",
             "publications_info",
         ]
         return self._aliased_fields(fields)

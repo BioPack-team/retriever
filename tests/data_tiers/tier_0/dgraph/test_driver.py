@@ -1,6 +1,8 @@
 import importlib
+import json
 from collections.abc import Iterator
 from typing import Any, cast, final, override
+from unittest.mock import MagicMock, patch
 
 import aiohttp
 import pytest
@@ -128,3 +130,72 @@ async def test_dgraph_mock() -> None:
     assert node.id == "test_id"
 
     await driver.close()
+
+
+@pytest.mark.asyncio
+@patch("pydgraph.DgraphClient")
+async def test_get_active_version_success_and_cached(mock_dgraph_client_class, monkeypatch: pytest.MonkeyPatch):
+    """Test get_active_version when a version is found and that it's cached."""
+    # Mock the response object that the query will return
+    mock_response = MagicMock()
+    mock_response.json = json.dumps({"versions": [{"version": "v1"}]}).encode("utf-8")
+
+    # Mock the transaction object and its query method
+    mock_txn = MagicMock()
+    mock_txn.query.return_value = mock_response
+
+    # Configure the mock DgraphClient instance to return our mock transaction
+    mock_client_instance = mock_dgraph_client_class.return_value
+    mock_client_instance.txn.return_value = mock_txn
+
+    driver = new_grpc_driver()
+    # The driver will now use our mocked client internally upon connection
+    await driver.connect()
+
+    # Clear cache before test
+    driver._version_cache.clear()
+
+    # First call should trigger the query
+    version = await driver.get_active_version()
+    assert version == "v1"
+    mock_client_instance.txn.assert_called_once_with(read_only=True)
+    mock_txn.query.assert_called_once()
+
+    # Second call should hit the cache and not trigger the query again
+    version2 = await driver.get_active_version()
+    assert version2 == "v1"
+    mock_client_instance.txn.assert_called_once()  # Assert it's still only called once
+
+
+@pytest.mark.asyncio
+@patch("pydgraph.DgraphClient")
+async def test_get_active_version_not_found(mock_dgraph_client_class, monkeypatch: pytest.MonkeyPatch):
+    """Test get_active_version when no active version is in the database."""
+    mock_response = MagicMock()
+    mock_response.json = json.dumps({"versions": []}).encode("utf-8")
+    mock_txn = MagicMock()
+    mock_txn.query.return_value = mock_response
+    mock_dgraph_client_class.return_value.txn.return_value = mock_txn
+
+    driver = new_grpc_driver()
+    await driver.connect()
+    driver._version_cache.clear()
+
+    version = await driver.get_active_version()
+    assert version is None
+
+
+@pytest.mark.asyncio
+@patch("pydgraph.DgraphClient")
+async def test_get_active_version_query_fails(mock_dgraph_client_class, monkeypatch: pytest.MonkeyPatch):
+    """Test get_active_version when the database query raises an exception."""
+    mock_txn = MagicMock()
+    mock_txn.query.side_effect = Exception("DB connection failed")
+    mock_dgraph_client_class.return_value.txn.return_value = mock_txn
+
+    driver = new_grpc_driver()
+    await driver.connect()
+    driver._version_cache.clear()
+
+    version = await driver.get_active_version()
+    assert version is None

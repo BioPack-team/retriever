@@ -35,6 +35,7 @@ class Edge:
     qualified_object_direction: str | None = None
     qualified_predicate: str | None = None
     publications_info: str | None = None
+    publications: list[str] = field(default_factory=list)
 
     @classmethod
     def from_dict(
@@ -91,6 +92,7 @@ class Edge:
                 if "qualified_predicate" in edge_dict
                 else None
             ),
+            publications=_to_str_list(edge_dict.get("publications")),
             publications_info=(
                 str(edge_dict["publications_info"])
                 if "publications_info" in edge_dict
