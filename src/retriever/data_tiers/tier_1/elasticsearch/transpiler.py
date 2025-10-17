@@ -294,7 +294,8 @@ class ElasticsearchTranspiler(Tier1Transpiler):
     def convert_batch_results(
         self, qgraph_list: list[QueryGraphDict], results: list[list[ESHit]] | None
     ) -> list[BackendResult]:
+        """Wrapper for converting results for a batch query."""
         return [
             self.convert_results(qgraph, result)
-            for qgraph, result in zip(qgraph_list, results)
+            for qgraph, result in zip(qgraph_list, results, strict=False)
         ]

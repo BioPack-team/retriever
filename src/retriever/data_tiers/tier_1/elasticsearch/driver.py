@@ -9,7 +9,10 @@ from opentelemetry import trace
 
 from retriever.config.general import CONFIG
 from retriever.data_tiers.base_driver import DatabaseDriver
-from retriever.data_tiers.tier_1.elasticsearch.aggregating_querier import run_batch_query, run_single_query
+from retriever.data_tiers.tier_1.elasticsearch.aggregating_querier import (
+    run_batch_query,
+    run_single_query,
+)
 from retriever.data_tiers.tier_1.elasticsearch.types import ESHit, ESPayload
 
 tracer = trace.get_tracer("lookup.execution.tracer")

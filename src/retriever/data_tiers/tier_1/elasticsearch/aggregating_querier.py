@@ -2,26 +2,21 @@ from typing import NotRequired
 
 from elasticsearch import AsyncElasticsearch
 
-from retriever.data_tiers.tier_1.elasticsearch.types import ESHit, ESPayload
+from retriever.data_tiers.tier_1.elasticsearch.types import ESHit, ESPayload, ESResponse
+
 
 class QueryInfo(ESPayload):
-    """
-    Query info needed to generate full query body
-    """
+    """Query info needed to generate full query body."""
     search_after: NotRequired[str | None]
 
 class QueryBody(QueryInfo):
-    """
-    Full payload body for a paginated query
-    """
+    """Full payload body for a paginated query."""
     sort: list
     size: int
 
 
-async def parse_response(response, page_size: int) -> tuple[list[ESHit], str | None]:
-    """
-    Parse an ES response and for 0) list of hits, and 1) search_after i.e. the pagination achor for next query
-    """
+async def parse_response(response: ESResponse, page_size: int) -> tuple[list[ESHit], str | None]:
+    """Parse an ES response and for 0) list of hits, and 1) search_after i.e. the pagination anchor for next query."""
     if 'hits' not in response:
         raise RuntimeError(f"Invalid ES response: no hits in response body: {response}")
 
@@ -38,6 +33,7 @@ async def parse_response(response, page_size: int) -> tuple[list[ESHit], str | N
     return hits, search_after
 
 def generate_query_body(query_info: QueryInfo, page_size: int) -> QueryBody:
+    """Generate a paginated query body for ES search/msearch endpoints."""
     query = query_info.get('query')
     search_after = query_info.get('search_after', None)
 
@@ -50,11 +46,8 @@ def generate_query_body(query_info: QueryInfo, page_size: int) -> QueryBody:
                } if search_after is not None else {})
     }
 
-async def run_single_query(es_connection: AsyncElasticsearch, index_name: str, query: ESPayload, page_size=1000) -> list[ESHit]:
-    """
-    Adapter for running single query through _search and aggregating all hits
-    """
-
+async def run_single_query(es_connection: AsyncElasticsearch, index_name: str, query: ESPayload, page_size:int = 1000) -> list[ESHit]:
+    """Adapter for running single query through _search and aggregating all hits."""
     query_info: QueryInfo = {
         "query": query['query'],
         "search_after":None,
@@ -76,11 +69,8 @@ async def run_single_query(es_connection: AsyncElasticsearch, index_name: str, q
 
     return results
 
-async def run_batch_query(es_connection: AsyncElasticsearch, index_name: str, queries: list[ESPayload], page_size=1000) -> list[list[ESHit]]:
-    """
-    Adapter for running batch queries through _msearch and aggregating all hits
-    """
-
+async def run_batch_query(es_connection: AsyncElasticsearch, index_name: str, queries: list[ESPayload], page_size:int = 1000) -> list[list[ESHit]]:
+    """Adapter for running batch queries through _msearch and aggregating all hits."""
     query_collection : list[QueryInfo] = [
         {
             "query": query['query'],
