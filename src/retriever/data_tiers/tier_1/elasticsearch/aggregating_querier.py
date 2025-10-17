@@ -1,4 +1,4 @@
-from typing import NotRequired, Any
+from typing import Any, NotRequired
 
 from elastic_transport import ObjectApiResponse
 from elasticsearch import AsyncElasticsearch
