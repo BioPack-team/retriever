@@ -1,4 +1,4 @@
-from typing import NotRequired, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 from retriever.types.trapi import CURIE, BiolinkEntity, BiolinkPredicate, Infores
 
@@ -74,6 +74,7 @@ class ESHit(TypedDict):
 class ESDocument(TypedDict):
     """A source document returned from Elasticsearch."""
     _source: ESHit
+    sort: list[Any]
 
 
 class ESHits(TypedDict):
