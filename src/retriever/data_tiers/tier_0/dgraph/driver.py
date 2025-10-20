@@ -151,17 +151,19 @@ class DgraphDriver(DatabaseDriver):
 
         query = """
             query active_version() {
-              versions(func: type(SchemaVersion)) @filter(eq(is_active, true)) {
-                version
+              versions(func: type(SchemaMetadata)) @filter(eq(schema_metadata_is_active, true)) {
+                schema_metadata_version
               }
             }
         """
         try:
+            versions = []
             if self.protocol == DgraphProtocol.GRPC:
                 assert self._client is not None, "gRPC client not initialized"
                 txn = self._client.txn(read_only=True)
                 response = await asyncio.to_thread(txn.query, query)
                 raw_data = json.loads(response.json)
+                versions = raw_data.get("versions", [])
             else:  # HTTP
                 assert self._http_session is not None, "HTTP session not initialized"
                 async with self._http_session.post(
@@ -169,13 +171,10 @@ class DgraphDriver(DatabaseDriver):
                     json={"query": query},
                     timeout=ClientTimeout(total=self.query_timeout),
                 ) as response:
-                    if response.status != HTTPStatus.OK:
-                        self._version_cache["active_version"] = None
-                        return None
                     raw_data = await response.json()
+                    versions = raw_data.get("data").get("versions", [])
 
-            versions = raw_data.get("versions", [])
-            version = versions[0].get("version") if versions else None
+            version = versions[0].get("schema_metadata_version") if versions else None
 
             if version:
                 log.info(f"Found and cached active Dgraph schema version: {version}")

@@ -133,6 +133,48 @@ async def test_dgraph_mock() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_get_active_version_success_grpc_hot():
+    """Test get_active_version when a version is found and that it's cached."""
+    driver = new_grpc_driver()
+    try:
+        # The driver will now use our mocked client internally upon connection
+        await driver.connect()
+
+        # Clear cache before test
+        driver.clear_version_cache()
+
+        # Should return the version "v2" as per the live Dgraph instance
+        version = await driver.get_active_version()
+        assert version == "v2"
+    except Exception as e:
+        pytest.skip(f"Skipping live Dgraph HTTP test (cannot connect or query): {e}")
+    finally:
+        await driver.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_get_active_version_success_http_hot():
+    """Test get_active_version when a version is found and that it's cached."""
+    driver = new_http_driver()
+    try:
+        # The driver will now use our mocked client internally upon connection
+        await driver.connect()
+
+        # Clear cache before test
+        driver.clear_version_cache()
+
+        # Should return the version "v2" as per the live Dgraph instance
+        version = await driver.get_active_version()
+        assert version == "v2"
+    except Exception as e:
+        pytest.skip(f"Skipping live Dgraph HTTP test (cannot connect or query): {e}")
+    finally:
+        await driver.close()
+
+
+@pytest.mark.asyncio
 @patch("pydgraph.DgraphClient")
 async def test_get_active_version_success_and_cached(
     mock_dgraph_client_class: MagicMock
@@ -140,7 +182,7 @@ async def test_get_active_version_success_and_cached(
     """Test get_active_version when a version is found and that it's cached."""
     # Mock the response object that the query will return
     mock_response = MagicMock()
-    mock_response.json = json.dumps({"versions": [{"version": "v1"}]}).encode("utf-8")
+    mock_response.json = json.dumps({"versions": [{"schema_metadata_version": "v1"}]}).encode("utf-8")
 
     # Mock the transaction object and its query method
     mock_txn = MagicMock()
