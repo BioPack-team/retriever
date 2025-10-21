@@ -1,11 +1,13 @@
 import importlib
 import json
 import re
+import time
 from collections.abc import Iterator
 from typing import Any, cast, final, override
 from textwrap import dedent
 from unittest.mock import MagicMock, patch
 
+import asyncio
 import aiohttp
 import pytest
 
@@ -430,5 +432,124 @@ async def test_simple_one_query_live_grpc() -> None:
 
     except Exception as e:
         pytest.skip(f"Skipping live Dgraph gRPC test (cannot connect or query): {e}")
+    finally:
+        await driver.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_simple_one_query_grpc_parallel_nonblocking() -> None:
+    """
+    Test that two gRPC queries run in parallel and do not block each other.
+    """
+    qgraph_query: QueryGraphDict = qg({
+        "nodes": {
+            "n0": {"ids": ["CHEBI:4514"], "constraints": []},
+            "n1": {"ids": ["UMLS:C1564592"], "constraints": []},
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["subclass_of"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+        },
+    })
+
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version="v2")
+    dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
+
+    driver = new_grpc_driver()
+    try:
+        await driver.connect()
+        driver.clear_version_cache()
+
+        async def run_query_with_delay():
+            # Add an artificial delay to simulate a slow query
+            await asyncio.sleep(1)
+            return await driver.run_query(dgraph_query)
+
+        async def run_query_no_delay():
+            return await driver.run_query(dgraph_query)
+
+        start = time.perf_counter()
+        # Run both queries concurrently
+        results = await asyncio.gather(
+            run_query_with_delay(),
+            run_query_no_delay(),
+        )
+        elapsed = time.perf_counter() - start
+
+        # Both should succeed
+        for result in results:
+            assert isinstance(result, dg_models.DgraphResponse)
+            assert result.data, "No data returned from Dgraph for simple-one query"
+
+        # If queries are non-blocking, elapsed should be just over 1 second, not 2+
+        assert elapsed < 2, f"Queries are blocking each other! Elapsed: {elapsed:.2f}s"
+
+    except Exception as e:
+        pytest.skip(f"Skipping live Dgraph gRPC test (cannot connect or query): {e}")
+    finally:
+        await driver.close()
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_simple_one_query_http_parallel_nonblocking() -> None:
+    """
+    Test that two HTTP queries run in parallel and do not block each other.
+    """
+    qgraph_query: QueryGraphDict = qg({
+        "nodes": {
+            "n0": {"ids": ["CHEBI:4514"], "constraints": []},
+            "n1": {"ids": ["UMLS:C1564592"], "constraints": []},
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["subclass_of"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+        },
+    })
+
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version="v2")
+    dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
+
+    driver = new_http_driver()
+    try:
+        await driver.connect()
+        driver.clear_version_cache()
+
+        async def run_query_with_delay():
+            # Add an artificial delay to simulate a slow query
+            await asyncio.sleep(1)
+            return await driver.run_query(dgraph_query)
+
+        async def run_query_no_delay():
+            return await driver.run_query(dgraph_query)
+
+        start = time.perf_counter()
+        # Run both queries concurrently
+        results = await asyncio.gather(
+            run_query_with_delay(),
+            run_query_no_delay(),
+        )
+        elapsed = time.perf_counter() - start
+
+        # Both should succeed
+        for result in results:
+            assert isinstance(result, dg_models.DgraphResponse)
+            assert result.data, "No data returned from Dgraph for simple-one query"
+
+        # If queries are non-blocking, elapsed should be just over 1 second, not 2+
+        assert elapsed < 2, f"Queries are blocking each other! Elapsed: {elapsed:.2f}s"
+
+    except Exception as e:
+        pytest.skip(f"Skipping live Dgraph HTTP test (cannot connect or query): {e}")
     finally:
         await driver.close()
