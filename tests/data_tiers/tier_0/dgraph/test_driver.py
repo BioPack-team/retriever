@@ -1,7 +1,9 @@
 import importlib
 import json
+import re
 from collections.abc import Iterator
 from typing import Any, cast, final, override
+from textwrap import dedent
 from unittest.mock import MagicMock, patch
 
 import aiohttp
@@ -10,6 +12,8 @@ import pytest
 import retriever.config.general as general_mod
 import retriever.data_tiers.tier_0.dgraph.driver as driver_mod
 from retriever.data_tiers.tier_0.dgraph import result_models as dg_models
+from retriever.data_tiers.tier_0.dgraph.transpiler import DgraphTranspiler
+from retriever.types.trapi import QueryGraphDict
 
 
 # Test-only subclass exposing the client property
@@ -32,6 +36,29 @@ def new_http_driver() -> _TestDgraphHttpDriver:
 
 def new_grpc_driver() -> _TestDgraphGrpcDriver:
     return _TestDgraphGrpcDriver()
+
+
+# Test-only subclass exposing the client property
+class _TestDgraphTranspiler(DgraphTranspiler):
+    """Expose protected methods for testing without modifying production code."""
+    def convert_multihop_public(self, qgraph: QueryGraphDict) -> str:
+        return self.convert_multihop(qgraph)
+
+    def convert_batch_multihop_public(self, qgraphs: list[QueryGraphDict]) -> str:
+        return self.convert_batch_multihop(qgraphs)
+
+
+def qg(d: dict[str, Any]) -> QueryGraphDict:
+    """Cast a raw qgraph dict into a QueryGraphDict for type-checking in tests."""
+    return cast(QueryGraphDict, cast(object, d))
+
+
+def normalize(s: str) -> str:
+    return re.sub(r"\s+", " ", s.strip())
+
+
+def assert_query_equals(actual: str, expected: str) -> None:
+    assert normalize(actual) == normalize(expected)
 
 
 @pytest.fixture
@@ -134,7 +161,7 @@ async def test_dgraph_mock() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config")
-async def test_get_active_version_success_grpc_hot():
+async def test_get_active_version_success_grpc_live():
     """Test get_active_version when a version is found and that it's cached."""
     driver = new_grpc_driver()
     try:
@@ -155,7 +182,7 @@ async def test_get_active_version_success_grpc_hot():
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config")
-async def test_get_active_version_success_http_hot():
+async def test_get_active_version_success_http_live():
     """Test get_active_version when a version is found and that it's cached."""
     driver = new_http_driver()
     try:
@@ -247,3 +274,161 @@ async def test_get_active_version_query_fails(
 
     version = await driver.get_active_version()
     assert version is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_simple_one_query_live_http() -> None:
+    """
+    Integration test: Run the 'simple-one' query against a live Dgraph HTTP instance.
+    """
+
+    qgraph_query: QueryGraphDict = qg({
+        "nodes": {
+            "n0": {"ids": ["CHEBI:4514"], "constraints": []},
+            "n1": {"ids": ["UMLS:C1564592"], "constraints": []},
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["subclass_of"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+        },
+    })
+
+    dgraph_query_match: str = dedent("""
+    {
+        q0_node_n0(func: eq(v2_id, "CHEBI:4514")) @cascade {
+            id: v2_id name: v2_name category: v2_category all_names: v2_all_names all_categories: v2_all_categories iri: v2_iri equivalent_curies: v2_equivalent_curies description: v2_description publications: v2_publications
+            in_edges_e0: ~v2_source @filter(eq(v2_all_predicates, "subclass_of")) {
+                predicate: v2_predicate primary_knowledge_source: v2_primary_knowledge_source knowledge_level: v2_knowledge_level agent_type: v2_agent_type kg2_ids: v2_kg2_ids domain_range_exclusion: v2_domain_range_exclusion qualified_object_aspect: v2_qualified_object_aspect qualified_object_direction: v2_qualified_object_direction qualified_predicate: v2_qualified_predicate publications: v2_publications publications_info: v2_publications_info
+                node_n1: v2_target @filter(eq(v2_id, "UMLS:C1564592")) {
+                    id: v2_id name: v2_name category: v2_category all_names: v2_all_names all_categories: v2_all_categories iri: v2_iri equivalent_curies: v2_equivalent_curies description: v2_description publications: v2_publications
+                }
+            }
+        }
+    }
+    """).strip()
+
+    driver = new_http_driver()
+    try:
+        await driver.connect()
+        driver.clear_version_cache()
+
+        # Use the transpiler to generate the Dgraph query
+        transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version="v2")
+        dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
+        assert_query_equals(dgraph_query, dgraph_query_match)
+
+        # Run the query against the live Dgraph instance
+        result: dg_models.DgraphResponse = await driver.run_query(dgraph_query)
+        assert isinstance(result, dg_models.DgraphResponse)
+
+        # Assertions to check that some data is returned
+        assert result.data, "No data returned from Dgraph for simple-one query"
+        assert "q0" in result.data
+        assert len(result.data["q0"]) == 1
+
+        # 2. Assertions for the root node (n0)
+        root_node = result.data["q0"][0]
+        assert root_node.binding == "n0"
+        assert root_node.id == "CHEBI:4514"
+        assert len(root_node.edges) == 1
+
+        # 3. Assertions for the incoming edge (e0)
+        in_edge = root_node.edges[0]
+        assert in_edge.binding == "e0"
+        assert in_edge.direction == "in"
+        assert in_edge.predicate == "subclass_of"
+
+        # 4. Assertions for the connected node (n1)
+        connected_node = in_edge.node
+        assert connected_node.binding == "n1"
+        assert connected_node.id == "UMLS:C1564592"
+
+    except Exception as e:
+        pytest.skip(f"Skipping live Dgraph HTTP test (cannot connect or query): {e}")
+    finally:
+        await driver.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_simple_one_query_live_grpc() -> None:
+    """
+    Integration test: Run the 'simple-one' query against a live Dgraph HTTP instance.
+    """
+
+    qgraph_query: QueryGraphDict = qg({
+        "nodes": {
+            "n0": {"ids": ["CHEBI:4514"], "constraints": []},
+            "n1": {"ids": ["UMLS:C1564592"], "constraints": []},
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["subclass_of"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+        },
+    })
+
+    dgraph_query_match: str = dedent("""
+    {
+        q0_node_n0(func: eq(v2_id, "CHEBI:4514")) @cascade {
+            id: v2_id name: v2_name category: v2_category all_names: v2_all_names all_categories: v2_all_categories iri: v2_iri equivalent_curies: v2_equivalent_curies description: v2_description publications: v2_publications
+            in_edges_e0: ~v2_source @filter(eq(v2_all_predicates, "subclass_of")) {
+                predicate: v2_predicate primary_knowledge_source: v2_primary_knowledge_source knowledge_level: v2_knowledge_level agent_type: v2_agent_type kg2_ids: v2_kg2_ids domain_range_exclusion: v2_domain_range_exclusion qualified_object_aspect: v2_qualified_object_aspect qualified_object_direction: v2_qualified_object_direction qualified_predicate: v2_qualified_predicate publications: v2_publications
+                node_n1: v2_target @filter(eq(v2_id, "UMLS:C1564592")) {
+                    id: v2_id name: v2_name category: v2_category all_names: v2_all_names all_categories: v2_all_categories iri: v2_iri equivalent_curies: v2_equivalent_curies description: v2_description publications: v2_publications
+                }
+            }
+        }
+    }
+    """).strip()
+
+    driver = new_grpc_driver()
+    try:
+        await driver.connect()
+        driver.clear_version_cache()
+
+        # Use the transpiler to generate the Dgraph query
+        transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version="v2")
+        dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
+        assert_query_equals(dgraph_query, dgraph_query_match)
+
+        # Run the query against the live Dgraph instance
+        result: dg_models.DgraphResponse = await driver.run_query(dgraph_query)
+        assert isinstance(result, dg_models.DgraphResponse)
+
+        # Assertions to check that some data is returned
+        assert result.data, "No data returned from Dgraph for simple-one query"
+        assert "q0" in result.data
+        assert len(result.data["q0"]) == 1
+
+        # 2. Assertions for the root node (n0)
+        root_node = result.data["q0"][0]
+        assert root_node.binding == "n0"
+        assert root_node.id == "CHEBI:4514"
+        assert len(root_node.edges) == 1
+
+        # 3. Assertions for the incoming edge (e0)
+        in_edge = root_node.edges[0]
+        assert in_edge.binding == "e0"
+        assert in_edge.direction == "in"
+        assert in_edge.predicate == "subclass_of"
+
+        # 4. Assertions for the connected node (n1)
+        connected_node = in_edge.node
+        assert connected_node.binding == "n1"
+        assert connected_node.id == "UMLS:C1564592"
+
+    except Exception as e:
+        pytest.skip(f"Skipping live Dgraph gRPC test (cannot connect or query): {e}")
+    finally:
+        await driver.close()

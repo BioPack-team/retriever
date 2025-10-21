@@ -163,6 +163,7 @@ class DgraphDriver(DatabaseDriver):
                 txn = self._client.txn(read_only=True)
                 response = await asyncio.to_thread(txn.query, query)
                 raw_data = json.loads(response.json)
+                log.debug(f"Dgraph version query raw data: {raw_data}")
                 versions = raw_data.get("versions", [])
             else:  # HTTP
                 assert self._http_session is not None, "HTTP session not initialized"
@@ -319,13 +320,14 @@ class DgraphDriver(DatabaseDriver):
             resp_format="JSON",
         )
 
-        # Cast the untyped pydgraph helper to a typed callable
+        # Run the blocking handle_query_future in a thread to avoid blocking the event loop
         handle_query_future = cast(
             Callable[[_GrpcFuture], PydgraphResponse], pydgraph.Txn.handle_query_future
         )
+        response: PydgraphResponse = await asyncio.to_thread(handle_query_future, future)
 
-        response: PydgraphResponse = handle_query_future(future)
         raw: Any = response.json
+
         return dg_models.DgraphResponse.parse(raw)
 
     async def _run_http_query(self, query: str) -> dg_models.DgraphResponse:
@@ -354,7 +356,10 @@ class DgraphDriver(DatabaseDriver):
                     f"Dgraph query returned errors: {raw_data['errors']}"
                 )
 
-            return dg_models.DgraphResponse.parse(raw_data)
+            if "data" not in raw_data:
+                raise RuntimeError("Dgraph query returned no data field.")
+
+            return dg_models.DgraphResponse.parse(raw_data.get("data"))
 
     async def _cleanup_connections(self) -> None:
         """Clean up any open connections."""
