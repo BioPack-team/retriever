@@ -129,8 +129,11 @@ dbs = 'task dbs:stop && task dbs:start'
 'jaeger:open' = 'python -m webbrowser http://localhost:16686'
 jaeger = 'task jaeger:stop && task jaeger:start'
 
+launch = 'retriever'
+'launch:debug' = 'LOG_LEVEL=TRACE JOB_LOOKUP_TIMEOUT=-1 WORKERS=1 retriever'
 
-dev = 'task dbs && retriever'
+start = 'task dbs && task launch'
+dev = 'task dbs && task launch:debug'
 'dev:otel' = """
     task jaeger \
     && task dbs \
@@ -138,7 +141,7 @@ dev = 'task dbs && retriever'
     && TELEMETRY__OTEL_ENABLED=true \
     TELEMETRY__OTEL_HOST=localhost \
     TELEMETRY__OTEL_PORT=4318 \
-    retriever
+    launch:debug
 """
 
 # Config work
@@ -239,7 +242,7 @@ extend_exclude = ["locustfile.py", "tests"]
 
 [tool.deptry.per_rule_ignores]
 DEP002 = [
-    "orjson" # Used by FastAPI to speed up JSON serialization
+    "orjson", # Used by FastAPI to speed up JSON serialization
 ]
 
 [tool.pytest.ini_options]
