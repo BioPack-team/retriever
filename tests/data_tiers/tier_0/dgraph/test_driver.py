@@ -81,6 +81,7 @@ def mock_dgraph_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     yield
 
 
+@pytest.mark.live
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config")
 async def test_dgraph_live_with_http_settings_from_config() -> None:
@@ -99,6 +100,7 @@ async def test_dgraph_live_with_http_settings_from_config() -> None:
         await driver.close()
 
 
+@pytest.mark.live
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config")
 async def test_dgraph_live_with_grpc_settings_from_config() -> None:
@@ -161,6 +163,7 @@ async def test_dgraph_mock() -> None:
     await driver.close()
 
 
+@pytest.mark.live
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config")
 async def test_get_active_version_success_grpc_live():
@@ -182,6 +185,7 @@ async def test_get_active_version_success_grpc_live():
         await driver.close()
 
 
+@pytest.mark.live
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config")
 async def test_get_active_version_success_http_live():
@@ -278,6 +282,7 @@ async def test_get_active_version_query_fails(
     assert version is None
 
 
+@pytest.mark.live
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config")
 async def test_simple_one_query_live_http() -> None:
@@ -357,6 +362,7 @@ async def test_simple_one_query_live_http() -> None:
         await driver.close()
 
 
+@pytest.mark.live
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config")
 async def test_simple_one_query_live_grpc() -> None:
@@ -436,9 +442,10 @@ async def test_simple_one_query_live_grpc() -> None:
         await driver.close()
 
 
+@pytest.mark.live
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config")
-async def test_simple_one_query_grpc_parallel_nonblocking() -> None:
+async def test_simple_one_query_grpc_parallel_live_nonblocking() -> None:
     """
     Test that two gRPC queries run in parallel and do not block each other.
     """
@@ -495,9 +502,11 @@ async def test_simple_one_query_grpc_parallel_nonblocking() -> None:
     finally:
         await driver.close()
 
+
+@pytest.mark.live
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config")
-async def test_simple_one_query_http_parallel_nonblocking() -> None:
+async def test_simple_one_query_http_parallel_live_nonblocking() -> None:
     """
     Test that two HTTP queries run in parallel and do not block each other.
     """
