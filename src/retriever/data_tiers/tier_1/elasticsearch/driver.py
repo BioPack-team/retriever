@@ -99,7 +99,9 @@ class ElasticSearchDriver(DatabaseDriver):
             await self.es_connection.close()
         self.es_connection = None
 
-    async def run(self, query: ESPayload | list[ESPayload]) -> list[ESHit] | list[list[ESHit]] | None:
+    async def run(
+        self, query: ESPayload | list[ESPayload]
+    ) -> list[ESHit] | list[list[ESHit]] | None:
         """Execute query logic."""
         # Check ES connection instance
         if self.es_connection is None:
@@ -110,9 +112,17 @@ class ElasticSearchDriver(DatabaseDriver):
         try:
             # select query method based on incoming payload
             if isinstance(query, list):
-                results = await run_batch_query(es_connection=self.es_connection, index_name=CONFIG.tier1.elasticsearch.index_name, queries=query)
+                results = await run_batch_query(
+                    es_connection=self.es_connection,
+                    index_name=CONFIG.tier1.elasticsearch.index_name,
+                    queries=query,
+                )
             else:
-                results = await run_single_query(es_connection=self.es_connection, index_name=CONFIG.tier1.elasticsearch.index_name, query=query)
+                results = await run_single_query(
+                    es_connection=self.es_connection,
+                    index_name=CONFIG.tier1.elasticsearch.index_name,
+                    query=query,
+                )
         except es_exceptions.ConnectionTimeout as e:
             log.exception(f"query timed out: {e}")
             raise e

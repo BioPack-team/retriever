@@ -8,52 +8,64 @@ from retriever.data_tiers.tier_1.elasticsearch.types import ESHit, ESPayload, ES
 
 class QueryInfo(ESPayload):
     """Query info needed to generate full query body."""
+
     search_after: NotRequired[str | None]
+
 
 class QueryBody(QueryInfo):
     """Full payload body for a paginated query."""
+
     sort: list[Any]
     size: int
 
 
-async def parse_response(response: ObjectApiResponse[ESResponse], page_size: int) -> tuple[list[ESHit], str | None]:
+async def parse_response(
+    response: ObjectApiResponse[ESResponse], page_size: int
+) -> tuple[list[ESHit], str | None]:
     """Parse an ES response and for 0) list of hits, and 1) search_after i.e. the pagination anchor for next query."""
-    if 'hits' not in response:
+    if "hits" not in response:
         raise RuntimeError(f"Invalid ES response: no hits in response body: {response}")
 
-    hits = response['hits']['hits']
+    hits = response["hits"]["hits"]
 
     search_after = None
 
     # next page exists
     if len(hits) == page_size:
-        search_after = hits[-1]['sort']
+        search_after = hits[-1]["sort"]
 
-    hits = [hit['_source'] for hit in hits]
+    hits = [hit["_source"] for hit in hits]
 
     return hits, search_after
 
+
 def generate_query_body(query_info: QueryInfo, page_size: int) -> QueryBody:
     """Generate a paginated query body for ES search/msearch endpoints."""
-    query = query_info.get('query')
-    search_after = query_info.get('search_after', None)
+    query = query_info.get("query")
+    search_after = query_info.get("search_after", None)
 
     body: QueryBody = {
-            "size": page_size,
-            "query": query,
-            "sort": [{"id": "asc"}],
+        "size": page_size,
+        "query": query,
+        "sort": [{"id": "asc"}],
     }
 
     if search_after is not None:
-        body['search_after'] = search_after
+        body["search_after"] = search_after
 
     return body
 
-async def run_single_query(es_connection: AsyncElasticsearch, index_name: str, query: ESPayload, page_size:int = 1000) -> list[ESHit]:
+
+async def run_single_query(
+    es_connection: AsyncElasticsearch,
+    index_name: str,
+    query: ESPayload,
+    page_size: int = 1000,
+) -> list[ESHit]:
     """Adapter for running single query through _search and aggregating all hits."""
     query_info: QueryInfo = {
-        "query": query['query'],
-        "search_after":None,
+        "query": query["query"],
+        "search_after": None,
     }
 
     results: list[ESHit] = []
@@ -72,13 +84,20 @@ async def run_single_query(es_connection: AsyncElasticsearch, index_name: str, q
 
     return results
 
-async def run_batch_query(es_connection: AsyncElasticsearch, index_name: str, queries: list[ESPayload], page_size:int = 1000) -> list[list[ESHit]]:
+
+async def run_batch_query(
+    es_connection: AsyncElasticsearch,
+    index_name: str,
+    queries: list[ESPayload],
+    page_size: int = 1000,
+) -> list[list[ESHit]]:
     """Adapter for running batch queries through _msearch and aggregating all hits."""
-    query_collection : list[QueryInfo] = [
+    query_collection: list[QueryInfo] = [
         {
-            "query": query['query'],
+            "query": query["query"],
             "search_after": None,
-        } for query in queries
+        }
+        for query in queries
     ]
 
     results: list[list[ESHit]] = [[] for _ in query_collection]
@@ -90,10 +109,12 @@ async def run_batch_query(es_connection: AsyncElasticsearch, index_name: str, qu
         query_body_list: list[QueryBody | dict[Any, Any]] = []
 
         for i in current_query_indices:
-            query_body_list.extend([
-                {},
-                generate_query_body(query_collection[i], page_size),
-            ])
+            query_body_list.extend(
+                [
+                    {},
+                    generate_query_body(query_collection[i], page_size),
+                ]
+            )
 
         responses = await es_connection.msearch(index=index_name, body=query_body_list)
 
@@ -104,7 +125,7 @@ async def run_batch_query(es_connection: AsyncElasticsearch, index_name: str, qu
             # update results
             results[collection_index].extend(hits)
             # update query_collection
-            query_collection[collection_index]['search_after'] = search_after
+            query_collection[collection_index]["search_after"] = search_after
 
             if search_after is not None:
                 next_query_indices.append(collection_index)

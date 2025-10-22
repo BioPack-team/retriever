@@ -5,8 +5,7 @@ import time
 from opentelemetry import trace
 from reasoner_pydantic import QueryGraph
 
-from retriever.config.general import CONFIG
-from retriever.data_tiers.utils import BACKEND_DRIVERS, TRANSPILERS
+from retriever.data_tiers import tier_manager
 from retriever.lookup.branch import Branch
 from retriever.types.trapi import (
     Infores,
@@ -35,8 +34,8 @@ async def mock_subquery(
         job_log: TRAPILogger = TRAPILogger(job_id)
         start = time.time()
 
-        transpiler = TRANSPILERS[CONFIG.tier1.backend]
-        query_driver = BACKEND_DRIVERS[CONFIG.tier1.backend]
+        transpiler = tier_manager.get_transpiler(1)
+        query_driver = tier_manager.get_driver(1)
 
         # branch comes in execution direction
         # edge it refers to is in query direction

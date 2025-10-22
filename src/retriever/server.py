@@ -10,13 +10,12 @@ import yaml
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse, Response, StreamingResponse
-from loguru import logger
 from reasoner_pydantic import AsyncQueryStatusResponse as TRAPIAsyncQueryStatusResponse
 
 from retriever.config.general import CONFIG
 from retriever.config.logger import configure_logging
 from retriever.config.openapi import OPENAPI_CONFIG, TRAPI
-from retriever.data_tiers.utils import BACKEND_DRIVERS
+from retriever.data_tiers import tier_manager
 from retriever.metakg.metakg import METAKG_MANAGER
 from retriever.query import get_job_state, make_query
 from retriever.types.general import APIInfo, ErrorDetail, LogLevel
@@ -49,18 +48,12 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     add_mongo_sink()
     await REDIS_CLIENT.initialize()
     await METAKG_MANAGER.initialize()
-    tier0_driver = BACKEND_DRIVERS[CONFIG.tier0.backend]
-    tier1_driver = BACKEND_DRIVERS[CONFIG.tier1.backend]
-    with logger.catch(level="error", message="A backend connection has failed."):
-        await tier0_driver.connect()
-        await tier1_driver.connect()
+    await tier_manager.connect_drivers()
 
     yield  # Separates startup/shutdown phase
 
     # Shutdown
-    with logger.catch(level="debug"):
-        await tier1_driver.close()
-        await tier0_driver.close()
+    await tier_manager.close_drivers()
     await METAKG_MANAGER.wrapup()
     await REDIS_CLIENT.close()
     await MONGO_QUEUE.stop_process_task()

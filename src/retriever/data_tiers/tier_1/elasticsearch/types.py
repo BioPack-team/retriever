@@ -50,8 +50,6 @@ class ESNode(TypedDict):
     publications: NotRequired[list[str]]
 
 
-
-
 class ESHit(TypedDict):
     """The main data of an Elasticsearch hit."""
 
@@ -73,14 +71,18 @@ class ESHit(TypedDict):
 
 class ESDocument(TypedDict):
     """A source document returned from Elasticsearch."""
+
     _source: ESHit
     sort: list[Any]
 
 
 class ESHits(TypedDict):
     """A collection of Elasticsearch documents returned as hits."""
+
     hits: list[ESDocument]
+
 
 class ESResponse(TypedDict):
     """An Elasticsearch query response."""
+
     hits: ESHits

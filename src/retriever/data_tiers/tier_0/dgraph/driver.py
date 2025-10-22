@@ -11,7 +11,7 @@ from aiohttp import ClientTimeout
 from loguru import logger as log
 from opentelemetry import trace
 
-from retriever.config.general import CONFIG
+from retriever.config.general import CONFIG, DgraphSettings
 from retriever.data_tiers.base_driver import DatabaseDriver
 from retriever.data_tiers.tier_0.dgraph import result_models as dg_models
 
@@ -100,7 +100,7 @@ class DgraphClientProtocol(Protocol):
 class DgraphDriver(DatabaseDriver):
     """Driver for Dgraph supporting both gRPC and HTTP protocols."""
 
-    settings: Any
+    settings: DgraphSettings
     protocol: DgraphProtocol
     endpoint: str
     query_timeout: float
@@ -130,6 +130,7 @@ class DgraphDriver(DatabaseDriver):
     @override
     async def connect(self, retries: int = 0) -> None:
         """Connect to Dgraph using selected protocol."""
+        log.info("Checking Dgraph connection...")
         try:
             if self.protocol == DgraphProtocol.GRPC:
                 await self._connect_grpc()

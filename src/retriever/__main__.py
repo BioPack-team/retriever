@@ -1,6 +1,5 @@
 import multiprocessing
 import os
-import sys
 
 import uvicorn
 import uvloop
@@ -78,10 +77,7 @@ async def _main_inner() -> None:
 
 def main() -> None:
     """Run the server."""
-    try:
-        uvloop.run(_main_inner())
-    except KeyboardInterrupt:
-        sys.exit(0)
+    uvloop.run(_main_inner())
 
 
 if __name__ == "__main__":
