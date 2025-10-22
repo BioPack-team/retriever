@@ -40,7 +40,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
     @override
     def process_qgraph(
         self, qgraph: QueryGraphDict, *additional_qgraphs: QueryGraphDict
-    ) -> ESPayload:
+    ) -> ESPayload | list[ESPayload]:
         return super().process_qgraph(qgraph, *additional_qgraphs)
 
     def generate_query_term(self, target: str, value: list[str]) -> ESFilterClause:
@@ -49,6 +49,8 @@ class ElasticsearchTranspiler(Tier1Transpiler):
             raise TypeError("value must be a list")
 
         adjusted_value = value
+
+        # to match both "category" and "categories"
         if "categor" in target or "predicate" in target:
             adjusted_value = [biolink.rmprefix(cat) for cat in value]
         return {"terms": {f"{target}": adjusted_value}}
@@ -132,8 +134,8 @@ class ElasticsearchTranspiler(Tier1Transpiler):
         return self.generate_query_for_merged_edges(in_node, edge, out_node)
 
     @override
-    def convert_batch_triple(self, qgraphs: list[QueryGraphDict]) -> ESPayload:
-        raise NotImplementedError("Batching is not supported.")
+    def convert_batch_triple(self, qgraphs: list[QueryGraphDict]) -> list[ESPayload]:
+        return [self.convert_triple(qgraph) for qgraph in qgraphs]
 
     def build_nodes(self, hits: list[ESHit]) -> dict[CURIE, NodeDict]:
         """Build TRAPI nodes from backend representation."""
@@ -295,3 +297,12 @@ class ElasticsearchTranspiler(Tier1Transpiler):
             knowledge_graph=KnowledgeGraphDict(nodes=nodes, edges=edges),
             auxiliary_graphs={},
         )
+
+    def convert_batch_results(
+        self, qgraph_list: list[QueryGraphDict], results: list[list[ESHit]]
+    ) -> list[BackendResult]:
+        """Wrapper for converting results for a batch query."""
+        return [
+            self.convert_results(qgraph, result)
+            for qgraph, result in zip(qgraph_list, results, strict=False)
+        ]
