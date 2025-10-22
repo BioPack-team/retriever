@@ -47,7 +47,9 @@ class ElasticsearchTranspiler(Tier1Transpiler):
             raise TypeError("value must be a list")
 
         adjusted_value = value
-        if "category" in target or "predicate" in target:
+
+        # to match both "category" and "categories"
+        if "categor" in target or "predicate" in target:
             adjusted_value = [biolink.rmprefix(cat) for cat in value]
         return {"terms": {f"{target}": adjusted_value}}
 
