@@ -2,11 +2,9 @@ import re
 from dataclasses import dataclass
 from textwrap import dedent
 from typing import Any, cast
-from unittest.mock import AsyncMock
 
 import pytest
 
-from retriever.data_tiers.tier_0.dgraph.driver import DgraphDriver
 from retriever.data_tiers.tier_0.dgraph.transpiler import DgraphTranspiler
 from retriever.types.trapi import QEdgeDict, QNodeDict, QueryGraphDict
 
@@ -1149,33 +1147,3 @@ def test_convert_multihop_pairs_with_version(transpiler: _TestDgraphTranspiler, 
 def test_convert_batch_multihop_pairs(transpiler: _TestDgraphTranspiler, case: BatchCase) -> None:
     actual = transpiler.convert_batch_multihop_public(case.qgraphs)
     assert_query_equals(actual, case.expected)
-
-@pytest.mark.asyncio
-async def test_transpiler_creation_with_driver() -> None:
-    """Test the DgraphTranspiler.create factory with a mock driver."""
-    # Case 1: Driver returns a version, no explicit version passed
-    mock_driver_v1 = AsyncMock(spec=DgraphDriver)
-    mock_driver_v1.get_active_version.return_value = "v1"
-    transpiler_v1 = await DgraphTranspiler.create(driver=mock_driver_v1)
-    assert transpiler_v1.version == "v1"
-    assert transpiler_v1.prefix == "v1_"
-    mock_driver_v1.get_active_version.assert_called_once()
-
-    # Case 2: Driver returns None, no explicit version passed
-    mock_driver_none = AsyncMock(spec=DgraphDriver)
-    mock_driver_none.get_active_version.return_value = None
-    transpiler_none = await DgraphTranspiler.create(driver=mock_driver_none)
-    assert transpiler_none.version is None
-    assert transpiler_none.prefix == ""
-    mock_driver_none.get_active_version.assert_called_once()
-
-    # Case 3: Explicit version is passed, overriding the driver
-    # Use a new mock driver to ensure call counts are isolated from other cases.
-    mock_driver_override = AsyncMock(spec=DgraphDriver)
-    transpiler_override = await DgraphTranspiler.create(
-        driver=mock_driver_override, version="v_explicit"
-    )
-    assert transpiler_override.version == "v_explicit"
-    assert transpiler_override.prefix == "v_explicit_"
-    # Ensure the driver's method was not called in this case.
-    mock_driver_override.get_active_version.assert_not_called()

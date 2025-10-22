@@ -143,7 +143,7 @@ class DgraphDriver(DatabaseDriver):
         # Manually check the cache first
         try:
             cached_version = self._version_cache["active_version"]
-            log.debug("Returning cached Dgraph schema version.")
+            log.debug(f"Returning cached Dgraph schema version: {cached_version}")
             return cached_version
         except KeyError:
             log.debug("Querying for active Dgraph schema version (cache miss)...")
@@ -200,6 +200,14 @@ class DgraphDriver(DatabaseDriver):
             else:
                 await self._connect_http()
             log.success(f"Dgraph {self.protocol} connection successful!")
+
+            # Populate version cache after successful connect so subsequent
+            # code can use get_active_version without triggering a query.
+            try:
+                await self.get_active_version()
+            except Exception as e:
+                log.warning(f"Unable to fetch active schema version after connect: {e}")
+
         except Exception as e:
             await self._cleanup_connections()
             if retries < self.connect_retries:

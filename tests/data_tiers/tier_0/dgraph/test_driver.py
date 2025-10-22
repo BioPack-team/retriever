@@ -178,7 +178,7 @@ async def test_get_active_version_success_grpc_live():
 
         # Should return the version "v2" as per the live Dgraph instance
         version = await driver.get_active_version()
-        assert version == "v2"
+        assert version == "v3"
     except Exception as e:
         pytest.skip(f"Skipping live Dgraph HTTP test (cannot connect or query): {e}")
     finally:
@@ -200,7 +200,7 @@ async def test_get_active_version_success_http_live():
 
         # Should return the version "v2" as per the live Dgraph instance
         version = await driver.get_active_version()
-        assert version == "v2"
+        assert version == "v3"
     except Exception as e:
         pytest.skip(f"Skipping live Dgraph HTTP test (cannot connect or query): {e}")
     finally:
@@ -228,9 +228,6 @@ async def test_get_active_version_success_and_cached(
     driver = new_grpc_driver()
     # The driver will now use our mocked client internally upon connection
     await driver.connect()
-
-    # Clear cache before test
-    driver.clear_version_cache()
 
     # First call should trigger the query
     version = await driver.get_active_version()
@@ -308,12 +305,12 @@ async def test_simple_one_query_live_http() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n0(func: eq(v2_id, "CHEBI:4514")) @cascade {
-            id: v2_id name: v2_name category: v2_category all_names: v2_all_names all_categories: v2_all_categories iri: v2_iri equivalent_curies: v2_equivalent_curies description: v2_description publications: v2_publications
-            in_edges_e0: ~v2_source @filter(eq(v2_all_predicates, "subclass_of")) {
-                predicate: v2_predicate primary_knowledge_source: v2_primary_knowledge_source knowledge_level: v2_knowledge_level agent_type: v2_agent_type kg2_ids: v2_kg2_ids domain_range_exclusion: v2_domain_range_exclusion qualified_object_aspect: v2_qualified_object_aspect qualified_object_direction: v2_qualified_object_direction qualified_predicate: v2_qualified_predicate publications: v2_publications publications_info: v2_publications_info
-                node_n1: v2_target @filter(eq(v2_id, "UMLS:C1564592")) {
-                    id: v2_id name: v2_name category: v2_category all_names: v2_all_names all_categories: v2_all_categories iri: v2_iri equivalent_curies: v2_equivalent_curies description: v2_description publications: v2_publications
+        q0_node_n0(func: eq(v3_id, "CHEBI:4514")) @cascade {
+            id: v3_id name: v3_name category: v3_category all_names: v3_all_names all_categories: v3_all_categories iri: v3_iri equivalent_curies: v3_equivalent_curies description: v3_description publications: v3_publications
+            in_edges_e0: ~v3_source @filter(eq(v3_all_predicates, "subclass_of")) {
+                predicate: v3_predicate primary_knowledge_source: v3_primary_knowledge_source knowledge_level: v3_knowledge_level agent_type: v3_agent_type kg2_ids: v3_kg2_ids domain_range_exclusion: v3_domain_range_exclusion qualified_object_aspect: v3_qualified_object_aspect qualified_object_direction: v3_qualified_object_direction qualified_predicate: v3_qualified_predicate publications: v3_publications publications_info: v3_publications_info
+                node_n1: v3_target @filter(eq(v3_id, "UMLS:C1564592")) {
+                    id: v3_id name: v3_name category: v3_category all_names: v3_all_names all_categories: v3_all_categories iri: v3_iri equivalent_curies: v3_equivalent_curies description: v3_description publications: v3_publications
                 }
             }
         }
@@ -323,10 +320,15 @@ async def test_simple_one_query_live_http() -> None:
     driver = new_http_driver()
     try:
         await driver.connect()
-        driver.clear_version_cache()
 
-        # Use the transpiler to generate the Dgraph query
-        transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version="v2")
+        # Get the active Dgraph schema version
+        dgraph_schema_version = await driver.get_active_version()
+
+        # Initialize the transpiler with the detected version
+        transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+        assert transpiler.version == "v3"
+        assert transpiler.prefix == "v3_"
+
         dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
         assert_query_equals(dgraph_query, dgraph_query_match)
 
@@ -388,12 +390,12 @@ async def test_simple_one_query_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n0(func: eq(v2_id, "CHEBI:4514")) @cascade {
-            id: v2_id name: v2_name category: v2_category all_names: v2_all_names all_categories: v2_all_categories iri: v2_iri equivalent_curies: v2_equivalent_curies description: v2_description publications: v2_publications
-            in_edges_e0: ~v2_source @filter(eq(v2_all_predicates, "subclass_of")) {
-                predicate: v2_predicate primary_knowledge_source: v2_primary_knowledge_source knowledge_level: v2_knowledge_level agent_type: v2_agent_type kg2_ids: v2_kg2_ids domain_range_exclusion: v2_domain_range_exclusion qualified_object_aspect: v2_qualified_object_aspect qualified_object_direction: v2_qualified_object_direction qualified_predicate: v2_qualified_predicate publications: v2_publications
-                node_n1: v2_target @filter(eq(v2_id, "UMLS:C1564592")) {
-                    id: v2_id name: v2_name category: v2_category all_names: v2_all_names all_categories: v2_all_categories iri: v2_iri equivalent_curies: v2_equivalent_curies description: v2_description publications: v2_publications
+        q0_node_n0(func: eq(v3_id, "CHEBI:4514")) @cascade {
+            id: v3_id name: v3_name category: v3_category all_names: v3_all_names all_categories: v3_all_categories iri: v3_iri equivalent_curies: v3_equivalent_curies description: v3_description publications: v3_publications
+            in_edges_e0: ~v3_source @filter(eq(v3_all_predicates, "subclass_of")) {
+                predicate: v3_predicate primary_knowledge_source: v3_primary_knowledge_source knowledge_level: v3_knowledge_level agent_type: v3_agent_type kg2_ids: v3_kg2_ids domain_range_exclusion: v3_domain_range_exclusion qualified_object_aspect: v3_qualified_object_aspect qualified_object_direction: v3_qualified_object_direction qualified_predicate: v3_qualified_predicate publications: v3_publications publications_info: v3_publications_info
+                node_n1: v3_target @filter(eq(v3_id, "UMLS:C1564592")) {
+                    id: v3_id name: v3_name category: v3_category all_names: v3_all_names all_categories: v3_all_categories iri: v3_iri equivalent_curies: v3_equivalent_curies description: v3_description publications: v3_publications
                 }
             }
         }
@@ -403,10 +405,16 @@ async def test_simple_one_query_live_grpc() -> None:
     driver = new_grpc_driver()
     try:
         await driver.connect()
-        driver.clear_version_cache()
+
+        # Get the active Dgraph schema version
+        dgraph_schema_version = await driver.get_active_version()
+
+        # Initialize the transpiler with the detected version
+        transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+        assert transpiler.version == "v3"
+        assert transpiler.prefix == "v3_"
 
         # Use the transpiler to generate the Dgraph query
-        transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version="v2")
         dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
         assert_query_equals(dgraph_query, dgraph_query_match)
 
@@ -465,27 +473,30 @@ async def test_simple_one_query_grpc_parallel_live_nonblocking() -> None:
         },
     })
 
-    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version="v2")
-    dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
-
     driver = new_grpc_driver()
     try:
         await driver.connect()
-        driver.clear_version_cache()
+
+        # Get the active Dgraph schema version
+        dgraph_schema_version = await driver.get_active_version()
+
+        # Initialize the transpiler with the detected version
+        transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+
+        # Use the transpiler to generate the Dgraph query
+        dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
 
         async def run_query_with_delay():
             # Add an artificial delay to simulate a slow query
             await asyncio.sleep(1)
             return await driver.run_query(dgraph_query)
 
-        async def run_query_no_delay():
-            return await driver.run_query(dgraph_query)
-
         start = time.perf_counter()
-        # Run both queries concurrently
+        # Run queries concurrently. Calling run_query_with_delay three times to increase chance of blocking.
         results = await asyncio.gather(
             run_query_with_delay(),
-            run_query_no_delay(),
+            run_query_with_delay(),
+            run_query_with_delay(),
         )
         elapsed = time.perf_counter() - start
 
@@ -526,27 +537,30 @@ async def test_simple_one_query_http_parallel_live_nonblocking() -> None:
         },
     })
 
-    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version="v2")
-    dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
-
     driver = new_http_driver()
     try:
         await driver.connect()
-        driver.clear_version_cache()
+
+        # Get the active Dgraph schema version
+        dgraph_schema_version = await driver.get_active_version()
+
+        # Initialize the transpiler with the detected version
+        transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+
+        # Use the transpiler to generate the Dgraph query
+        dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
 
         async def run_query_with_delay():
             # Add an artificial delay to simulate a slow query
             await asyncio.sleep(1)
             return await driver.run_query(dgraph_query)
 
-        async def run_query_no_delay():
-            return await driver.run_query(dgraph_query)
-
         start = time.perf_counter()
-        # Run both queries concurrently
+        # Run queries concurrently. Calling run_query_with_delay three times to increase chance of blocking.
         results = await asyncio.gather(
             run_query_with_delay(),
-            run_query_no_delay(),
+            run_query_with_delay(),
+            run_query_with_delay(),
         )
         elapsed = time.perf_counter() - start
 
