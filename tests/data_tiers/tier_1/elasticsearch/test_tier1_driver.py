@@ -53,6 +53,8 @@ PAYLOAD_1: ESPayload = esp({
 })
 
 
+PAYLOAD_2: ESPayload = esp( {'query': {'bool': {'filter': [{'terms': {'subject.all_categories': ['Gene']}}, {'terms': {'object.id': ['UMLS:C0011847']}}, {'terms': {'object.all_categories': ['Disease']}}, {'terms': {'all_predicates': ['causes']}}]}}})
+
 
 @pytest.mark.usefixtures("mock_elasticsearch_config")
 @pytest.mark.asyncio
@@ -61,14 +63,16 @@ PAYLOAD_1: ESPayload = esp({
     [
         (PAYLOAD_0, 42),
         (PAYLOAD_1, 85),
+        (PAYLOAD_2, 22),
         (
-            [PAYLOAD_0, PAYLOAD_1],
-            [42,85]
+            [PAYLOAD_0, PAYLOAD_1,PAYLOAD_2],
+            [42,85,22]
         )
     ],
     ids=[
         "single payload 1",
         "single payload 2",
+        "single payload 3",
         "batch payload",
     ]
 )

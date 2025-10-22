@@ -14,7 +14,7 @@ def qg(d: dict[str, Any]) -> QueryGraphDict:
 def esh(d: dict[str, Any]) -> ESHit:
     return cast(ESHit, cast(ESPayload, cast(dict, d)))
 
-SIMPLE_QGRAPH: QueryGraphDict = qg({
+SIMPLE_QGRAPH_0: QueryGraphDict = qg({
     "nodes": {
         "n0": {"ids": ["CHEBI:4514"], "constraints": []},
         "n1": {"ids": ["UMLS:C1564592"], "constraints": []},
@@ -29,6 +29,21 @@ SIMPLE_QGRAPH: QueryGraphDict = qg({
         },
     },
 })
+
+SIMPLE_QGRAPH_1: QueryGraphDict = qg({
+        "nodes": {
+                "n0": {"categories": ["biolink:Gene"]},
+                "n1": {"categories": ["biolink:Disease"], "ids": ["UMLS:C0011847"]}
+            },
+            "edges": {
+                "e01": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": ["biolink:causes"]
+                }
+            }
+})
+
 
 SIMPLE_QGRAPH_MULTIPLE_IDS: QueryGraphDict = qg({
     "nodes": {
@@ -311,6 +326,14 @@ def es_transpiler() -> ElasticsearchTranspiler:
     return ElasticsearchTranspiler()
 
 
+def check_list_fields(reference: list, against: list):
+    for ref, ag in zip(reference, against):
+        if ref.startswith("biolink:"):
+            assert ref[8:] == ag
+        else:
+            assert ref == ag
+
+
 def check_single_query_payload(
     q_graph: QueryGraphDict, generated_payload:ESPayload
 ):
@@ -330,16 +353,19 @@ def check_single_query_payload(
             assert in_node["ids"] == terms["subject.id"]
         if "object.id" in terms:
             assert out_node["ids"] == terms["object.id"]
-        if "all_predicates" in terms:
-            assert q_edge["predicates"] == terms["all_predicates"]
+
+        for field_name in ["predicates", "categories"]:
+            variant = f"all_{field_name}"
+            if variant in terms:
+                check_list_fields(q_edge[field_name], terms[variant])
 
 
 Q_GRAPH_CASES = (
     "q_graph",
-    [SIMPLE_QGRAPH, SIMPLE_QGRAPH_MULTIPLE_IDS],
+    [SIMPLE_QGRAPH_0, SIMPLE_QGRAPH_1, SIMPLE_QGRAPH_MULTIPLE_IDS],
 )
 
-Q_GRAPH_CASES_IDS = ["single id", "multiple ids"]
+Q_GRAPH_CASES_IDS = ["single id 0","single id 1", "multiple ids"]
 
 @pytest.mark.parametrize(*Q_GRAPH_CASES, ids=Q_GRAPH_CASES_IDS)
 def test_convert_triple(q_graph: QueryGraphDict, es_transpiler: ElasticsearchTranspiler) -> None:
@@ -362,7 +388,7 @@ def test_convert_batch_triple(q_graph: QueryGraphDict, es_transpiler: Elasticsea
 @pytest.mark.asyncio
 async def test_convert_results(es_transpiler: ElasticsearchTranspiler):
     result = es_transpiler.convert_results(
-        SIMPLE_QGRAPH,
+        SIMPLE_QGRAPH_0,
         SIMPLE_ES_HITS
     )
 
@@ -371,7 +397,7 @@ async def test_convert_results(es_transpiler: ElasticsearchTranspiler):
 @pytest.mark.asyncio
 async def test_convert_batch_results(es_transpiler: ElasticsearchTranspiler):
     results = es_transpiler.convert_batch_results(
-        [SIMPLE_QGRAPH],
+        [SIMPLE_QGRAPH_0],
         [SIMPLE_ES_HITS]
     )
 
