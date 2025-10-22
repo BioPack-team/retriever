@@ -130,7 +130,7 @@ dbs = 'task dbs:stop && task dbs:start'
 jaeger = 'task jaeger:stop && task jaeger:start'
 
 launch = 'retriever'
-'launch:debug' = 'LOG_LEVEL=TRACE JOB_LOOKUP_TIMEOUT=-1 WORKERS=1 retriever'
+'launch:debug' = 'DEBUG=true LOG_LEVEL=TRACE JOB_LOOKUP_TIMEOUT=-1 WORKERS=1 retriever'
 
 start = 'task dbs && task launch'
 dev = 'task dbs && task launch:debug'
