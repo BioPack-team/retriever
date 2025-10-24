@@ -2,7 +2,12 @@ from functools import lru_cache
 
 import bmt
 
-biolink = bmt.Toolkit()
+from retriever.config.openapi import OPENAPI_CONFIG
+
+biolink = bmt.Toolkit(
+    schema=f"https://raw.githubusercontent.com/biolink/biolink-model/refs/tags/v{OPENAPI_CONFIG.x_translator.biolink_version}/biolink-model.yaml",
+    predicate_map=f"https://raw.githubusercontent.com/biolink/biolink-model/refs/tags/v{OPENAPI_CONFIG.x_translator.biolink_version}/predicate_mapping.yaml",
+)
 
 
 def ensure_prefix(item: str) -> str:

@@ -34,12 +34,12 @@ x_translator:  # Note that fields usually named with - instead use _ (e.g. x-tra
   component: ''
   team:
   - biopack
-  biolink_version: 4.2.2
+  biolink_version: 4.3.2
   infores: retriever  # Unique identifier for this component, used in provenance.
   externalDocs:
-    description: The values for component and team are restricted according to 
+    description: The values for component and team are restricted according to
       this external JSON schema. See schema and examples at url.
-    url: 
+    url:
       https://github.com/NCATSTranslator/translator_extensions/blob/production/x-translator/
 x_trapi:
   version: 1.6.0
@@ -52,40 +52,40 @@ x_trapi:
   rate_limit: 300 # Maximum number of requests per minute.
   test_data_location:
     default:
-      url: 
+      url:
         https://raw.githubusercontent.com/NCATS-Tangerine/translator-api-registry/master/biothings_explorer/sri-test-bte-ara.json
   externalDocs:
     description: The values for version are restricted according to the regex in
       this external JSON schema. See schema and examples at url
-    url: 
+    url:
       https://github.com/NCATSTranslator/translator_extensions/blob/production/x-trapi/
 response_descriptions:
   meta_knowledge_graph:
-    '200': Returns meta knowledge graph representation of this TRAPI web 
+    '200': Returns meta knowledge graph representation of this TRAPI web
       service.
   query:
-    '200': OK. There may or may not be results. Note that some of the provided 
+    '200': OK. There may or may not be results. Note that some of the provided
       identifiers may not have been recognized.
-    '400': Bad request. The request is invalid according to this OpenAPI schema 
-      OR a specific identifier is believed to be invalid somehow (not just 
+    '400': Bad request. The request is invalid according to this OpenAPI schema
+      OR a specific identifier is believed to be invalid somehow (not just
       unrecognized).
-    '413': Payload too large. Indicates that batch size was over the limit 
+    '413': Payload too large. Indicates that batch size was over the limit
       specified in x-trapi.
-    '429': Payload too large. Indicates that batch size was over the limit 
+    '429': Payload too large. Indicates that batch size was over the limit
       specified in x-trapi.
   asyncquery:
     '200': The query is accepted for processing and the Response will be sent to
       the callback url when complete.
   asyncquery_status:
-    '200': Returns the status and current logs of a previously submitted 
+    '200': Returns the status and current logs of a previously submitted
       asyncquery.
     '404': job_id not found
     '501': Return code 501 indicates that this endpoint has not been implemented
-      at this site. Sites that implement /asyncquery MUST implement 
-      /asyncquery_status/{job_id}, but those that do not implement /asyncquery 
+      at this site. Sites that implement /asyncquery MUST implement
+      /asyncquery_status/{job_id}, but those that do not implement /asyncquery
       SHOULD NOT implement /asyncquery_status.
   response:
-    '200': Returns either the status and logs, or if complete, the complete 
+    '200': Returns either the status and logs, or if complete, the complete
       response  of a previously submitted asyncquery.
   logs:
     '200': Logs in either flat or structured JSON format.

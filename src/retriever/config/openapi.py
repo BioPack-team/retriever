@@ -53,7 +53,7 @@ class XTranslator(BaseModel):
 
     component: str = ""
     team: list[str] = ["biopack"]
-    biolink_version: str = str(biolink.get_model_version())
+    biolink_version: str = "4.3.2"
     infores: Annotated[
         str,
         Field(description="Unique identifier for this component, used in provenance."),
