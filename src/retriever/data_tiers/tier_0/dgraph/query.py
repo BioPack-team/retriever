@@ -17,7 +17,8 @@ class DgraphQuery(Tier0Query):
     @override
     async def get_results(self, qgraph: QueryGraphDict) -> BackendResult:
         backend_driver = DgraphGrpcDriver()
-        transpiler = DgraphTranspiler()
+        dgraph_schema_version = await backend_driver.get_active_version()
+        transpiler = DgraphTranspiler(version=dgraph_schema_version)
 
         # Transpile to backend QL
         query_payload = transpiler.process_qgraph(qgraph)
