@@ -45,12 +45,30 @@ class DgraphTranspiler(Tier0Transpiler):
 
     FilterScalar: TypeAlias = str | int | float | bool  # noqa: UP040
     FilterValue: TypeAlias = FilterScalar | list[FilterScalar]  # noqa: UP040
+    version: str | None
+    prefix: str
 
-    def __init__(self) -> None:
-        """Initialize a Transpiler instance."""
+    def __init__(self, version: str | None = None) -> None:
+        """Initialize a Transpiler instance.
+
+        Args:
+            version: An optional version string to prefix to all schema fields.
+        """
         super().__init__()
         self.kgraph: KnowledgeGraphDict = KnowledgeGraphDict(nodes={}, edges={})
         self.k_agraph: KAdjacencyGraph
+        self.version = version
+        self.prefix = f"{version}_" if version else ""
+
+    def _v(self, field: str) -> str:
+        """Return the versioned field name."""
+        return f"{self.prefix}{field}"
+
+    def _aliased_fields(self, fields: list[str]) -> str:
+        """Return a string of aliased fields if a version is set, otherwise return just the field names."""
+        if self.version:
+            return " ".join(f"{field}: {self._v(field)}" for field in fields) + " "
+        return " ".join(fields) + " "
 
     @override
     def process_qgraph(
@@ -102,27 +120,27 @@ class DgraphTranspiler(Tier0Transpiler):
                     # Multiple IDs in a single string - split them
                     id_list = [id_val.strip() for id_val in id_value.split(",")]
                     ids_str = ", ".join(f'"{id_val}"' for id_val in id_list)
-                    filters.append(f"eq(id, [{ids_str}])")
+                    filters.append(f"eq({self._v('id')}, [{ids_str}])")
                 else:
                     # Single ID
-                    filters.append(f'eq(id, "{id_value}")')
+                    filters.append(f"eq({self._v('id')}, \"{id_value}\")")
             else:
                 # Multiple IDs in array
                 ids_str = ", ".join(f'"{id_val}"' for id_val in ids)
-                filters.append(f"eq(id, [{ids_str}])")
+                filters.append(f"eq({self._v('id')}, [{ids_str}])")
 
         # Handle category filtering
         categories = node.get("categories")
         if categories:
             if len(categories) == 1:
                 filters.append(
-                    f'eq(all_categories, "{categories[0].replace("biolink:", "")}")'
+                    f'eq({self._v("all_categories")}, "{categories[0].replace("biolink:", "")}")'
                 )
             elif len(categories) > 1:
                 categories_str = ", ".join(
                     f'"{cat.replace("biolink:", "")}"' for cat in categories
                 )
-                filters.append(f"eq(all_categories, [{categories_str}])")
+                filters.append(f"eq({self._v('all_categories')}, [{categories_str}])")
 
         # Handle attribute constraints
         constraints = node.get("constraints")
@@ -131,7 +149,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
         # If no filters, use a generic filter
         if not filters:
-            return "has(id)"
+            return f"has({self._v('id')})"
 
         # Combine all filters with AND
         if len(filters) == 1:
@@ -148,13 +166,13 @@ class DgraphTranspiler(Tier0Transpiler):
         if predicates:
             if len(predicates) == 1:
                 filters.append(
-                    f'eq(all_predicates, "{predicates[0].replace("biolink:", "")}")'
+                    f'eq({self._v("all_predicates")}, "{predicates[0].replace("biolink:", "")}")'
                 )
             elif len(predicates) > 1:
                 predicates_str = ", ".join(
                     f'"{pred.replace("biolink:", "")}"' for pred in predicates
                 )
-                filters.append(f"eq(all_predicates, [{predicates_str}])")
+                filters.append(f"eq({self._v('all_predicates')}, [{predicates_str}])")
 
         # Handle attribute constraints
         attribute_constraints = edge.get("attribute_constraints")
@@ -185,7 +203,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
     def _create_filter_expression(self, constraint: AttributeConstraintDict) -> str:
         """Create a filter expression for a single constraint."""
-        field_name = constraint["id"]
+        field_name = self._v(constraint["id"])
         value = constraint["value"]
         operator = constraint["operator"]
         is_negated = constraint.get("not", False)
@@ -244,13 +262,13 @@ class DgraphTranspiler(Tier0Transpiler):
                 # Multiple IDs in a single string - split them
                 split_ids = [id_val.strip() for id_val in id_value.split(",")]
                 ids_str = ", ".join(f'"{id_val}"' for id_val in split_ids)
-                return f"eq(id, [{ids_str}])"
+                return f"eq({self._v('id')}, [{ids_str}])"
             # Single ID - most selective query
-            return f'eq(id, "{id_value}")'
+            return f"eq({self._v('id')}, \"{id_value}\")"
 
         # Multiple IDs in array
         ids_str = ", ".join(f'"{id_val}"' for id_val in id_list)
-        return f"eq(id, [{ids_str}])"
+        return f"eq({self._v('id')}, [{ids_str}])"
 
     def _create_category_filter(
         self,
@@ -259,15 +277,15 @@ class DgraphTranspiler(Tier0Transpiler):
         """Create a filter for category fields."""
         cat_vals = [str(c).replace("biolink:", "") for c in categories]
         if len(cat_vals) == 1:
-            return f'eq(all_categories, "{cat_vals[0].replace("biolink:", "")}")'
+            return f'eq({self._v("all_categories")}, "{cat_vals[0].replace("biolink:", "")}")'
         categories_str = ", ".join(f'"{cat}"' for cat in cat_vals)
-        return f"eq(all_categories, [{categories_str}])"
+        return f"eq({self._v('all_categories')}, [{categories_str}])"
 
     def _get_primary_and_secondary_filters(
         self, node: QNodeDict
     ) -> tuple[str, list[str]]:
         """Extract primary and secondary filters from a node."""
-        primary_filter = "has(id)"  # Default
+        primary_filter = f"has({self._v('id')})"  # Default
         secondary_filters: list[str] = []
 
         # Choose the most selective filter for primary (usually ID)
@@ -295,22 +313,36 @@ class DgraphTranspiler(Tier0Transpiler):
         return primary_filter, secondary_filters
 
     def _add_standard_node_fields(self) -> str:
-        """Generate standard node fields."""
-        return (
-            "id name category "
-            "all_names all_categories "
-            "iri equivalent_curies "
-            "description publications "
-        )
+        """Generate standard node fields with versioned aliases."""
+        fields = [
+            "id",
+            "name",
+            "category",
+            "all_names",
+            "all_categories",
+            "iri",
+            "equivalent_curies",
+            "description",
+            "publications",
+        ]
+        return self._aliased_fields(fields)
 
     def _add_standard_edge_fields(self) -> str:
-        """Generate standard edge fields."""
-        return (
-            "predicate primary_knowledge_source "
-            "knowledge_level agent_type "
-            "kg2_ids domain_range_exclusion "
-            "edge_id "
-        )
+        """Generate standard edge fields with versioned aliases."""
+        fields = [
+            "predicate",
+            "primary_knowledge_source",
+            "knowledge_level",
+            "agent_type",
+            "kg2_ids",
+            "domain_range_exclusion",
+            "qualified_object_aspect",
+            "qualified_object_direction",
+            "qualified_predicate",
+            "publications",
+            "publications_info",
+        ]
+        return self._aliased_fields(fields)
 
     def _build_filter_clause(self, filters: list[str]) -> str:
         """Build filter clause from a list of filters."""
@@ -354,7 +386,7 @@ class DgraphTranspiler(Tier0Transpiler):
         edge_filter = self._build_edge_filter(edge)
         filter_clause = f" @filter({edge_filter})" if edge_filter else ""
 
-        query = f"in_edges: ~source{filter_clause} {{ "
+        query = f"in_edges: ~{self._v('source')}{filter_clause} {{ "
 
         # Include all standard edge fields
         query += self._add_standard_edge_fields()
@@ -366,7 +398,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
         # Create the source filter clause
         source_filter_clause = ""
-        if primary_filter != "has(id)":
+        if primary_filter != f"has({self._v('id')})":
             if not secondary_filters:
                 source_filter_clause = f" @filter({primary_filter})"
             else:
@@ -376,7 +408,7 @@ class DgraphTranspiler(Tier0Transpiler):
         elif secondary_filters:
             source_filter_clause = self._build_filter_clause(secondary_filters)
 
-        query += f"node: target{source_filter_clause} {{ "
+        query += f"node: {self._v('target')}{source_filter_clause} {{ "
 
         # Include all standard node fields for the target
         query += self._add_standard_node_fields()
@@ -453,16 +485,16 @@ class DgraphTranspiler(Tier0Transpiler):
                 filter_clause = f" @filter({edge_filter})" if edge_filter else ""
 
                 # Use `~target` for outgoing edges
-                query += f"out_edges_{edge_id}: ~target{filter_clause} {{ "
+                query += f"out_edges_{edge_id}: ~{self._v('target')}{filter_clause} {{ "
                 query += self._add_standard_edge_fields()
 
                 object_filter = self._build_node_filter(object_node)
                 object_filter_clause = (
-                    f" @filter({object_filter})" if object_filter != "has(id)" else ""
+                    f" @filter({object_filter})" if object_filter != f"has({self._v('id')})" else ""
                 )
 
                 # Use `node_{object_id}` for the connected node
-                query += f"node_{object_id}: source{object_filter_clause} {{ "
+                query += f"node_{object_id}: {self._v('source')}{object_filter_clause} {{ "
                 query += self._add_standard_node_fields()
 
                 # Recurse from the newly connected object node
@@ -484,16 +516,16 @@ class DgraphTranspiler(Tier0Transpiler):
                 filter_clause = f" @filter({edge_filter})" if edge_filter else ""
 
                 # Use `in_edges_{edge_id}` for incoming edges
-                query += f"in_edges_{edge_id}: ~source{filter_clause} {{ "
+                query += f"in_edges_{edge_id}: ~{self._v('source')}{filter_clause} {{ "
                 query += self._add_standard_edge_fields()
 
                 source_filter = self._build_node_filter(source_node)
                 source_filter_clause = (
-                    f" @filter({source_filter})" if source_filter != "has(id)" else ""
+                    f" @filter({source_filter})" if source_filter != f"has({self._v('id')})" else ""
                 )
 
                 # Use `node_{source_id}` for the connected node
-                query += f"node_{source_id}: target{source_filter_clause} {{ "
+                query += f"node_{source_id}: {self._v('target')}{source_filter_clause} {{ "
                 query += self._add_standard_node_fields()
 
                 # Recurse from the newly connected source node
