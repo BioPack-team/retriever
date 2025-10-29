@@ -123,7 +123,7 @@ class DgraphTranspiler(Tier0Transpiler):
                     filters.append(f"eq({self._v('id')}, [{ids_str}])")
                 else:
                     # Single ID
-                    filters.append(f"eq({self._v('id')}, \"{id_value}\")")
+                    filters.append(f'eq({self._v("id")}, "{id_value}")')
             else:
                 # Multiple IDs in array
                 ids_str = ", ".join(f'"{id_val}"' for id_val in ids)
@@ -264,7 +264,7 @@ class DgraphTranspiler(Tier0Transpiler):
                 ids_str = ", ".join(f'"{id_val}"' for id_val in split_ids)
                 return f"eq({self._v('id')}, [{ids_str}])"
             # Single ID - most selective query
-            return f"eq({self._v('id')}, \"{id_value}\")"
+            return f'eq({self._v("id")}, "{id_value}")'
 
         # Multiple IDs in array
         ids_str = ", ".join(f'"{id_val}"' for id_val in id_list)
@@ -490,11 +490,15 @@ class DgraphTranspiler(Tier0Transpiler):
 
                 object_filter = self._build_node_filter(object_node)
                 object_filter_clause = (
-                    f" @filter({object_filter})" if object_filter != f"has({self._v('id')})" else ""
+                    f" @filter({object_filter})"
+                    if object_filter != f"has({self._v('id')})"
+                    else ""
                 )
 
                 # Use `node_{object_id}` for the connected node
-                query += f"node_{object_id}: {self._v('source')}{object_filter_clause} {{ "
+                query += (
+                    f"node_{object_id}: {self._v('source')}{object_filter_clause} {{ "
+                )
                 query += self._add_standard_node_fields()
 
                 # Recurse from the newly connected object node
@@ -521,11 +525,15 @@ class DgraphTranspiler(Tier0Transpiler):
 
                 source_filter = self._build_node_filter(source_node)
                 source_filter_clause = (
-                    f" @filter({source_filter})" if source_filter != f"has({self._v('id')})" else ""
+                    f" @filter({source_filter})"
+                    if source_filter != f"has({self._v('id')})"
+                    else ""
                 )
 
                 # Use `node_{source_id}` for the connected node
-                query += f"node_{source_id}: {self._v('target')}{source_filter_clause} {{ "
+                query += (
+                    f"node_{source_id}: {self._v('target')}{source_filter_clause} {{ "
+                )
                 query += self._add_standard_node_fields()
 
                 # Recurse from the newly connected source node
@@ -565,14 +573,24 @@ class DgraphTranspiler(Tier0Transpiler):
             categories=[
                 BiolinkEntity(biolink.ensure_prefix(cat)) for cat in node.all_categories
             ],
-            attributes=[
+            attributes=[],
+        )
+
+        xref_only_self = (
+            len(node.equivalent_curies) == 1 and node.equivalent_curies[0] == node.id
+        )
+        if not xref_only_self:
+            trapi_node["attributes"].append(
                 AttributeDict(
                     attribute_type_id="biolink:xref",
                     value=node.equivalent_curies,
                 )
-            ],
+            )
+
+        name_only_self = (not node.all_names) or (
+            len(node.all_names) == 1 and node.all_names[0] == node.name
         )
-        if len(node.all_names):
+        if not name_only_self:
             trapi_node["attributes"].append(
                 AttributeDict(attribute_type_id="biolink:synonym", value=node.all_names)
             )

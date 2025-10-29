@@ -8,3 +8,4 @@ logs/*
 dbs/*
 config/secrets/*
 .coverage
+config/config.yaml

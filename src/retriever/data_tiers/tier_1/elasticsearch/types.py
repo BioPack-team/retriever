@@ -46,7 +46,7 @@ class ESNode(TypedDict):
     all_categories: list[str]
     iri: NotRequired[str]
     description: str
-    equivalent_curies: str
+    equivalent_curies: list[str]
     publications: NotRequired[list[str]]
 
 

@@ -180,7 +180,9 @@ class DgraphDriver(DatabaseDriver):
             if version:
                 log.info(f"Found and cached active Dgraph schema version: {version}")
             else:
-                log.warning("No active Dgraph schema version found. Caching null result.")
+                log.warning(
+                    "No active Dgraph schema version found. Caching null result."
+                )
 
             # Manually store the result in the cache before returning
             self._version_cache["active_version"] = version
@@ -333,7 +335,9 @@ class DgraphDriver(DatabaseDriver):
         handle_query_future = cast(
             Callable[[_GrpcFuture], PydgraphResponse], pydgraph.Txn.handle_query_future
         )
-        response: PydgraphResponse = await asyncio.to_thread(handle_query_future, future)
+        response: PydgraphResponse = await asyncio.to_thread(
+            handle_query_future, future
+        )
 
         raw: Any = response.json
 

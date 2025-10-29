@@ -153,18 +153,30 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                             BiolinkEntity(biolink.ensure_prefix(cat))
                             for cat in node["all_categories"]
                         ],
-                        attributes=[
+                        attributes=[],
+                    )
+
+                    xref_only_self = (
+                        len(node["equivalent_curies"]) == 1
+                        and node["equivalent_curies"][0] == node["id"]
+                    )
+                    if not xref_only_self:
+                        trapi_node["attributes"].append(
                             AttributeDict(
                                 attribute_type_id="biolink:xref",
                                 value=node["equivalent_curies"],
-                            ),
-                        ],
+                            )
+                        )
+
+                    name_only_self = ("all_names" not in node) or (
+                        len(node["all_names"]) == 1
+                        and node["all_names"][0] == node["name"]
                     )
-                    if synonyms := node.get("all_names"):
+                    if not name_only_self:
                         trapi_node["attributes"].append(
                             AttributeDict(
                                 attribute_type_id="biolink:synonym",
-                                value=synonyms,
+                                value=node.get("all_names"),
                             )
                         )
 
