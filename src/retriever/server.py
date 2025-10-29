@@ -7,7 +7,7 @@ from datetime import datetime, time, timedelta
 from typing import Annotated, Literal
 
 import yaml
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
+from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse, Response, StreamingResponse
 from reasoner_pydantic import AsyncQueryStatusResponse as TRAPIAsyncQueryStatusResponse
@@ -23,6 +23,7 @@ from retriever.types.trapi_pydantic import AsyncQuery as TRAPIAsyncQuery
 from retriever.types.trapi_pydantic import Query as TRAPIQuery
 from retriever.types.trapi_pydantic import Response as TRAPIResponse
 from retriever.types.trapi_pydantic import TierNumber
+from retriever.utils.examples import EXAMPLE_ASYNCQUERY, EXAMPLE_QUERY
 from retriever.utils.exception_handlers import ensure_cors
 from retriever.utils.logs import (
     add_mongo_sink,
@@ -165,7 +166,7 @@ async def meta_knowledge_graph(
 async def query(
     request: Request,
     response: Response,
-    body: TRAPIQuery,
+    body: Annotated[TRAPIQuery, Body(examples=[EXAMPLE_QUERY])],
 ) -> ORJSONResponse:
     """Initiate a synchronous query."""
     response_dict = await make_query("lookup", APIInfo(request, response), body=body)
@@ -199,7 +200,7 @@ async def query(
 async def asyncquery(
     request: Request,
     response: Response,
-    body: TRAPIAsyncQuery,
+    body: Annotated[TRAPIAsyncQuery, Body(example=EXAMPLE_ASYNCQUERY)],
     background_tasks: BackgroundTasks,
 ) -> ORJSONResponse:
     """Initiate an asynchronous query."""

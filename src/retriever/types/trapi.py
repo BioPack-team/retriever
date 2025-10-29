@@ -41,12 +41,14 @@ class QueryDict(TypedDict):
     workflow: NotRequired[list[dict[str, Any]] | None]
     submitter: NotRequired[str | None]
     bypass_cache: NotRequired[bool]
+    parameters: NotRequired[ParametersDict | None]
 
 
-class AsyncQuery(QueryDict):
+class AsyncQueryDict(QueryDict):
     """AsyncQuery."""
 
     callback: URL
+    parameters: NotRequired[ParametersDict | None]
 
 
 class AsyncQueryResponseDict(TypedDict):
