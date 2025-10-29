@@ -52,7 +52,7 @@ class XTranslator(BaseModel):
     """Translator-specific metadata."""
 
     component: str = "DAWG"
-    team: list[str] = ["biopack"]
+    team: list[str] = ["DOGSURF"]
     biolink_version: str = "4.3.2"
     infores: Annotated[
         str,
