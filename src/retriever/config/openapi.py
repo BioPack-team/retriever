@@ -57,7 +57,7 @@ class XTranslator(BaseModel):
     infores: Annotated[
         str,
         Field(description="Unique identifier for this component, used in provenance."),
-    ] = "retriever"
+    ] = "infores:retriever"
     externalDocs: ExternalDocs = ExternalDocs(
         description="The values for component and team are restricted according to this external JSON schema. See schema and examples at url.",
         url="https://github.com/NCATSTranslator/translator_extensions/blob/production/x-translator/",
