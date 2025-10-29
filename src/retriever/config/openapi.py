@@ -23,8 +23,10 @@ class ContactInfo(BaseModel):
     email: EmailStr = "jcallaghan@scripps.edu"
     name: str = "Jackson Callaghan"
     url: str = "https://github.com/tokebe"
-    x_id: str = "tokebe"
-    x_role: str = "responsible developer"
+    x_id: Annotated[str, Field(serialization_alias="x-id")] = "tokebe"
+    x_role: Annotated[str, Field(serialization_alias="x-role")] = (
+        "responsible developer"
+    )
 
 
 class License(BaseModel):
@@ -136,7 +138,12 @@ class ServerConfig(CommentedSettings):
 
     description: str
     url: str
-    x_maturity: str
+    x_maturity: Annotated[
+        str,
+        Field(
+            serialization_alias="x-maturity",
+        ),
+    ]
 
 
 class OpenAPIConfig(CommentedSettings):
@@ -163,10 +170,13 @@ class OpenAPIConfig(CommentedSettings):
     x_translator: Annotated[
         XTranslator,
         Field(
-            description="Note that fields usually named with - instead use _ (e.g. x-translator -> x_translator)."
+            serialization_alias="x-translator",
+            description="Note that fields usually named with - instead use _ (e.g. x-translator -> x_translator).",
         ),
     ] = XTranslator()
-    x_trapi: XTrapi = Field(default=XTrapi())
+    x_trapi: XTrapi = Field(
+        default_factory=lambda: XTrapi(), serialization_alias="x-trapi"
+    )
     response_descriptions: ResponseDescriptions = ResponseDescriptions()
     servers: list[ServerConfig] = Field(
         default_factory=lambda: [
@@ -228,13 +238,8 @@ class TRAPI(FastAPI):
             description=OPENAPI_CONFIG.description,
             version=OPENAPI_CONFIG.version,
             title=OPENAPI_CONFIG.title,
-            contact={
-                name.replace("_", "-"): value
-                for name, value in OPENAPI_CONFIG.contact.model_dump(
-                    mode="json"
-                ).items()
-            },
-            license_info=OPENAPI_CONFIG.license.model_dump(mode="json"),
+            contact=OPENAPI_CONFIG.contact.model_dump(mode="json", by_alias=True),
+            license_info=OPENAPI_CONFIG.license.model_dump(mode="json", by_alias=True),
             terms_of_service=OPENAPI_CONFIG.termsOfService,
             tags=tags,
             openapi_version=self.openapi_version,
