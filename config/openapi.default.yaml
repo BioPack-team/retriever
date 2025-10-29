@@ -31,11 +31,11 @@ tags:
 - name: biothings
   description:
 x_translator:  # Note that fields usually named with - instead use _ (e.g. x-translator -> x_translator).
-  component: ''
+  component: DAWG
   team:
-  - biopack
+  - DOGSURF
   biolink_version: 4.3.2
-  infores: retriever  # Unique identifier for this component, used in provenance.
+  infores: infores:retriever  # Unique identifier for this component, used in provenance.
   externalDocs:
     description: The values for component and team are restricted according to
       this external JSON schema. See schema and examples at url.
