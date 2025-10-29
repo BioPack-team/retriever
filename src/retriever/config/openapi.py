@@ -131,6 +131,14 @@ class ResponseDescriptions(BaseModel):
     }
 
 
+class ServerConfig(CommentedSettings):
+    """Configuration for a given server."""
+
+    description: str
+    url: str
+    x_maturity: str
+
+
 class OpenAPIConfig(CommentedSettings):
     """OpenAPI Metadata."""
 
@@ -160,6 +168,15 @@ class OpenAPIConfig(CommentedSettings):
     ] = XTranslator()
     x_trapi: XTrapi = Field(default=XTrapi())
     response_descriptions: ResponseDescriptions = ResponseDescriptions()
+    servers: list[ServerConfig] = Field(
+        default_factory=lambda: [
+            ServerConfig(
+                description="DOGSURF AWS Dev instance",
+                url="https://dev.retriever.biothings.io/",
+                x_maturity="development",
+            )
+        ]
+    )
 
     model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(
         env_prefix="openapi__",
@@ -231,6 +248,10 @@ class TRAPI(FastAPI):
         openapi_schema["info"]["x-trapi"] = OPENAPI_CONFIG.x_trapi.model_dump(
             mode="json", by_alias=True
         )
+        openapi_schema["servers"] = [
+            server.model_dump(mode="json", by_alias=True)
+            for server in OPENAPI_CONFIG.servers
+        ]
 
         self.openapi_schema: dict[str, Any] | None = openapi_schema
         return self.openapi_schema
