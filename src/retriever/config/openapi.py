@@ -51,7 +51,7 @@ class ExternalDocs(BaseModel):
 class XTranslator(BaseModel):
     """Translator-specific metadata."""
 
-    component: str = ""
+    component: str = "DAWG"
     team: list[str] = ["biopack"]
     biolink_version: str = "4.3.2"
     infores: Annotated[
