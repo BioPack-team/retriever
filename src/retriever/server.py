@@ -23,7 +23,7 @@ from retriever.types.trapi_pydantic import AsyncQuery as TRAPIAsyncQuery
 from retriever.types.trapi_pydantic import Query as TRAPIQuery
 from retriever.types.trapi_pydantic import Response as TRAPIResponse
 from retriever.types.trapi_pydantic import TierNumber
-from retriever.utils.examples import EXAMPLE_ASYNCQUERY, EXAMPLE_QUERY
+from retriever.utils.examples import EXAMPLE_QUERY
 from retriever.utils.exception_handlers import ensure_cors
 from retriever.utils.logs import (
     add_mongo_sink,
@@ -200,7 +200,7 @@ async def query(
 async def asyncquery(
     request: Request,
     response: Response,
-    body: Annotated[TRAPIAsyncQuery, Body(example=EXAMPLE_ASYNCQUERY)],
+    body: TRAPIAsyncQuery,
     background_tasks: BackgroundTasks,
 ) -> ORJSONResponse:
     """Initiate an asynchronous query."""
