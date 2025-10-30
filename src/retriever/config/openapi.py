@@ -53,7 +53,7 @@ class ExternalDocs(BaseModel):
 class XTranslator(BaseModel):
     """Translator-specific metadata."""
 
-    component: str = "DAWG"
+    component: str = "KP"
     team: list[str] = ["DOGSURF"]
     biolink_version: str = "4.3.2"
     infores: Annotated[
