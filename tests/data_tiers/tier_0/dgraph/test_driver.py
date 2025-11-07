@@ -289,14 +289,14 @@ async def test_simple_one_query_live_http() -> None:
 
     qgraph_query: QueryGraphDict = qg({
         "nodes": {
-            "n0": {"ids": ["CHEBI:4514"], "constraints": []},
-            "n1": {"ids": ["UMLS:C1564592"], "constraints": []},
+            "n0": {"ids": ["GO:0031410"], "constraints": []},
+            "n1": {"ids": ["NCBIGene:11276"], "constraints": []},
         },
         "edges": {
             "e0": {
                 "object": "n0",
                 "subject": "n1",
-                "predicates": ["subclass_of"],
+                "predicates": ["located_in"],
                 "attribute_constraints": [],
                 "qualifier_constraints": [],
             },
@@ -305,12 +305,12 @@ async def test_simple_one_query_live_http() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n0(func: eq(v3_id, "CHEBI:4514")) @cascade {
-            id: v3_id name: v3_name category: v3_category all_names: v3_all_names all_categories: v3_all_categories iri: v3_iri equivalent_curies: v3_equivalent_curies description: v3_description publications: v3_publications
-            in_edges_e0: ~v3_source @filter(eq(v3_all_predicates, "subclass_of")) {
-                predicate: v3_predicate primary_knowledge_source: v3_primary_knowledge_source knowledge_level: v3_knowledge_level agent_type: v3_agent_type kg2_ids: v3_kg2_ids domain_range_exclusion: v3_domain_range_exclusion qualified_object_aspect: v3_qualified_object_aspect qualified_object_direction: v3_qualified_object_direction qualified_predicate: v3_qualified_predicate publications: v3_publications publications_info: v3_publications_info
-                node_n1: v3_target @filter(eq(v3_id, "UMLS:C1564592")) {
-                    id: v3_id name: v3_name category: v3_category all_names: v3_all_names all_categories: v3_all_categories iri: v3_iri equivalent_curies: v3_equivalent_curies description: v3_description publications: v3_publications
+        q0_node_n0(func: eq(v8_id, "GO:0031410")) @cascade(v8_id, ~v8_object) {
+            expand(v8_Node)
+            in_edges_e0: ~v8_object @filter(eq(v8_predicate, "located_in")) @cascade(v8_predicate, v8_subject) {
+                expand(v8_Edge)
+                node_n1: v8_subject @filter(eq(v8_id, "NCBIGene:11276")) @cascade(v8_id) {
+                    expand(v8_Node)
                 }
             }
         }
@@ -327,7 +327,7 @@ async def test_simple_one_query_live_http() -> None:
         # Initialize the transpiler with the detected version
         transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
         assert transpiler.version == "v3"
-        assert transpiler.prefix == "v3_"
+        assert transpiler.prefix == "v8_"
 
         dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
         assert_query_equals(dgraph_query, dgraph_query_match)
@@ -390,12 +390,12 @@ async def test_simple_one_query_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n0(func: eq(v3_id, "CHEBI:4514")) @cascade {
-            id: v3_id name: v3_name category: v3_category all_names: v3_all_names all_categories: v3_all_categories iri: v3_iri equivalent_curies: v3_equivalent_curies description: v3_description publications: v3_publications
-            in_edges_e0: ~v3_source @filter(eq(v3_all_predicates, "subclass_of")) {
-                predicate: v3_predicate primary_knowledge_source: v3_primary_knowledge_source knowledge_level: v3_knowledge_level agent_type: v3_agent_type kg2_ids: v3_kg2_ids domain_range_exclusion: v3_domain_range_exclusion qualified_object_aspect: v3_qualified_object_aspect qualified_object_direction: v3_qualified_object_direction qualified_predicate: v3_qualified_predicate publications: v3_publications publications_info: v3_publications_info
-                node_n1: v3_target @filter(eq(v3_id, "UMLS:C1564592")) {
-                    id: v3_id name: v3_name category: v3_category all_names: v3_all_names all_categories: v3_all_categories iri: v3_iri equivalent_curies: v3_equivalent_curies description: v3_description publications: v3_publications
+        q0_node_n0(func: eq(v8_id, "CHEBI:4514")) @cascade(v8_id, ~v8_object) {
+            expand(v8_Node)
+            in_edges_e0: ~v8_object @filter(eq(v8_all_predicates, "subclass_of")) @cascade(v8_predicate, v8_subject) {
+                expand(v8_Edge)
+                node_n1: v8_subject @filter(eq(v8_id, "UMLS:C1564592")) @cascade(v8_id) {
+                    expand(v8_Node)
                 }
             }
         }
@@ -412,7 +412,7 @@ async def test_simple_one_query_live_grpc() -> None:
         # Initialize the transpiler with the detected version
         transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
         assert transpiler.version == "v3"
-        assert transpiler.prefix == "v3_"
+        assert transpiler.prefix == "v8_"
 
         # Use the transpiler to generate the Dgraph query
         dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)

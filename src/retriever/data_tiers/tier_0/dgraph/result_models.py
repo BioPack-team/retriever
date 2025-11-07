@@ -12,6 +12,11 @@ from typing import Any, Literal, Self, TypeGuard, cast
 NODE_KEY_PATTERN = re.compile(r"(?:q\d+_)?node_(\w+)")
 
 
+def _strip_prefix(d: Mapping[str, Any], prefix: str | None) -> Mapping[str, Any]:
+    if not prefix:
+        return d
+    return { (k[len(prefix):] if k.startswith(prefix) else k): v for k, v in d.items() }
+
 # -----------------
 # Dataclasses
 # -----------------
@@ -39,63 +44,65 @@ class Edge:
 
     @classmethod
     def from_dict(
-        cls, edge_dict: Mapping[str, Any], binding: str, direction: str
+        cls,
+        edge_dict: Mapping[str, Any],
+        binding: str,
+        direction: str,
+        prefix: str | None = None,
     ) -> Self:
-        """Parse an edge mapping into an Edge dataclass."""
-        # Find the nested node and its binding (e.g., "node_n1")
+        """Parse an edge mapping into an Edge dataclass (handles versioned keys)."""
+        norm = _strip_prefix(edge_dict, prefix)
+
         node_val: Any = next(
-            (v for k, v in edge_dict.items() if k.startswith("node_")),
+            (v for k, v in norm.items() if k.startswith("node_")),
             cast(Mapping[str, Any], {}),
         )
         node_binding = next(
-            (k.split("_", 1)[1] for k in edge_dict if k.startswith("node_")), ""
+            (k.split("_", 1)[1] for k in norm if k.startswith("node_")), ""
         )
 
         return cls(
             binding=binding,
             direction="in" if direction == "in" else "out",
-            predicate=str(edge_dict.get("predicate", "")),
-            node=Node.from_dict(node_val, binding=node_binding),
+            predicate=str(norm.get("predicate", "")),
+            node=Node.from_dict(node_val, binding=node_binding, prefix=prefix),
             primary_knowledge_source=(
-                str(edge_dict["primary_knowledge_source"])
-                if "primary_knowledge_source" in edge_dict
+                str(norm["primary_knowledge_source"])
+                if "primary_knowledge_source" in norm
                 else None
             ),
             knowledge_level=(
-                str(edge_dict["knowledge_level"])
-                if "knowledge_level" in edge_dict
-                else None
+                str(norm["knowledge_level"]) if "knowledge_level" in norm else None
             ),
             agent_type=(
-                str(edge_dict["agent_type"]) if "agent_type" in edge_dict else None
+                str(norm["agent_type"]) if "agent_type" in norm else None
             ),
-            kg2_ids=_to_str_list(edge_dict.get("kg2_ids")),
+            kg2_ids=_to_str_list(norm.get("kg2_ids")),
             domain_range_exclusion=(
-                bool(edge_dict["domain_range_exclusion"])
-                if "domain_range_exclusion" in edge_dict
+                bool(norm["domain_range_exclusion"])
+                if "domain_range_exclusion" in norm
                 else None
             ),
-            # The edge_id is the binding from the dynamic key (e.g., "e0" from "in_edges_e0").
             edge_id=binding,
             qualified_object_aspect=(
-                str(edge_dict["qualified_object_aspect"])
-                if "qualified_object_aspect" in edge_dict
+                str(norm["qualified_object_aspect"])
+                if "qualified_object_aspect" in norm
                 else None
             ),
             qualified_object_direction=(
-                str(edge_dict["qualified_object_direction"])
-                if "qualified_object_direction" in edge_dict
+                str(norm["qualified_object_direction"])
+                if "qualified_object_direction" in norm
                 else None
             ),
             qualified_predicate=(
-                str(edge_dict["qualified_predicate"])
-                if "qualified_predicate" in edge_dict
+                str(norm["qualified_predicate"])
+                if "qualified_predicate" in norm
                 else None
             ),
-            publications=_to_str_list(edge_dict.get("publications")),
+            publications=_to_str_list(norm.get("publications")),
             publications_info=(
-                str(edge_dict["publications_info"])
-                if "publications_info" in edge_dict
+                str(norm["publications_info"])
+                if "publications_info" in norm
                 else None
             ),
         )
@@ -118,41 +125,39 @@ class Node:
     publications: list[str] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, node_dict: Mapping[str, Any], binding: str) -> Self:
-        """Parse a node mapping into a Node dataclass, normalizing dynamic keys."""
+    def from_dict(cls, node_dict: Mapping[str, Any], binding: str, prefix: str | None = None) -> Self:
+        """Parse a node mapping into a Node dataclass (handles versioned keys)."""
+        norm = _strip_prefix(node_dict, prefix)
+
         edges: list[Edge] = []
-        for key, value in node_dict.items():
+        for key, value in norm.items():
             if key.startswith("in_edges_"):
                 edge_binding = key.split("_", 2)[2]
                 if isinstance(value, list):
-                    # Explicitly cast the list to satisfy the static checker
                     edges.extend(
-                        Edge.from_dict(e, binding=edge_binding, direction="in")
+                        Edge.from_dict(e, binding=edge_binding, direction="in", prefix=prefix)
                         for e in filter(_is_mapping, cast(list[Any], value))
                     )
             elif key.startswith("out_edges_"):
                 edge_binding = key.split("_", 2)[2]
                 if isinstance(value, list):
-                    # Explicitly cast the list to satisfy the static checker
                     edges.extend(
-                        Edge.from_dict(e, binding=edge_binding, direction="out")
+                        Edge.from_dict(e, binding=edge_binding, direction="out", prefix=prefix)
                         for e in filter(_is_mapping, cast(list[Any], value))
                     )
 
         return cls(
             binding=binding,
-            id=str(node_dict.get("id", "")),
-            name=str(node_dict.get("name", "")),
-            category=str(node_dict.get("category", "")),
+            id=str(norm.get("id", "")),
+            name=str(norm.get("name", "")),
+            category=str(norm.get("category", "")),
             edges=edges,
-            all_names=_to_str_list(node_dict.get("all_names")),
-            all_categories=_to_str_list(node_dict.get("all_categories")),
-            iri=(str(node_dict["iri"]) if "iri" in node_dict else None),
-            equivalent_curies=_to_str_list(node_dict.get("equivalent_curies")),
-            description=(
-                str(node_dict["description"]) if "description" in node_dict else None
-            ),
-            publications=_to_str_list(node_dict.get("publications")),
+            all_names=_to_str_list(norm.get("all_names")),
+            all_categories=_to_str_list(norm.get("all_categories")),
+            iri=(str(norm["iri"]) if "iri" in norm else None),
+            equivalent_curies=_to_str_list(norm.get("equivalent_curies")),
+            description=(str(norm["description"]) if "description" in norm else None),
+            publications=_to_str_list(norm.get("publications")),
         )
 
 
@@ -163,8 +168,18 @@ class DgraphResponse:
     data: dict[str, list[Node]]
 
     @classmethod
-    def parse(cls, raw: str | bytes | bytearray | Mapping[str, Any]) -> Self:
-        """Parse a raw Dgraph response into a structured DgraphResponse object."""
+    def parse(
+        cls,
+        raw: str | bytes | bytearray | Mapping[str, Any],
+        *,
+        prefix: str | None = None,
+    ) -> Self:
+        """Parse a raw Dgraph response into a structured DgraphResponse object.
+
+        Args:
+            raw: JSON string/bytes or already-parsed mapping from Dgraph.
+            prefix: Explicit version prefix (e.g. 'v3_' or 'schema2025_'). If None, no stripping.
+        """
         # Use ternary operator per ruff (SIM108)
         parsed_data: dict[str, Any] = (
             dict(raw) if isinstance(raw, Mapping) else json.loads(raw)
@@ -183,9 +198,9 @@ class DgraphResponse:
             # Determine the batch query key (e.g., "q0")
             query_key = "q0"
             if "_" in query_alias:
-                prefix = query_alias.split("_")[0]
-                if prefix.startswith("q") and prefix[1:].isdigit():
-                    query_key = prefix
+                prefix_part = query_alias.split("_")[0]
+                if prefix_part.startswith("q") and prefix_part[1:].isdigit():
+                    query_key = prefix_part
 
             if query_key not in processed_data:
                 processed_data[query_key] = []
@@ -193,11 +208,10 @@ class DgraphResponse:
             if not isinstance(results, list):
                 continue
 
-            # Explicitly cast the list to satisfy the static checker
             for node_data in filter(_is_mapping, cast(list[Any], results)):
                 with suppress(Exception):
                     processed_data[query_key].append(
-                        Node.from_dict(node_data, binding=node_binding)
+                        Node.from_dict(node_data, binding=node_binding, prefix=prefix)
                     )
 
         return cls(data=processed_data)

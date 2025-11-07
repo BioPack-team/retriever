@@ -4,44 +4,44 @@ from typing import Any
 from retriever.data_tiers.tier_0.dgraph import result_models as dg_models
 
 
-def test_parse_single_success_case():
+def test_parse_single_success_case_versioned():
     """Test parsing of a well-formed, multi-hop Dgraph response."""
     # The raw response must match the actual Dgraph output format.
     # A well-formed response with data for all node and edge properties.
     raw_response = {
         "q0_node_n0": [
             {
-                "id": "CHEBI:3125",
-                "name": "Bisacodyl",
-                "category": "biolink:SmallMolecule",
-                "all_names": ["Biscodyl", "Bisacodyl"],
-                "all_categories": ["SmallMolecule", "Drug"],
-                "iri": "http://purl.obolibrary.org/obo/CHEBI_3125",
-                "equivalent_curies": ["PUBCHEM.COMPOUND:2391"],
-                "description": "A stimulant laxative.",
-                "publications": ["PMID:12345"],
+                "v8_id": "CHEBI:3125",
+                "v8_name": "Bisacodyl",
+                "v8_category": "biolink:SmallMolecule",
+                "v8_all_names": ["Biscodyl", "Bisacodyl"],
+                "v8_all_categories": ["SmallMolecule", "Drug"],
+                "v8_iri": "http://purl.obolibrary.org/obo/CHEBI_3125",
+                "v8_equivalent_curies": ["PUBCHEM.COMPOUND:2391"],
+                "v8_description": "A stimulant laxative.",
+                "v8_publications": ["PMID:12345"],
                 "in_edges_e0": [
                     {
-                        "predicate": "interacts_with",
-                        "primary_knowledge_source": "infores:test-ks",
-                        "knowledge_level": "knowledge-level-val",
-                        "agent_type": "agent-type-val",
-                        "kg2_ids": ["kg2:abc"],
-                        "domain_range_exclusion": True,
-                        "qualified_object_aspect": "aspect-val",
-                        "qualified_object_direction": "direction-val",
-                        "qualified_predicate": "qualified-pred-val",
-                        "publications_info": "pub-info-val",
+                        "v8_predicate": "interacts_with",
+                        "v8_primary_knowledge_source": "infores:test-ks",
+                        "v8_knowledge_level": "knowledge-level-val",
+                        "v8_agent_type": "agent-type-val",
+                        "v8_kg2_ids": ["kg2:abc"],
+                        "v8_domain_range_exclusion": True,
+                        "v8_qualified_object_aspect": "aspect-val",
+                        "v8_qualified_object_direction": "direction-val",
+                        "v8_qualified_predicate": "qualified-pred-val",
+                        "v8_publications_info": "pub-info-val",
                         "node_n1": {
-                            "id": "UMLS:C0282090",
-                            "name": "Laxatives",
-                            "category": "biolink:Drug",
-                            "all_names": ["Laxative"],
-                            "all_categories": ["Drug"],
-                            "iri": "http://purl.obolibrary.org/obo/UMLS_C0282090",
-                            "equivalent_curies": [],
-                            "description": "A substance that promotes defecation.",
-                            "publications": [],
+                            "v8_id": "UMLS:C0282090",
+                            "v8_name": "Laxatives",
+                            "v8_category": "biolink:Drug",
+                            "v8_all_names": ["Laxative"],
+                            "v8_all_categories": ["Drug"],
+                            "v8_iri": "http://purl.obolibrary.org/obo/UMLS_C0282090",
+                            "v8_equivalent_curies": [],
+                            "v8_description": "A substance that promotes defecation.",
+                            "v8_publications": [],
                         },
                     }
                 ],
@@ -50,7 +50,7 @@ def test_parse_single_success_case():
     }
 
     # 1. Parse the response
-    parsed = dg_models.DgraphResponse.parse(raw_response)
+    parsed = dg_models.DgraphResponse.parse(raw_response, prefix="v8_")
     assert "q0" in parsed.data
     assert len(parsed.data["q0"]) == 1
 

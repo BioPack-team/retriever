@@ -166,13 +166,13 @@ class DgraphTranspiler(Tier0Transpiler):
         if predicates:
             if len(predicates) == 1:
                 filters.append(
-                    f'eq({self._v("all_predicates")}, "{predicates[0].replace("biolink:", "")}")'
+                    f'eq({self._v("predicate_ancestors")}, "{predicates[0].replace("biolink:", "")}")'
                 )
             elif len(predicates) > 1:
                 predicates_str = ", ".join(
                     f'"{pred.replace("biolink:", "")}"' for pred in predicates
                 )
-                filters.append(f"eq({self._v('all_predicates')}, [{predicates_str}])")
+                filters.append(f"eq({self._v('predicate_ancestors')}, [{predicates_str}])")
 
         # Handle attribute constraints
         attribute_constraints = edge.get("attribute_constraints")
@@ -314,35 +314,11 @@ class DgraphTranspiler(Tier0Transpiler):
 
     def _add_standard_node_fields(self) -> str:
         """Generate standard node fields with versioned aliases."""
-        fields = [
-            "id",
-            "name",
-            "category",
-            "all_names",
-            "all_categories",
-            "iri",
-            "equivalent_curies",
-            "description",
-            "publications",
-        ]
-        return self._aliased_fields(fields)
+        return f"expand({self.prefix}Node) "
 
     def _add_standard_edge_fields(self) -> str:
         """Generate standard edge fields with versioned aliases."""
-        fields = [
-            "predicate",
-            "primary_knowledge_source",
-            "knowledge_level",
-            "agent_type",
-            "kg2_ids",
-            "domain_range_exclusion",
-            "qualified_object_aspect",
-            "qualified_object_direction",
-            "qualified_predicate",
-            "publications",
-            "publications_info",
-        ]
-        return self._aliased_fields(fields)
+        return f"expand({self.prefix}Edge) "
 
     def _build_filter_clause(self, filters: list[str]) -> str:
         """Build filter clause from a list of filters."""
@@ -423,6 +399,32 @@ class DgraphTranspiler(Tier0Transpiler):
 
         return query
 
+    def _build_node_cascade_clause(
+        self,
+        node_id: QNodeID,
+        edges: Mapping[QEdgeID, QEdgeDict],
+        visited: set[QNodeID],
+    ) -> str:
+        """Build a @cascade(...) clause for a node block.
+
+        Always require id, and require reverse predicates (~subject, ~object)
+        only if there are corresponding traversals from this node to not-yet-visited nodes.
+        """
+        cascade_fields: list[str] = [self._v("id")]
+
+        # If this node has any outgoing edges (node as subject) to unvisited objects,
+        # require ~subject in cascade to ensure at least one such edge exists.
+        if any(e["subject"] == node_id and e["object"] not in visited for e in edges.values()):
+            cascade_fields.append(f"~{self._v('subject')}")
+
+        # If this node has any incoming edges (node as object) to unvisited subjects,
+        # require ~object in cascade to ensure at least one such edge exists.
+        if any(e["object"] == node_id and e["subject"] not in visited for e in edges.values()):
+            cascade_fields.append(f"~{self._v('object')}")
+
+        # Always emit a cascade; at minimum it will include the id
+        return f" @cascade({', '.join(cascade_fields)})"
+
     def _build_node_query(
         self,
         node_id: QNodeID,
@@ -434,9 +436,7 @@ class DgraphTranspiler(Tier0Transpiler):
         node = nodes[node_id]
 
         # Get primary and secondary filters
-        primary_filter, secondary_filters = self._get_primary_and_secondary_filters(
-            node
-        )
+        primary_filter, secondary_filters = self._get_primary_and_secondary_filters(node)
 
         # Create the root node key, with an optional query index prefix
         root_node_key = f"node_{node_id}"
@@ -449,14 +449,17 @@ class DgraphTranspiler(Tier0Transpiler):
         # Add secondary filters if present
         query += self._build_filter_clause(secondary_filters)
 
-        # Add cascade and open block
-        query += " @cascade { "
+        # Prepare visited set and add node-level cascade
+        visited = {node_id}
+        query += self._build_node_cascade_clause(node_id, edges, visited)
+
+        # Open node block
+        query += " { "
 
         # Include all standard node fields
         query += self._add_standard_node_fields()
 
         # Start the recursive traversal
-        visited = {node_id}
         query += self._build_further_hops(node_id, nodes, edges, visited)
 
         # Close the node block
@@ -484,33 +487,37 @@ class DgraphTranspiler(Tier0Transpiler):
                 edge_filter = self._build_edge_filter(edge)
                 filter_clause = f" @filter({edge_filter})" if edge_filter else ""
 
-                # Use `~target` for outgoing edges
-                query += f"out_edges_{edge_id}: ~{self._v('target')}{filter_clause} {{ "
+                # Edge block with cascade requiring predicate and the 'object' endpoint
+                query += f"out_edges_{edge_id}: ~{self._v('subject')}{filter_clause}"
+                query += f" @cascade({self._v('predicate')}, {self._v('object')}) {{ "
                 query += self._add_standard_edge_fields()
 
+                # Build connected node (object) with its own cascade
                 object_filter = self._build_node_filter(object_node)
                 object_filter_clause = (
                     f" @filter({object_filter})"
                     if object_filter != f"has({self._v('id')})"
                     else ""
                 )
+                query += f"node_{object_id}: {self._v('object')}{object_filter_clause}"
 
-                # Use `node_{object_id}` for the connected node
-                query += (
-                    f"node_{object_id}: {self._v('source')}{object_filter_clause} {{ "
-                )
+                # For the child node, include cascade(id, ~subject?, ~object?) based on remaining unvisited hops
+                child_visited = visited | {object_id}
+                query += self._build_node_cascade_clause(object_id, edges, child_visited)
+
+                # Open child node block
+                query += " { "
                 query += self._add_standard_node_fields()
 
                 # Recurse from the newly connected object node
-                new_visited = visited | {object_id}
-                query += self._build_further_hops(object_id, nodes, edges, new_visited)
+                query += self._build_further_hops(object_id, nodes, edges, child_visited)
 
+                # Close blocks
                 query += "} } "
 
         # Find incoming edges to this node (where this node is the OBJECT)
         for edge_id, edge in edges.items():
             if edge["object"] == node_id:
-                # Get the target node and predicate
                 source_id: QNodeID = edge["subject"]
                 if source_id in visited:
                     continue  # Skip cycles
@@ -519,27 +526,32 @@ class DgraphTranspiler(Tier0Transpiler):
                 edge_filter = self._build_edge_filter(edge)
                 filter_clause = f" @filter({edge_filter})" if edge_filter else ""
 
-                # Use `in_edges_{edge_id}` for incoming edges
-                query += f"in_edges_{edge_id}: ~{self._v('source')}{filter_clause} {{ "
+                # Edge block with cascade requiring predicate and the 'subject' endpoint
+                query += f"in_edges_{edge_id}: ~{self._v('object')}{filter_clause}"
+                query += f" @cascade({self._v('predicate')}, {self._v('subject')}) {{ "
                 query += self._add_standard_edge_fields()
 
+                # Build connected node (subject) with its own cascade
                 source_filter = self._build_node_filter(source_node)
                 source_filter_clause = (
                     f" @filter({source_filter})"
                     if source_filter != f"has({self._v('id')})"
                     else ""
                 )
+                query += f"node_{source_id}: {self._v('subject')}{source_filter_clause}"
 
-                # Use `node_{source_id}` for the connected node
-                query += (
-                    f"node_{source_id}: {self._v('target')}{source_filter_clause} {{ "
-                )
+                # For the child node, include cascade(id, ~subject?, ~object?) based on remaining unvisited hops
+                child_visited = visited | {source_id}
+                query += self._build_node_cascade_clause(source_id, edges, child_visited)
+
+                # Open child node block
+                query += " { "
                 query += self._add_standard_node_fields()
 
                 # Recurse from the newly connected source node
-                new_visited = visited | {source_id}
-                query += self._build_further_hops(source_id, nodes, edges, new_visited)
+                query += self._build_further_hops(source_id, nodes, edges, child_visited)
 
+                # Close blocks
                 query += "} } "
 
         return query
