@@ -318,7 +318,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
     def _add_standard_edge_fields(self) -> str:
         """Generate standard edge fields with versioned aliases."""
-        return f"expand({self.prefix}Edge) "
+        return f"expand({self.prefix}Edge) {{ {self.prefix}sources expand({self.prefix}Source) }} "
 
     def _build_filter_clause(self, filters: list[str]) -> str:
         """Build filter clause from a list of filters."""

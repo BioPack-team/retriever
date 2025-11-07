@@ -578,7 +578,7 @@ EXP_SIMPLE = dedent("""
     q0_node_n0(func: eq(id, "CHEBI:4514")) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, "subclass_of"))  @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(id, "UMLS:C1564592"))  @cascade(id) {
                 expand(Node)
             }
@@ -592,7 +592,7 @@ EXP_SIMPLE_WITH_VERSION = dedent("""
     q0_node_n0(func: eq(v1_id, "CHEBI:4514")) @cascade(v1_id, ~v1_object) {
         expand(v1_Node)
         in_edges_e0: ~v1_object @filter(eq(v1_predicate_ancestors, "subclass_of")) @cascade(v1_predicate, v1_subject) {
-            expand(v1_Edge)
+            expand(v1_Edge) { v1_sources expand(v1_Source) }
             node_n1: v1_subject @filter(eq(v1_id, "UMLS:C1564592")) @cascade(v1_id) {
                 expand(v1_Node)
             }
@@ -606,7 +606,7 @@ EXP_SIMPLE_MULTIPLE_IDS = dedent("""
     q0_node_n0(func: eq(id, ["CHEBI:3125", "CHEBI:53448"])) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, "interacts_with")) @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(id, ["UMLS:C0282090", "CHEBI:10119"])) @cascade(id) {
                 expand(Node)
             }
@@ -620,11 +620,11 @@ EXP_TWO_HOP = dedent("""
     q0_node_n0(func: eq(id, "CHEBI:3125")) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, "interacts_with")) @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(id, "UMLS:C0282090")) @cascade(id, ~object) {
                 expand(Node)
                 in_edges_e1: ~object @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, subject) {
-                    expand(Edge)
+                    expand(Edge) { sources expand(Source) }
                     node_n2: subject @filter(eq(id, "UMLS:C0496995")) @cascade(id) {
                         expand(Node)
                     }
@@ -640,11 +640,11 @@ EXP_TWO_HOP_WITH_VERSION = dedent("""
     q0_node_n0(func: eq(v1_id, "CHEBI:3125")) @cascade(v1_id, ~v1_object) {
         expand(v1_Node)
         in_edges_e0: ~v1_object @filter(eq(v1_predicate_ancestors, "interacts_with")) @cascade(v1_predicate, v1_subject) {
-            expand(v1_Edge)
+            expand(v1_Edge) { v1_sources expand(v1_Source) }
             node_n1: v1_subject @filter(eq(v1_id, "UMLS:C0282090")) @cascade(v1_id, ~v1_object) {
                 expand(v1_Node)
                 in_edges_e1: ~v1_object @filter(eq(v1_predicate_ancestors, "related_to")) @cascade(v1_predicate, v1_subject) {
-                    expand(v1_Edge)
+                    expand(v1_Edge) { v1_sources expand(v1_Source) }
                     node_n2: v1_subject @filter(eq(v1_id, "UMLS:C0496995")) @cascade(v1_id) {
                         expand(v1_Node)
                     }
@@ -660,15 +660,15 @@ EXP_THREE_HOP = dedent("""
     q0_node_n0(func: eq(id, "CHEBI:3125")) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, "interacts_with")) @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(id, "UMLS:C0282090")) @cascade(id, ~object) {
                 expand(Node)
                 in_edges_e1: ~object @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, subject) {
-                    expand(Edge)
+                    expand(Edge) { sources expand(Source) }
                     node_n2: subject @filter(eq(id, "UMLS:C0496995")) @cascade(id, ~object) {
                         expand(Node)
                         in_edges_e2: ~object @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, subject) {
-                            expand(Edge)
+                            expand(Edge) { sources expand(Source) }
                             node_n3: subject @filter(eq(id, "UMLS:C0149720")) @cascade(id) {
                                 expand(Node)
                             }
@@ -686,19 +686,19 @@ EXP_FOUR_HOP = dedent("""
     q0_node_n0(func: eq(id, "CHEBI:3125")) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, "interacts_with")) @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(id, "UMLS:C0282090")) @cascade(id, ~object) {
                 expand(Node)
                 in_edges_e1: ~object @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, subject) {
-                    expand(Edge)
+                    expand(Edge) { sources expand(Source) }
                     node_n2: subject @filter(eq(id, "UMLS:C0496995")) @cascade(id, ~object) {
                         expand(Node)
                         in_edges_e2: ~object @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, subject) {
-                            expand(Edge)
+                            expand(Edge) { sources expand(Source) }
                             node_n3: subject @filter(eq(id, "UMLS:C0149720")) @cascade(id, ~object) {
                                 expand(Node)
                                 in_edges_e3: ~object @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, subject) {
-                                    expand(Edge)
+                                    expand(Edge) { sources expand(Source) }
                                     node_n4: subject @filter(eq(id, "UMLS:C0496994")) @cascade(id) {
                                         expand(Node)
                                     }
@@ -718,23 +718,23 @@ EXP_FIVE_HOP = dedent("""
     q0_node_n0(func: eq(id, "CHEBI:3125")) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, "interacts_with")) @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(id, "UMLS:C0282090")) @cascade(id, ~object) {
                 expand(Node)
                 in_edges_e1: ~object @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, subject) {
-                    expand(Edge)
+                    expand(Edge) { sources expand(Source) }
                     node_n2: subject @filter(eq(id, "UMLS:C0496995")) @cascade(id, ~object) {
                         expand(Node)
                         in_edges_e2: ~object @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, subject) {
-                            expand(Edge)
+                            expand(Edge) { sources expand(Source) }
                             node_n3: subject @filter(eq(id, "UMLS:C0149720")) @cascade(id, ~object) {
                                 expand(Node)
                                 in_edges_e3: ~object @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, subject) {
-                                    expand(Edge)
+                                    expand(Edge) { sources expand(Source) }
                                     node_n4: subject @filter(eq(id, "UMLS:C0496994")) @cascade(id, ~object) {
                                         expand(Node)
                                         in_edges_e4: ~object @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, subject) {
-                                            expand(Edge)
+                                            expand(Edge) { sources expand(Source) }
                                             node_n5: subject @filter(eq(id, "UMLS:C2879715")) @cascade(id) {
                                                 expand(Node)
                                             }
@@ -756,23 +756,23 @@ EXP_FIVE_HOP_MULTIPLE_IDS = dedent("""
     q0_node_n0(func: eq(id, ["Q0", "Q1"])) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, "P0")) @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(id, ["Q2", "Q3"])) @cascade(id, ~object) {
                 expand(Node)
                 in_edges_e1: ~object @filter(eq(predicate_ancestors, "P1")) @cascade(predicate, subject) {
-                    expand(Edge)
+                    expand(Edge) { sources expand(Source) }
                     node_n2: subject @filter(eq(id, ["Q4", "Q5"])) @cascade(id, ~object) {
                         expand(Node)
                         in_edges_e2: ~object @filter(eq(predicate_ancestors, "P2")) @cascade(predicate, subject) {
-                            expand(Edge)
+                            expand(Edge) { sources expand(Source) }
                             node_n3: subject @filter(eq(id, ["Q6", "Q7"])) @cascade(id, ~object) {
                                 expand(Node)
                                 in_edges_e3: ~object @filter(eq(predicate_ancestors, "P3")) @cascade(predicate, subject) {
-                                    expand(Edge)
+                                    expand(Edge) { sources expand(Source) }
                                     node_n4: subject @filter(eq(id, ["Q8", "Q9"])) @cascade(id, ~object) {
                                         expand(Node)
                                         in_edges_e4: ~object @filter(eq(predicate_ancestors, "P4")) @cascade(predicate, subject) {
-                                            expand(Edge)
+                                            expand(Edge) { sources expand(Source) }
                                             node_n5: subject @filter(eq(id, ["Q10", "Q11"])) @cascade(id) {
                                                 expand(Node)
                                             }
@@ -794,7 +794,7 @@ EXP_CATEGORY_FILTER = dedent("""
     q0_node_n0(func: eq(all_categories, "Gene")) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, "gene_associated_with_condition")) @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(all_categories, "Disease")) @cascade(id) {
                 expand(Node)
             }
@@ -808,7 +808,7 @@ EXP_MULTIPLE_FILTERS = dedent("""
     q0_node_n0(func: eq(id, "CHEBI:3125")) @filter(eq(all_categories, "SmallMolecule") AND anyoftext(description, "diphenylmethane")) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, ["interacts_with", "contributes_to"]) AND eq(knowledge_level, "prediction")) @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(all_categories, "Drug") AND anyoftext(description, "laxative")) @cascade(id) {
                 expand(Node)
             }
@@ -822,7 +822,7 @@ EXP_NEGATED_CONSTRAINT = dedent("""
     q0_node_n0(func: eq(id, "CHEBI:3125")) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(all_categories, "Drug") AND NOT(anyoftext(description, "laxatives"))) @cascade(id) {
                 expand(Node)
             }
@@ -836,7 +836,7 @@ EXP_PUBLICATION_FILTER = dedent("""
     q0_node_n0(func: eq(id, "DOID:14330")) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(publications, "PMID:12345678")) @cascade(id) {
                 expand(Node)
             }
@@ -850,7 +850,7 @@ EXP_NUMERIC_FILTER = dedent("""
     q0_node_n0(func: eq(id, "DOID:14330")) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(gt(edge_id, "100")) @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(all_categories, "Gene")) @cascade(id) {
                 expand(Node)
             }
@@ -864,7 +864,7 @@ EXP_SINGLE_STRING_WITH_COMMAS = dedent("""
     q0_node_n0(func: eq(id, ["Q0", "Q1"])) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, "P")) @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(id, "Q2")) @cascade(id) {
                 expand(Node)
             }
@@ -878,7 +878,7 @@ EXP_PREDICATES_SINGLE = dedent("""
     q0_node_n0(func: eq(id, "A")) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, "Ponly")) @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(id, "B")) @cascade(id) {
                 expand(Node)
             }
@@ -892,7 +892,7 @@ EXP_ATTRIBUTES_ONLY = dedent("""
     q0_node_n0(func: eq(id, "A")) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(knowledge_level, "primary")) @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(id, "B")) @cascade(id) {
                 expand(Node)
             }
@@ -906,7 +906,7 @@ EXP_START_OBJECT_WITH_IDS = dedent("""
     q0_node_n0(func: eq(id, "X")) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, "rel")) @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(id, "Y")) @cascade(id) {
                 expand(Node)
             }
@@ -920,7 +920,7 @@ EXP_BATCH_QGRAPHS = dedent("""
     q0_node_n0(func: eq(id, "CHEBI:4514")) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, "subclass_of")) @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(id, "UMLS:C1564592")) @cascade(id) {
                 expand(Node)
             }
@@ -930,7 +930,7 @@ EXP_BATCH_QGRAPHS = dedent("""
     q1_node_n0(func: eq(id, ["CHEBI:3125", "CHEBI:53448"])) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, "interacts_with")) @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(id, ["UMLS:C0282090", "CHEBI:10119"])) @cascade(id) {
                 expand(Node)
             }
@@ -944,7 +944,7 @@ EXP_BATCH_QGRAPHS_MULTI_HOP = dedent("""
     q0_node_n0(func: eq(id, "CHEBI:4514")) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, "subclass_of")) @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(id, "UMLS:C1564592")) @cascade(id) {
                 expand(Node)
             }
@@ -954,7 +954,7 @@ EXP_BATCH_QGRAPHS_MULTI_HOP = dedent("""
     q1_node_n0(func: eq(id, ["CHEBI:3125", "CHEBI:53448"])) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, "interacts_with")) @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(id, ["UMLS:C0282090", "CHEBI:10119"])) @cascade(id) {
                 expand(Node)
             }
@@ -964,11 +964,11 @@ EXP_BATCH_QGRAPHS_MULTI_HOP = dedent("""
     q2_node_n0(func: eq(id, "CHEBI:3125")) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, "interacts_with")) @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(id, "UMLS:C0282090")) @cascade(id, ~object) {
                 expand(Node)
                     in_edges_e1: ~object @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, subject) {
-                    expand(Edge)
+                    expand(Edge) { sources expand(Source) }
                     node_n2: subject @filter(eq(id, "UMLS:C0496995")) @cascade(id) {
                         expand(Node)
                     }
@@ -980,23 +980,23 @@ EXP_BATCH_QGRAPHS_MULTI_HOP = dedent("""
     q3_node_n0(func: eq(id, ["Q0", "Q1"])) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, "P0")) @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(id, ["Q2", "Q3"])) @cascade(id, ~object) {
                 expand(Node)
                 in_edges_e1: ~object @filter(eq(predicate_ancestors, "P1")) @cascade(predicate, subject) {
-                    expand(Edge)
+                    expand(Edge) { sources expand(Source) }
                     node_n2: subject @filter(eq(id, ["Q4", "Q5"])) @cascade(id, ~object) {
                         expand(Node)
                         in_edges_e2: ~object @filter(eq(predicate_ancestors, "P2")) @cascade(predicate, subject) {
-                            expand(Edge)
+                            expand(Edge) { sources expand(Source) }
                             node_n3: subject @filter(eq(id, ["Q6", "Q7"])) @cascade(id, ~object) {
                                 expand(Node)
                                 in_edges_e3: ~object @filter(eq(predicate_ancestors, "P3")) @cascade(predicate, subject) {
-                                    expand(Edge)
+                                    expand(Edge) { sources expand(Source) }
                                     node_n4: subject @filter(eq(id, ["Q8", "Q9"])) @cascade(id, ~object) {
                                         expand(Node)
                                         in_edges_e4: ~object @filter(eq(predicate_ancestors, "P4")) @cascade(predicate, subject) {
-                                            expand(Edge)
+                                            expand(Edge) { sources expand(Source) }
                                             node_n5: subject @filter(eq(id, ["Q10", "Q11"])) @cascade(id) {
                                                 expand(Node)
                                             }
@@ -1018,7 +1018,7 @@ EXP_BATCH_MULTI_IDS_SINGLE = dedent("""
     q0_node_n0(func: eq(id, ["A", "B"])) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, "P")) @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(id, "C")) @cascade(id) {
                 expand(Node)
             }
@@ -1032,7 +1032,7 @@ EXP_BATCH_NO_IDS_SINGLE = dedent("""
     q0_node_n0(func: eq(all_categories, "Gene")) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, "R")) @cascade(predicate, subject) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(id, "D")) @cascade(id) {
                 expand(Node)
             }
@@ -1046,7 +1046,7 @@ DGRAPH_FLOATING_OBJECT_QUERY = dedent("""
     q0_node_n0(func: eq(id, "NCBIGene:3778")) @filter(eq(all_categories, "Gene")) @cascade(id, ~subject) {
         expand(Node)
         out_edges_e01: ~subject @filter(eq(predicate_ancestors, "causes")) @cascade(predicate, object) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: object @filter(eq(all_categories, "Disease")) @cascade(id) {
                 expand(Node)
             }
@@ -1060,7 +1060,7 @@ DGRAPH_FLOATING_OBJECT_QUERY_WITH_VERSION = dedent("""
     q0_node_n0(func: eq(v1_id, "NCBIGene:3778")) @filter(eq(v1_all_categories, "Gene")) @cascade(v1_id, ~v1_subject) {
         expand(v1_Node)
         out_edges_e01: ~v1_subject @filter(eq(v1_predicate_ancestors, "causes")) @cascade(v1_predicate, v1_object) {
-            expand(v1_Edge)
+            expand(v1_Edge) { v1_sources expand(v1_Source) }
             node_n1: v1_object @filter(eq(v1_all_categories, "Disease")) @cascade(v1_id) {
                 expand(v1_Node)
             }
@@ -1074,7 +1074,7 @@ DGRAPH_FLOATING_OBJECT_QUERY_TWO_CATEGORIES = dedent("""
     q0_node_n0(func: eq(id, "NCBIGene:3778")) @filter(eq(all_categories, ["Gene", "Protein"])) @cascade(id, ~subject) {
         expand(Node)
         out_edges_e01: ~subject @filter(eq(predicate_ancestors, "causes")) @cascade(predicate, object) {
-            expand(Edge)
+            expand(Edge) { sources expand(Source) }
             node_n1: object @filter(eq(all_categories, "Disease")) @cascade(id) {
                 expand(Node)
             }
