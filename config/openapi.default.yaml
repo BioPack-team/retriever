@@ -31,7 +31,7 @@ tags:
 - name: biothings
   description:
 x_translator:  # Note that fields usually named with - instead use _ (e.g. x-translator -> x_translator).
-  component: DAWG
+  component: KP
   team:
   - DOGSURF
   biolink_version: 4.3.2
