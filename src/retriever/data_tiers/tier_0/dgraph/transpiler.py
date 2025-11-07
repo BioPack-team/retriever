@@ -595,7 +595,7 @@ class DgraphTranspiler(Tier0Transpiler):
                 AttributeDict(attribute_type_id="biolink:synonym", value=node.all_names)
             )
 
-        # For some reason some publications have empty string
+        # Due to dgraph ideosyncracies some publications have empty string
         with contextlib.suppress(ValueError):
             node.publications.remove("")
 
@@ -607,6 +607,67 @@ class DgraphTranspiler(Tier0Transpiler):
                 )
             )
         return trapi_node
+
+    def _populate_edge_attributes(self, edge: dg.Edge, trapi_edge: EdgeDict) -> None:
+        """Populate the `attributes` field of an edge using a given hit."""
+        if "attributes" not in trapi_edge or trapi_edge["attributes"] is None:
+            trapi_edge["attributes"] = []
+        trapi_edge["attributes"].extend(
+            (
+                AttributeDict(
+                    attribute_type_id="biolink:knowledge_level",
+                    value=edge.knowledge_level or "not_provided",
+                ),
+                AttributeDict(
+                    attribute_type_id="biolink:agent_type",
+                    value=edge.agent_type or "not_provided",
+                ),
+            )
+        )
+
+        # Due to dgraph ideosyncracies some publications have empty string
+        with contextlib.suppress(ValueError):
+            edge.publications.remove("")
+
+        if len(edge.publications):
+            trapi_edge["attributes"].append(
+                AttributeDict(
+                    attribute_type_id="biolink:publications",
+                    value=edge.publications,
+                )
+            )
+
+        if edge.publications_info is not None:
+            for info in edge.publications_info:
+                study_attr = AttributeDict(
+                    attribute_type_id="biolink:has_supporting_study_result",
+                    value=info.pmid,
+                    attributes=[],
+                )
+                sub_attrs = list[AttributeDict](
+                    (
+                        AttributeDict(
+                            attribute_type_id="biolink:publications",
+                            value=[info.pmid],
+                        ),
+                    )
+                )
+                if info.sentence is not None:
+                    sub_attrs.append(
+                        AttributeDict(
+                            attribute_type_id="biolink:supporting_text",
+                            value=info.sentence,
+                        )
+                    )
+                if info.publication_date is not None:
+                    sub_attrs.append(
+                        AttributeDict(
+                            attribute_type_id="biolink:publication_date",
+                            value=info.publication_date,
+                        )
+                    )
+                study_attr["attributes"] = sub_attrs
+                trapi_edge["attributes"].append(study_attr)
 
     def _build_trapi_edge(self, edge: dg.Edge, initial_curie: str) -> EdgeDict:
         trapi_edge = EdgeDict(
@@ -628,18 +689,9 @@ class DgraphTranspiler(Tier0Transpiler):
                     ],
                 ),
             ],
-            attributes=[
-                AttributeDict(
-                    attribute_type_id="biolink:knowledge_level",
-                    value=edge.knowledge_level or "not_provided",
-                ),
-                AttributeDict(
-                    attribute_type_id="biolink:agent_type",
-                    value=edge.agent_type or "not_provided",
-                ),
-            ],
+            attributes=[],
         )
-        # TODO: publications
+        self._populate_edge_attributes(edge, trapi_edge)
 
         return trapi_edge
 

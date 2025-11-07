@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import json
 import re
 from collections.abc import Mapping
 from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Any, Literal, Self, TypeGuard, cast
+
+import orjson
 
 # Regex to find the node binding, ignoring an optional batch prefix like "q0_"
 # It captures the part after the optional prefix and "node_"
@@ -15,6 +16,22 @@ NODE_KEY_PATTERN = re.compile(r"(?:q\d+_)?node_(\w+)")
 # -----------------
 # Dataclasses
 # -----------------
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class PublicationsInfo:
+    """Information regarding publications."""
+
+    pmid: str
+    publication_date: str | None = None
+    sentence: str | None = None
+    subject_score: str | None = None
+    object_score: str | None = None
+
+    @classmethod
+    def from_dict(cls, pubinfo_dict: Mapping[str, Mapping[str, Any]]) -> list[Self]:
+        """Parse a publications info mapping into PublicationsInfo dataclass."""
+        return [cls(**obj, pmid=pmid) for pmid, obj in pubinfo_dict.items()]
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -34,7 +51,7 @@ class Edge:
     qualified_object_aspect: str | None = None
     qualified_object_direction: str | None = None
     qualified_predicate: str | None = None
-    publications_info: str | None = None
+    publications_info: list[PublicationsInfo] | None = None
     publications: list[str] = field(default_factory=list)
 
     @classmethod
@@ -94,8 +111,9 @@ class Edge:
             ),
             publications=_to_str_list(edge_dict.get("publications")),
             publications_info=(
-                str(edge_dict["publications_info"])
+                PublicationsInfo.from_dict(orjson.loads(edge_dict["publications_info"]))
                 if "publications_info" in edge_dict
+                and edge_dict["publications_info"] != ""
                 else None
             ),
         )
@@ -167,7 +185,7 @@ class DgraphResponse:
         """Parse a raw Dgraph response into a structured DgraphResponse object."""
         # Use ternary operator per ruff (SIM108)
         parsed_data: dict[str, Any] = (
-            dict(raw) if isinstance(raw, Mapping) else json.loads(raw)
+            dict(raw) if isinstance(raw, Mapping) else orjson.loads(raw)
         )
 
         processed_data: dict[str, list[Node]] = {}
