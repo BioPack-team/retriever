@@ -20,6 +20,10 @@ from retriever.types.trapi import QueryGraphDict
 
 # Test-only subclass exposing the client property
 class _TestDgraphHttpDriver(driver_mod.DgraphHttpDriver):
+    def __init__(self, *, version: str | None = None) -> None:
+        """Initialize and pass version to the parent class."""
+        super().__init__(version=version)
+
     @property
     def http_session(self) -> aiohttp.ClientSession | None:
         return self._http_session
@@ -27,17 +31,21 @@ class _TestDgraphHttpDriver(driver_mod.DgraphHttpDriver):
 
 # Test-only subclass exposing the client property
 class _TestDgraphGrpcDriver(driver_mod.DgraphGrpcDriver):
+    def __init__(self, *, version: str | None = None) -> None:
+        """Initialize and pass version to the parent class."""
+        super().__init__(version=version)
+
     @property
     def client(self) -> driver_mod.DgraphClientProtocol | None:
         return self._client
 
 
-def new_http_driver() -> _TestDgraphHttpDriver:
-    return _TestDgraphHttpDriver()
+def new_http_driver(version: str | None = None) -> _TestDgraphHttpDriver:
+    return _TestDgraphHttpDriver(version=version)
 
 
-def new_grpc_driver() -> _TestDgraphGrpcDriver:
-    return _TestDgraphGrpcDriver()
+def new_grpc_driver(version: str | None = None) -> _TestDgraphGrpcDriver:
+    return _TestDgraphGrpcDriver(version=version)
 
 
 # Test-only subclass exposing the client property
@@ -69,6 +77,7 @@ def mock_dgraph_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setenv("TIER0__DGRAPH__HOST", "localhost")
     monkeypatch.setenv("TIER0__DGRAPH__HTTP_PORT", "8080")
     monkeypatch.setenv("TIER0__DGRAPH__GRPC_PORT", "9080")
+    monkeypatch.setenv("TIER0__DGRAPH__PREFERRED_VERSION", "v9")
     monkeypatch.setenv("TIER0__DGRAPH__USE_TLS", "false")
     monkeypatch.setenv("TIER0__DGRAPH__QUERY_TIMEOUT", "3")
     monkeypatch.setenv("TIER0__DGRAPH__CONNECT_RETRIES", "0")
@@ -178,7 +187,7 @@ async def test_get_active_version_success_grpc_live():
 
         # Should return the version "v2" as per the live Dgraph instance
         version = await driver.get_active_version()
-        assert version == "v3"
+        assert version == "v9"
     except Exception as e:
         pytest.skip(f"Skipping live Dgraph HTTP test (cannot connect or query): {e}")
     finally:
@@ -200,7 +209,7 @@ async def test_get_active_version_success_http_live():
 
         # Should return the version "v2" as per the live Dgraph instance
         version = await driver.get_active_version()
-        assert version == "v3"
+        assert version == "v9"
     except Exception as e:
         pytest.skip(f"Skipping live Dgraph HTTP test (cannot connect or query): {e}")
     finally:
@@ -305,18 +314,19 @@ async def test_simple_one_query_live_http() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n0(func: eq(v8_id, "GO:0031410")) @cascade(v8_id, ~v8_object) {
-            expand(v8_Node)
-            in_edges_e0: ~v8_object @filter(eq(v8_predicate, "located_in")) @cascade(v8_predicate, v8_subject) {
-                expand(v8_Edge)
-                node_n1: v8_subject @filter(eq(v8_id, "NCBIGene:11276")) @cascade(v8_id) {
-                    expand(v8_Node)
+        q0_node_n0(func: eq(v9_id, "GO:0031410")) @cascade(v9_id, ~v9_object) {
+            expand(v9_Node)
+            in_edges_e0: ~v9_object @filter(eq(v9_predicate_ancestors, "located_in")) @cascade(v9_predicate, v9_subject) {
+                expand(v9_Edge) { v9_sources expand(v9_Source) }
+                node_n1: v9_subject @filter(eq(v9_id, "NCBIGene:11276")) @cascade(v9_id) {
+                    expand(v9_Node)
                 }
             }
         }
     }
     """).strip()
 
+    # driver = new_http_driver(version="v9")
     driver = new_http_driver()
     try:
         await driver.connect()
@@ -326,8 +336,8 @@ async def test_simple_one_query_live_http() -> None:
 
         # Initialize the transpiler with the detected version
         transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
-        assert transpiler.version == "v3"
-        assert transpiler.prefix == "v8_"
+        assert transpiler.version == "v9"
+        assert transpiler.prefix == "v9_"
 
         dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
         assert_query_equals(dgraph_query, dgraph_query_match)
@@ -344,19 +354,19 @@ async def test_simple_one_query_live_http() -> None:
         # 2. Assertions for the root node (n0)
         root_node = result.data["q0"][0]
         assert root_node.binding == "n0"
-        assert root_node.id == "CHEBI:4514"
+        assert root_node.id == "GO:0031410"
         assert len(root_node.edges) == 1
 
         # 3. Assertions for the incoming edge (e0)
         in_edge = root_node.edges[0]
         assert in_edge.binding == "e0"
         assert in_edge.direction == "in"
-        assert in_edge.predicate == "subclass_of"
+        assert in_edge.predicate == "located_in"
 
         # 4. Assertions for the connected node (n1)
         connected_node = in_edge.node
         assert connected_node.binding == "n1"
-        assert connected_node.id == "UMLS:C1564592"
+        assert connected_node.id == "NCBIGene:11276"
 
     except Exception as e:
         pytest.skip(f"Skipping live Dgraph HTTP test (cannot connect or query): {e}")
@@ -374,14 +384,14 @@ async def test_simple_one_query_live_grpc() -> None:
 
     qgraph_query: QueryGraphDict = qg({
         "nodes": {
-            "n0": {"ids": ["CHEBI:4514"], "constraints": []},
-            "n1": {"ids": ["UMLS:C1564592"], "constraints": []},
+            "n0": {"ids": ["GO:0031410"], "constraints": []},
+            "n1": {"ids": ["NCBIGene:11276"], "constraints": []},
         },
         "edges": {
             "e0": {
                 "object": "n0",
                 "subject": "n1",
-                "predicates": ["subclass_of"],
+                "predicates": ["located_in"],
                 "attribute_constraints": [],
                 "qualifier_constraints": [],
             },
@@ -390,12 +400,12 @@ async def test_simple_one_query_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n0(func: eq(v8_id, "CHEBI:4514")) @cascade(v8_id, ~v8_object) {
-            expand(v8_Node)
-            in_edges_e0: ~v8_object @filter(eq(v8_all_predicates, "subclass_of")) @cascade(v8_predicate, v8_subject) {
-                expand(v8_Edge)
-                node_n1: v8_subject @filter(eq(v8_id, "UMLS:C1564592")) @cascade(v8_id) {
-                    expand(v8_Node)
+        q0_node_n0(func: eq(v9_id, "GO:0031410")) @cascade(v9_id, ~v9_object) {
+            expand(v9_Node)
+            in_edges_e0: ~v9_object @filter(eq(v9_predicate_ancestors, "located_in")) @cascade(v9_predicate, v9_subject) {
+                expand(v9_Edge) { v9_sources expand(v9_Source) }
+                node_n1: v9_subject @filter(eq(v9_id, "NCBIGene:11276")) @cascade(v9_id) {
+                    expand(v9_Node)
                 }
             }
         }
@@ -411,8 +421,8 @@ async def test_simple_one_query_live_grpc() -> None:
 
         # Initialize the transpiler with the detected version
         transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
-        assert transpiler.version == "v3"
-        assert transpiler.prefix == "v8_"
+        assert transpiler.version == "v9"
+        assert transpiler.prefix == "v9_"
 
         # Use the transpiler to generate the Dgraph query
         dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
@@ -430,19 +440,19 @@ async def test_simple_one_query_live_grpc() -> None:
         # 2. Assertions for the root node (n0)
         root_node = result.data["q0"][0]
         assert root_node.binding == "n0"
-        assert root_node.id == "CHEBI:4514"
+        assert root_node.id == "GO:0031410"
         assert len(root_node.edges) == 1
 
         # 3. Assertions for the incoming edge (e0)
         in_edge = root_node.edges[0]
         assert in_edge.binding == "e0"
         assert in_edge.direction == "in"
-        assert in_edge.predicate == "subclass_of"
+        assert in_edge.predicate == "located_in"
 
         # 4. Assertions for the connected node (n1)
         connected_node = in_edge.node
         assert connected_node.binding == "n1"
-        assert connected_node.id == "UMLS:C1564592"
+        assert connected_node.id == "NCBIGene:11276"
 
     except Exception as e:
         pytest.skip(f"Skipping live Dgraph gRPC test (cannot connect or query): {e}")

@@ -107,22 +107,43 @@ class DgraphDriver(DatabaseDriver):
     endpoint: str
     query_timeout: float
     connect_retries: int
+    version: str | None = None
     _client_stub: DgraphClientStubProtocol | None = None
     _client: DgraphClientProtocol | None = None
     _http_session: aiohttp.ClientSession | None = None
     _failed: bool = False
     _version_cache: TTLCache[str, str | None] = TTLCache(maxsize=1, ttl=60)
 
-    def __init__(self, protocol: DgraphProtocol = DgraphProtocol.GRPC) -> None:
+    def __init__(
+        self,
+        protocol: DgraphProtocol = DgraphProtocol.GRPC,
+        *,
+        version: str | None = None,
+    ) -> None:
         """Initialize the Dgraph driver with connection settings.
 
         Args:
             protocol: The protocol to use (gRPC or HTTP)
+            version: An optional, fixed schema version to use, bypassing auto-detection.
+                     This parameter has the highest precedence.
         """
         self.settings = CONFIG.tier0.dgraph
         self.protocol = protocol
         self.query_timeout = self.settings.query_timeout
         self.connect_retries = self.settings.connect_retries
+
+        # Version precedence: constructor arg > env var > auto-detect from DB
+        if version is not None:
+            self.version = version
+            log.debug(f"Using schema version from constructor parameter: {version}")
+        elif self.settings.preferred_version:
+            self.version = self.settings.preferred_version
+            log.debug(
+                "Using schema version from TIER0__DGRAPH__PREFERRED_VERSION env var: "
+                + f"{self.version}"
+            )
+        else:
+            self.version = None
 
         # Set endpoint based on protocol
         if protocol == DgraphProtocol.GRPC:
@@ -138,8 +159,15 @@ class DgraphDriver(DatabaseDriver):
     async def get_active_version(self) -> str | None:
         """Queries Dgraph for the active schema version and caches the result.
 
+        If a version was provided at initialization, it will be returned directly.
+
         This method implements manual caching to be async-safe.
         """
+        # If a version was manually set on the driver, always use it.
+        if self.version:
+            log.debug(f"Using manually specified Dgraph schema version: {self.version}")
+            return self.version
+
         # Manually check the cache first
         try:
             cached_version = self._version_cache["active_version"]
@@ -299,11 +327,15 @@ class DgraphDriver(DatabaseDriver):
         else:
             otel_span = None
 
+        # Get the version to build the prefix for parsing the response
+        version = await self.get_active_version()
+        prefix = f"{version}_" if version else None
+
         try:
             if self.protocol == DgraphProtocol.GRPC:
-                result = await self._run_grpc_query(query)
+                result = await self._run_grpc_query(query, prefix=prefix)
             else:
-                result = await self._run_http_query(query)
+                result = await self._run_http_query(query, prefix=prefix)
         except TimeoutError as e:
             if otel_span is not None:
                 otel_span.add_event("dgraph_query_timeout")
@@ -316,7 +348,9 @@ class DgraphDriver(DatabaseDriver):
 
         return result
 
-    async def _run_grpc_query(self, query: str) -> dg_models.DgraphResponse:
+    async def _run_grpc_query(
+        self, query: str, *, prefix: str | None
+    ) -> dg_models.DgraphResponse:
         """Execute query using gRPC protocol."""
         assert self._client is not None, "gRPC client not initialized"
 
@@ -341,9 +375,11 @@ class DgraphDriver(DatabaseDriver):
 
         raw: Any = response.json
 
-        return dg_models.DgraphResponse.parse(raw)
+        return dg_models.DgraphResponse.parse(raw, prefix=prefix)
 
-    async def _run_http_query(self, query: str) -> dg_models.DgraphResponse:
+    async def _run_http_query(
+        self, query: str, *, prefix: str | None
+    ) -> dg_models.DgraphResponse:
         """Execute query using HTTP protocol with DQL."""
         assert self._http_session is not None, "HTTP session not initialized"
 
@@ -372,7 +408,7 @@ class DgraphDriver(DatabaseDriver):
             if "data" not in raw_data:
                 raise RuntimeError("Dgraph query returned no data field.")
 
-            return dg_models.DgraphResponse.parse(raw_data.get("data"))
+            return dg_models.DgraphResponse.parse(raw_data.get("data"), prefix=prefix)
 
     async def _cleanup_connections(self) -> None:
         """Clean up any open connections."""
@@ -396,14 +432,14 @@ class DgraphDriver(DatabaseDriver):
 class DgraphHttpDriver(DgraphDriver):
     """Convenience class for HTTP-specific Dgraph driver."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, version: str | None = None) -> None:
         """Initialize with HTTP protocol."""
-        super().__init__(protocol=DgraphProtocol.HTTP)
+        super().__init__(protocol=DgraphProtocol.HTTP, version=version)
 
 
 class DgraphGrpcDriver(DgraphDriver):
     """Convenience class for gRPC-specific Dgraph driver."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, version: str | None = None) -> None:
         """Initialize with gRPC protocol."""
-        super().__init__(protocol=DgraphProtocol.GRPC)
+        super().__init__(protocol=DgraphProtocol.GRPC, version=version)
