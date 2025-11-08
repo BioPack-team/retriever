@@ -30,17 +30,32 @@ class Edge:
     direction: Literal["in"] | Literal["out"]
     predicate: str
     node: Node
-    primary_knowledge_source: str | None = None
-    knowledge_level: str | None = None
     agent_type: str | None = None
-    kg2_ids: list[str] = field(default_factory=list)
-    domain_range_exclusion: bool | None = None
-    edge_id: str | None = None
-    qualified_object_aspect: str | None = None
-    qualified_object_direction: str | None = None
-    qualified_predicate: str | None = None
-    publications_info: str | None = None
+    knowledge_level: str | None = None
     publications: list[str] = field(default_factory=list)
+    qualified_predicate: str | None = None
+    predicate_ancestors: list[str] = field(default_factory=list)
+    source_inforeses: list[str] = field(default_factory=list)
+    subject_form_or_variant_qualifier: str | None = None
+    disease_context_qualifier: str | None = None
+    frequency_qualifier: str | None = None
+    onset_qualifier: str | None = None
+    sex_qualifier: str | None = None
+    original_subject: str | None = None
+    original_predicate: str | None = None
+    original_object: str | None = None
+    allelic_requirement: str | None = None
+    update_date: str | None = None
+    z_score: float | None = None
+    has_evidence: list[str] = field(default_factory=list)
+    has_confidence_score: float | None = None
+    has_count: float | None = None
+    has_total: float | None = None
+    has_percentage: float | None = None
+    has_quotient: float | None = None
+    sources: str | None = None
+    id: str | None = None
+    category: list[str] = field(default_factory=list)
 
     @classmethod
     def from_dict(
@@ -66,45 +81,32 @@ class Edge:
             direction="in" if direction == "in" else "out",
             predicate=str(norm.get("predicate", "")),
             node=Node.from_dict(node_val, binding=node_binding, prefix=prefix),
-            primary_knowledge_source=(
-                str(norm["primary_knowledge_source"])
-                if "primary_knowledge_source" in norm
-                else None
-            ),
-            knowledge_level=(
-                str(norm["knowledge_level"]) if "knowledge_level" in norm else None
-            ),
-            agent_type=(
-                str(norm["agent_type"]) if "agent_type" in norm else None
-            ),
-            kg2_ids=_to_str_list(norm.get("kg2_ids")),
-            domain_range_exclusion=(
-                bool(norm["domain_range_exclusion"])
-                if "domain_range_exclusion" in norm
-                else None
-            ),
-            edge_id=binding,
-            qualified_object_aspect=(
-                str(norm["qualified_object_aspect"])
-                if "qualified_object_aspect" in norm
-                else None
-            ),
-            qualified_object_direction=(
-                str(norm["qualified_object_direction"])
-                if "qualified_object_direction" in norm
-                else None
-            ),
-            qualified_predicate=(
-                str(norm["qualified_predicate"])
-                if "qualified_predicate" in norm
-                else None
-            ),
+            agent_type=str(norm["agent_type"]) if "agent_type" in norm else None,
+            knowledge_level=str(norm["knowledge_level"]) if "knowledge_level" in norm else None,
             publications=_to_str_list(norm.get("publications")),
-            publications_info=(
-                str(norm["publications_info"])
-                if "publications_info" in norm
-                else None
-            ),
+            qualified_predicate=str(norm["qualified_predicate"]) if "qualified_predicate" in norm else None,
+            predicate_ancestors=_to_str_list(norm.get("predicate_ancestors")),
+            source_inforeses=_to_str_list(norm.get("source_inforeses")),
+            subject_form_or_variant_qualifier=str(norm["subject_form_or_variant_qualifier"]) if "subject_form_or_variant_qualifier" in norm else None,
+            disease_context_qualifier=str(norm["disease_context_qualifier"]) if "disease_context_qualifier" in norm else None,
+            frequency_qualifier=str(norm["frequency_qualifier"]) if "frequency_qualifier" in norm else None,
+            onset_qualifier=str(norm["onset_qualifier"]) if "onset_qualifier" in norm else None,
+            sex_qualifier=str(norm["sex_qualifier"]) if "sex_qualifier" in norm else None,
+            original_subject=str(norm["original_subject"]) if "original_subject" in norm else None,
+            original_predicate=str(norm["original_predicate"]) if "original_predicate" in norm else None,
+            original_object=str(norm["original_object"]) if "original_object" in norm else None,
+            allelic_requirement=str(norm["allelic_requirement"]) if "allelic_requirement" in norm else None,
+            update_date=str(norm["update_date"]) if "update_date" in norm else None,
+            z_score=float(norm["z_score"]) if "z_score" in norm else None,
+            has_evidence=_to_str_list(norm.get("has_evidence")),
+            has_confidence_score=float(norm["has_confidence_score"]) if "has_confidence_score" in norm else None,
+            has_count=float(norm["has_count"]) if "has_count" in norm else None,
+            has_total=float(norm["has_total"]) if "has_total" in norm else None,
+            has_percentage=float(norm["has_percentage"]) if "has_percentage" in norm else None,
+            has_quotient=float(norm["has_quotient"]) if "has_quotient" in norm else None,
+            sources=str(norm["sources"]) if "sources" in norm else None,
+            id=str(norm["eid"]) if "eid" in norm else None,
+            category=_to_str_list(norm.get("ecategory")),
         )
 
 
@@ -115,14 +117,14 @@ class Node:
     binding: str
     id: str
     name: str
-    category: str
     edges: list[Edge] = field(default_factory=list)
-    all_names: list[str] = field(default_factory=list)
-    all_categories: list[str] = field(default_factory=list)
-    iri: str | None = None
-    equivalent_curies: list[str] = field(default_factory=list)
+    category: list[str] = field(default_factory=list)
+    in_taxon: list[str] = field(default_factory=list)
+    information_content: float | None = None
+    inheritance: str | None = None
+    provided_by: list[str] = field(default_factory=list)
     description: str | None = None
-    publications: list[str] = field(default_factory=list)
+    equivalent_identifiers: list[str] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, node_dict: Mapping[str, Any], binding: str, prefix: str | None = None) -> Self:
@@ -150,14 +152,14 @@ class Node:
             binding=binding,
             id=str(norm.get("id", "")),
             name=str(norm.get("name", "")),
-            category=str(norm.get("category", "")),
             edges=edges,
-            all_names=_to_str_list(norm.get("all_names")),
-            all_categories=_to_str_list(norm.get("all_categories")),
-            iri=(str(norm["iri"]) if "iri" in norm else None),
-            equivalent_curies=_to_str_list(norm.get("equivalent_curies")),
-            description=(str(norm["description"]) if "description" in norm else None),
-            publications=_to_str_list(norm.get("publications")),
+            category=_to_str_list(norm.get("category")),
+            in_taxon=_to_str_list(norm.get("in_taxon")),
+            information_content=float(norm["information_content"]) if "information_content" in norm else None,
+            inheritance=str(norm["inheritance"]) if "inheritance" in norm else None,
+            provided_by=_to_str_list(norm.get("provided_by")),
+            description=str(norm["description"]) if "description" in norm else None,
+            equivalent_identifiers=_to_str_list(norm.get("equivalent_identifiers")),
         )
 
 
