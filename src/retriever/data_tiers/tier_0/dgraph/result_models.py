@@ -23,6 +23,22 @@ def _strip_prefix(d: Mapping[str, Any], prefix: str | None) -> Mapping[str, Any]
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class Source:
+    """Represents a single source with its resource ID and role."""
+    resource_id: str
+    resource_role: str
+
+    @classmethod
+    def from_dict(cls, source_dict: Mapping[str, Any], prefix: str | None = None) -> Self:
+        """Parse a source mapping into a Source dataclass."""
+        norm = _strip_prefix(source_dict, prefix)
+        return cls(
+            resource_id=str(norm.get("resource_id", "")),
+            resource_role=str(norm.get("resource_role", "")),
+        )
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class Edge:
     """Represents a directed edge with its properties and a target node."""
 
@@ -53,7 +69,7 @@ class Edge:
     has_total: float | None = None
     has_percentage: float | None = None
     has_quotient: float | None = None
-    sources: str | None = None
+    sources: list[Source] = field(default_factory=list)
     id: str | None = None
     category: list[str] = field(default_factory=list)
 
@@ -75,6 +91,19 @@ class Edge:
         node_binding = next(
             (k.split("_", 1)[1] for k in norm if k.startswith("node_")), ""
         )
+
+        # --- Parse sources ---
+        sources_val = norm.get("sources")
+        parsed_sources: list[Source] = []
+        sources_list: list[Any] = []
+        if isinstance(sources_val, str):
+            with suppress(json.JSONDecodeError):
+                sources_list = json.loads(sources_val)
+        elif isinstance(sources_val, list):
+            sources_list = sources_val
+
+        for source_item in filter(_is_mapping, sources_list):
+            parsed_sources.append(Source.from_dict(source_item, prefix=prefix))
 
         return cls(
             binding=binding,
@@ -104,7 +133,7 @@ class Edge:
             has_total=float(norm["has_total"]) if "has_total" in norm else None,
             has_percentage=float(norm["has_percentage"]) if "has_percentage" in norm else None,
             has_quotient=float(norm["has_quotient"]) if "has_quotient" in norm else None,
-            sources=str(norm["sources"]) if "sources" in norm else None,
+            sources=parsed_sources,
             id=str(norm["eid"]) if "eid" in norm else None,
             category=_to_str_list(norm.get("ecategory")),
         )
