@@ -95,17 +95,12 @@ class Edge:
 
         # --- Parse sources ---
         sources_val = norm.get("sources")
-        sources_list: list[Any] = []
-        if isinstance(sources_val, str):
-            with suppress(json.JSONDecodeError):
-                sources_list = json.loads(sources_val)
-        elif isinstance(sources_val, list):
-            sources_list = sources_val
-
-        parsed_sources = [
-            Source.from_dict(source_item, prefix=prefix)
-            for source_item in filter(_is_mapping, sources_list)
-        ]
+        parsed_sources: list[Source] = []
+        if isinstance(sources_val, list):
+            parsed_sources = [
+                Source.from_dict(source_item, prefix=prefix)
+                for source_item in filter(_is_mapping, sources_val)
+            ]
 
         return cls(
             binding=binding,
