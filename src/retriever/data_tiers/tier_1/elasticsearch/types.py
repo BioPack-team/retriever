@@ -34,6 +34,7 @@ class ESPublicationsInfo(TypedDict):
     publication_date: NotRequired[str]
     sentence: NotRequired[str]
     subject_score: NotRequired[str]
+    object_score: NotRequired[str]
 
 
 class ESNode(TypedDict):

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import json
 import re
 from collections.abc import Mapping
 from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Any, Literal, Self, TypeGuard, cast
+
+import orjson
 
 # Regex to find the node binding, ignoring an optional batch prefix like "q0_"
 # It captures the part after the optional prefix and "node_"
@@ -214,7 +215,7 @@ class DgraphResponse:
         """
         # Use ternary operator per ruff (SIM108)
         parsed_data: dict[str, Any] = (
-            dict(raw) if isinstance(raw, Mapping) else json.loads(raw)
+            dict(raw) if isinstance(raw, Mapping) else orjson.loads(raw)
         )
 
         processed_data: dict[str, list[Node]] = {}

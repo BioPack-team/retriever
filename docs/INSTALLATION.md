@@ -41,7 +41,7 @@ docker run \
   -it \
   --name \
   retriever \
-  -p 3000:3000 \
+  -p 8080:8080 \
   -e REDIS__HOST=host.docker.internal \
   -e MONGO__HOST=host.docker.internal \
   biopack-team/retriever
