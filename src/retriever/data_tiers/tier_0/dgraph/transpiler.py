@@ -1,4 +1,3 @@
-import contextlib
 import itertools
 from collections.abc import Mapping, Sequence
 from typing import Any, Protocol, TypeAlias, override
@@ -580,78 +579,108 @@ class DgraphTranspiler(Tier0Transpiler):
 
     def _build_trapi_node(self, node: dg.Node) -> NodeDict:
         """Convert a Dgraph Node to a TRAPI NodeDict."""
-        trapi_node = NodeDict(
-            name=node.name,
-            categories=[
-                BiolinkEntity(biolink.ensure_prefix(cat)) for cat in node.all_categories
-            ],
-            attributes=[],
-        )
+        attributes: list[AttributeDict] = []
 
-        xref_only_self = (
-            len(node.equivalent_curies) == 1 and node.equivalent_curies[0] == node.id
-        )
-        if not xref_only_self:
-            trapi_node["attributes"].append(
+        if not (len(node.equivalent_identifiers) == 1 and node.equivalent_identifiers[0] == node.id):
+            attributes.append(
                 AttributeDict(
                     attribute_type_id="biolink:xref",
-                    value=node.equivalent_curies,
+                    value=[CURIE(i) for i in node.equivalent_identifiers],
                 )
             )
 
-        name_only_self = (not node.all_names) or (
-            len(node.all_names) == 1 and node.all_names[0] == node.name
-        )
-        if not name_only_self:
-            trapi_node["attributes"].append(
-                AttributeDict(attribute_type_id="biolink:synonym", value=node.all_names)
-            )
-
-        # For some reason some publications have empty string
-        with contextlib.suppress(ValueError):
-            node.publications.remove("")
-
-        if len(node.publications):
-            trapi_node["attributes"].append(
+        if node.description:
+            attributes.append(
                 AttributeDict(
-                    attribute_type_id="biolink:publications",
-                    value=node.publications,
+                    attribute_type_id="biolink:description", value=node.description
                 )
             )
+        if node.in_taxon:
+            attributes.append(
+                AttributeDict(
+                    attribute_type_id="biolink:in_taxon",
+                    value=[CURIE(i) for i in node.in_taxon],
+                )
+            )
+        if node.information_content is not None:
+            attributes.append(
+                AttributeDict(
+                    attribute_type_id="biolink:information_content",
+                    value=node.information_content,
+                )
+            )
+        if node.inheritance:
+            attributes.append(
+                AttributeDict(
+                    attribute_type_id="biolink:inheritance", value=node.inheritance
+                )
+            )
+        if node.provided_by:
+            attributes.append(
+                AttributeDict(
+                    attribute_type_id="biolink:provided_by",
+                    value=[Infores(i) for i in node.provided_by],
+                )
+            )
+
+        trapi_node = NodeDict(
+            name=node.name,
+            categories=[BiolinkEntity(biolink.ensure_prefix(cat)) for cat in node.category],
+            attributes=attributes,
+        )
+
         return trapi_node
 
     def _build_trapi_edge(self, edge: dg.Edge, initial_curie: str) -> EdgeDict:
+        """Convert a Dgraph Edge to a TRAPI EdgeDict."""
+        attributes: list[AttributeDict] = []
+        attribute_map = {
+            "biolink:source_infores": edge.source_inforeses,
+            "biolink:id": edge.id,
+            "biolink:category": [BiolinkEntity(biolink.ensure_prefix(cat)) for cat in edge.category],
+            "biolink:knowledge_level": edge.knowledge_level,
+            "biolink:agent_type": edge.agent_type,
+            "biolink:publications": edge.publications,
+            "biolink:qualified_predicate": edge.qualified_predicate,
+            "biolink:subject_form_or_variant_qualifier": edge.subject_form_or_variant_qualifier,
+            "biolink:disease_context_qualifier": edge.disease_context_qualifier,
+            "biolink:frequency_qualifier": edge.frequency_qualifier,
+            "biolink:onset_qualifier": edge.onset_qualifier,
+            "biolink:sex_qualifier": edge.sex_qualifier,
+            "biolink:original_subject": edge.original_subject,
+            "biolink:original_predicate": edge.original_predicate,
+            "biolink:original_object": edge.original_object,
+            "biolink:allelic_requirement": edge.allelic_requirement,
+            "biolink:update_date": edge.update_date,
+            "biolink:z_score": edge.z_score,
+            "biolink:has_evidence": edge.has_evidence,
+            "biolink:has_confidence_score": edge.has_confidence_score,
+            "biolink:has_count": edge.has_count,
+            "biolink:has_total": edge.has_total,
+            "biolink:has_percentage": edge.has_percentage,
+            "biolink:has_quotient": edge.has_quotient,
+        }
+        for attr_id, value in attribute_map.items():
+            if value is not None and value != [] and value != "":
+                attributes.append(AttributeDict(attribute_type_id=attr_id, value=value))
+
+        # --- Build Sources ---
+        sources = [
+            RetrievalSourceDict(
+                resource_id=Infores(s.resource_id),
+                resource_role=s.resource_role,
+            )
+            for s in edge.sources
+        ]
+
+        # --- Build Edge ---
         trapi_edge = EdgeDict(
             predicate=BiolinkPredicate(biolink.ensure_prefix(edge.predicate)),
             subject=CURIE(edge.node.id if edge.direction == "in" else initial_curie),
             object=CURIE(initial_curie if edge.direction == "in" else edge.node.id),
-            sources=[
-                RetrievalSourceDict(
-                    resource_id=Infores(
-                        edge.primary_knowledge_source or "err_not_provided"
-                    ),
-                    resource_role="primary_knowledge_source",
-                ),
-                RetrievalSourceDict(
-                    resource_id=Infores("infores:rtx-kg2"),
-                    resource_role="aggregator_knowledge_source",
-                    upstream_resource_ids=[
-                        Infores(edge.primary_knowledge_source or "err_not_provided")
-                    ],
-                ),
-            ],
-            attributes=[
-                AttributeDict(
-                    attribute_type_id="biolink:knowledge_level",
-                    value=edge.knowledge_level or "not_provided",
-                ),
-                AttributeDict(
-                    attribute_type_id="biolink:agent_type",
-                    value=edge.agent_type or "not_provided",
-                ),
-            ],
+            sources=sources,
+            attributes=attributes,
         )
-        # TODO: publications
 
         return trapi_edge
 
