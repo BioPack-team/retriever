@@ -661,7 +661,7 @@ class DgraphTranspiler(Tier0Transpiler):
             "biolink:has_quotient": edge.has_quotient,
         }
         for attr_id, value in attribute_map.items():
-            if value is not None and value != [] and value != "":
+            if value is not None and value not in ([], ""):
                 attributes.append(AttributeDict(attribute_type_id=attr_id, value=value))
 
         # --- Build Sources ---
