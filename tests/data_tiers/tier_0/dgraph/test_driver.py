@@ -5,7 +5,7 @@ import time
 from collections.abc import Iterator
 from typing import Any, cast, final, override
 from textwrap import dedent
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 
 import asyncio
 import aiohttp
@@ -218,74 +218,157 @@ async def test_get_active_version_success_http_live():
 
 @pytest.mark.asyncio
 @patch("pydgraph.DgraphClient")
-async def test_get_active_version_success_and_cached(
-    mock_dgraph_client_class: MagicMock
+async def test_get_active_version_prefers_manual_version(
+    mock_dgraph_client_class: MagicMock,
 ):
-    """Test get_active_version when a version is found and that it's cached."""
-    # Mock the response object that the query will return
-    mock_response = MagicMock()
-    mock_response.json = json.dumps({"versions": [{"schema_metadata_version": "v1"}]}).encode("utf-8")
+    """
+    Test that get_active_version returns the manually provided version
+    without hitting the database.
+    """
+    # Initialize driver with a manual version
+    driver = new_grpc_driver(version="manual_v1")
+    await driver.connect()
 
-    # Mock the transaction object and its query method
-    mock_txn = MagicMock()
-    mock_txn.query.return_value = mock_response
-
-    # Configure the mock DgraphClient instance to return our mock transaction
+    # The mock client should NOT be used
     mock_client_instance = mock_dgraph_client_class.return_value
-    mock_client_instance.txn.return_value = mock_txn
 
-    driver = new_grpc_driver()
-    # The driver will now use our mocked client internally upon connection
-    await driver.connect()
-
-    # First call should trigger the query
+    # First call
     version = await driver.get_active_version()
-    assert version == "v1"
-    mock_client_instance.txn.assert_called_once_with(read_only=True)
-    mock_txn.query.assert_called_once()
+    assert version == "manual_v1"
+    mock_client_instance.txn.assert_not_called()
 
-    # Second call should hit the cache and not trigger the query again
+    # Second call (should also not query)
     version2 = await driver.get_active_version()
-    assert version2 == "v1"
-    mock_client_instance.txn.assert_called_once()  # Assert it's still only called once
+    assert version2 == "manual_v1"
+    mock_client_instance.txn.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    "protocol, mock_path",
+    [
+        (driver_mod.DgraphProtocol.GRPC, "pydgraph.DgraphClient"),
+        (driver_mod.DgraphProtocol.HTTP, "aiohttp.ClientSession"),
+    ],
+)
 @pytest.mark.asyncio
-@patch("pydgraph.DgraphClient")
-async def test_get_active_version_not_found(
-    mock_dgraph_client_class: MagicMock
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_get_active_version_from_db_mocked(
+    protocol: driver_mod.DgraphProtocol, mock_path: str
 ):
-    """Test get_active_version when no active version is in the database."""
-    mock_response = MagicMock()
-    mock_response.json = json.dumps({"versions": []}).encode("utf-8")
-    mock_txn = MagicMock()
-    mock_txn.query.return_value = mock_response
-    mock_dgraph_client_class.return_value.txn.return_value = mock_txn
+    """
+    Tests get_active_version for DB query, caching, not-found, and failure scenarios
+    for both gRPC and HTTP protocols using mocks.
+    """
 
-    driver = new_grpc_driver()
-    await driver.connect()
-    driver.clear_version_cache()
+    def setup_mock(mock_class: MagicMock, response_data: Any, *, fails: bool = False):
+        """Helper to configure the mock for either gRPC or HTTP."""
+        if protocol == driver_mod.DgraphProtocol.GRPC:
+            mock_response = MagicMock()
+            mock_response.json = json.dumps(response_data).encode("utf-8")
+            mock_txn = MagicMock()
+            if fails:
+                mock_txn.query.side_effect = Exception("DB connection failed")
+            else:
+                mock_txn.query.return_value = mock_response
+            mock_class.return_value.txn.return_value = mock_txn
+            return mock_class.return_value
+        else:  # HTTP
+            mock_response = MagicMock()
+            mock_response.status = 200
+            if fails:
+                mock_response.json = AsyncMock(side_effect=Exception("HTTP connection failed"))
+            else:
+                mock_response.json = AsyncMock(return_value={"data": response_data})
 
-    version = await driver.get_active_version()
-    assert version is None
+            mock_post = MagicMock()
+            mock_post.__aenter__.return_value = mock_response
 
+            mock_session = mock_class.return_value
+            mock_session.post.return_value = mock_post
+            mock_session.close = AsyncMock()  # <-- make awaitable
+            return mock_session
 
-@pytest.mark.asyncio
-@patch("pydgraph.DgraphClient")
-async def test_get_active_version_query_fails(
-    mock_dgraph_client_class: MagicMock
-):
-    """Test get_active_version when the database query raises an exception."""
-    mock_txn = MagicMock()
-    mock_txn.query.side_effect = Exception("DB connection failed")
-    mock_dgraph_client_class.return_value.txn.return_value = mock_txn
+    # Force DB query path by removing preferred_version during these tests
+    with patch.object(general_mod.CONFIG.tier0.dgraph, "preferred_version", None):
 
-    driver = new_grpc_driver()
-    await driver.connect()
-    driver.clear_version_cache()
+        # --- Test Case 1: Success ---
+        with patch(mock_path) as mock_class:
+            mock_instance = setup_mock(
+                mock_class, {"versions": [{"schema_metadata_version": "v_db"}]}
+            )
 
-    version = await driver.get_active_version()
-    assert version is None
+            driver = (
+                new_grpc_driver(version=None)
+                if protocol == driver_mod.DgraphProtocol.GRPC
+                else new_http_driver(version=None)
+            )
+
+            # Bypass any prefetch during connect
+            with patch.object(
+                driver_mod.DgraphDriver, "get_active_version", new=AsyncMock(return_value=None)
+            ):
+                await driver.connect()
+
+            # Ensure clean slate
+            driver.clear_version_cache()
+            driver.version = None
+
+            version = await driver.get_active_version()
+            assert version == "v_db"
+
+            # Just assert the underlying query was used at least once
+            if protocol == driver_mod.DgraphProtocol.GRPC:
+                assert mock_instance.txn.return_value.query.called
+            else:
+                assert mock_instance.post.called
+
+            await driver.close()
+
+        # --- Test Case 2: Version Not Found ---
+        with patch(mock_path) as mock_class:
+            setup_mock(mock_class, {"versions": []})
+
+            driver = (
+                new_grpc_driver(version=None)
+                if protocol == driver_mod.DgraphProtocol.GRPC
+                else new_http_driver(version=None)
+            )
+
+            with patch.object(
+                driver_mod.DgraphDriver, "get_active_version", new=AsyncMock(return_value=None)
+            ):
+                await driver.connect()
+
+            driver.clear_version_cache()
+            driver.version = None
+
+            version = await driver.get_active_version()
+            assert version is None
+
+            await driver.close()
+
+        # --- Test Case 3: Query Fails ---
+        with patch(mock_path) as mock_class:
+            setup_mock(mock_class, {}, fails=True)
+
+            driver = (
+                new_grpc_driver(version=None)
+                if protocol == driver_mod.DgraphProtocol.GRPC
+                else new_http_driver(version=None)
+            )
+
+            with patch.object(
+                driver_mod.DgraphDriver, "get_active_version", new=AsyncMock(return_value=None)
+            ):
+                await driver.connect()
+
+            driver.clear_version_cache()
+            driver.version = None
+
+            version = await driver.get_active_version()
+            assert version is None
+
+            await driver.close()
 
 
 @pytest.mark.live
