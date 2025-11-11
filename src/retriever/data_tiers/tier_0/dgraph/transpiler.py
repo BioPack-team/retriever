@@ -109,7 +109,7 @@ class DgraphTranspiler(Tier0Transpiler):
         """Build a filter expression for a node based on its properties."""
         filters: list[str] = []
 
-        # Handle ID filtering
+        # Handle ID filtering - if present, it's the ONLY filter we need.
         ids = node.get("ids")
         if ids:
             if len(ids) == 1:
@@ -119,14 +119,14 @@ class DgraphTranspiler(Tier0Transpiler):
                     # Multiple IDs in a single string - split them
                     id_list = [id_val.strip() for id_val in id_value.split(",")]
                     ids_str = ", ".join(f'"{id_val}"' for id_val in id_list)
-                    filters.append(f"eq({self._v('id')}, [{ids_str}])")
+                    return f"eq({self._v('id')}, [{ids_str}])"
                 else:
                     # Single ID
-                    filters.append(f'eq({self._v("id")}, "{id_value}")')
+                    return f'eq({self._v("id")}, "{id_value}")'
             else:
                 # Multiple IDs in array
                 ids_str = ", ".join(f'"{id_val}"' for id_val in ids)
-                filters.append(f"eq({self._v('id')}, [{ids_str}])")
+                return f"eq({self._v('id')}, [{ids_str}])"
 
         # Handle category filtering
         categories = node.get("categories")
@@ -434,8 +434,9 @@ class DgraphTranspiler(Tier0Transpiler):
         """Recursively build a query for a node and its connected nodes."""
         node = nodes[node_id]
 
-        # Get primary and secondary filters
-        primary_filter, secondary_filters = self._get_primary_and_secondary_filters(node)
+        # Get the combined filter for the node.
+        # This will correctly prioritize ID if available.
+        node_filter = self._build_node_filter(node)
 
         # Create the root node key, with an optional query index prefix
         root_node_key = f"node_{node_id}"
@@ -443,10 +444,7 @@ class DgraphTranspiler(Tier0Transpiler):
             root_node_key = f"q{query_index}_{root_node_key}"
 
         # Start the query with the primary filter, using the generated key
-        query = f"{root_node_key}(func: {primary_filter})"
-
-        # Add secondary filters if present
-        query += self._build_filter_clause(secondary_filters)
+        query = f"{root_node_key}(func: {node_filter})"
 
         # Prepare visited set and add node-level cascade
         visited = {node_id}
