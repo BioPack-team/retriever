@@ -97,9 +97,10 @@ class Edge:
         sources_val = norm.get("sources")
         parsed_sources: list[Source] = []
         if isinstance(sources_val, list):
+            safe_sources_list = cast(list[Any], sources_val)
             parsed_sources = [
                 Source.from_dict(cast(Mapping[str, Any], source_item), prefix=prefix)
-                for source_item in sources_val
+                for source_item in safe_sources_list
                 if isinstance(source_item, Mapping)
             ]
 
