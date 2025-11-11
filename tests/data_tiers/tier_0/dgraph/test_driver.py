@@ -73,7 +73,6 @@ def assert_query_equals(actual: str, expected: str) -> None:
 
 @pytest.fixture
 def mock_dgraph_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    # These tests should use localhost and SKIP
     monkeypatch.setenv("TIER0__DGRAPH__HOST", "localhost")
     monkeypatch.setenv("TIER0__DGRAPH__HTTP_PORT", "8080")
     monkeypatch.setenv("TIER0__DGRAPH__GRPC_PORT", "9080")
@@ -95,18 +94,14 @@ def mock_dgraph_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 @pytest.mark.usefixtures("mock_dgraph_config")
 async def test_dgraph_live_with_http_settings_from_config() -> None:
     driver = new_http_driver()
-    try:
-        await driver.connect()
-        assert driver.http_session is not None
-        print(f"HTTP host={driver.settings.host}, endpoint={driver.endpoint}")
-        result: dg_models.DgraphResponse = await driver.run_query(
-            "{ node(func: has(id), first: 1) { id name category } }"
-        )
-        assert isinstance(result, dg_models.DgraphResponse)
-    except Exception as e:
-        pytest.skip(f"Skipping live Dgraph HTTP test (cannot connect or query): {e}")
-    finally:
-        await driver.close()
+    await driver.connect()
+    assert driver.http_session is not None
+    print(f"HTTP host={driver.settings.host}, endpoint={driver.endpoint}")
+    result: dg_models.DgraphResponse = await driver.run_query(
+        "{ node(func: has(id), first: 1) { id name category } }"
+    )
+    assert isinstance(result, dg_models.DgraphResponse)
+    await driver.close()
 
 
 @pytest.mark.live
@@ -114,18 +109,14 @@ async def test_dgraph_live_with_http_settings_from_config() -> None:
 @pytest.mark.usefixtures("mock_dgraph_config")
 async def test_dgraph_live_with_grpc_settings_from_config() -> None:
     driver = new_grpc_driver()
-    try:
-        await driver.connect()
-        assert driver.client is not None
-        print(f"gRPC host={driver.settings.host}, endpoint={driver.endpoint}")
-        result: dg_models.DgraphResponse = await driver.run_query(
-            "{ node(func: has(id), first: 1) { id name category } }"
-        )
-        assert isinstance(result, dg_models.DgraphResponse)
-    except Exception as e:
-        pytest.skip(f"Skipping live Dgraph gRPC test (cannot connect or query): {e}")
-    finally:
-        await driver.close()
+    await driver.connect()
+    assert driver.client is not None
+    print(f"gRPC host={driver.settings.host}, endpoint={driver.endpoint}")
+    result: dg_models.DgraphResponse = await driver.run_query(
+        "{ node(func: has(id), first: 1) { id name category } }"
+    )
+    assert isinstance(result, dg_models.DgraphResponse)
+    await driver.close()
 
 
 @pytest.mark.asyncio
@@ -178,20 +169,16 @@ async def test_dgraph_mock() -> None:
 async def test_get_active_version_success_grpc_live():
     """Test get_active_version when a version is found and that it's cached."""
     driver = new_grpc_driver()
-    try:
-        # The driver will now use our mocked client internally upon connection
-        await driver.connect()
+    await driver.connect()
 
-        # Clear cache before test
-        driver.clear_version_cache()
+    # Clear cache before test
+    driver.clear_version_cache()
 
-        # Should return the version "v2" as per the live Dgraph instance
-        version = await driver.get_active_version()
-        assert version == "v9"
-    except Exception as e:
-        pytest.skip(f"Skipping live Dgraph HTTP test (cannot connect or query): {e}")
-    finally:
-        await driver.close()
+    # Should return the version "v2" as per the live Dgraph instance
+    version = await driver.get_active_version()
+    assert version == "v9"
+
+    await driver.close()
 
 
 @pytest.mark.live
@@ -200,20 +187,16 @@ async def test_get_active_version_success_grpc_live():
 async def test_get_active_version_success_http_live():
     """Test get_active_version when a version is found and that it's cached."""
     driver = new_http_driver()
-    try:
-        # The driver will now use our mocked client internally upon connection
-        await driver.connect()
+    await driver.connect()
 
-        # Clear cache before test
-        driver.clear_version_cache()
+    # Clear cache before test
+    driver.clear_version_cache()
 
-        # Should return the version "v2" as per the live Dgraph instance
-        version = await driver.get_active_version()
-        assert version == "v9"
-    except Exception as e:
-        pytest.skip(f"Skipping live Dgraph HTTP test (cannot connect or query): {e}")
-    finally:
-        await driver.close()
+    # Should return the version "v2" as per the live Dgraph instance
+    version = await driver.get_active_version()
+    assert version == "v9"
+
+    await driver.close()
 
 
 @pytest.mark.asyncio
@@ -411,50 +394,46 @@ async def test_simple_one_query_live_http() -> None:
 
     # driver = new_http_driver(version="v9")
     driver = new_http_driver()
-    try:
-        await driver.connect()
+    await driver.connect()
 
-        # Get the active Dgraph schema version
-        dgraph_schema_version = await driver.get_active_version()
+    # Get the active Dgraph schema version
+    dgraph_schema_version = await driver.get_active_version()
 
-        # Initialize the transpiler with the detected version
-        transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
-        assert transpiler.version == "v9"
-        assert transpiler.prefix == "v9_"
+    # Initialize the transpiler with the detected version
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+    assert transpiler.version == "v9"
+    assert transpiler.prefix == "v9_"
 
-        dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
-        assert_query_equals(dgraph_query, dgraph_query_match)
+    dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
+    assert_query_equals(dgraph_query, dgraph_query_match)
 
-        # Run the query against the live Dgraph instance
-        result: dg_models.DgraphResponse = await driver.run_query(dgraph_query)
-        assert isinstance(result, dg_models.DgraphResponse)
+    # Run the query against the live Dgraph instance
+    result: dg_models.DgraphResponse = await driver.run_query(dgraph_query)
+    assert isinstance(result, dg_models.DgraphResponse)
 
-        # Assertions to check that some data is returned
-        assert result.data, "No data returned from Dgraph for simple-one query"
-        assert "q0" in result.data
-        assert len(result.data["q0"]) == 1
+    # Assertions to check that some data is returned
+    assert result.data, "No data returned from Dgraph for simple-one query"
+    assert "q0" in result.data
+    assert len(result.data["q0"]) == 1
 
-        # 2. Assertions for the root node (n0)
-        root_node = result.data["q0"][0]
-        assert root_node.binding == "n0"
-        assert root_node.id == "GO:0031410"
-        assert len(root_node.edges) == 1
+    # 2. Assertions for the root node (n0)
+    root_node = result.data["q0"][0]
+    assert root_node.binding == "n0"
+    assert root_node.id == "GO:0031410"
+    assert len(root_node.edges) == 1
 
-        # 3. Assertions for the incoming edge (e0)
-        in_edge = root_node.edges[0]
-        assert in_edge.binding == "e0"
-        assert in_edge.direction == "in"
-        assert in_edge.predicate == "located_in"
+    # 3. Assertions for the incoming edge (e0)
+    in_edge = root_node.edges[0]
+    assert in_edge.binding == "e0"
+    assert in_edge.direction == "in"
+    assert in_edge.predicate == "located_in"
 
-        # 4. Assertions for the connected node (n1)
-        connected_node = in_edge.node
-        assert connected_node.binding == "n1"
-        assert connected_node.id == "NCBIGene:11276"
+    # 4. Assertions for the connected node (n1)
+    connected_node = in_edge.node
+    assert connected_node.binding == "n1"
+    assert connected_node.id == "NCBIGene:11276"
 
-    except Exception as e:
-        pytest.skip(f"Skipping live Dgraph HTTP test (cannot connect or query): {e}")
-    finally:
-        await driver.close()
+    await driver.close()
 
 
 @pytest.mark.live
@@ -496,51 +475,47 @@ async def test_simple_one_query_live_grpc() -> None:
     """).strip()
 
     driver = new_grpc_driver()
-    try:
-        await driver.connect()
+    await driver.connect()
 
-        # Get the active Dgraph schema version
-        dgraph_schema_version = await driver.get_active_version()
+    # Get the active Dgraph schema version
+    dgraph_schema_version = await driver.get_active_version()
 
-        # Initialize the transpiler with the detected version
-        transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
-        assert transpiler.version == "v9"
-        assert transpiler.prefix == "v9_"
+    # Initialize the transpiler with the detected version
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+    assert transpiler.version == "v9"
+    assert transpiler.prefix == "v9_"
 
-        # Use the transpiler to generate the Dgraph query
-        dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
-        assert_query_equals(dgraph_query, dgraph_query_match)
+    # Use the transpiler to generate the Dgraph query
+    dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
+    assert_query_equals(dgraph_query, dgraph_query_match)
 
-        # Run the query against the live Dgraph instance
-        result: dg_models.DgraphResponse = await driver.run_query(dgraph_query)
-        assert isinstance(result, dg_models.DgraphResponse)
+    # Run the query against the live Dgraph instance
+    result: dg_models.DgraphResponse = await driver.run_query(dgraph_query)
+    assert isinstance(result, dg_models.DgraphResponse)
 
-        # Assertions to check that some data is returned
-        assert result.data, "No data returned from Dgraph for simple-one query"
-        assert "q0" in result.data
-        assert len(result.data["q0"]) == 1
+    # Assertions to check that some data is returned
+    assert result.data, "No data returned from Dgraph for simple-one query"
+    assert "q0" in result.data
+    assert len(result.data["q0"]) == 1
 
-        # 2. Assertions for the root node (n0)
-        root_node = result.data["q0"][0]
-        assert root_node.binding == "n0"
-        assert root_node.id == "GO:0031410"
-        assert len(root_node.edges) == 1
+    # 2. Assertions for the root node (n0)
+    root_node = result.data["q0"][0]
+    assert root_node.binding == "n0"
+    assert root_node.id == "GO:0031410"
+    assert len(root_node.edges) == 1
 
-        # 3. Assertions for the incoming edge (e0)
-        in_edge = root_node.edges[0]
-        assert in_edge.binding == "e0"
-        assert in_edge.direction == "in"
-        assert in_edge.predicate == "located_in"
+    # 3. Assertions for the incoming edge (e0)
+    in_edge = root_node.edges[0]
+    assert in_edge.binding == "e0"
+    assert in_edge.direction == "in"
+    assert in_edge.predicate == "located_in"
 
-        # 4. Assertions for the connected node (n1)
-        connected_node = in_edge.node
-        assert connected_node.binding == "n1"
-        assert connected_node.id == "NCBIGene:11276"
+    # 4. Assertions for the connected node (n1)
+    connected_node = in_edge.node
+    assert connected_node.binding == "n1"
+    assert connected_node.id == "NCBIGene:11276"
 
-    except Exception as e:
-        pytest.skip(f"Skipping live Dgraph gRPC test (cannot connect or query): {e}")
-    finally:
-        await driver.close()
+    await driver.close()
 
 
 @pytest.mark.live
@@ -567,44 +542,40 @@ async def test_simple_one_query_grpc_parallel_live_nonblocking() -> None:
     })
 
     driver = new_grpc_driver()
-    try:
-        await driver.connect()
+    await driver.connect()
 
-        # Get the active Dgraph schema version
-        dgraph_schema_version = await driver.get_active_version()
+    # Get the active Dgraph schema version
+    dgraph_schema_version = await driver.get_active_version()
 
-        # Initialize the transpiler with the detected version
-        transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+    # Initialize the transpiler with the detected version
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
 
-        # Use the transpiler to generate the Dgraph query
-        dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
+    # Use the transpiler to generate the Dgraph query
+    dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
 
-        async def run_query_with_delay():
-            # Add an artificial delay to simulate a slow query
-            await asyncio.sleep(1)
-            return await driver.run_query(dgraph_query)
+    async def run_query_with_delay():
+        # Add an artificial delay to simulate a slow query
+        await asyncio.sleep(1)
+        return await driver.run_query(dgraph_query)
 
-        start = time.perf_counter()
-        # Run queries concurrently. Calling run_query_with_delay three times to increase chance of blocking.
-        results = await asyncio.gather(
-            run_query_with_delay(),
-            run_query_with_delay(),
-            run_query_with_delay(),
-        )
-        elapsed = time.perf_counter() - start
+    start = time.perf_counter()
+    # Run queries concurrently. Calling run_query_with_delay three times to increase chance of blocking.
+    results = await asyncio.gather(
+        run_query_with_delay(),
+        run_query_with_delay(),
+        run_query_with_delay(),
+    )
+    elapsed = time.perf_counter() - start
 
-        # Both should succeed
-        for result in results:
-            assert isinstance(result, dg_models.DgraphResponse)
-            assert result.data, "No data returned from Dgraph for simple-one query"
+    # Both should succeed
+    for result in results:
+        assert isinstance(result, dg_models.DgraphResponse)
+        assert result.data, "No data returned from Dgraph for simple-one query"
 
-        # If queries are non-blocking, elapsed should be just over 1 second, not 2+
-        assert elapsed < 2, f"Queries are blocking each other! Elapsed: {elapsed:.2f}s"
+    # If queries are non-blocking, elapsed should be just over 1 second, not 2+
+    assert elapsed < 2, f"Queries are blocking each other! Elapsed: {elapsed:.2f}s"
 
-    except Exception as e:
-        pytest.skip(f"Skipping live Dgraph gRPC test (cannot connect or query): {e}")
-    finally:
-        await driver.close()
+    await driver.close()
 
 
 @pytest.mark.live
@@ -631,41 +602,37 @@ async def test_simple_one_query_http_parallel_live_nonblocking() -> None:
     })
 
     driver = new_http_driver()
-    try:
-        await driver.connect()
+    await driver.connect()
 
-        # Get the active Dgraph schema version
-        dgraph_schema_version = await driver.get_active_version()
+    # Get the active Dgraph schema version
+    dgraph_schema_version = await driver.get_active_version()
 
-        # Initialize the transpiler with the detected version
-        transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+    # Initialize the transpiler with the detected version
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
 
-        # Use the transpiler to generate the Dgraph query
-        dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
+    # Use the transpiler to generate the Dgraph query
+    dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
 
-        async def run_query_with_delay():
-            # Add an artificial delay to simulate a slow query
-            await asyncio.sleep(1)
-            return await driver.run_query(dgraph_query)
+    async def run_query_with_delay():
+        # Add an artificial delay to simulate a slow query
+        await asyncio.sleep(1)
+        return await driver.run_query(dgraph_query)
 
-        start = time.perf_counter()
-        # Run queries concurrently. Calling run_query_with_delay three times to increase chance of blocking.
-        results = await asyncio.gather(
-            run_query_with_delay(),
-            run_query_with_delay(),
-            run_query_with_delay(),
-        )
-        elapsed = time.perf_counter() - start
+    start = time.perf_counter()
+    # Run queries concurrently. Calling run_query_with_delay three times to increase chance of blocking.
+    results = await asyncio.gather(
+        run_query_with_delay(),
+        run_query_with_delay(),
+        run_query_with_delay(),
+    )
+    elapsed = time.perf_counter() - start
 
-        # Both should succeed
-        for result in results:
-            assert isinstance(result, dg_models.DgraphResponse)
-            assert result.data, "No data returned from Dgraph for simple-one query"
+    # Both should succeed
+    for result in results:
+        assert isinstance(result, dg_models.DgraphResponse)
+        assert result.data, "No data returned from Dgraph for simple-one query"
 
-        # If queries are non-blocking, elapsed should be just over 1 second, not 2+
-        assert elapsed < 2, f"Queries are blocking each other! Elapsed: {elapsed:.2f}s"
+    # If queries are non-blocking, elapsed should be just over 1 second, not 2+
+    assert elapsed < 2, f"Queries are blocking each other! Elapsed: {elapsed:.2f}s"
 
-    except Exception as e:
-        pytest.skip(f"Skipping live Dgraph HTTP test (cannot connect or query): {e}")
-    finally:
-        await driver.close()
+    await driver.close()
