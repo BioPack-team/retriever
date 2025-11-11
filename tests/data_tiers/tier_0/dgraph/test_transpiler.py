@@ -791,11 +791,11 @@ EXP_FIVE_HOP_MULTIPLE_IDS = dedent("""
 
 EXP_CATEGORY_FILTER = dedent("""
 {
-    q0_node_n0(func: eq(all_categories, "Gene")) @cascade(id, ~object) {
+    q0_node_n0(func: eq(category, "Gene")) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, "gene_associated_with_condition")) @cascade(predicate, subject) {
             expand(Edge) { sources expand(Source) }
-            node_n1: subject @filter(eq(all_categories, "Disease")) @cascade(id) {
+            node_n1: subject @filter(eq(category, "Disease")) @cascade(id) {
                 expand(Node)
             }
         }
@@ -805,11 +805,11 @@ EXP_CATEGORY_FILTER = dedent("""
 
 EXP_MULTIPLE_FILTERS = dedent("""
 {
-    q0_node_n0(func: eq(id, "CHEBI:3125")) @filter(eq(all_categories, "SmallMolecule") AND anyoftext(description, "diphenylmethane")) @cascade(id, ~object) {
+    q0_node_n0(func: eq(id, "CHEBI:3125")) @filter(eq(category, "SmallMolecule") AND anyoftext(description, "diphenylmethane")) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, ["interacts_with", "contributes_to"]) AND eq(knowledge_level, "prediction")) @cascade(predicate, subject) {
             expand(Edge) { sources expand(Source) }
-            node_n1: subject @filter(eq(all_categories, "Drug") AND anyoftext(description, "laxative")) @cascade(id) {
+            node_n1: subject @filter(eq(category, "Drug") AND anyoftext(description, "laxative")) @cascade(id) {
                 expand(Node)
             }
         }
@@ -823,7 +823,7 @@ EXP_NEGATED_CONSTRAINT = dedent("""
         expand(Node)
         in_edges_e0: ~object @cascade(predicate, subject) {
             expand(Edge) { sources expand(Source) }
-            node_n1: subject @filter(eq(all_categories, "Drug") AND NOT(anyoftext(description, "laxatives"))) @cascade(id) {
+            node_n1: subject @filter(eq(category, "Drug") AND NOT(anyoftext(description, "laxatives"))) @cascade(id) {
                 expand(Node)
             }
         }
@@ -851,7 +851,7 @@ EXP_NUMERIC_FILTER = dedent("""
         expand(Node)
         in_edges_e0: ~object @filter(gt(edge_id, "100")) @cascade(predicate, subject) {
             expand(Edge) { sources expand(Source) }
-            node_n1: subject @filter(eq(all_categories, "Gene")) @cascade(id) {
+            node_n1: subject @filter(eq(category, "Gene")) @cascade(id) {
                 expand(Node)
             }
         }
@@ -1029,7 +1029,7 @@ EXP_BATCH_MULTI_IDS_SINGLE = dedent("""
 
 EXP_BATCH_NO_IDS_SINGLE = dedent("""
 {
-    q0_node_n0(func: eq(all_categories, "Gene")) @cascade(id, ~object) {
+    q0_node_n0(func: eq(category, "Gene")) @cascade(id, ~object) {
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, "R")) @cascade(predicate, subject) {
             expand(Edge) { sources expand(Source) }
@@ -1043,11 +1043,11 @@ EXP_BATCH_NO_IDS_SINGLE = dedent("""
 
 DGRAPH_FLOATING_OBJECT_QUERY = dedent("""
 {
-    q0_node_n0(func: eq(id, "NCBIGene:3778")) @filter(eq(all_categories, "Gene")) @cascade(id, ~subject) {
+    q0_node_n0(func: eq(id, "NCBIGene:3778")) @filter(eq(category, "Gene")) @cascade(id, ~subject) {
         expand(Node)
         out_edges_e01: ~subject @filter(eq(predicate_ancestors, "causes")) @cascade(predicate, object) {
             expand(Edge) { sources expand(Source) }
-            node_n1: object @filter(eq(all_categories, "Disease")) @cascade(id) {
+            node_n1: object @filter(eq(category, "Disease")) @cascade(id) {
                 expand(Node)
             }
         }
@@ -1057,11 +1057,11 @@ DGRAPH_FLOATING_OBJECT_QUERY = dedent("""
 
 DGRAPH_FLOATING_OBJECT_QUERY_WITH_VERSION = dedent("""
 {
-    q0_node_n0(func: eq(v1_id, "NCBIGene:3778")) @filter(eq(v1_all_categories, "Gene")) @cascade(v1_id, ~v1_subject) {
+    q0_node_n0(func: eq(v1_id, "NCBIGene:3778")) @filter(eq(v1_category, "Gene")) @cascade(v1_id, ~v1_subject) {
         expand(v1_Node)
         out_edges_e01: ~v1_subject @filter(eq(v1_predicate_ancestors, "causes")) @cascade(v1_predicate, v1_object) {
             expand(v1_Edge) { v1_sources expand(v1_Source) }
-            node_n1: v1_object @filter(eq(v1_all_categories, "Disease")) @cascade(v1_id) {
+            node_n1: v1_object @filter(eq(v1_category, "Disease")) @cascade(v1_id) {
                 expand(v1_Node)
             }
         }
@@ -1071,11 +1071,11 @@ DGRAPH_FLOATING_OBJECT_QUERY_WITH_VERSION = dedent("""
 
 DGRAPH_FLOATING_OBJECT_QUERY_TWO_CATEGORIES = dedent("""
 {
-    q0_node_n0(func: eq(id, "NCBIGene:3778")) @filter(eq(all_categories, ["Gene", "Protein"])) @cascade(id, ~subject) {
+    q0_node_n0(func: eq(id, "NCBIGene:3778")) @filter(eq(category, ["Gene", "Protein"])) @cascade(id, ~subject) {
         expand(Node)
         out_edges_e01: ~subject @filter(eq(predicate_ancestors, "causes")) @cascade(predicate, object) {
             expand(Edge) { sources expand(Source) }
-            node_n1: object @filter(eq(all_categories, "Disease")) @cascade(id) {
+            node_n1: object @filter(eq(category, "Disease")) @cascade(id) {
                 expand(Node)
             }
         }
