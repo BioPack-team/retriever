@@ -133,13 +133,13 @@ class DgraphTranspiler(Tier0Transpiler):
         if categories:
             if len(categories) == 1:
                 filters.append(
-                    f'eq({self._v("all_categories")}, "{categories[0].replace("biolink:", "")}")'
+                    f'eq({self._v("category")}, "{categories[0].replace("biolink:", "")}")'
                 )
             elif len(categories) > 1:
                 categories_str = ", ".join(
                     f'"{cat.replace("biolink:", "")}"' for cat in categories
                 )
-                filters.append(f"eq({self._v('all_categories')}, [{categories_str}])")
+                filters.append(f"eq({self._v('category')}, [{categories_str}])")
 
         # Handle attribute constraints
         constraints = node.get("constraints")
@@ -276,9 +276,9 @@ class DgraphTranspiler(Tier0Transpiler):
         """Create a filter for category fields."""
         cat_vals = [str(c).replace("biolink:", "") for c in categories]
         if len(cat_vals) == 1:
-            return f'eq({self._v("all_categories")}, "{cat_vals[0].replace("biolink:", "")}")'
+            return f'eq({self._v("category")}, "{cat_vals[0].replace("biolink:", "")}")'
         categories_str = ", ".join(f'"{cat}"' for cat in cat_vals)
-        return f"eq({self._v('all_categories')}, [{categories_str}])"
+        return f"eq({self._v('category')}, [{categories_str}])"
 
     def _get_primary_and_secondary_filters(
         self, node: QNodeDict
