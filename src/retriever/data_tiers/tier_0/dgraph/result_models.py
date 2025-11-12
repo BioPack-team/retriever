@@ -28,6 +28,8 @@ class Source:
     """Represents a single source with its resource ID and role."""
     resource_id: str
     resource_role: str
+    upstream_resource_ids: list[str] = field(default_factory=list)
+    source_record_urls: list[str] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, source_dict: Mapping[str, Any], prefix: str | None = None) -> Self:
@@ -36,6 +38,8 @@ class Source:
         return cls(
             resource_id=str(norm.get("resource_id", "")),
             resource_role=str(norm.get("resource_role", "")),
+            upstream_resource_ids=_to_str_list(norm.get("upstream_resource_ids")),
+            source_record_urls=_to_str_list(norm.get("source_record_urls")),
         )
 
 

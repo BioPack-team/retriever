@@ -420,6 +420,18 @@ async def test_simple_one_query_live_http() -> None:
     root_node = result.data["q0"][0]
     assert root_node.binding == "n0"
     assert root_node.id == "GO:0031410"
+    assert root_node.name == "cytoplasmic vesicle"
+    assert root_node.category == [
+        'NamedThing', 'OrganismalEntity', 'PhysicalEssence', 'PhysicalEssenceOrOccurrent',
+        'CellularComponent', 'ThingWithTaxon', 'SubjectOfInvestigation', 'AnatomicalEntity',
+        'BiologicalEntity',
+    ]
+    assert root_node.in_taxon == []
+    assert root_node.information_content == pytest.approx(56.8, rel=1e-3)
+    assert root_node.inheritance is None
+    assert root_node.provided_by == []
+    assert root_node.description == "A vesicle found in the cytoplasm of a cell."
+    assert root_node.equivalent_identifiers == ['GO:0031410']
     assert len(root_node.edges) == 1
 
     # 3. Assertions for the incoming edge (e0)
@@ -427,11 +439,62 @@ async def test_simple_one_query_live_http() -> None:
     assert in_edge.binding == "e0"
     assert in_edge.direction == "in"
     assert in_edge.predicate == "located_in"
+    assert in_edge.agent_type == "automated_agent"
+    assert in_edge.knowledge_level == "prediction"
+    assert in_edge.publications == []
+    assert in_edge.qualified_predicate is None
+    assert in_edge.predicate_ancestors == [
+        'related_to_at_instance_level', 'located_in', 'related_to'
+    ]
+    assert in_edge.source_inforeses == ['infores:biolink', 'infores:goa']
+    assert in_edge.subject_form_or_variant_qualifier is None
+    assert in_edge.disease_context_qualifier is None
+    assert in_edge.frequency_qualifier is None
+    assert in_edge.onset_qualifier is None
+    assert in_edge.sex_qualifier is None
+    assert in_edge.original_subject == "UniProtKB:Q9UMZ2"
+    assert in_edge.original_predicate is None
+    assert in_edge.original_object == "GO:0031410"
+    assert in_edge.allelic_requirement is None
+    assert in_edge.update_date is None
+    assert in_edge.z_score is None
+    assert in_edge.has_evidence == ['ECO:IEA']
+    assert in_edge.has_confidence_score is None
+    assert in_edge.has_count is None
+    assert in_edge.has_total is None
+    assert in_edge.has_percentage is None
+    assert in_edge.has_quotient is None
+    assert in_edge.id == "urn:uuid:0763a393-7cc8-4d80-8720-0efcc0f9245f"
+    assert in_edge.category == ['Association']
+    # sources (order-independent via sorting)
+    assert len(in_edge.sources) == 2
+    sources_sorted = sorted(in_edge.sources, key=lambda s: s.resource_id)
+    assert sources_sorted[0].resource_id == 'infores:biolink'
+    assert sources_sorted[0].resource_role == 'aggregator_knowledge_source'
+    assert sources_sorted[1].resource_id == 'infores:goa'
+    assert sources_sorted[1].resource_role == 'primary_knowledge_source'
 
     # 4. Assertions for the connected node (n1)
     connected_node = in_edge.node
     assert connected_node.binding == "n1"
     assert connected_node.id == "NCBIGene:11276"
+    assert connected_node.name == "SYNRG"
+    assert connected_node.edges == []
+    assert connected_node.category == [
+        'MacromolecularMachineMixin', 'NamedThing', 'Gene', 'ChemicalEntityOrProteinOrPolypeptide',
+        'PhysicalEssence', 'PhysicalEssenceOrOccurrent', 'OntologyClass',
+        'ChemicalEntityOrGeneOrGeneProduct', 'GeneOrGeneProduct', 'Polypeptide',
+        'ThingWithTaxon', 'GenomicEntity', 'GeneProductMixin', 'Protein', 'BiologicalEntity',
+    ]
+    assert connected_node.in_taxon == ['NCBITaxon:9606']
+    assert connected_node.information_content == pytest.approx(83.6, rel=1e-3)
+    assert connected_node.inheritance is None
+    assert connected_node.provided_by == []
+    assert connected_node.description == "synergin gamma"
+    assert connected_node.equivalent_identifiers == [
+        'PR:Q9UMZ2', 'OMIM:607291', 'UniProtKB:Q9UMZ2', 'ENSEMBL:ENSG00000275066',
+        'UMLS:C1412437', 'UMLS:C0893518', 'MESH:C121510', 'HGNC:557', 'NCBIGene:11276'
+    ]
 
     await driver.close()
 

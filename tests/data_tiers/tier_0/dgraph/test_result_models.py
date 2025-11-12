@@ -39,11 +39,13 @@ def test_parse_single_success_case_versioned():
                         "v9_sources": [
                             {
                                 "v9_resource_id": "infores:biolink",
-                                "v9_resource_role": "aggregator_knowledge_source"
+                                "v9_resource_role": "aggregator_knowledge_source",
+                                "v9_upstream_resource_ids": ["infores:goa"],
+                                "v9_source_record_urls": ["https://example.com/record/123"]
                             },
                             {
-                            "v9_resource_id": "infores:goa",
-                            "v9_resource_role": "primary_knowledge_source"
+                                "v9_resource_id": "infores:goa",
+                                "v9_resource_role": "primary_knowledge_source"
                             }
                         ],
                         "v9_ecategory": [
@@ -150,8 +152,8 @@ def test_parse_single_success_case_versioned():
     assert in_edge.id == "urn:uuid:0763a393-7cc8-4d80-8720-0efcc0f9245f"
     assert in_edge.category == ["Association"]
     assert in_edge.sources == [
-        dg_models.Source(resource_id="infores:biolink", resource_role="aggregator_knowledge_source"),
-        dg_models.Source(resource_id="infores:goa", resource_role="primary_knowledge_source"),
+        dg_models.Source(resource_id="infores:biolink", resource_role="aggregator_knowledge_source", upstream_resource_ids=["infores:goa"], source_record_urls=["https://example.com/record/123"]),
+        dg_models.Source(resource_id="infores:goa", resource_role="primary_knowledge_source", upstream_resource_ids=[], source_record_urls=[]),
     ]
 
     # 4. Assertions for the connected node (n1)
