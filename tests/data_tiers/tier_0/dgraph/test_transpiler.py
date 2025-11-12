@@ -1147,3 +1147,81 @@ def test_convert_multihop_pairs_with_version(transpiler: _TestDgraphTranspiler, 
 def test_convert_batch_multihop_pairs(transpiler: _TestDgraphTranspiler, case: BatchCase) -> None:
     actual = transpiler.convert_batch_multihop_public(case.qgraphs)
     assert_query_equals(actual, case.expected)
+
+
+# --- Dgraph result for testing convert_results ---
+DGRAPH_RESULT_WITH_SOURCES = {
+    "q0_node_n1": [
+        {
+            "uid": "0x1",
+            "id": "NCBIGene:11276",
+            "name": "SYNRG",
+            "category": ["Gene", "Protein"],
+            "out_edges_e0": [
+                {
+                    "uid": "0x2",
+                    "binding": "e0",
+                    "direction": "out",
+                    "predicate": "located_in",
+                    "sources": [
+                        {
+                            "resource_id": "infores:goa",
+                            "resource_role": "primary_knowledge_source",
+                            "upstream_resource_ids": ["infores:uniprot"],
+                            "source_record_urls": ["http://example.com/record1"],
+                        }
+                    ],
+                    "object": {
+                        "uid": "0x3",
+                        "id": "GO:0031410",
+                        "name": "cytoplasmic vesicle",
+                        "binding": "n0",
+                        "category": ["CellularComponent"],
+                    },
+                }
+            ],
+        }
+    ]
+}
+
+
+def test_convert_results_with_full_source_info(transpiler: _TestDgraphTranspiler) -> None:
+    """
+    Test that convert_results correctly populates all source fields,
+    including upstream_resource_ids and source_record_urls.
+    """
+    from retriever.data_tiers.tier_0.dgraph import result_models as dg
+
+    # 1. Define the qgraph that produced these results
+    qgraph = qg({
+        "nodes": {
+            "n0": {"categories": ["biolink:CellularComponent"]},
+            "n1": {"ids": ["NCBIGene:11276"]},
+        },
+        "edges": {"e0": {"subject": "n1", "object": "n0", "predicates": ["biolink:located_in"]}},
+    })
+
+    # 2. Parse the raw Dgraph JSON into the result_models objects
+    parsed_nodes = dg.DgraphResponse.parse(DGRAPH_RESULT_WITH_SOURCES, prefix="q0").data["q0"]
+
+    # 3. Run the conversion
+    backend_result = transpiler.convert_results(qgraph, parsed_nodes)
+
+    # 4. Assertions
+    assert len(backend_result["knowledge_graph"]["edges"]) == 1
+
+    # Get the single edge from the knowledge graph to inspect its sources
+    trapi_edge = next(iter(backend_result["knowledge_graph"]["edges"].values()))
+
+    assert len(trapi_edge["sources"]) == 1
+    source = trapi_edge["sources"][0]
+
+    # Assert that the keys exist before accessing them.
+    assert "upstream_resource_ids" in source
+    assert "source_record_urls" in source
+
+    # Assert that the new fields are correctly populated
+    assert source["resource_id"] == "infores:goa"
+    assert source["resource_role"] == "primary_knowledge_source"
+    assert source["upstream_resource_ids"] == ["infores:uniprot"]
+    assert source["source_record_urls"] == ["http://example.com/record1"]

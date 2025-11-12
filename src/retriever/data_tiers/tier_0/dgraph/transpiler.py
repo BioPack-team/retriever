@@ -668,6 +668,8 @@ class DgraphTranspiler(Tier0Transpiler):
             RetrievalSourceDict(
                 resource_id=Infores(s.resource_id),
                 resource_role=s.resource_role,
+                upstream_resource_ids=[Infores(uid) for uid in s.upstream_resource_ids],
+                source_record_urls=s.source_record_urls,
             )
             for s in edge.sources
         ]
