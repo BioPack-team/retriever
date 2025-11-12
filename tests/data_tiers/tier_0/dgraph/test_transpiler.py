@@ -318,13 +318,13 @@ MULTIPLE_FILTERS_QGRAPH: QueryGraphDict = qg({
             "ids": ["CHEBI:3125"],
             "categories": ["biolink:SmallMolecule"],
             "constraints": [
-                {"id": "description", "name": "description", "operator": "matches", "value": "diphenylmethane", "not": False},
+                {"id": "description", "name": "description", "operator": "matches", "value": "/.*diphenylmethane.*/i", "not": False},
             ],
         },
         "n1": {
             "categories": ["biolink:Drug"],
             "constraints": [
-                {"id": "description", "name": "description", "operator": "matches", "value": "laxative", "not": False},
+                {"id": "description", "name": "description", "operator": "matches", "value": "/.*laxative.*/i", "not": False},
             ],
         },
     },
@@ -360,7 +360,7 @@ NEGATED_CONSTRAINT_QGRAPH: QueryGraphDict = qg({
                     "id": "description",
                     "name": "description",
                     "operator": "matches",
-                    "value": "laxatives",
+                    "value": "/.*diphenylmethane.*/i",
                     "not": True,
                 }
             ],
@@ -809,7 +809,7 @@ EXP_MULTIPLE_FILTERS = dedent("""
         expand(Node)
         in_edges_e0: ~object @filter(eq(predicate_ancestors, ["interacts_with", "contributes_to"]) AND eq(knowledge_level, "prediction")) @cascade(predicate, subject) {
             expand(Edge) { sources expand(Source) }
-            node_n1: subject @filter(eq(category, "Drug") AND anyoftext(description, "laxative")) @cascade(id) {
+            node_n1: subject @filter(eq(category, "Drug") AND regexp(description, /.*laxative.*/i)) @cascade(id) {
                 expand(Node)
             }
         }
@@ -823,7 +823,7 @@ EXP_NEGATED_CONSTRAINT = dedent("""
         expand(Node)
         in_edges_e0: ~object @cascade(predicate, subject) {
             expand(Edge) { sources expand(Source) }
-            node_n1: subject @filter(eq(category, "Drug") AND NOT(anyoftext(description, "laxatives"))) @cascade(id) {
+            node_n1: subject @filter(eq(category, "Drug") AND NOT(regexp(description, /.*diphenylmethane.*/i))) @cascade(id) {
                 expand(Node)
             }
         }
