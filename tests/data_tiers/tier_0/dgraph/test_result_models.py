@@ -11,13 +11,13 @@ def test_parse_single_success_case_versioned():
     raw_response = {
         "q1_node_n0": [
             {
-                "v9_name": "cytoplasmic vesicle",
-                "v9_information_content": 56.8,
-                "v9_equivalent_identifiers": [
+                "vA_name": "cytoplasmic vesicle",
+                "vA_information_content": 56.8,
+                "vA_equivalent_identifiers": [
                     "GO:0031410"
                 ],
-                "v9_id": "GO:0031410",
-                "v9_category": [
+                "vA_id": "GO:0031410",
+                "vA_category": [
                     "NamedThing",
                     "OrganismalEntity",
                     "PhysicalEssence",
@@ -28,45 +28,45 @@ def test_parse_single_success_case_versioned():
                     "AnatomicalEntity",
                     "BiologicalEntity"
                 ],
-                "v9_description": "A vesicle found in the cytoplasm of a cell.",
+                "vA_description": "A vesicle found in the cytoplasm of a cell.",
                 "in_edges_e0": [
                     {
-                        "v9_knowledge_level": "prediction",
-                        "v9_has_evidence": [
+                        "vA_knowledge_level": "prediction",
+                        "vA_has_evidence": [
                             "ECO:IEA"
                         ],
-                        "v9_original_subject": "UniProtKB:Q9UMZ2",
-                        "v9_sources": [
+                        "vA_original_subject": "UniProtKB:Q9UMZ2",
+                        "vA_sources": [
                             {
-                                "v9_resource_id": "infores:biolink",
-                                "v9_resource_role": "aggregator_knowledge_source",
-                                "v9_upstream_resource_ids": ["infores:goa"],
-                                "v9_source_record_urls": ["https://example.com/record/123"]
+                                "vA_resource_id": "infores:biolink",
+                                "vA_resource_role": "aggregator_knowledge_source",
+                                "vA_upstream_resource_ids": ["infores:goa"],
+                                "vA_source_record_urls": ["https://example.com/record/123"]
                             },
                             {
-                                "v9_resource_id": "infores:goa",
-                                "v9_resource_role": "primary_knowledge_source"
+                                "vA_resource_id": "infores:goa",
+                                "vA_resource_role": "primary_knowledge_source"
                             }
                         ],
-                        "v9_ecategory": [
+                        "vA_ecategory": [
                             "Association"
                         ],
-                        "v9_predicate": "located_in",
-                        "v9_source_inforeses": [
+                        "vA_predicate": "located_in",
+                        "vA_source_inforeses": [
                             "infores:biolink",
                             "infores:goa"
                         ],
-                        "v9_predicate_ancestors": [
+                        "vA_predicate_ancestors": [
                             "related_to_at_instance_level",
                             "located_in",
                             "related_to"
                         ],
-                        "v9_agent_type": "automated_agent",
-                        "v9_original_object": "GO:0031410",
-                        "v9_eid": "urn:uuid:0763a393-7cc8-4d80-8720-0efcc0f9245f",
+                        "vA_agent_type": "automated_agent",
+                        "vA_original_object": "GO:0031410",
+                        "vA_eid": "urn:uuid:0763a393-7cc8-4d80-8720-0efcc0f9245f",
                         "node_n1": {
-                            "v9_information_content": 83.6,
-                            "v9_category": [
+                            "vA_information_content": 83.6,
+                            "vA_category": [
                                 "MacromolecularMachineMixin",
                                 "NamedThing",
                                 "Gene",
@@ -83,7 +83,7 @@ def test_parse_single_success_case_versioned():
                                 "Protein",
                                 "BiologicalEntity"
                             ],
-                            "v9_equivalent_identifiers": [
+                            "vA_equivalent_identifiers": [
                                 "PR:Q9UMZ2",
                                 "OMIM:607291",
                                 "UniProtKB:Q9UMZ2",
@@ -94,10 +94,10 @@ def test_parse_single_success_case_versioned():
                                 "HGNC:557",
                                 "NCBIGene:11276"
                             ],
-                            "v9_id": "NCBIGene:11276",
-                            "v9_name": "SYNRG",
-                            "v9_description": "synergin gamma",
-                            "v9_in_taxon": [
+                            "vA_id": "NCBIGene:11276",
+                            "vA_name": "SYNRG",
+                            "vA_description": "synergin gamma",
+                            "vA_in_taxon": [
                                 "NCBITaxon:9606"
                             ]
                         }
@@ -108,7 +108,7 @@ def test_parse_single_success_case_versioned():
     }
 
     # 1. Parse the response
-    parsed = dg_models.DgraphResponse.parse(raw_response, prefix="v9_")
+    parsed = dg_models.DgraphResponse.parse(raw_response, prefix="vA_")
     assert "q1" in parsed.data
     assert len(parsed.data["q1"]) == 1
 
