@@ -1,6 +1,5 @@
 import asyncio
 import json
-from collections.abc import Callable
 from enum import Enum
 from http import HTTPStatus
 from typing import Any, Protocol, TypedDict, cast, override
@@ -75,6 +74,10 @@ class DgraphTxnProtocol(Protocol):
 
     def discard(self) -> None:
         """Discard the transaction."""
+        ...
+
+    def handle_query_future(self, future: _GrpcFuture) -> PydgraphResponse:
+        """Handle the future returned by an async query."""
         ...
 
 
@@ -372,12 +375,8 @@ class DgraphDriver(DatabaseDriver):
                 resp_format="JSON",
             )
 
-            # Run the blocking handle_query_future in a thread to avoid blocking the event loop
-            handle_query_future = cast(
-                Callable[[_GrpcFuture], PydgraphResponse], pydgraph.Txn.handle_query_future
-            )
             response: PydgraphResponse = await asyncio.to_thread(
-                handle_query_future, future
+                txn_protocol.handle_query_future, future
             )
 
             raw: Any = response.json
