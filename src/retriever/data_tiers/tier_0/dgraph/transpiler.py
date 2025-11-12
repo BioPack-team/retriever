@@ -229,6 +229,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
         # All other operators map to Dgraph functions
         func_map = {
+            "===": "eq",
             "==": "eq",
             "=": "eq",
             ">": "gt",
