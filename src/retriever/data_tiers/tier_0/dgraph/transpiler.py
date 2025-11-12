@@ -225,7 +225,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
         if operator == "matches":
             # Text matching
-            return f'anyoftext({field_name}, "{value}")'
+            return f'regexp({field_name}, {value})'
 
         # All other operators map to Dgraph functions
         func_map = {
