@@ -184,6 +184,7 @@ class DgraphDriver(DatabaseDriver):
               }
             }
         """
+        txn: DgraphTxnProtocol | None = None
         try:
             versions = []
             if self.protocol == DgraphProtocol.GRPC:
@@ -220,6 +221,10 @@ class DgraphDriver(DatabaseDriver):
             # Cache the failure as None to prevent retrying on every call
             self._version_cache["active_version"] = None
             return None
+        finally:
+            # Only discard the transaction if it was successfully created
+            if self.protocol == DgraphProtocol.GRPC and txn:
+                await asyncio.to_thread(txn.discard)
 
     @override
     async def connect(self, retries: int = 0) -> None:
@@ -354,28 +359,33 @@ class DgraphDriver(DatabaseDriver):
         """Execute query using gRPC protocol."""
         assert self._client is not None, "gRPC client not initialized"
 
-        txn = self._client.txn(read_only=True)
-        txn_protocol: DgraphTxnProtocol = cast(DgraphTxnProtocol, cast(object, txn))
+        txn: DgraphTxnProtocol | None = None
+        try:
+            txn = self._client.txn(read_only=True)
+            txn_protocol: DgraphTxnProtocol = cast(DgraphTxnProtocol, cast(object, txn))
 
-        future: _GrpcFuture = txn_protocol.async_query(
-            query=query,
-            variables=None,
-            timeout=self.query_timeout,
-            credentials=None,
-            resp_format="JSON",
-        )
+            future: _GrpcFuture = txn_protocol.async_query(
+                query=query,
+                variables=None,
+                timeout=self.query_timeout,
+                credentials=None,
+                resp_format="JSON",
+            )
 
-        # Run the blocking handle_query_future in a thread to avoid blocking the event loop
-        handle_query_future = cast(
-            Callable[[_GrpcFuture], PydgraphResponse], pydgraph.Txn.handle_query_future
-        )
-        response: PydgraphResponse = await asyncio.to_thread(
-            handle_query_future, future
-        )
+            # Run the blocking handle_query_future in a thread to avoid blocking the event loop
+            handle_query_future = cast(
+                Callable[[_GrpcFuture], PydgraphResponse], pydgraph.Txn.handle_query_future
+            )
+            response: PydgraphResponse = await asyncio.to_thread(
+                handle_query_future, future
+            )
 
-        raw: Any = response.json
+            raw: Any = response.json
 
-        return dg_models.DgraphResponse.parse(raw, prefix=prefix)
+            return dg_models.DgraphResponse.parse(raw, prefix=prefix)
+        finally:
+            if txn:
+                await asyncio.to_thread(txn.discard)
 
     async def _run_http_query(
         self, query: str, *, prefix: str | None
