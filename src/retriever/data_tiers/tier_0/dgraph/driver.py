@@ -6,6 +6,7 @@ from typing import Any, Protocol, TypedDict, cast, override
 from urllib.parse import urljoin
 
 import aiohttp
+import grpc
 import pydgraph
 from aiohttp import ClientTimeout
 from cachetools import TTLCache
@@ -382,6 +383,18 @@ class DgraphDriver(DatabaseDriver):
             raw: Any = response.json
 
             return dg_models.DgraphResponse.parse(raw, prefix=prefix)
+        except (pydgraph.errors.AbortedError, NameError) as e:
+            original_error = e.__context__
+            if isinstance(original_error, grpc.RpcError):
+                if original_error.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
+                    raise TimeoutError(
+                        f"Dgraph gRPC query timed out: {original_error.details()}"
+                    ) from original_error
+                else:
+                    raise ConnectionError(
+                        f"Dgraph gRPC query failed: {original_error.details()}"
+                    ) from original_error
+            raise ConnectionError(f"Dgraph transaction was aborted: {e}") from e
         finally:
             if txn:
                 await asyncio.to_thread(txn.discard)
