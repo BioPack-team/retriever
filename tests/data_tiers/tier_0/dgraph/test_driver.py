@@ -427,7 +427,7 @@ async def test_simple_one_query_live_http() -> None:
         'BiologicalEntity',
     ]
     assert root_node.in_taxon == []
-    assert root_node.information_content == pytest.approx(56.8, rel=1e-3)
+    assert root_node.information_content == 56.8
     assert root_node.inheritance is None
     assert root_node.provided_by == []
     assert root_node.description == "A vesicle found in the cytoplasm of a cell."
@@ -487,7 +487,7 @@ async def test_simple_one_query_live_http() -> None:
         'ThingWithTaxon', 'GenomicEntity', 'GeneProductMixin', 'Protein', 'BiologicalEntity',
     ]
     assert connected_node.in_taxon == ['NCBITaxon:9606']
-    assert connected_node.information_content == pytest.approx(83.6, rel=1e-3)
+    assert connected_node.information_content == 83.6
     assert connected_node.inheritance is None
     assert connected_node.provided_by == []
     assert connected_node.description == "synergin gamma"
