@@ -76,7 +76,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
     def process_qedge(self, qedge: QEdgeDict) -> list[ESFilterClause]:
         """Provide query terms based on a given QEdgeDict.
 
-        Example return value: { "terms": { "predicates": ["biolink:Gene"] }},
+        Example return value: { "terms": { "predicates": ["Gene"] }},
         """
         # Check required field
         predicates = qedge.get("predicates")
