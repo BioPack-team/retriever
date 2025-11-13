@@ -54,6 +54,7 @@ class ESNode(TypedDict):
 class ESHit(TypedDict):
     """The main data of an Elasticsearch hit."""
 
+    _index: NotRequired[str]
     subject: ESNode
     object: ESNode
     predicate: str
