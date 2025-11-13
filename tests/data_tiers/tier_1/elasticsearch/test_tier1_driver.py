@@ -86,8 +86,11 @@ async def test_elasticsearch_driver(payload: ESPayload | list[ESPayload], expect
 
     hits: list[ESHit] | list[ESHit]  = await driver.run_query(payload)
 
-    def assert_single_result(res: list[ESHit], expected_result_num: int):
-        assert res is not None and len(res) == expected_result_num
+    def assert_single_result(res, expected_result_num: int):
+        if not isinstance(res, list):
+            raise AssertionError(f"Expected results to be list, got {type(res)}")
+        if not len(res) == expected_result_num:
+            raise AssertionError(f"Expected {expected_result_num} results, got {len(res)}")
 
     # check batch result
     if len(payload) > 1:
