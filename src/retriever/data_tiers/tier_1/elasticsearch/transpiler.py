@@ -63,7 +63,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
         Example return value: { "terms": { "subject.id": ["NCBIGene:22828"] }},
         """
         field_mapping = {
-            "ids": "id",
+            "ids": "id.keyword",
             "categories": "category",
         }
 
