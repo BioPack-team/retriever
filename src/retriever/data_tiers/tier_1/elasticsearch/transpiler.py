@@ -64,7 +64,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
         """
         field_mapping = {
             "ids": "id",
-            "categories": "all_categories",  # Could be just "category"
+            "categories": "category",
         }
 
         return [
@@ -86,7 +86,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
 
         # Scalable to more fields
         field_mapping = {
-            "predicates": "all_predicates",
+            "predicates": "predicate_ancestors",
         }
 
         return [

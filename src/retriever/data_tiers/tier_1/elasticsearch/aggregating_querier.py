@@ -47,7 +47,12 @@ def generate_query_body(query_info: QueryInfo, page_size: int) -> QueryBody:
     body: QueryBody = {
         "size": page_size,
         "query": query,
-        "sort": [{"id": "asc"}],
+        "sort": [
+            {"subject.id.keyword": "asc"},
+            {"object.id.keyword": "asc"},
+            {"predicate": "asc"},
+            {"_index": "asc"}
+        ]
     }
 
     if search_after is not None:
