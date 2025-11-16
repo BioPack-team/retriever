@@ -76,7 +76,7 @@ def mock_dgraph_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setenv("TIER0__DGRAPH__HOST", "localhost")
     monkeypatch.setenv("TIER0__DGRAPH__HTTP_PORT", "8080")
     monkeypatch.setenv("TIER0__DGRAPH__GRPC_PORT", "9080")
-    monkeypatch.setenv("TIER0__DGRAPH__PREFERRED_VERSION", "vA")
+    monkeypatch.setenv("TIER0__DGRAPH__PREFERRED_VERSION", "vC")
     monkeypatch.setenv("TIER0__DGRAPH__USE_TLS", "false")
     monkeypatch.setenv("TIER0__DGRAPH__QUERY_TIMEOUT", "5")
     monkeypatch.setenv("TIER0__DGRAPH__CONNECT_RETRIES", "0")
@@ -176,7 +176,7 @@ async def test_get_active_version_success_grpc_live():
 
     # Should return the version "v2" as per the live Dgraph instance
     version = await driver.get_active_version()
-    assert version == "vA"
+    assert version == "vC"
 
     await driver.close()
 
@@ -194,7 +194,7 @@ async def test_get_active_version_success_http_live():
 
     # Should return the version "v2" as per the live Dgraph instance
     version = await driver.get_active_version()
-    assert version == "vA"
+    assert version == "vC"
 
     await driver.close()
 
@@ -380,19 +380,19 @@ async def test_simple_one_query_live_http() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n0(func: eq(vA_id, "GO:0031410")) @cascade(vA_id, ~vA_object) {
-            expand(vA_Node)
-            in_edges_e0: ~vA_object @filter(eq(vA_predicate_ancestors, "located_in")) @cascade(vA_predicate, vA_subject) {
-                expand(vA_Edge) { vA_sources expand(vA_Source) }
-                node_n1: vA_subject @filter(eq(vA_id, "NCBIGene:11276")) @cascade(vA_id) {
-                    expand(vA_Node)
+        q0_node_n0(func: eq(vC_id, "GO:0031410")) @cascade(vC_id, ~vC_object) {
+            expand(vC_Node)
+            in_edges_e0: ~vC_object @filter(eq(vC_predicate_ancestors, "located_in")) @cascade(vC_predicate, vC_subject) {
+                expand(vC_Edge) { vC_sources expand(vC_Source) }
+                node_n1: vC_subject @filter(eq(vC_id, "NCBIGene:11276")) @cascade(vC_id) {
+                    expand(vC_Node)
                 }
             }
         }
     }
     """).strip()
 
-    # driver = new_http_driver(version="vA")
+    # driver = new_http_driver(version="vC")
     driver = new_http_driver()
     await driver.connect()
 
@@ -401,8 +401,8 @@ async def test_simple_one_query_live_http() -> None:
 
     # Initialize the transpiler with the detected version
     transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
-    assert transpiler.version == "vA"
-    assert transpiler.prefix == "vA_"
+    assert transpiler.version == "vC"
+    assert transpiler.prefix == "vC_"
 
     dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
     assert_query_equals(dgraph_query, dgraph_query_match)
@@ -525,12 +525,12 @@ async def test_simple_one_query_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n0(func: eq(vA_id, "GO:0031410")) @cascade(vA_id, ~vA_object) {
-            expand(vA_Node)
-            in_edges_e0: ~vA_object @filter(eq(vA_predicate_ancestors, "located_in")) @cascade(vA_predicate, vA_subject) {
-                expand(vA_Edge) { vA_sources expand(vA_Source) }
-                node_n1: vA_subject @filter(eq(vA_id, "NCBIGene:11276")) @cascade(vA_id) {
-                    expand(vA_Node)
+        q0_node_n0(func: eq(vC_id, "GO:0031410")) @cascade(vC_id, ~vC_object) {
+            expand(vC_Node)
+            in_edges_e0: ~vC_object @filter(eq(vC_predicate_ancestors, "located_in")) @cascade(vC_predicate, vC_subject) {
+                expand(vC_Edge) { vC_sources expand(vC_Source) }
+                node_n1: vC_subject @filter(eq(vC_id, "NCBIGene:11276")) @cascade(vC_id) {
+                    expand(vC_Node)
                 }
             }
         }
@@ -545,8 +545,8 @@ async def test_simple_one_query_live_grpc() -> None:
 
     # Initialize the transpiler with the detected version
     transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
-    assert transpiler.version == "vA"
-    assert transpiler.prefix == "vA_"
+    assert transpiler.version == "vC"
+    assert transpiler.prefix == "vC_"
 
     # Use the transpiler to generate the Dgraph query
     dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
