@@ -4,98 +4,194 @@ from typing import Any
 from retriever.data_tiers.tier_0.dgraph import result_models as dg_models
 
 
-def test_parse_single_success_case():
+def test_parse_single_success_case_versioned():
     """Test parsing of a well-formed, multi-hop Dgraph response."""
     # The raw response must match the actual Dgraph output format.
     # A well-formed response with data for all node and edge properties.
     raw_response = {
-        "q0_node_n0": [
+        "q1_node_n0": [
             {
-                "id": "CHEBI:3125",
-                "name": "Bisacodyl",
-                "category": "biolink:SmallMolecule",
-                "all_names": ["Biscodyl", "Bisacodyl"],
-                "all_categories": ["SmallMolecule", "Drug"],
-                "iri": "http://purl.obolibrary.org/obo/CHEBI_3125",
-                "equivalent_curies": ["PUBCHEM.COMPOUND:2391"],
-                "description": "A stimulant laxative.",
-                "publications": ["PMID:12345"],
+                "vA_name": "cytoplasmic vesicle",
+                "vA_information_content": 56.8,
+                "vA_equivalent_identifiers": [
+                    "GO:0031410"
+                ],
+                "vA_id": "GO:0031410",
+                "vA_category": [
+                    "NamedThing",
+                    "OrganismalEntity",
+                    "PhysicalEssence",
+                    "PhysicalEssenceOrOccurrent",
+                    "CellularComponent",
+                    "ThingWithTaxon",
+                    "SubjectOfInvestigation",
+                    "AnatomicalEntity",
+                    "BiologicalEntity"
+                ],
+                "vA_description": "A vesicle found in the cytoplasm of a cell.",
                 "in_edges_e0": [
                     {
-                        "predicate": "interacts_with",
-                        "primary_knowledge_source": "infores:test-ks",
-                        "knowledge_level": "knowledge-level-val",
-                        "agent_type": "agent-type-val",
-                        "kg2_ids": ["kg2:abc"],
-                        "domain_range_exclusion": True,
-                        "qualified_object_aspect": "aspect-val",
-                        "qualified_object_direction": "direction-val",
-                        "qualified_predicate": "qualified-pred-val",
-                        "publications_info": "pub-info-val",
+                        "vA_knowledge_level": "prediction",
+                        "vA_has_evidence": [
+                            "ECO:IEA"
+                        ],
+                        "vA_original_subject": "UniProtKB:Q9UMZ2",
+                        "vA_sources": [
+                            {
+                                "vA_resource_id": "infores:biolink",
+                                "vA_resource_role": "aggregator_knowledge_source",
+                                "vA_upstream_resource_ids": ["infores:goa"],
+                                "vA_source_record_urls": ["https://example.com/record/123"]
+                            },
+                            {
+                                "vA_resource_id": "infores:goa",
+                                "vA_resource_role": "primary_knowledge_source"
+                            }
+                        ],
+                        "vA_ecategory": [
+                            "Association"
+                        ],
+                        "vA_predicate": "located_in",
+                        "vA_source_inforeses": [
+                            "infores:biolink",
+                            "infores:goa"
+                        ],
+                        "vA_predicate_ancestors": [
+                            "related_to_at_instance_level",
+                            "located_in",
+                            "related_to"
+                        ],
+                        "vA_agent_type": "automated_agent",
+                        "vA_original_object": "GO:0031410",
+                        "vA_eid": "urn:uuid:0763a393-7cc8-4d80-8720-0efcc0f9245f",
                         "node_n1": {
-                            "id": "UMLS:C0282090",
-                            "name": "Laxatives",
-                            "category": "biolink:Drug",
-                            "all_names": ["Laxative"],
-                            "all_categories": ["Drug"],
-                            "iri": "http://purl.obolibrary.org/obo/UMLS_C0282090",
-                            "equivalent_curies": [],
-                            "description": "A substance that promotes defecation.",
-                            "publications": [],
-                        },
+                            "vA_information_content": 83.6,
+                            "vA_category": [
+                                "MacromolecularMachineMixin",
+                                "NamedThing",
+                                "Gene",
+                                "ChemicalEntityOrProteinOrPolypeptide",
+                                "PhysicalEssence",
+                                "PhysicalEssenceOrOccurrent",
+                                "OntologyClass",
+                                "ChemicalEntityOrGeneOrGeneProduct",
+                                "GeneOrGeneProduct",
+                                "Polypeptide",
+                                "ThingWithTaxon",
+                                "GenomicEntity",
+                                "GeneProductMixin",
+                                "Protein",
+                                "BiologicalEntity"
+                            ],
+                            "vA_equivalent_identifiers": [
+                                "PR:Q9UMZ2",
+                                "OMIM:607291",
+                                "UniProtKB:Q9UMZ2",
+                                "ENSEMBL:ENSG00000275066",
+                                "UMLS:C1412437",
+                                "UMLS:C0893518",
+                                "MESH:C121510",
+                                "HGNC:557",
+                                "NCBIGene:11276"
+                            ],
+                            "vA_id": "NCBIGene:11276",
+                            "vA_name": "SYNRG",
+                            "vA_description": "synergin gamma",
+                            "vA_in_taxon": [
+                                "NCBITaxon:9606"
+                            ]
+                        }
                     }
-                ],
+                ]
             }
         ]
     }
 
     # 1. Parse the response
-    parsed = dg_models.DgraphResponse.parse(raw_response)
-    assert "q0" in parsed.data
-    assert len(parsed.data["q0"]) == 1
+    parsed = dg_models.DgraphResponse.parse(raw_response, prefix="vA_")
+    assert "q1" in parsed.data
+    assert len(parsed.data["q1"]) == 1
 
     # 2. Assertions for the root node (n0)
-    root_node = parsed.data["q0"][0]
+    root_node = parsed.data["q1"][0]
     assert root_node.binding == "n0"
-    assert root_node.id == "CHEBI:3125"
-    assert root_node.name == "Bisacodyl"
-    assert root_node.category == "biolink:SmallMolecule"
-    assert root_node.all_names == ["Biscodyl", "Bisacodyl"]
-    assert root_node.all_categories == ["SmallMolecule", "Drug"]
-    assert root_node.iri == "http://purl.obolibrary.org/obo/CHEBI_3125"
-    assert root_node.equivalent_curies == ["PUBCHEM.COMPOUND:2391"]
-    assert root_node.description == "A stimulant laxative."
-    assert root_node.publications == ["PMID:12345"]
+    assert root_node.id == "GO:0031410"
+    assert root_node.name == "cytoplasmic vesicle"
+    assert root_node.category == [
+        "NamedThing",
+        "OrganismalEntity",
+        "PhysicalEssence",
+        "PhysicalEssenceOrOccurrent",
+        "CellularComponent",
+        "ThingWithTaxon",
+        "SubjectOfInvestigation",
+        "AnatomicalEntity",
+        "BiologicalEntity",
+    ]
+    assert root_node.information_content == 56.8
+    assert root_node.equivalent_identifiers == ["GO:0031410"]
+    assert root_node.description == "A vesicle found in the cytoplasm of a cell."
     assert len(root_node.edges) == 1
 
     # 3. Assertions for the incoming edge (e0)
     in_edge = root_node.edges[0]
     assert in_edge.binding == "e0"
     assert in_edge.direction == "in"
-    assert in_edge.predicate == "interacts_with"
-    assert in_edge.primary_knowledge_source == "infores:test-ks"
-    assert in_edge.knowledge_level == "knowledge-level-val"
-    assert in_edge.agent_type == "agent-type-val"
-    assert in_edge.kg2_ids == ["kg2:abc"]
-    assert in_edge.domain_range_exclusion is True
-    assert in_edge.edge_id == "e0"  # Derived from the key
-    assert in_edge.qualified_object_aspect == "aspect-val"
-    assert in_edge.qualified_object_direction == "direction-val"
-    assert in_edge.qualified_predicate == "qualified-pred-val"
-    assert in_edge.publications_info == "pub-info-val"
+    assert in_edge.predicate == "located_in"
+    assert in_edge.knowledge_level == "prediction"
+    assert in_edge.agent_type == "automated_agent"
+    assert in_edge.has_evidence == ["ECO:IEA"]
+    assert in_edge.original_subject == "UniProtKB:Q9UMZ2"
+    assert in_edge.original_object == "GO:0031410"
+    assert in_edge.source_inforeses == ["infores:biolink", "infores:goa"]
+    assert in_edge.predicate_ancestors == [
+        "related_to_at_instance_level",
+        "located_in",
+        "related_to",
+    ]
+    assert in_edge.id == "urn:uuid:0763a393-7cc8-4d80-8720-0efcc0f9245f"
+    assert in_edge.category == ["Association"]
+    assert in_edge.sources == [
+        dg_models.Source(resource_id="infores:biolink", resource_role="aggregator_knowledge_source", upstream_resource_ids=["infores:goa"], source_record_urls=["https://example.com/record/123"]),
+        dg_models.Source(resource_id="infores:goa", resource_role="primary_knowledge_source", upstream_resource_ids=[], source_record_urls=[]),
+    ]
 
     # 4. Assertions for the connected node (n1)
     connected_node = in_edge.node
     assert connected_node.binding == "n1"
-    assert connected_node.id == "UMLS:C0282090"
-    assert connected_node.name == "Laxatives"
-    assert connected_node.category == "biolink:Drug"
-    assert connected_node.all_names == ["Laxative"]
-    assert connected_node.all_categories == ["Drug"]
-    assert connected_node.iri == "http://purl.obolibrary.org/obo/UMLS_C0282090"
-    assert connected_node.equivalent_curies == []
-    assert connected_node.description == "A substance that promotes defecation."
-    assert connected_node.publications == []
+    assert connected_node.id == "NCBIGene:11276"
+    assert connected_node.name == "SYNRG"
+    assert connected_node.description == "synergin gamma"
+    assert connected_node.information_content == 83.6
+    assert connected_node.in_taxon == ["NCBITaxon:9606"]
+    assert connected_node.category == [
+        "MacromolecularMachineMixin",
+        "NamedThing",
+        "Gene",
+        "ChemicalEntityOrProteinOrPolypeptide",
+        "PhysicalEssence",
+        "PhysicalEssenceOrOccurrent",
+        "OntologyClass",
+        "ChemicalEntityOrGeneOrGeneProduct",
+        "GeneOrGeneProduct",
+        "Polypeptide",
+        "ThingWithTaxon",
+        "GenomicEntity",
+        "GeneProductMixin",
+        "Protein",
+        "BiologicalEntity",
+    ]
+    assert connected_node.equivalent_identifiers == [
+        "PR:Q9UMZ2",
+        "OMIM:607291",
+        "UniProtKB:Q9UMZ2",
+        "ENSEMBL:ENSG00000275066",
+        "UMLS:C1412437",
+        "UMLS:C0893518",
+        "MESH:C121510",
+        "HGNC:557",
+        "NCBIGene:11276",
+    ]
 
 
 def test_parse_batch_success_case():
