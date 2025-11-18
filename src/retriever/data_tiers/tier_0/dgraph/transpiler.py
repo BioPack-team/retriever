@@ -47,6 +47,7 @@ class DgraphTranspiler(Tier0Transpiler):
     # --- Constants for Pinnedness Algorithm ---
     N: int = 1_000_000  # total number of nodes
     R: int = 25  # number of edges per node
+    MAX_PINNEDNESS_LEVEL: int = 10  # max recursion depth for pinnedness
 
     FilterScalar: TypeAlias = str | int | float | bool  # noqa: UP040
     FilterValue: TypeAlias = FilterScalar | list[FilterScalar]  # noqa: UP040
@@ -124,11 +125,11 @@ class DgraphTranspiler(Tier0Transpiler):
 
     def _get_adjacency_matrix(self, qgraph: QueryGraphDict) -> defaultdict[str, defaultdict[str, int]]:
         """Get adjacency matrix."""
-        A: defaultdict[str, defaultdict[str, int]] = defaultdict(lambda: defaultdict(int))
+        adjacency_matrix: defaultdict[str, defaultdict[str, int]] = defaultdict(lambda: defaultdict(int))
         for qedge in qgraph["edges"].values():
-            A[qedge["subject"]][qedge["object"]] += 1
-            A[qedge["object"]][qedge["subject"]] += 1
-        return A
+            adjacency_matrix[qedge["subject"]][qedge["object"]] += 1
+            adjacency_matrix[qedge["object"]][qedge["subject"]] += 1
+        return adjacency_matrix
 
     def _get_num_ids(self, qgraph: QueryGraphDict) -> dict[str, int]:
         """Get the number of ids for each node, defaulting to N."""
@@ -151,7 +152,7 @@ class DgraphTranspiler(Tier0Transpiler):
     ) -> float:
         """Compute the log of the expected number of unique knodes bound to the specified qnode."""
         log_expected_n = math.log(num_ids[qnode_id])
-        if level < 10:
+        if level < self.MAX_PINNEDNESS_LEVEL:
             for neighbor, num_edges in adjacency_mat[qnode_id].items():
                 if neighbor == last:
                     continue
