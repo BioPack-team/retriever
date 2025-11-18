@@ -15,6 +15,37 @@ class ESBooleanQuery(TypedDict):
     filter: list[ESFilterClause]
 
 
+class ESTermClause(TypedDict):
+    """An Elasticsearch term clause."""
+    term: dict[str, str]
+
+class ESQualifierBooleanQuery(TypedDict):
+    """Bool container for qualifier queries."""
+    must: list[ESTermClause]
+
+class ESQualifierQuery(TypedDict):
+    """Query to check one pair of qualifier type_id and value."""
+    bool: ESQualifierBooleanQuery
+
+class ESNestedQuery(TypedDict):
+    """Full nested field query."""
+    path: str
+    query: ESQualifierQuery
+
+class ESQueryForOneQualifierEntry(TypedDict):
+    """Nested query container for one pair of qualifier."""
+    nested: ESNestedQuery
+
+class ESBoolQueryForSingleQualifierConstraint(TypedDict):
+    """Bool query combining nested queries for one constraint."""
+    must: list[ESQueryForOneQualifierEntry]
+
+class ESQueryForSingleQualifierConstraint(TypedDict):
+    """Full query for a single qualifier constraint."""
+    bool: ESBoolQueryForSingleQualifierConstraint
+
+
+
 class ESQueryContext(TypedDict):
     """An Elasticsearch query context."""
 
