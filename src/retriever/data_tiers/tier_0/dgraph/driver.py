@@ -1,12 +1,12 @@
 import asyncio
 import json
-from collections.abc import Callable
 from enum import Enum
 from http import HTTPStatus
 from typing import Any, Protocol, TypedDict, cast, override
 from urllib.parse import urljoin
 
 import aiohttp
+import grpc
 import pydgraph
 from aiohttp import ClientTimeout
 from cachetools import TTLCache
@@ -77,6 +77,10 @@ class DgraphTxnProtocol(Protocol):
         """Discard the transaction."""
         ...
 
+    def handle_query_future(self, future: _GrpcFuture) -> PydgraphResponse:
+        """Handle the future returned by an async query."""
+        ...
+
 
 class DgraphQueryResult(TypedDict, total=False):
     """TypedDict for legacy Dgraph query result (kept for backward compat where needed)."""
@@ -107,22 +111,43 @@ class DgraphDriver(DatabaseDriver):
     endpoint: str
     query_timeout: float
     connect_retries: int
+    version: str | None = None
     _client_stub: DgraphClientStubProtocol | None = None
     _client: DgraphClientProtocol | None = None
     _http_session: aiohttp.ClientSession | None = None
     _failed: bool = False
     _version_cache: TTLCache[str, str | None] = TTLCache(maxsize=1, ttl=60)
 
-    def __init__(self, protocol: DgraphProtocol = DgraphProtocol.GRPC) -> None:
+    def __init__(
+        self,
+        protocol: DgraphProtocol = DgraphProtocol.GRPC,
+        *,
+        version: str | None = None,
+    ) -> None:
         """Initialize the Dgraph driver with connection settings.
 
         Args:
             protocol: The protocol to use (gRPC or HTTP)
+            version: An optional, fixed schema version to use, bypassing auto-detection.
+                     This parameter has the highest precedence.
         """
         self.settings = CONFIG.tier0.dgraph
         self.protocol = protocol
         self.query_timeout = self.settings.query_timeout
         self.connect_retries = self.settings.connect_retries
+
+        # Version precedence: constructor arg > env var > auto-detect from DB
+        if version is not None:
+            self.version = version
+            log.debug(f"Using schema version from constructor parameter: {version}")
+        elif self.settings.preferred_version:
+            self.version = self.settings.preferred_version
+            log.debug(
+                "Using schema version from TIER0__DGRAPH__PREFERRED_VERSION env var: "
+                + f"{self.version}"
+            )
+        else:
+            self.version = None
 
         # Set endpoint based on protocol
         if protocol == DgraphProtocol.GRPC:
@@ -138,8 +163,15 @@ class DgraphDriver(DatabaseDriver):
     async def get_active_version(self) -> str | None:
         """Queries Dgraph for the active schema version and caches the result.
 
+        If a version was provided at initialization, it will be returned directly.
+
         This method implements manual caching to be async-safe.
         """
+        # If a version was manually set on the driver, always use it.
+        if self.version:
+            log.debug(f"Using manually specified Dgraph schema version: {self.version}")
+            return self.version
+
         # Manually check the cache first
         try:
             cached_version = self._version_cache["active_version"]
@@ -156,6 +188,7 @@ class DgraphDriver(DatabaseDriver):
               }
             }
         """
+        txn: DgraphTxnProtocol | None = None
         try:
             versions = []
             if self.protocol == DgraphProtocol.GRPC:
@@ -192,6 +225,10 @@ class DgraphDriver(DatabaseDriver):
             # Cache the failure as None to prevent retrying on every call
             self._version_cache["active_version"] = None
             return None
+        finally:
+            # Only discard the transaction if it was successfully created
+            if self.protocol == DgraphProtocol.GRPC and txn:
+                await asyncio.to_thread(txn.discard)
 
     @override
     async def connect(self, retries: int = 0) -> None:
@@ -299,11 +336,15 @@ class DgraphDriver(DatabaseDriver):
         else:
             otel_span = None
 
+        # Get the version to build the prefix for parsing the response
+        version = await self.get_active_version()
+        prefix = f"{version}_" if version else None
+
         try:
             if self.protocol == DgraphProtocol.GRPC:
-                result = await self._run_grpc_query(query)
+                result = await self._run_grpc_query(query, prefix=prefix)
             else:
-                result = await self._run_http_query(query)
+                result = await self._run_http_query(query, prefix=prefix)
         except TimeoutError as e:
             if otel_span is not None:
                 otel_span.add_event("dgraph_query_timeout")
@@ -316,34 +357,51 @@ class DgraphDriver(DatabaseDriver):
 
         return result
 
-    async def _run_grpc_query(self, query: str) -> dg_models.DgraphResponse:
+    async def _run_grpc_query(
+        self, query: str, *, prefix: str | None
+    ) -> dg_models.DgraphResponse:
         """Execute query using gRPC protocol."""
         assert self._client is not None, "gRPC client not initialized"
 
-        txn = self._client.txn(read_only=True)
-        txn_protocol: DgraphTxnProtocol = cast(DgraphTxnProtocol, cast(object, txn))
+        txn: DgraphTxnProtocol | None = None
+        try:
+            txn = self._client.txn(read_only=True)
+            txn_protocol: DgraphTxnProtocol = cast(DgraphTxnProtocol, cast(object, txn))
 
-        future: _GrpcFuture = txn_protocol.async_query(
-            query=query,
-            variables=None,
-            timeout=self.query_timeout,
-            credentials=None,
-            resp_format="JSON",
-        )
+            future: _GrpcFuture = txn_protocol.async_query(
+                query=query,
+                variables=None,
+                timeout=self.query_timeout,
+                credentials=None,
+                resp_format="JSON",
+            )
 
-        # Run the blocking handle_query_future in a thread to avoid blocking the event loop
-        handle_query_future = cast(
-            Callable[[_GrpcFuture], PydgraphResponse], pydgraph.Txn.handle_query_future
-        )
-        response: PydgraphResponse = await asyncio.to_thread(
-            handle_query_future, future
-        )
+            response: PydgraphResponse = await asyncio.to_thread(
+                txn_protocol.handle_query_future, future
+            )
 
-        raw: Any = response.json
+            raw: Any = response.json
 
-        return dg_models.DgraphResponse.parse(raw)
+            return dg_models.DgraphResponse.parse(raw, prefix=prefix)
+        except (pydgraph.errors.AbortedError, NameError) as e:
+            original_error = e.__context__
+            if isinstance(original_error, grpc.RpcError):
+                if original_error.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
+                    raise TimeoutError(
+                        f"Dgraph gRPC query timed out: {original_error.details()}"
+                    ) from original_error
+                else:
+                    raise ConnectionError(
+                        f"Dgraph gRPC query failed: {original_error.details()}"
+                    ) from original_error
+            raise ConnectionError(f"Dgraph transaction was aborted: {e}") from e
+        finally:
+            if txn:
+                await asyncio.to_thread(txn.discard)
 
-    async def _run_http_query(self, query: str) -> dg_models.DgraphResponse:
+    async def _run_http_query(
+        self, query: str, *, prefix: str | None
+    ) -> dg_models.DgraphResponse:
         """Execute query using HTTP protocol with DQL."""
         assert self._http_session is not None, "HTTP session not initialized"
 
@@ -372,7 +430,7 @@ class DgraphDriver(DatabaseDriver):
             if "data" not in raw_data:
                 raise RuntimeError("Dgraph query returned no data field.")
 
-            return dg_models.DgraphResponse.parse(raw_data.get("data"))
+            return dg_models.DgraphResponse.parse(raw_data.get("data"), prefix=prefix)
 
     async def _cleanup_connections(self) -> None:
         """Clean up any open connections."""
@@ -396,14 +454,14 @@ class DgraphDriver(DatabaseDriver):
 class DgraphHttpDriver(DgraphDriver):
     """Convenience class for HTTP-specific Dgraph driver."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, version: str | None = None) -> None:
         """Initialize with HTTP protocol."""
-        super().__init__(protocol=DgraphProtocol.HTTP)
+        super().__init__(protocol=DgraphProtocol.HTTP, version=version)
 
 
 class DgraphGrpcDriver(DgraphDriver):
     """Convenience class for gRPC-specific Dgraph driver."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, version: str | None = None) -> None:
         """Initialize with gRPC protocol."""
-        super().__init__(protocol=DgraphProtocol.GRPC)
+        super().__init__(protocol=DgraphProtocol.GRPC, version=version)

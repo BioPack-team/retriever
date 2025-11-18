@@ -186,7 +186,7 @@ class ElasticSearchSettings(BaseModel):
         Field(
             description="Time in seconds before a Elasticsearch query should time out."
         ),
-    ] = 1600
+    ] = 180
     connect_retries: Annotated[
         int,
         Field(description="Number of retries before declaring a connection failure."),
@@ -213,7 +213,7 @@ class Neo4jSettings(BaseModel):
 
     query_timeout: Annotated[
         int, Field(description="Time in seconds before a neo4j query should time out.")
-    ] = 1600
+    ] = 3600
     connect_retries: Annotated[
         int,
         Field(description="Number of retries before declaring a connection failure."),
@@ -231,13 +231,14 @@ class DgraphSettings(BaseModel):
     host: str = "localhost"
     http_port: int = 8080
     grpc_port: int = 9080
+    preferred_version: str | None = None
     use_tls: bool = False
     query_timeout: Annotated[
         int,
         Field(
             description="Time in seconds before a Dgraph query should time out.",
         ),
-    ] = 60
+    ] = 3600
     connect_retries: Annotated[
         int,
         Field(

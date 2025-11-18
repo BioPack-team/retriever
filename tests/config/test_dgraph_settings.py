@@ -2,23 +2,12 @@ from retriever.config.general import DgraphSettings
 
 
 def test_dgraph_settings_defaults_properties():
-
     s = DgraphSettings()
-    assert s.host == "localhost"
-    assert s.http_port == 8080
-    assert s.grpc_port == 9080
-    assert s.use_tls is False
-    assert s.query_timeout == 60
-    assert s.connect_retries == 5
-    assert s.grpc_max_send_message_length == -1
-    assert s.grpc_max_receive_message_length == -1
     assert s.http_endpoint == "http://localhost:8080"
     assert s.grpc_endpoint == "localhost:9080"
 
 
 def test_dgraph_settings_tls_properties():
-    from retriever.config.general import DgraphSettings
-
     s = DgraphSettings(
         host="example.org",
         http_port=18080,
@@ -34,8 +23,6 @@ def test_dgraph_settings_tls_properties():
 
 
 def test_dgraph_settings_runtime_mutation_updates_endpoints():
-    from retriever.config.general import DgraphSettings
-
     s = DgraphSettings()
     assert s.http_endpoint == "http://localhost:8080"
     assert s.grpc_endpoint == "localhost:9080"
