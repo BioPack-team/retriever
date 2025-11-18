@@ -171,7 +171,9 @@ class DgraphTranspiler(Tier0Transpiler):
                 predicates_str = ", ".join(
                     f'"{pred.replace("biolink:", "")}"' for pred in predicates
                 )
-                filters.append(f"eq({self._v('predicate_ancestors')}, [{predicates_str}])")
+                filters.append(
+                    f"eq({self._v('predicate_ancestors')}, [{predicates_str}])"
+                )
 
         # Handle attribute constraints
         attribute_constraints = edge.get("attribute_constraints")
@@ -225,7 +227,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
         if operator == "matches":
             # Text matching
-            return f'regexp({field_name}, {value})'
+            return f"regexp({field_name}, {value})"
 
         # All other operators map to Dgraph functions
         func_map = {
@@ -414,12 +416,18 @@ class DgraphTranspiler(Tier0Transpiler):
 
         # If this node has any outgoing edges (node as subject) to unvisited objects,
         # require ~subject in cascade to ensure at least one such edge exists.
-        if any(e["subject"] == node_id and e["object"] not in visited for e in edges.values()):
+        if any(
+            e["subject"] == node_id and e["object"] not in visited
+            for e in edges.values()
+        ):
             cascade_fields.append(f"~{self._v('subject')}")
 
         # If this node has any incoming edges (node as object) to unvisited subjects,
         # require ~object in cascade to ensure at least one such edge exists.
-        if any(e["object"] == node_id and e["subject"] not in visited for e in edges.values()):
+        if any(
+            e["object"] == node_id and e["subject"] not in visited
+            for e in edges.values()
+        ):
             cascade_fields.append(f"~{self._v('object')}")
 
         # Always emit a cascade; at minimum it will include the id
@@ -501,14 +509,18 @@ class DgraphTranspiler(Tier0Transpiler):
 
                 # For the child node, include cascade(id, ~subject?, ~object?) based on remaining unvisited hops
                 child_visited = visited | {object_id}
-                query += self._build_node_cascade_clause(object_id, edges, child_visited)
+                query += self._build_node_cascade_clause(
+                    object_id, edges, child_visited
+                )
 
                 # Open child node block
                 query += " { "
                 query += self._add_standard_node_fields()
 
                 # Recurse from the newly connected object node
-                query += self._build_further_hops(object_id, nodes, edges, child_visited)
+                query += self._build_further_hops(
+                    object_id, nodes, edges, child_visited
+                )
 
                 # Close blocks
                 query += "} } "
@@ -540,14 +552,18 @@ class DgraphTranspiler(Tier0Transpiler):
 
                 # For the child node, include cascade(id, ~subject?, ~object?) based on remaining unvisited hops
                 child_visited = visited | {source_id}
-                query += self._build_node_cascade_clause(source_id, edges, child_visited)
+                query += self._build_node_cascade_clause(
+                    source_id, edges, child_visited
+                )
 
                 # Open child node block
                 query += " { "
                 query += self._add_standard_node_fields()
 
                 # Recurse from the newly connected source node
-                query += self._build_further_hops(source_id, nodes, edges, child_visited)
+                query += self._build_further_hops(
+                    source_id, nodes, edges, child_visited
+                )
 
                 # Close blocks
                 query += "} } "
@@ -580,7 +596,10 @@ class DgraphTranspiler(Tier0Transpiler):
         """Convert a Dgraph Node to a TRAPI NodeDict."""
         attributes: list[AttributeDict] = []
 
-        if not (len(node.equivalent_identifiers) == 1 and node.equivalent_identifiers[0] == node.id):
+        if not (
+            len(node.equivalent_identifiers) == 1
+            and node.equivalent_identifiers[0] == node.id
+        ):
             attributes.append(
                 AttributeDict(
                     attribute_type_id="biolink:xref",
@@ -624,7 +643,9 @@ class DgraphTranspiler(Tier0Transpiler):
 
         trapi_node = NodeDict(
             name=node.name,
-            categories=[BiolinkEntity(biolink.ensure_prefix(cat)) for cat in node.category],
+            categories=[
+                BiolinkEntity(biolink.ensure_prefix(cat)) for cat in node.category
+            ],
             attributes=attributes,
         )
 
@@ -636,7 +657,9 @@ class DgraphTranspiler(Tier0Transpiler):
         attribute_map = {
             "biolink:source_infores": edge.source_inforeses,
             "biolink:id": edge.id,
-            "biolink:category": [BiolinkEntity(biolink.ensure_prefix(cat)) for cat in edge.category],
+            "biolink:category": [
+                BiolinkEntity(biolink.ensure_prefix(cat)) for cat in edge.category
+            ],
             "biolink:knowledge_level": edge.knowledge_level,
             "biolink:agent_type": edge.agent_type,
             "biolink:publications": edge.publications,
@@ -663,7 +686,7 @@ class DgraphTranspiler(Tier0Transpiler):
             if value is not None and value not in ([], ""):
                 attributes.append(AttributeDict(attribute_type_id=attr_id, value=value))
 
-        # --- Build Sources ---
+        # Build Sources
         sources = [
             RetrievalSourceDict(
                 resource_id=Infores(s.resource_id),
@@ -674,7 +697,7 @@ class DgraphTranspiler(Tier0Transpiler):
             for s in edge.sources
         ]
 
-        # --- Build Edge ---
+        # Build Edge
         trapi_edge = EdgeDict(
             predicate=BiolinkPredicate(biolink.ensure_prefix(edge.predicate)),
             subject=CURIE(edge.node.id if edge.direction == "in" else initial_curie),

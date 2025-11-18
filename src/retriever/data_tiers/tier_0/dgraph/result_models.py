@@ -16,7 +16,8 @@ NODE_KEY_PATTERN = re.compile(r"(?:q\d+_)?node_(\w+)")
 def _strip_prefix(d: Mapping[str, Any], prefix: str | None) -> Mapping[str, Any]:
     if not prefix:
         return d
-    return { (k[len(prefix):] if k.startswith(prefix) else k): v for k, v in d.items() }
+    return {(k.removeprefix(prefix)): v for k, v in d.items()}
+
 
 # -----------------
 # Dataclasses
@@ -26,13 +27,16 @@ def _strip_prefix(d: Mapping[str, Any], prefix: str | None) -> Mapping[str, Any]
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Source:
     """Represents a single source with its resource ID and role."""
+
     resource_id: str
     resource_role: str
     upstream_resource_ids: list[str] = field(default_factory=list)
     source_record_urls: list[str] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, source_dict: Mapping[str, Any], prefix: str | None = None) -> Self:
+    def from_dict(
+        cls, source_dict: Mapping[str, Any], prefix: str | None = None
+    ) -> Self:
         """Parse a source mapping into a Source dataclass."""
         norm = _strip_prefix(source_dict, prefix)
         return cls(
@@ -114,28 +118,58 @@ class Edge:
             predicate=str(norm.get("predicate", "")),
             node=Node.from_dict(node_val, binding=node_binding, prefix=prefix),
             agent_type=str(norm["agent_type"]) if "agent_type" in norm else None,
-            knowledge_level=str(norm["knowledge_level"]) if "knowledge_level" in norm else None,
+            knowledge_level=str(norm["knowledge_level"])
+            if "knowledge_level" in norm
+            else None,
             publications=_to_str_list(norm.get("publications")),
-            qualified_predicate=str(norm["qualified_predicate"]) if "qualified_predicate" in norm else None,
+            qualified_predicate=str(norm["qualified_predicate"])
+            if "qualified_predicate" in norm
+            else None,
             predicate_ancestors=_to_str_list(norm.get("predicate_ancestors")),
             source_inforeses=_to_str_list(norm.get("source_inforeses")),
-            subject_form_or_variant_qualifier=str(norm["subject_form_or_variant_qualifier"]) if "subject_form_or_variant_qualifier" in norm else None,
-            disease_context_qualifier=str(norm["disease_context_qualifier"]) if "disease_context_qualifier" in norm else None,
-            frequency_qualifier=str(norm["frequency_qualifier"]) if "frequency_qualifier" in norm else None,
-            onset_qualifier=str(norm["onset_qualifier"]) if "onset_qualifier" in norm else None,
-            sex_qualifier=str(norm["sex_qualifier"]) if "sex_qualifier" in norm else None,
-            original_subject=str(norm["original_subject"]) if "original_subject" in norm else None,
-            original_predicate=str(norm["original_predicate"]) if "original_predicate" in norm else None,
-            original_object=str(norm["original_object"]) if "original_object" in norm else None,
-            allelic_requirement=str(norm["allelic_requirement"]) if "allelic_requirement" in norm else None,
+            subject_form_or_variant_qualifier=str(
+                norm["subject_form_or_variant_qualifier"]
+            )
+            if "subject_form_or_variant_qualifier" in norm
+            else None,
+            disease_context_qualifier=str(norm["disease_context_qualifier"])
+            if "disease_context_qualifier" in norm
+            else None,
+            frequency_qualifier=str(norm["frequency_qualifier"])
+            if "frequency_qualifier" in norm
+            else None,
+            onset_qualifier=str(norm["onset_qualifier"])
+            if "onset_qualifier" in norm
+            else None,
+            sex_qualifier=str(norm["sex_qualifier"])
+            if "sex_qualifier" in norm
+            else None,
+            original_subject=str(norm["original_subject"])
+            if "original_subject" in norm
+            else None,
+            original_predicate=str(norm["original_predicate"])
+            if "original_predicate" in norm
+            else None,
+            original_object=str(norm["original_object"])
+            if "original_object" in norm
+            else None,
+            allelic_requirement=str(norm["allelic_requirement"])
+            if "allelic_requirement" in norm
+            else None,
             update_date=str(norm["update_date"]) if "update_date" in norm else None,
             z_score=float(norm["z_score"]) if "z_score" in norm else None,
             has_evidence=_to_str_list(norm.get("has_evidence")),
-            has_confidence_score=float(norm["has_confidence_score"]) if "has_confidence_score" in norm else None,
+            has_confidence_score=float(norm["has_confidence_score"])
+            if "has_confidence_score" in norm
+            else None,
             has_count=float(norm["has_count"]) if "has_count" in norm else None,
             has_total=float(norm["has_total"]) if "has_total" in norm else None,
-            has_percentage=float(norm["has_percentage"]) if "has_percentage" in norm else None,
-            has_quotient=float(norm["has_quotient"]) if "has_quotient" in norm else None,
+            has_percentage=float(norm["has_percentage"])
+            if "has_percentage" in norm
+            else None,
+            has_quotient=float(norm["has_quotient"])
+            if "has_quotient" in norm
+            else None,
             sources=parsed_sources,
             id=str(norm["eid"]) if "eid" in norm else None,
             category=_to_str_list(norm.get("ecategory")),
@@ -159,7 +193,9 @@ class Node:
     equivalent_identifiers: list[str] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, node_dict: Mapping[str, Any], binding: str, prefix: str | None = None) -> Self:
+    def from_dict(
+        cls, node_dict: Mapping[str, Any], binding: str, prefix: str | None = None
+    ) -> Self:
         """Parse a node mapping into a Node dataclass (handles versioned keys)."""
         norm = _strip_prefix(node_dict, prefix)
 
@@ -169,14 +205,18 @@ class Node:
                 edge_binding = key.split("_", 2)[2]
                 if isinstance(value, list):
                     edges.extend(
-                        Edge.from_dict(e, binding=edge_binding, direction="in", prefix=prefix)
+                        Edge.from_dict(
+                            e, binding=edge_binding, direction="in", prefix=prefix
+                        )
                         for e in filter(_is_mapping, cast(list[Any], value))
                     )
             elif key.startswith("out_edges_"):
                 edge_binding = key.split("_", 2)[2]
                 if isinstance(value, list):
                     edges.extend(
-                        Edge.from_dict(e, binding=edge_binding, direction="out", prefix=prefix)
+                        Edge.from_dict(
+                            e, binding=edge_binding, direction="out", prefix=prefix
+                        )
                         for e in filter(_is_mapping, cast(list[Any], value))
                     )
 
@@ -187,7 +227,9 @@ class Node:
             edges=edges,
             category=_to_str_list(norm.get("category")),
             in_taxon=_to_str_list(norm.get("in_taxon")),
-            information_content=float(norm["information_content"]) if "information_content" in norm else None,
+            information_content=float(norm["information_content"])
+            if "information_content" in norm
+            else None,
             inheritance=str(norm["inheritance"]) if "inheritance" in norm else None,
             provided_by=_to_str_list(norm.get("provided_by")),
             description=str(norm["description"]) if "description" in norm else None,
