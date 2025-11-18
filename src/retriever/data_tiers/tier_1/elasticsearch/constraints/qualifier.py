@@ -1,5 +1,5 @@
 from retriever.data_tiers.tier_1.elasticsearch.types import ESQueryForSingleQualifierConstraint, \
-    ESQueryForOneQualifierEntry
+    ESQueryForOneQualifierEntry, ESConstraintsQuery, ESConstraintsChainedQuery
 from retriever.types.trapi import QualifierConstraintDict
 from retriever.utils import biolink
 
@@ -7,9 +7,33 @@ ES_QUAL_FIELD ="qualifiers"
 ES_QUAL_NAME ="type_id"
 ES_QUAL_VAL = "value"
 
+def process_single_entry_result(results: list[ESQueryForOneQualifierEntry]) -> ESQueryForOneQualifierEntry | ESQueryForSingleQualifierConstraint:
+    if len(results) == 1:
+        return results[0]
 
-def handle_single_qualifier_constraint(constraint: QualifierConstraintDict) -> ESQueryForSingleQualifierConstraint | None:
-    """Generate query terms based on single qualifier constraint."""
+    wrapped : ESQueryForSingleQualifierConstraint = {
+        "bool": {
+            "must": results
+        }
+    }
+
+    return wrapped
+
+
+def wrap_query(
+        inner_query: ESConstraintsChainedQuery
+                     | ESQueryForSingleQualifierConstraint
+                     | ESQueryForOneQualifierEntry) -> ESConstraintsQuery:
+    return {
+        "query": {
+            "bool": inner_query
+        }
+    }
+
+
+
+def handle_single_constraint(constraint: QualifierConstraintDict) -> list[ESQueryForOneQualifierEntry] | None:
+    """Generate query terms based on single constraint. One constraint could contain multiple qualifiers set"""
 
     qualifiers = constraint["qualifier_set"]
 
@@ -40,11 +64,103 @@ def handle_single_qualifier_constraint(constraint: QualifierConstraintDict) -> E
 
         must.append(nested_query)
 
+    return must
 
-    per_constraint_query: ESQueryForSingleQualifierConstraint = {
-        "bool":  {
-            "must": must
+
+def handle_constraints(constraints: list[QualifierConstraintDict]) -> ESConstraintsQuery | None:
+    """
+    Generate terms for a list of qualifier constraints.
+
+    Example payload
+    {
+          "query": {
+            "bool": {
+              "should": [
+                {
+                  "bool": {
+                    "must": [
+                      {
+                        "nested": {
+                          "path": "qualifiers",
+                          "query": {
+                            "bool": {
+                              "must": [
+                                { "term": { "qualifiers.type_id": "qualified_predicate" } },
+                                { "term": { "qualifiers.value": "biolink:causes" } }
+                              ]
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "nested": {
+                          "path": "qualifiers",
+                          "query": {
+                            "bool": {
+                              "must": [
+                                { "term": { "qualifiers.type_id": "subject_form_or_variant_qualifier" } },
+                                { "term": { "qualifiers.value": "genetic_variant_form" } }
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "nested": {
+                    "path": "qualifiers",
+                    "query": {
+                      "bool": {
+                        "must": [
+                          { "term": { "qualifiers.type_id": "qualified_predicate" } },
+                          { "term": { "qualifiers.value": "biolink:contributes_to" } }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
         }
+    """
+
+    constraint_queries : list[list[ESQueryForOneQualifierEntry]] = list(
+        filter(
+            None,
+            map(handle_single_constraint, constraints)
+        )
+    )
+
+    if not constraint_queries:
+        return None
+
+    should_array = list(
+        map(
+            process_single_entry_result,
+            constraint_queries
+        )
+    )
+
+    if len(should_array) == 1:
+        # no need to use `should`
+        return wrap_query(should_array[0])
+
+
+    inner_query: ESConstraintsChainedQuery = {
+        "should": should_array
     }
 
-    return per_constraint_query
+    return wrap_query(inner_query)
+
+
+
+
+
+
+
+
+
+
