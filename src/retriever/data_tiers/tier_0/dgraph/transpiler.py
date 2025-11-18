@@ -45,8 +45,8 @@ class DgraphTranspiler(Tier0Transpiler):
     """Transpiler for converting TRAPI queries into Dgraph GraphQL queries."""
 
     # --- Constants for Pinnedness Algorithm ---
-    N = 1_000_000  # total number of nodes
-    R = 25  # number of edges per node
+    N: int = 1_000_000  # total number of nodes
+    R: int = 25  # number of edges per node
 
     FilterScalar: TypeAlias = str | int | float | bool  # noqa: UP040
     FilterValue: TypeAlias = FilterScalar | list[FilterScalar]  # noqa: UP040
@@ -111,7 +111,7 @@ class DgraphTranspiler(Tier0Transpiler):
             raise ValueError("Query graph must have at least one node.")
 
         # Use pinnedness algorithm to find the most constrained node
-        qgraph = {"nodes": nodes, "edges": edges}
+        qgraph = QueryGraphDict(nodes=dict(nodes), edges=dict(edges))
         pinnedness_scores = {
             node_id: self._get_pinnedness(qgraph, node_id) for node_id in nodes
         }
@@ -124,7 +124,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
     def _get_adjacency_matrix(self, qgraph: QueryGraphDict) -> defaultdict[str, defaultdict[str, int]]:
         """Get adjacency matrix."""
-        A = defaultdict(lambda: defaultdict(int))
+        A: defaultdict[str, defaultdict[str, int]] = defaultdict(lambda: defaultdict(int))
         for qedge in qgraph["edges"].values():
             A[qedge["subject"]][qedge["object"]] += 1
             A[qedge["object"]][qedge["subject"]] += 1
@@ -134,8 +134,9 @@ class DgraphTranspiler(Tier0Transpiler):
         """Get the number of ids for each node, defaulting to N."""
         num_ids_map: dict[str, int] = {}
         for qnode_id, qnode in qgraph["nodes"].items():
-            if qnode.get("ids"):
-                num_ids_map[qnode_id] = len(qnode["ids"])
+            ids = qnode.get("ids")
+            if ids:
+                num_ids_map[qnode_id] = len(ids)
             else:
                 num_ids_map[qnode_id] = self.N
         return num_ids_map
@@ -179,6 +180,8 @@ class DgraphTranspiler(Tier0Transpiler):
             num_ids,
             qnode_id,
         )
+
+    # --- Nodes and Edges Methods ---
 
     def _build_node_filter(self, node: QNodeDict, *, primary: bool = False) -> str:
         """Build a filter expression for a node based on its properties.
