@@ -20,7 +20,7 @@ jobs:
         run: ruff check --output-format=github src
         shell: bash
       - name: Check formatting
-        run: ruff format --format --diff
+        run: ruff format --check --diff
       - name: Check dependencies
         run: deptry src
   typing:
