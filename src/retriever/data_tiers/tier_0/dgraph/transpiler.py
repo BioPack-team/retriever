@@ -110,18 +110,7 @@ class DgraphTranspiler(Tier0Transpiler):
         if not nodes:
             raise ValueError("Query graph must have at least one node.")
 
-        # First pass: Check if any node has IDs specified
-        # Prioritize nodes with IDs that are objects of edges (original behavior)
-        for node_id, node in nodes.items():
-            if node.get("ids") and any(e["object"] == node_id for e in edges.values()):
-                return node_id
-
-        # If no node with IDs is an object, check if any node has IDs at all
-        for node_id, node in nodes.items():
-            if node.get("ids"):
-                return node_id
-
-        # No nodes have IDs - use pinnedness algorithm to find the most constrained node
+        # Use pinnedness algorithm to find the most constrained node
         qgraph = {"nodes": nodes, "edges": edges}
         pinnedness_scores = {
             node_id: self._get_pinnedness(qgraph, node_id) for node_id in nodes
