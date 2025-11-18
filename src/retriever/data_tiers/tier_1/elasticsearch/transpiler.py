@@ -1,6 +1,7 @@
 from typing import Literal, override
 
 from retriever.data_tiers.base_transpiler import Tier1Transpiler
+from retriever.data_tiers.tier_1.elasticsearch.constraints.qualifier import process_qualifier_constraints
 from retriever.data_tiers.tier_1.elasticsearch.types import (
     ESBooleanQuery,
     ESFilterClause,
@@ -117,9 +118,33 @@ class ElasticsearchTranspiler(Tier1Transpiler):
         object_terms = self.process_qnode(out_node, "object")
         edge_terms = self.process_qedge(edge)
 
+        query_kwargs :ESBooleanQuery = {
+            "filter": [*subject_terms, *object_terms, *edge_terms]
+        }
+
+        qualifier_terms = process_qualifier_constraints(edge.get("qualifier_constraints", None))
+
+        if qualifier_terms:
+
+            # if we have `should` in results, this is a multi-constraint
+            if "should" in qualifier_terms:
+                query_kwargs["should"] = qualifier_terms["should"]
+
+            # otherwise we have either
+            # 0) `ESQueryForSingleQualifierConstraint`, a single constraint with multiple qualifiers, or
+            # 1) `ESQueryForOneQualifierEntry`, a single qualifier in a single constraint
+            # in both cases, inner payload of one or more qualifier terms can be added
+            # as a single or a list of `ESQueryForOneQualifierEntry` to `filter` field
+            elif "bool" in qualifier_terms:
+                query_kwargs["filter"].extend(qualifier_terms["bool"]["must"])
+            elif "nested" in qualifier_terms:
+                query_kwargs["filter"].append(qualifier_terms)
+
+
+
         return ESPayload(
             query=ESQueryContext(
-                bool=ESBooleanQuery(filter=[*subject_terms, *object_terms, *edge_terms])
+                bool=ESBooleanQuery(**query_kwargs)
             )
         )
 

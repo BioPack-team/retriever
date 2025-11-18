@@ -1,5 +1,5 @@
-from retriever.data_tiers.tier_1.elasticsearch.types import ESQueryForSingleQualifierConstraint, \
-    ESQueryForOneQualifierEntry, ESConstraintsQuery, ESConstraintsChainedQuery
+from retriever.data_tiers.tier_1.elasticsearch.qualifier_types import ESQueryForOneQualifierEntry, \
+    ESQueryForSingleQualifierConstraint, ESConstraintsChainedQuery
 from retriever.types.trapi import QualifierConstraintDict
 from retriever.utils import biolink
 
@@ -18,17 +18,6 @@ def process_single_entry_result(results: list[ESQueryForOneQualifierEntry]) -> E
     }
 
     return wrapped
-
-
-def wrap_query(
-        inner_query: ESConstraintsChainedQuery
-                     | ESQueryForSingleQualifierConstraint
-                     | ESQueryForOneQualifierEntry) -> ESConstraintsQuery:
-    return {
-        "query": {
-            "bool": inner_query
-        }
-    }
 
 
 
@@ -67,15 +56,17 @@ def handle_single_constraint(constraint: QualifierConstraintDict) -> list[ESQuer
     return must
 
 
-def handle_constraints(constraints: list[QualifierConstraintDict]) -> ESConstraintsQuery | None:
+def process_qualifier_constraints(constraints: list[QualifierConstraintDict] | None) -> ESConstraintsChainedQuery | ESQueryForSingleQualifierConstraint | ESQueryForOneQualifierEntry | None:
     """
     Generate terms for a list of qualifier constraints.
 
     Example payload
-    {
-          "query": {
-            "bool": {
+
+    # ESConstraintsChainedQuery
+     {
               "should": [
+
+              # ESQueryForSingleQualifierConstraint
                 {
                   "bool": {
                     "must": [
@@ -108,6 +99,8 @@ def handle_constraints(constraints: list[QualifierConstraintDict]) -> ESConstrai
                     ]
                   }
                 },
+
+              # ESQueryForOneQualifierEntry
                 {
                   "nested": {
                     "path": "qualifiers",
@@ -115,7 +108,7 @@ def handle_constraints(constraints: list[QualifierConstraintDict]) -> ESConstrai
                       "bool": {
                         "must": [
                           { "term": { "qualifiers.type_id": "qualified_predicate" } },
-                          { "term": { "qualifiers.value": "biolink:contributes_to" } }
+                          { "term": { "qualifiers.value": "contributes_to" } }
                         ]
                       }
                     }
@@ -123,9 +116,13 @@ def handle_constraints(constraints: list[QualifierConstraintDict]) -> ESConstrai
                 }
               ]
             }
-          }
-        }
     """
+
+    if constraints is None:
+        return None
+
+    if not isinstance(constraints, list):
+        raise TypeError("qualifier constraints must be a list")
 
     constraint_queries : list[list[ESQueryForOneQualifierEntry]] = list(
         filter(
@@ -146,14 +143,14 @@ def handle_constraints(constraints: list[QualifierConstraintDict]) -> ESConstrai
 
     if len(should_array) == 1:
         # no need to use `should`
-        return wrap_query(should_array[0])
+        return should_array[0]
 
 
     inner_query: ESConstraintsChainedQuery = {
         "should": should_array
     }
 
-    return wrap_query(inner_query)
+    return inner_query
 
 
 
