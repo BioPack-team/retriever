@@ -584,6 +584,88 @@ async def test_simple_one_query_live_grpc() -> None:
 @pytest.mark.live
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config")
+async def test_simple_reverse_query_live_grpc() -> None:
+    """
+    Integration test: Run the 'simple-one' query against a live Dgraph HTTP instance.
+    """
+
+    qgraph_query: QueryGraphDict = qg({
+        "nodes": {
+            "n0": {"categories": ["biolink:NamedThing"], "constraints": []},
+            "n1": {"ids": ["NCBIGene:3778"], "constraints": []}
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["biolink:related_to"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            }
+        }
+    })
+
+    dgraph_query_match: str = dedent("""
+    {
+        q0_node_n1(func: eq(vC_id, "NCBIGene:3778")) @cascade(vC_id, ~vC_subject) {
+            expand(vC_Node)
+            out_edges_e0: ~vC_subject @filter(eq(vC_predicate_ancestors, "related_to")) @cascade(vC_predicate, vC_object) {
+                expand(vC_Edge) { vC_sources expand(vC_Source) }
+                node_n0: vC_object @filter(eq(vC_category, "NamedThing")) @cascade(vC_id) {
+                    expand(vC_Node)
+                }
+            }
+        }
+    }
+    """).strip()
+
+    driver = new_grpc_driver()
+    await driver.connect()
+
+    # Get the active Dgraph schema version
+    dgraph_schema_version = await driver.get_active_version()
+
+    # Initialize the transpiler with the detected version
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+    assert transpiler.version == "vC"
+    assert transpiler.prefix == "vC_"
+
+    # Use the transpiler to generate the Dgraph query
+    dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
+    assert_query_equals(dgraph_query, dgraph_query_match)
+
+    # Run the query against the live Dgraph instance
+    result: dg_models.DgraphResponse = await driver.run_query(dgraph_query)
+    assert isinstance(result, dg_models.DgraphResponse)
+
+    # Assertions to check that some data is returned
+    assert result.data, "No data returned from Dgraph for simple-one query"
+    assert "q0" in result.data
+    assert len(result.data["q0"]) == 1
+
+    # 2. Assertions for the root node (n0)
+    root_node = result.data["q0"][0]
+    assert root_node.binding == "n1"
+    assert root_node.id == "NCBIGene:3778"
+    # assert len(root_node.edges) == 0
+
+    # 3. Assertions for the incoming edge (e0)
+    # in_edge = root_node.edges[0]
+    # assert in_edge.binding == "e0"
+    # assert in_edge.direction == "in"
+    # assert in_edge.predicate == "located_in"
+
+    # # 4. Assertions for the connected node (n1)
+    # connected_node = in_edge.node
+    # assert connected_node.binding == "n0"
+    # assert connected_node.id == "NCBIGene:11276"
+
+    await driver.close()
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
 async def test_simple_one_query_grpc_parallel_live_nonblocking() -> None:
     """
     Test that two gRPC queries run in parallel and do not block each other.

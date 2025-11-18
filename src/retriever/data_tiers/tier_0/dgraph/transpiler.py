@@ -1,4 +1,6 @@
 import itertools
+import math  # <-- Add this import
+from collections import defaultdict  # <-- Add this import
 from collections.abc import Mapping, Sequence
 from typing import Any, Protocol, TypeAlias, override
 
@@ -41,6 +43,10 @@ class FilterValueProtocol(Protocol):
 
 class DgraphTranspiler(Tier0Transpiler):
     """Transpiler for converting TRAPI queries into Dgraph GraphQL queries."""
+
+    # --- Constants for Pinnedness Algorithm ---
+    N = 1_000_000  # total number of nodes
+    R = 25  # number of edges per node
 
     FilterScalar: TypeAlias = str | int | float | bool  # noqa: UP040
     FilterValue: TypeAlias = FilterScalar | list[FilterScalar]  # noqa: UP040
@@ -96,65 +102,129 @@ class DgraphTranspiler(Tier0Transpiler):
         nodes: Mapping[QNodeID, QNodeDict],
         edges: Mapping[QEdgeID, QEdgeDict],
     ) -> QNodeID:
-        """Find the best node to start the traversal from."""
-        # Start with a node that has IDs and is the object of at least one edge
+        """Find the best node to start the traversal from.
+
+        First, check if any node has IDs specified - if so, use that.
+        Otherwise, use pinnedness algorithm to find the most constrained node.
+        """
+        if not nodes:
+            raise ValueError("Query graph must have at least one node.")
+
+        # First pass: Check if any node has IDs specified
+        # Prioritize nodes with IDs that are objects of edges (original behavior)
         for node_id, node in nodes.items():
             if node.get("ids") and any(e["object"] == node_id for e in edges.values()):
                 return node_id
 
-        # If no ideal start node, just take the first one
-        return next(iter(nodes))
+        # If no node with IDs is an object, check if any node has IDs at all
+        for node_id, node in nodes.items():
+            if node.get("ids"):
+                return node_id
 
-    def _build_node_filter(self, node: QNodeDict) -> str:
-        """Build a filter expression for a node based on its properties."""
-        filters: list[str] = []
+        # No nodes have IDs - use pinnedness algorithm to find the most constrained node
+        qgraph = {"nodes": nodes, "edges": edges}
+        pinnedness_scores = {
+            node_id: self._get_pinnedness(qgraph, node_id) for node_id in nodes
+        }
 
-        # Handle ID filtering - if present, it's the ONLY filter we need.
-        ids = node.get("ids")
-        if ids:
-            if len(ids) == 1:
-                # Single ID case - check if it contains a comma (multiple IDs in one string)
-                id_value = ids[0]
-                if "," in id_value:
-                    # Multiple IDs in a single string - split them
-                    id_list = [id_val.strip() for id_val in id_value.split(",")]
-                    ids_str = ", ".join(f'"{id_val}"' for id_val in id_list)
-                    return f"eq({self._v('id')}, [{ids_str}])"
-                else:
-                    # Single ID
-                    return f'eq({self._v("id")}, "{id_value}")'
+        # Return the node_id with the maximum pinnedness score
+        # Use node_id as tiebreaker for deterministic ordering
+        return max(pinnedness_scores, key=lambda nid: (pinnedness_scores[nid], nid))
+
+    # --- Pinnedness Algorithm Methods ---
+
+    def _get_adjacency_matrix(self, qgraph: QueryGraphDict) -> defaultdict[str, defaultdict[str, int]]:
+        """Get adjacency matrix."""
+        A = defaultdict(lambda: defaultdict(int))
+        for qedge in qgraph["edges"].values():
+            A[qedge["subject"]][qedge["object"]] += 1
+            A[qedge["object"]][qedge["subject"]] += 1
+        return A
+
+    def _get_num_ids(self, qgraph: QueryGraphDict) -> dict[str, int]:
+        """Get the number of ids for each node, defaulting to N."""
+        num_ids_map: dict[str, int] = {}
+        for qnode_id, qnode in qgraph["nodes"].items():
+            if qnode.get("ids"):
+                num_ids_map[qnode_id] = len(qnode["ids"])
             else:
-                # Multiple IDs in array
-                ids_str = ", ".join(f'"{id_val}"' for id_val in ids)
-                return f"eq({self._v('id')}, [{ids_str}])"
+                num_ids_map[qnode_id] = self.N
+        return num_ids_map
 
-        # Handle category filtering
+    def _compute_log_expected_n(
+        self,
+        adjacency_mat: defaultdict[str, defaultdict[str, int]],
+        num_ids: dict[str, int],
+        qnode_id: str,
+        last: str | None = None,
+        level: int = 0,
+    ) -> float:
+        """Compute the log of the expected number of unique knodes bound to the specified qnode."""
+        log_expected_n = math.log(num_ids[qnode_id])
+        if level < 10:
+            for neighbor, num_edges in adjacency_mat[qnode_id].items():
+                if neighbor == last:
+                    continue
+                log_expected_n += num_edges * min(
+                    max(
+                        self._compute_log_expected_n(
+                            adjacency_mat,
+                            num_ids,
+                            neighbor,
+                            qnode_id,
+                            level + 1,
+                        ),
+                        0,
+                    )
+                    + math.log(self.R / self.N),
+                    0,
+                )
+        return log_expected_n
+
+    def _get_pinnedness(self, qgraph: QueryGraphDict, qnode_id: str) -> float:
+        """Get pinnedness of a single node."""
+        adjacency_mat = self._get_adjacency_matrix(qgraph)
+        num_ids = self._get_num_ids(qgraph)
+        return -self._compute_log_expected_n(
+            adjacency_mat,
+            num_ids,
+            qnode_id,
+        )
+
+    def _build_node_filter(self, node: QNodeDict, *, primary: bool = False) -> str:
+        """Build a filter expression for a node based on its properties.
+
+        If `primary` is True, it returns the most selective filter for a `func:` block.
+        Otherwise, it returns all applicable filters for an `@filter` block.
+        """
+        filters: list[str] = []
+        ids = node.get("ids")
         categories = node.get("categories")
-        if categories:
-            if len(categories) == 1:
-                filters.append(
-                    f'eq({self._v("category")}, "{categories[0].replace("biolink:", "")}")'
-                )
-            elif len(categories) > 1:
-                categories_str = ", ".join(
-                    f'"{cat.replace("biolink:", "")}"' for cat in categories
-                )
-                filters.append(f"eq({self._v('category')}, [{categories_str}])")
-
-        # Handle attribute constraints
         constraints = node.get("constraints")
+
+        # For a primary filter, we want the single most selective option.
+        if primary:
+            if ids:
+                return self._create_id_filter(ids)
+            if categories:
+                return self._create_category_filter(categories)
+            if constraints:
+                # Fallback to first constraint if no IDs or categories
+                return self._convert_constraints_to_filters(constraints)[0]
+            return f"has({self._v('id')})"
+
+        # For secondary filters (@filter), we build a list of all constraints.
+        if ids:
+            filters.append(self._create_id_filter(ids))
+        if categories:
+            filters.append(self._create_category_filter(categories))
         if constraints:
             filters.extend(self._convert_constraints_to_filters(constraints))
 
-        # If no filters, use a generic filter
         if not filters:
-            return f"has({self._v('id')})"
+            return ""  # Return empty string if no filters apply
 
-        # Combine all filters with AND
-        if len(filters) == 1:
-            return filters[0]
-        else:
-            return " AND ".join(filters)
+        return " AND ".join(filters)
 
     def _build_edge_filter(self, edge: QEdgeDict) -> str:
         """Build a filter expression for an edge based on its properties."""
@@ -435,9 +505,8 @@ class DgraphTranspiler(Tier0Transpiler):
         """Recursively build a query for a node and its connected nodes."""
         node = nodes[node_id]
 
-        # Get the combined filter for the node.
-        # This will correctly prioritize ID if available.
-        node_filter = self._build_node_filter(node)
+        # Get the primary filter for the `func:` block of the starting node.
+        primary_filter = self._build_node_filter(node, primary=True)
 
         # Create the root node key, with an optional query index prefix
         root_node_key = f"node_{node_id}"
@@ -445,7 +514,7 @@ class DgraphTranspiler(Tier0Transpiler):
             root_node_key = f"q{query_index}_{root_node_key}"
 
         # Start the query with the primary filter, using the generated key
-        query = f"{root_node_key}(func: {node_filter})"
+        query = f"{root_node_key}(func: {primary_filter})"
 
         # Prepare visited set and add node-level cascade
         visited = {node_id}
@@ -490,14 +559,11 @@ class DgraphTranspiler(Tier0Transpiler):
                 query += f" @cascade({self._v('predicate')}, {self._v('object')}) {{ "
                 query += self._add_standard_edge_fields()
 
-                # Build connected node (object) with its own cascade
+                # Build the filter for the connected object node.
                 object_filter = self._build_node_filter(object_node)
-                object_filter_clause = (
-                    f" @filter({object_filter})"
-                    if object_filter != f"has({self._v('id')})"
-                    else ""
-                )
-                query += f"node_{object_id}: {self._v('object')}{object_filter_clause}"
+                query += f"node_{object_id}: {self._v('object')}"
+                if object_filter:
+                    query += f" @filter({object_filter})"
 
                 # For the child node, include cascade(id, ~subject?, ~object?) based on remaining unvisited hops
                 child_visited = visited | {object_id}
@@ -529,14 +595,11 @@ class DgraphTranspiler(Tier0Transpiler):
                 query += f" @cascade({self._v('predicate')}, {self._v('subject')}) {{ "
                 query += self._add_standard_edge_fields()
 
-                # Build connected node (subject) with its own cascade
+                # Build the filter for the connected source node.
                 source_filter = self._build_node_filter(source_node)
-                source_filter_clause = (
-                    f" @filter({source_filter})"
-                    if source_filter != f"has({self._v('id')})"
-                    else ""
-                )
-                query += f"node_{source_id}: {self._v('subject')}{source_filter_clause}"
+                query += f"node_{source_id}: {self._v('subject')}"
+                if source_filter:
+                    query += f" @filter({source_filter})"
 
                 # For the child node, include cascade(id, ~subject?, ~object?) based on remaining unvisited hops
                 child_visited = visited | {source_id}

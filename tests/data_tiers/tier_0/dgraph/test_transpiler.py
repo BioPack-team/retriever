@@ -105,6 +105,22 @@ SIMPLE_QGRAPH_MULTIPLE_IDS: QueryGraphDict = qg({
     },
 })
 
+SIMPLE_REVERSE_QGRAPH: QueryGraphDict = qg({
+    "nodes": {
+        "n0": {"categories": ["biolink:NamedThing"], "constraints": []},
+        "n1": {"ids": ["NCBIGene:3778"], "constraints": []}
+    },
+    "edges": {
+        "e0": {
+            "object": "n0",
+            "subject": "n1",
+            "predicates": ["biolink:related_to"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [],
+        }
+    }
+})
+
 TWO_HOP_QGRAPH: QueryGraphDict = qg({
     "nodes": {
         "n0": {"ids": ["CHEBI:3125"], "constraints": []},
@@ -577,9 +593,23 @@ EXP_SIMPLE = dedent("""
 {
     q0_node_n0(func: eq(id, "CHEBI:4514")) @cascade(id, ~object) {
         expand(Node)
-        in_edges_e0: ~object @filter(eq(predicate_ancestors, "subclass_of"))  @cascade(predicate, subject) {
+        in_edges_e0: ~object @filter(eq(predicate_ancestors, "subclass_of")) @cascade(predicate, subject) {
             expand(Edge) { sources expand(Source) }
             node_n1: subject @filter(eq(id, "UMLS:C1564592"))  @cascade(id) {
+                expand(Node)
+            }
+        }
+    }
+}
+""").strip()
+
+EXP_SIMPLE_REVERSE = dedent("""
+{
+    q0_node_n1(func: eq(id, "NCBIGene:3778")) @cascade(id, ~subject) {
+        expand(Node)
+        out_edges_e0: ~subject @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, object) {
+            expand(Edge) { sources expand(Source) }
+            node_n0: object @filter(eq(category, "NamedThing")) @cascade(id) {
                 expand(Node)
             }
         }
@@ -791,11 +821,11 @@ EXP_FIVE_HOP_MULTIPLE_IDS = dedent("""
 
 EXP_CATEGORY_FILTER = dedent("""
 {
-    q0_node_n0(func: eq(category, "Gene")) @cascade(id, ~object) {
+    q0_node_n1(func: eq(category, "Disease")) @cascade(id, ~subject) {
         expand(Node)
-        in_edges_e0: ~object @filter(eq(predicate_ancestors, "gene_associated_with_condition")) @cascade(predicate, subject) {
+        out_edges_e0: ~subject @filter(eq(predicate_ancestors, "gene_associated_with_condition")) @cascade(predicate, object) {
             expand(Edge) { sources expand(Source) }
-            node_n1: subject @filter(eq(category, "Disease")) @cascade(id) {
+            node_n0: object @filter(eq(category, "Gene")) @cascade(id) {
                 expand(Node)
             }
         }
@@ -1029,11 +1059,11 @@ EXP_BATCH_MULTI_IDS_SINGLE = dedent("""
 
 EXP_BATCH_NO_IDS_SINGLE = dedent("""
 {
-    q0_node_n0(func: eq(category, "Gene")) @cascade(id, ~object) {
+    q0_node_n1(func: eq(id, "D")) @cascade(id, ~subject) {
         expand(Node)
-        in_edges_e0: ~object @filter(eq(predicate_ancestors, "R")) @cascade(predicate, subject) {
+        out_edges_e0: ~subject @filter(eq(predicate_ancestors, "R")) @cascade(predicate, object) {
             expand(Edge) { sources expand(Source) }
-            node_n1: subject @filter(eq(id, "D")) @cascade(id) {
+            node_n0: object @filter(eq(category, "Gene")) @cascade(id) {
                 expand(Node)
             }
         }
@@ -1091,6 +1121,7 @@ DGRAPH_FLOATING_OBJECT_QUERY_TWO_CATEGORIES = dedent("""
 CASES: list[QueryCase] = [
     QueryCase("simple-one", SIMPLE_QGRAPH, EXP_SIMPLE),
     QueryCase("simple-multiple-ids", SIMPLE_QGRAPH_MULTIPLE_IDS, EXP_SIMPLE_MULTIPLE_IDS),
+    QueryCase("simple-reverse", SIMPLE_REVERSE_QGRAPH, EXP_SIMPLE_REVERSE),
     QueryCase("two-hop", TWO_HOP_QGRAPH, EXP_TWO_HOP),
     QueryCase("three-hop", THREE_HOP_QGRAPH, EXP_THREE_HOP),
     QueryCase("four-hop", FOUR_HOP_QGRAPH, EXP_FOUR_HOP),
