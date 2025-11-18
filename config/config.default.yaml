@@ -60,7 +60,7 @@ tier0:
   metakg_file: data/rtx-kg2-metakg.json
   backend_infores: infores:automat-robokop
   neo4j:
-    query_timeout: 1600  # Time in seconds before a neo4j query should time out.
+    query_timeout: 3600  # Time in seconds before a neo4j query should time out.
     connect_retries: 5 # Number of retries before declaring a connection failure.
     host: ''
     bolt_port: 7687
@@ -71,8 +71,9 @@ tier0:
     host: localhost
     http_port: 8080
     grpc_port: 9080
+    preferred_version:
     use_tls: false
-    query_timeout: 60  # Time in seconds before a Dgraph query should time out.
+    query_timeout: 3600  # Time in seconds before a Dgraph query should time out.
     connect_retries: 5 # Number of retries before declaring a connection failure.
     grpc_max_send_message_length: -1 # gRPC max send message length in bytes (-1 for unlimited).
     grpc_max_receive_message_length: -1 # gRPC max receive message length in bytes (-1 for unlimited).
@@ -81,7 +82,7 @@ tier1:
   metakg_file: data/rtx-kg2-metakg.json
   backend_infores: infores:rtx-kg2
   elasticsearch:
-    query_timeout: 1600  # Time in seconds before a Elasticsearch query should time out.
+    query_timeout: 180  # Time in seconds before a Elasticsearch query should time out.
     connect_retries: 5 # Number of retries before declaring a connection failure.
     host: ''
     port: 9200
