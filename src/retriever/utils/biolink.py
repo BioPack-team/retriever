@@ -49,3 +49,6 @@ def get_all_qualifiers() -> set[str]:
         for slot in slots
         if biolink.is_qualifier(slot) and slot != "qualifier"
     }
+
+
+is_qualifier = biolink.is_qualifier

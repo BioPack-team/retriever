@@ -3,10 +3,16 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from contextlib import suppress
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import Any, Literal, Self, TypeGuard, cast
 
 import orjson
+
+from retriever.data_tiers.utils import (
+    DINGO_KG_EDGE_TOPLEVEL_VALUES,
+    DINGO_KG_NODE_TOPLEVEL_VALUES,
+)
+from retriever.utils import biolink
 
 # Regex to find the node binding, ignoring an optional batch prefix like "q0_"
 # It captures the part after the optional prefix and "node_"
@@ -81,6 +87,25 @@ class Edge:
     sources: list[Source] = field(default_factory=list)
     id: str | None = None
     category: list[str] = field(default_factory=list)
+
+    def get_attributes(self) -> dict[str, Any]:
+        """Return all fields which correspond to TRAPI attributes as a dict."""
+        attrs = dict[str, Any]()
+        for data_field in fields(self):
+            if (
+                data_field.name not in DINGO_KG_EDGE_TOPLEVEL_VALUES
+                and not biolink.is_qualifier(data_field.name)
+            ):
+                attrs[data_field.name] = getattr(self, data_field.name)
+        return attrs
+
+    def get_qualifiers(self) -> dict[str, Any]:
+        """Return all fields which correspond to TRAPI qualfiers as a dict."""
+        qualifiers = dict[str, Any]()
+        for data_field in fields(self):
+            if biolink.is_qualifier(data_field.name):
+                qualifiers[data_field.name] = getattr(self, data_field.name)
+        return qualifiers
 
     @classmethod
     def from_dict(
@@ -191,6 +216,14 @@ class Node:
     provided_by: list[str] = field(default_factory=list)
     description: str | None = None
     equivalent_identifiers: list[str] = field(default_factory=list)
+
+    def get_attributes(self) -> dict[str, Any]:
+        """Return all fields which correspond to TRAPI attributes as a dict."""
+        attrs = dict[str, Any]()
+        for data_field in fields(self):
+            if data_field.name not in DINGO_KG_NODE_TOPLEVEL_VALUES:
+                attrs[data_field.name] = getattr(self, data_field.name)
+        return attrs
 
     @classmethod
     def from_dict(

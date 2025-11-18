@@ -25,6 +25,8 @@ from retriever.types.trapi import (
     QEdgeID,
     QNodeDict,
     QNodeID,
+    QualifierDict,
+    QualifierTypeID,
     QueryGraphDict,
     RetrievalSourceDict,
 )
@@ -596,50 +598,27 @@ class DgraphTranspiler(Tier0Transpiler):
         """Convert a Dgraph Node to a TRAPI NodeDict."""
         attributes: list[AttributeDict] = []
 
-        if not (
-            len(node.equivalent_identifiers) == 1
-            and node.equivalent_identifiers[0] == node.id
-        ):
-            attributes.append(
-                AttributeDict(
-                    attribute_type_id="biolink:xref",
-                    value=[CURIE(i) for i in node.equivalent_identifiers],
-                )
+        # Cases that require additional formatting to be TRAPI-compliant
+        special_cases: dict[str, tuple[str, Any]] = {
+            "equivalent_identifiers": (
+                "biolink:xref",
+                [CURIE(i) for i in node.equivalent_identifiers],
             )
+        }
 
-        if node.description:
-            attributes.append(
-                AttributeDict(
-                    attribute_type_id="biolink:description", value=node.description
+        for attr_id, value in node.get_attributes().items():
+            if attr_id in special_cases:
+                continue
+            if value is not None and value not in ([], ""):
+                attributes.append(
+                    AttributeDict(
+                        attribute_type_id=biolink.ensure_prefix(attr_id), value=value
+                    )
                 )
-            )
-        if node.in_taxon:
-            attributes.append(
-                AttributeDict(
-                    attribute_type_id="biolink:in_taxon",
-                    value=[CURIE(i) for i in node.in_taxon],
-                )
-            )
-        if node.information_content is not None:
-            attributes.append(
-                AttributeDict(
-                    attribute_type_id="biolink:information_content",
-                    value=node.information_content,
-                )
-            )
-        if node.inheritance:
-            attributes.append(
-                AttributeDict(
-                    attribute_type_id="biolink:inheritance", value=node.inheritance
-                )
-            )
-        if node.provided_by:
-            attributes.append(
-                AttributeDict(
-                    attribute_type_id="biolink:provided_by",
-                    value=[Infores(i) for i in node.provided_by],
-                )
-            )
+
+        for name, value in special_cases.values():
+            if value is not None and value not in ([], ""):
+                attributes.append(AttributeDict(attribute_type_id=name, value=value))
 
         trapi_node = NodeDict(
             name=node.name,
@@ -654,48 +633,52 @@ class DgraphTranspiler(Tier0Transpiler):
     def _build_trapi_edge(self, edge: dg.Edge, initial_curie: str) -> EdgeDict:
         """Convert a Dgraph Edge to a TRAPI EdgeDict."""
         attributes: list[AttributeDict] = []
-        attribute_map = {
-            "biolink:source_infores": edge.source_inforeses,
-            "biolink:id": edge.id,
-            "biolink:category": [
-                BiolinkEntity(biolink.ensure_prefix(cat)) for cat in edge.category
-            ],
-            "biolink:knowledge_level": edge.knowledge_level,
-            "biolink:agent_type": edge.agent_type,
-            "biolink:publications": edge.publications,
-            "biolink:qualified_predicate": edge.qualified_predicate,
-            "biolink:subject_form_or_variant_qualifier": edge.subject_form_or_variant_qualifier,
-            "biolink:disease_context_qualifier": edge.disease_context_qualifier,
-            "biolink:frequency_qualifier": edge.frequency_qualifier,
-            "biolink:onset_qualifier": edge.onset_qualifier,
-            "biolink:sex_qualifier": edge.sex_qualifier,
-            "biolink:original_subject": edge.original_subject,
-            "biolink:original_predicate": edge.original_predicate,
-            "biolink:original_object": edge.original_object,
-            "biolink:allelic_requirement": edge.allelic_requirement,
-            "biolink:update_date": edge.update_date,
-            "biolink:z_score": edge.z_score,
-            "biolink:has_evidence": edge.has_evidence,
-            "biolink:has_confidence_score": edge.has_confidence_score,
-            "biolink:has_count": edge.has_count,
-            "biolink:has_total": edge.has_total,
-            "biolink:has_percentage": edge.has_percentage,
-            "biolink:has_quotient": edge.has_quotient,
+        qualifiers: list[QualifierDict] = []
+        sources: list[RetrievalSourceDict] = []
+
+        # Cases that require additional formatting to be TRAPI-compliant
+        special_cases: dict[str, tuple[str, Any]] = {
+            "category": (
+                "biolink:category",
+                [BiolinkEntity(biolink.ensure_prefix(cat)) for cat in edge.category],
+            ),
         }
-        for attr_id, value in attribute_map.items():
+        for attr_id, value in edge.get_attributes().items():
+            if attr_id in special_cases:
+                continue
             if value is not None and value not in ([], ""):
-                attributes.append(AttributeDict(attribute_type_id=attr_id, value=value))
+                attributes.append(
+                    AttributeDict(
+                        attribute_type_id=biolink.ensure_prefix(attr_id), value=value
+                    )
+                )
+
+        for name, value in special_cases.values():
+            if value is not None and value not in ([], ""):
+                attributes.append(AttributeDict(attribute_type_id=name, value=value))
+
+        # Build qualifiers
+        for qualifier_id, value in edge.get_qualifiers().items():
+            qualifiers.append(
+                QualifierDict(
+                    qualifier_type_id=QualifierTypeID(qualifier_id),
+                    qualifier_value=value,
+                )
+            )
 
         # Build Sources
-        sources = [
-            RetrievalSourceDict(
-                resource_id=Infores(s.resource_id),
-                resource_role=s.resource_role,
-                upstream_resource_ids=[Infores(uid) for uid in s.upstream_resource_ids],
-                source_record_urls=s.source_record_urls,
+        for source in edge.sources:
+            retrieval_source = RetrievalSourceDict(
+                resource_id=Infores(source.resource_id),
+                resource_role=source.resource_role,
             )
-            for s in edge.sources
-        ]
+            if len(source.upstream_resource_ids):
+                retrieval_source["upstream_resource_ids"] = [
+                    Infores(upstream) for upstream in source.upstream_resource_ids
+                ]
+            if len(source.source_record_urls):
+                retrieval_source["source_record_urls"] = source.source_record_urls
+            sources.append(retrieval_source)
 
         # Build Edge
         trapi_edge = EdgeDict(
