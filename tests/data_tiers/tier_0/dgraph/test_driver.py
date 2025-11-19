@@ -652,18 +652,20 @@ async def test_simple_reverse_query_live_grpc() -> None:
     root_node = result.data["q0"][0]
     assert root_node.binding == "n1"
     assert root_node.id == "NCBIGene:3778"
-    # assert len(root_node.edges) == 0
+    assert len(root_node.edges) == 82
 
-    # 3. Assertions for the incoming edge (e0)
-    # in_edge = root_node.edges[0]
-    # assert in_edge.binding == "e0"
-    # assert in_edge.direction == "in"
-    # assert in_edge.predicate == "located_in"
+    print("root_node.edges:", len(root_node.edges))
 
-    # # 4. Assertions for the connected node (n1)
-    # connected_node = in_edge.node
-    # assert connected_node.binding == "n0"
-    # assert connected_node.id == "NCBIGene:11276"
+    # 3. Assertions for the outgoing edge (e0)
+    out_edge = root_node.edges[0]
+    assert out_edge.binding == "e0"
+    assert out_edge.direction == "out"
+    assert isinstance(out_edge.predicate, str) and out_edge.predicate
+
+    # 4. Assertions for the connected node (n1)
+    connected_node = out_edge.node
+    assert connected_node.binding == "n0"
+    assert isinstance(connected_node.id, str) and connected_node.id
 
     await driver.close()
 
