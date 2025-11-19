@@ -58,7 +58,7 @@ class DgraphTranspiler(Tier0Transpiler):
     )
 
     # Define symmetric predicates
-    SYMMETRIC_PREDICATES = frozenset({
+    SYMMETRIC_PREDICATES: frozenset[str] = frozenset({
         "biolink:related_to",
         "biolink:correlated_with",
         "biolink:associated_with",
@@ -583,7 +583,9 @@ class DgraphTranspiler(Tier0Transpiler):
 
                 # Check if predicate is symmetric
                 predicates = edge.get("predicates", [])
-                is_symmetric = any(self._is_symmetric_predicate(str(pred)) for pred in predicates)
+                is_symmetric = any(
+                    self._is_symmetric_predicate(str(pred)) for pred in predicates
+                ) if predicates else False
 
                 edge_filter = self._build_edge_filter(edge)
                 filter_clause = f" @filter({edge_filter})" if edge_filter else ""
@@ -649,7 +651,9 @@ class DgraphTranspiler(Tier0Transpiler):
 
                 # Check if predicate is symmetric
                 predicates = edge.get("predicates", [])
-                is_symmetric = any(self._is_symmetric_predicate(str(pred)) for pred in predicates)
+                is_symmetric = any(
+                    self._is_symmetric_predicate(str(pred)) for pred in predicates
+                ) if predicates else False
 
                 edge_filter = self._build_edge_filter(edge)
                 filter_clause = f" @filter({edge_filter})" if edge_filter else ""
