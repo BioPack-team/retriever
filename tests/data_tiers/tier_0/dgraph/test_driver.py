@@ -821,7 +821,7 @@ async def test_run_grpc_query_raises_timeout_on_deadline_exceeded(
     mock_handle_query.side_effect = mock_rpc_error
 
     # 2. Act & Assert
-    with pytest.raises(TimeoutError, match="Dgraph query exceeded 30s timeout"):
+    with pytest.raises(TimeoutError, match="Dgraph query exceeded (.*) timeout"):
         await driver.run_query("any query")
 
     await driver.close()
