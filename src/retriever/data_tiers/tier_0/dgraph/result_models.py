@@ -16,7 +16,7 @@ NODE_KEY_PATTERN = re.compile(r"(?:q\d+_)?node_(\w+)")
 def _strip_prefix(d: Mapping[str, Any], prefix: str | None) -> Mapping[str, Any]:
     if not prefix:
         return d
-    return {(k[len(prefix) :] if k.startswith(prefix) else k): v for k, v in d.items()}
+    return {(k.removeprefix(prefix)): v for k, v in d.items()}
 
 
 # -----------------

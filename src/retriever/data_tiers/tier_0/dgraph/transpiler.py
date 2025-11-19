@@ -755,7 +755,7 @@ class DgraphTranspiler(Tier0Transpiler):
             if value is not None and value not in ([], ""):
                 attributes.append(AttributeDict(attribute_type_id=attr_id, value=value))
 
-        # --- Build Sources ---
+        # Build Sources
         sources = [
             RetrievalSourceDict(
                 resource_id=Infores(s.resource_id),
@@ -766,7 +766,7 @@ class DgraphTranspiler(Tier0Transpiler):
             for s in edge.sources
         ]
 
-        # --- Build Edge ---
+        # Build Edge
         trapi_edge = EdgeDict(
             predicate=BiolinkPredicate(biolink.ensure_prefix(edge.predicate)),
             subject=CURIE(edge.node.id if edge.direction == "in" else initial_curie),
