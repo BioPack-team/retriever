@@ -17,6 +17,7 @@ class ESBooleanQuery(TypedDict):
 
     filter: list[ESFilterClause | ESTermClause]
     should: NotRequired[list[ESQueryForSingleQualifierConstraint | ESTermClause]]
+    minimum_should_match: NotRequired[int]
 
 
 class ESQueryContext(TypedDict):

@@ -135,6 +135,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
             # if we have `should` in results, this is a multi-constraint
             if "should" in qualifier_terms:
                 query_kwargs["should"] = qualifier_terms["should"]
+                query_kwargs["minimum_should_match"] = 1 # ensure `should` array is honored
 
             # otherwise we have either
             # 0) `ESQueryForSingleQualifierConstraint`, a single constraint with multiple qualifiers, or
