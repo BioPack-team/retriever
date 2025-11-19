@@ -1,6 +1,6 @@
 import itertools
-import math  # <-- Add this import
-from collections import defaultdict  # <-- Add this import
+import math
+from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from typing import Any, Protocol, TypeAlias, override
 
@@ -57,6 +57,15 @@ class DgraphTranspiler(Tier0Transpiler):
         10  # Max recursion depth for pinnedness calculation
     )
 
+    # Define symmetric predicates
+    SYMMETRIC_PREDICATES = frozenset({
+        "biolink:related_to",
+        "biolink:correlated_with",
+        "biolink:associated_with",
+        "biolink:coexpressed_with",
+        "biolink:similar_to",
+    })
+
     FilterScalar: TypeAlias = str | int | float | bool  # noqa: UP040
     FilterValue: TypeAlias = FilterScalar | list[FilterScalar]  # noqa: UP040
     version: str | None
@@ -83,6 +92,10 @@ class DgraphTranspiler(Tier0Transpiler):
         if self.version:
             return " ".join(f"{field}: {self._v(field)}" for field in fields) + " "
         return " ".join(fields) + " "
+
+    def _is_symmetric_predicate(self, predicate: str) -> bool:
+        """Check if a predicate is symmetric."""
+        return predicate in self.SYMMETRIC_PREDICATES
 
     @override
     def process_qgraph(
@@ -567,6 +580,11 @@ class DgraphTranspiler(Tier0Transpiler):
                     continue  # Skip cycles
 
                 object_node = nodes[object_id]
+
+                # Check if predicate is symmetric
+                predicates = edge.get("predicates", [])
+                is_symmetric = any(self._is_symmetric_predicate(str(pred)) for pred in predicates)
+
                 edge_filter = self._build_edge_filter(edge)
                 filter_clause = f" @filter({edge_filter})" if edge_filter else ""
 
@@ -599,6 +617,27 @@ class DgraphTranspiler(Tier0Transpiler):
                 # Close blocks
                 query += "} } "
 
+                # If symmetric, also check the reverse direction
+                if is_symmetric:
+                    query += f"out_edges_{edge_id}_reverse: ~{self._v('object')}{filter_clause}"
+                    query += f" @cascade({self._v('predicate')}, {self._v('subject')}) {{ "
+                    query += self._add_standard_edge_fields()
+
+                    query += f"node_{object_id}: {self._v('subject')}"
+                    if object_filter:
+                        query += f" @filter({object_filter})"
+
+                    query += self._build_node_cascade_clause(
+                        object_id, edges, child_visited
+                    )
+
+                    query += " { "
+                    query += self._add_standard_node_fields()
+                    query += self._build_further_hops(
+                        object_id, nodes, edges, child_visited
+                    )
+                    query += "} } "
+
         # Find incoming edges to this node (where this node is the OBJECT)
         for edge_id, edge in edges.items():
             if edge["object"] == node_id:
@@ -607,6 +646,11 @@ class DgraphTranspiler(Tier0Transpiler):
                     continue  # Skip cycles
 
                 source_node = nodes[source_id]
+
+                # Check if predicate is symmetric
+                predicates = edge.get("predicates", [])
+                is_symmetric = any(self._is_symmetric_predicate(str(pred)) for pred in predicates)
+
                 edge_filter = self._build_edge_filter(edge)
                 filter_clause = f" @filter({edge_filter})" if edge_filter else ""
 
@@ -638,6 +682,27 @@ class DgraphTranspiler(Tier0Transpiler):
 
                 # Close blocks
                 query += "} } "
+
+                # If symmetric, also check the reverse direction
+                if is_symmetric:
+                    query += f"in_edges_{edge_id}_reverse: ~{self._v('subject')}{filter_clause}"
+                    query += f" @cascade({self._v('predicate')}, {self._v('object')}) {{ "
+                    query += self._add_standard_edge_fields()
+
+                    query += f"node_{source_id}: {self._v('object')}"
+                    if source_filter:
+                        query += f" @filter({source_filter})"
+
+                    query += self._build_node_cascade_clause(
+                        source_id, edges, child_visited
+                    )
+
+                    query += " { "
+                    query += self._add_standard_node_fields()
+                    query += self._build_further_hops(
+                        source_id, nodes, edges, child_visited
+                    )
+                    query += "} } "
 
         return query
 
