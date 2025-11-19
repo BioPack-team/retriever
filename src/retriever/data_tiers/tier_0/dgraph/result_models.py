@@ -201,6 +201,7 @@ class Node:
 
         edges: list[Edge] = []
         for key, value in norm.items():
+            # Parse incoming edges (where this node is the OBJECT)
             if key.startswith("in_edges_"):
                 edge_binding = key.split("_", 2)[2]
                 if isinstance(value, list):
@@ -210,6 +211,7 @@ class Node:
                         )
                         for e in filter(_is_mapping, cast(list[Any], value))
                     )
+            # Parse outgoing edges (where this node is the SUBJECT)
             elif key.startswith("out_edges_"):
                 edge_binding = key.split("_", 2)[2]
                 if isinstance(value, list):
