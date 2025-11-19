@@ -82,6 +82,7 @@ def assert_query_equals(actual: str, expected: str) -> None:
 @pytest.fixture
 def mock_dgraph_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setenv("TIER0__DGRAPH__HOST", "localhost")
+    # monkeypatch.setenv("TIER0__DGRAPH__HOST", "transltr.biothings.io")
     monkeypatch.setenv("TIER0__DGRAPH__HTTP_PORT", "8080")
     monkeypatch.setenv("TIER0__DGRAPH__GRPC_PORT", "9080")
     monkeypatch.setenv("TIER0__DGRAPH__PREFERRED_VERSION", "vC")
@@ -798,17 +799,18 @@ async def test_simple_one_query_http_parallel_live_nonblocking() -> None:
     await driver.close()
 
 @pytest.mark.asyncio
-@patch("retriever.data_tiers.tier_0.dgraph.driver.DgraphGrpcDriver.connect", new_callable=AsyncMock)
+@patch.object(driver_mod.DgraphGrpcDriver, "_connect_grpc", new_callable=AsyncMock)
 @patch("pydgraph.Txn.handle_query_future")
 async def test_run_grpc_query_raises_timeout_on_deadline_exceeded(
     mock_handle_query: MagicMock,
-    _: AsyncMock,
+    _mock_connect_grpc: AsyncMock,
 ) -> None:
     """Test that a grpc.RpcError with DEADLINE_EXCEEDED raises a TimeoutError."""
     # 1. Arrange
     driver = new_grpc_driver()
     await driver.connect()
 
+    # Manually set up the mock client that connect() would have created
     driver.client = MagicMock()
     driver.client.txn.return_value.handle_query_future = mock_handle_query
 
@@ -826,11 +828,11 @@ async def test_run_grpc_query_raises_timeout_on_deadline_exceeded(
 
 
 @pytest.mark.asyncio
-@patch("retriever.data_tiers.tier_0.dgraph.driver.DgraphGrpcDriver.connect", new_callable=AsyncMock)
+@patch.object(driver_mod.DgraphGrpcDriver, "_connect_grpc", new_callable=AsyncMock)
 @patch("pydgraph.Txn.handle_query_future")
 async def test_run_grpc_query_raises_connection_error_on_generic_rpc_error(
     mock_handle_query: MagicMock,
-    _: AsyncMock,
+    _mock_connect_grpc: AsyncMock,
 ) -> None:
     """Test that a generic grpc.RpcError raises a ConnectionError."""
     # 1. Arrange
@@ -854,11 +856,11 @@ async def test_run_grpc_query_raises_connection_error_on_generic_rpc_error(
 
 
 @pytest.mark.asyncio
-@patch("retriever.data_tiers.tier_0.dgraph.driver.DgraphGrpcDriver.connect", new_callable=AsyncMock)
+@patch.object(driver_mod.DgraphGrpcDriver, "_connect_grpc", new_callable=AsyncMock)
 @patch("pydgraph.Txn.handle_query_future")
 async def test_run_grpc_query_name_error_workaround(
     mock_handle_query: MagicMock,
-    _: AsyncMock,
+    _mock_connect_grpc: AsyncMock,
 ) -> None:
     """Test the workaround for pydgraph raising NameError instead of RpcError."""
     # 1. Arrange
