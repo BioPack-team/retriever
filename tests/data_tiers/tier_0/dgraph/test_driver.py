@@ -380,11 +380,11 @@ async def test_simple_one_query_live_http() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n0(func: eq(vC_id, "GO:0031410")) @cascade(vC_id, ~vC_object) {
+        q0_node_n1(func: eq(vC_id, "NCBIGene:11276")) @cascade(vC_id, ~vC_subject) {
             expand(vC_Node)
-            in_edges_e0: ~vC_object @filter(eq(vC_predicate_ancestors, "located_in")) @cascade(vC_predicate, vC_subject) {
+            out_edges_e0: ~vC_subject @filter(eq(vC_predicate_ancestors, "located_in")) @cascade(vC_predicate, vC_object) {
                 expand(vC_Edge) { vC_sources expand(vC_Source) }
-                node_n1: vC_subject @filter(eq(vC_id, "NCBIGene:11276")) @cascade(vC_id) {
+                node_n0: vC_object @filter(eq(vC_id, "GO:0031410")) @cascade(vC_id) {
                     expand(vC_Node)
                 }
             }
@@ -418,35 +418,43 @@ async def test_simple_one_query_live_http() -> None:
 
     # 2. Assertions for the root node (n0)
     root_node = result.data["q0"][0]
-    assert root_node.binding == "n0"
-    assert root_node.id == "GO:0031410"
-    assert root_node.name == "cytoplasmic vesicle"
-    assert root_node.category == [
-        'NamedThing', 'OrganismalEntity', 'PhysicalEssence', 'PhysicalEssenceOrOccurrent',
-        'CellularComponent', 'ThingWithTaxon', 'SubjectOfInvestigation', 'AnatomicalEntity',
-        'BiologicalEntity',
-    ]
-    assert root_node.in_taxon == []
-    assert root_node.information_content == 56.8
+    assert root_node.binding == "n1"
+    assert root_node.id == "NCBIGene:11276"
+    assert root_node.name == "SYNRG"
+    # Category list can be order-dependent, so sort for stable comparison
+    assert sorted(root_node.category) == sorted([
+        'MacromolecularMachineMixin', 'NamedThing', 'Gene', 'ChemicalEntityOrProteinOrPolypeptide',
+        'PhysicalEssence', 'PhysicalEssenceOrOccurrent', 'OntologyClass',
+        'ChemicalEntityOrGeneOrGeneProduct', 'GeneOrGeneProduct', 'Polypeptide',
+        'ThingWithTaxon', 'GenomicEntity', 'GeneProductMixin', 'Protein', 'BiologicalEntity',
+    ])
+    assert root_node.in_taxon == ['NCBITaxon:9606']
+    assert root_node.information_content == 83.6
     assert root_node.inheritance is None
     assert root_node.provided_by == []
-    assert root_node.description == "A vesicle found in the cytoplasm of a cell."
-    assert root_node.equivalent_identifiers == ['GO:0031410']
+    assert root_node.description == "synergin gamma"
+    # Equivalent identifiers can be order-dependent, so sort for stable comparison
+    assert sorted(root_node.equivalent_identifiers) == sorted([
+        'PR:Q9UMZ2', 'OMIM:607291', 'UniProtKB:Q9UMZ2', 'ENSEMBL:ENSG00000275066',
+        'UMLS:C1412437', 'UMLS:C0893518', 'MESH:C121510', 'HGNC:557', 'NCBIGene:11276'
+    ])
     assert len(root_node.edges) == 1
 
     # 3. Assertions for the incoming edge (e0)
     in_edge = root_node.edges[0]
     assert in_edge.binding == "e0"
-    assert in_edge.direction == "in"
+    assert in_edge.direction == "out"
     assert in_edge.predicate == "located_in"
     assert in_edge.agent_type == "automated_agent"
     assert in_edge.knowledge_level == "prediction"
     assert in_edge.publications == []
     assert in_edge.qualified_predicate is None
-    assert in_edge.predicate_ancestors == [
+    # Ancestors can be order-dependent, so sort for stable comparison
+    assert sorted(in_edge.predicate_ancestors) == sorted([
         'related_to_at_instance_level', 'located_in', 'related_to'
-    ]
-    assert in_edge.source_inforeses == ['infores:biolink', 'infores:goa']
+    ])
+    # Source infores can be order-dependent, so sort for stable comparison
+    assert sorted(in_edge.source_inforeses) == sorted(['infores:biolink', 'infores:goa'])
     assert in_edge.subject_form_or_variant_qualifier is None
     assert in_edge.disease_context_qualifier is None
     assert in_edge.frequency_qualifier is None
@@ -476,25 +484,22 @@ async def test_simple_one_query_live_http() -> None:
 
     # 4. Assertions for the connected node (n1)
     connected_node = in_edge.node
-    assert connected_node.binding == "n1"
-    assert connected_node.id == "NCBIGene:11276"
-    assert connected_node.name == "SYNRG"
+    assert connected_node.binding == "n0"  # The binding is 'n0' for the connected node
+    assert connected_node.id == "GO:0031410"
+    assert connected_node.name == "cytoplasmic vesicle"
     assert connected_node.edges == []
-    assert connected_node.category == [
-        'MacromolecularMachineMixin', 'NamedThing', 'Gene', 'ChemicalEntityOrProteinOrPolypeptide',
-        'PhysicalEssence', 'PhysicalEssenceOrOccurrent', 'OntologyClass',
-        'ChemicalEntityOrGeneOrGeneProduct', 'GeneOrGeneProduct', 'Polypeptide',
-        'ThingWithTaxon', 'GenomicEntity', 'GeneProductMixin', 'Protein', 'BiologicalEntity',
-    ]
-    assert connected_node.in_taxon == ['NCBITaxon:9606']
-    assert connected_node.information_content == 83.6
+    # Category list can be order-dependent, so sort for stable comparison
+    assert sorted(connected_node.category) == sorted([
+        'NamedThing', 'OrganismalEntity', 'PhysicalEssence', 'PhysicalEssenceOrOccurrent',
+        'CellularComponent', 'ThingWithTaxon', 'SubjectOfInvestigation', 'AnatomicalEntity',
+        'BiologicalEntity',
+    ])
+    assert connected_node.in_taxon == []
+    assert connected_node.information_content == 56.8
     assert connected_node.inheritance is None
     assert connected_node.provided_by == []
-    assert connected_node.description == "synergin gamma"
-    assert connected_node.equivalent_identifiers == [
-        'PR:Q9UMZ2', 'OMIM:607291', 'UniProtKB:Q9UMZ2', 'ENSEMBL:ENSG00000275066',
-        'UMLS:C1412437', 'UMLS:C0893518', 'MESH:C121510', 'HGNC:557', 'NCBIGene:11276'
-    ]
+    assert connected_node.description == "A vesicle found in the cytoplasm of a cell."
+    assert connected_node.equivalent_identifiers == ['GO:0031410']
 
     await driver.close()
 
@@ -525,11 +530,11 @@ async def test_simple_one_query_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n0(func: eq(vC_id, "GO:0031410")) @cascade(vC_id, ~vC_object) {
+        q0_node_n1(func: eq(vC_id, "NCBIGene:11276")) @cascade(vC_id, ~vC_subject) {
             expand(vC_Node)
-            in_edges_e0: ~vC_object @filter(eq(vC_predicate_ancestors, "located_in")) @cascade(vC_predicate, vC_subject) {
+            out_edges_e0: ~vC_subject @filter(eq(vC_predicate_ancestors, "located_in")) @cascade(vC_predicate, vC_object) {
                 expand(vC_Edge) { vC_sources expand(vC_Source) }
-                node_n1: vC_subject @filter(eq(vC_id, "NCBIGene:11276")) @cascade(vC_id) {
+                node_n0: vC_object @filter(eq(vC_id, "GO:0031410")) @cascade(vC_id) {
                     expand(vC_Node)
                 }
             }
@@ -563,20 +568,20 @@ async def test_simple_one_query_live_grpc() -> None:
 
     # 2. Assertions for the root node (n0)
     root_node = result.data["q0"][0]
-    assert root_node.binding == "n0"
-    assert root_node.id == "GO:0031410"
+    assert root_node.binding == "n1"
+    assert root_node.id == "NCBIGene:11276"
     assert len(root_node.edges) == 1
 
     # 3. Assertions for the incoming edge (e0)
     in_edge = root_node.edges[0]
     assert in_edge.binding == "e0"
-    assert in_edge.direction == "in"
+    assert in_edge.direction == "out"
     assert in_edge.predicate == "located_in"
 
     # 4. Assertions for the connected node (n1)
     connected_node = in_edge.node
-    assert connected_node.binding == "n1"
-    assert connected_node.id == "NCBIGene:11276"
+    assert connected_node.binding == "n0"
+    assert connected_node.id == "GO:0031410"
 
     await driver.close()
 
