@@ -82,7 +82,6 @@ def assert_query_equals(actual: str, expected: str) -> None:
 @pytest.fixture
 def mock_dgraph_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setenv("TIER0__DGRAPH__HOST", "localhost")
-    # monkeypatch.setenv("TIER0__DGRAPH__HOST", "transltr.biothings.io")
     monkeypatch.setenv("TIER0__DGRAPH__HTTP_PORT", "8080")
     monkeypatch.setenv("TIER0__DGRAPH__GRPC_PORT", "9080")
     monkeypatch.setenv("TIER0__DGRAPH__PREFERRED_VERSION", "vC")
