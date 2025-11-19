@@ -132,12 +132,12 @@ class ElasticsearchTranspiler(Tier1Transpiler):
 
             # otherwise we have either
             # 0) `ESQueryForSingleQualifierConstraint`, a single constraint with multiple qualifiers, or
-            # 1) `ESQueryForOneQualifierEntry`, a single qualifier in a single constraint
+            # 1) `ESTermClause`, a single qualifier in a single constraint
             # in both cases, inner payload of one or more qualifier terms can be added
             # as a single or a list of `ESQueryForOneQualifierEntry` to `filter` field
             elif "bool" in qualifier_terms:
                 query_kwargs["filter"].extend(qualifier_terms["bool"]["must"])
-            elif "nested" in qualifier_terms:
+            elif "term" in qualifier_terms:
                 query_kwargs["filter"].append(qualifier_terms)
 
 
