@@ -2,6 +2,7 @@ import itertools
 import math
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any, Protocol, TypeAlias, override
 
 from loguru import logger
@@ -34,6 +35,35 @@ from retriever.types.trapi import (
 )
 from retriever.utils import biolink
 from retriever.utils.trapi import hash_edge, hash_hex
+
+
+@dataclass(frozen=True)
+class EdgeTraversalContext:
+    """Context for building an edge traversal query."""
+
+    edge_id: QEdgeID
+    edge: QEdgeDict
+    target_id: QNodeID
+    target_node: QNodeDict
+    edge_direction: str  # "out" or "in"
+    visited: set[QNodeID]
+    nodes: Mapping[QNodeID, QNodeDict]
+    edges: Mapping[QEdgeID, QEdgeDict]
+
+
+@dataclass(frozen=True)
+class DirectionTraversalContext:
+    """Context for building a single direction traversal."""
+
+    edge_name: str
+    edge_reverse_field: str
+    predicate_field: str
+    filter_clause: str
+    target_id: QNodeID
+    target_filter: str
+    child_visited: set[QNodeID]
+    nodes: Mapping[QNodeID, QNodeDict]
+    edges: Mapping[QEdgeID, QEdgeDict]
 
 
 class FilterValueProtocol(Protocol):
@@ -562,6 +592,103 @@ class DgraphTranspiler(Tier0Transpiler):
         query += "} "
         return query
 
+    def _build_edge_traversal(self, ctx: EdgeTraversalContext) -> str:
+        """Build query fragment for traversing an edge in a specific direction.
+
+        Args:
+            ctx: Edge traversal context containing all necessary information
+
+        Returns:
+            Query fragment string
+        """
+        query = ""
+
+        # Check if predicate is symmetric
+        predicates = ctx.edge.get("predicates") or []
+        is_symmetric = any(
+            self._is_symmetric_predicate(str(pred)) for pred in predicates
+        )
+
+        edge_filter = self._build_edge_filter(ctx.edge)
+        filter_clause = f" @filter({edge_filter})" if edge_filter else ""
+
+        # Build the filter for the target node
+        target_filter = self._build_node_filter(ctx.target_node)
+        child_visited = ctx.visited | {ctx.target_id}
+
+        # Determine field names based on direction
+        if ctx.edge_direction == "out":
+            edge_name = f"out_edges_{ctx.edge_id}"
+            reverse_edge_name = f"out_edges_{ctx.edge_id}_reverse"
+            edge_reverse_field = self._v('subject')
+            predicate_field = self._v('object')
+            reverse_edge_reverse_field = self._v('object')
+            reverse_predicate_field = self._v('subject')
+        else:  # "in"
+            edge_name = f"in_edges_{ctx.edge_id}"
+            reverse_edge_name = f"in_edges_{ctx.edge_id}_reverse"
+            edge_reverse_field = self._v('object')
+            predicate_field = self._v('subject')
+            reverse_edge_reverse_field = self._v('subject')
+            reverse_predicate_field = self._v('object')
+
+        # Build primary direction
+        primary_ctx = DirectionTraversalContext(
+            edge_name=edge_name,
+            edge_reverse_field=edge_reverse_field,
+            predicate_field=predicate_field,
+            filter_clause=filter_clause,
+            target_id=ctx.target_id,
+            target_filter=target_filter,
+            child_visited=child_visited,
+            nodes=ctx.nodes,
+            edges=ctx.edges,
+        )
+        query += self._build_single_direction_traversal(primary_ctx)
+
+        # If symmetric, also build reverse direction
+        if is_symmetric:
+            reverse_ctx = DirectionTraversalContext(
+                edge_name=reverse_edge_name,
+                edge_reverse_field=reverse_edge_reverse_field,
+                predicate_field=reverse_predicate_field,
+                filter_clause=filter_clause,
+                target_id=ctx.target_id,
+                target_filter=target_filter,
+                child_visited=child_visited,
+                nodes=ctx.nodes,
+                edges=ctx.edges,
+            )
+            query += self._build_single_direction_traversal(reverse_ctx)
+
+        return query
+
+    def _build_single_direction_traversal(self, ctx: DirectionTraversalContext) -> str:
+        """Build a single directional edge traversal query fragment.
+
+        Args:
+            ctx: Direction traversal context containing all necessary information
+
+        Returns:
+            Query fragment string
+        """
+        query = f"{ctx.edge_name}: ~{ctx.edge_reverse_field}{ctx.filter_clause}"
+        query += f" @cascade({self._v('predicate')}, {ctx.predicate_field}) {{ "
+        query += self._add_standard_edge_fields()
+
+        query += f"node_{ctx.target_id}: {ctx.predicate_field}"
+        if ctx.target_filter:
+            query += f" @filter({ctx.target_filter})"
+
+        query += self._build_node_cascade_clause(ctx.target_id, ctx.edges, ctx.child_visited)
+
+        query += " { "
+        query += self._add_standard_node_fields()
+        query += self._build_further_hops(ctx.target_id, ctx.nodes, ctx.edges, ctx.child_visited)
+        query += "} } "
+
+        return query
+
     def _build_further_hops(
         self,
         node_id: QNodeID,
@@ -580,65 +707,17 @@ class DgraphTranspiler(Tier0Transpiler):
                     continue  # Skip cycles
 
                 object_node = nodes[object_id]
-
-                # Check if predicate is symmetric
-                predicates = edge.get("predicates", [])
-                is_symmetric = any(
-                    self._is_symmetric_predicate(str(pred)) for pred in predicates
-                ) if predicates else False
-
-                edge_filter = self._build_edge_filter(edge)
-                filter_clause = f" @filter({edge_filter})" if edge_filter else ""
-
-                # Edge block with cascade requiring predicate and the 'object' endpoint
-                query += f"out_edges_{edge_id}: ~{self._v('subject')}{filter_clause}"
-                query += f" @cascade({self._v('predicate')}, {self._v('object')}) {{ "
-                query += self._add_standard_edge_fields()
-
-                # Build the filter for the connected object node.
-                object_filter = self._build_node_filter(object_node)
-                query += f"node_{object_id}: {self._v('object')}"
-                if object_filter:
-                    query += f" @filter({object_filter})"
-
-                # For the child node, include cascade(id, ~subject?, ~object?) based on remaining unvisited hops
-                child_visited = visited | {object_id}
-                query += self._build_node_cascade_clause(
-                    object_id, edges, child_visited
+                ctx = EdgeTraversalContext(
+                    edge_id=edge_id,
+                    edge=edge,
+                    target_id=object_id,
+                    target_node=object_node,
+                    edge_direction="out",
+                    visited=visited,
+                    nodes=nodes,
+                    edges=edges,
                 )
-
-                # Open child node block
-                query += " { "
-                query += self._add_standard_node_fields()
-
-                # Recurse from the newly connected object node
-                query += self._build_further_hops(
-                    object_id, nodes, edges, child_visited
-                )
-
-                # Close blocks
-                query += "} } "
-
-                # If symmetric, also check the reverse direction
-                if is_symmetric:
-                    query += f"out_edges_{edge_id}_reverse: ~{self._v('object')}{filter_clause}"
-                    query += f" @cascade({self._v('predicate')}, {self._v('subject')}) {{ "
-                    query += self._add_standard_edge_fields()
-
-                    query += f"node_{object_id}: {self._v('subject')}"
-                    if object_filter:
-                        query += f" @filter({object_filter})"
-
-                    query += self._build_node_cascade_clause(
-                        object_id, edges, child_visited
-                    )
-
-                    query += " { "
-                    query += self._add_standard_node_fields()
-                    query += self._build_further_hops(
-                        object_id, nodes, edges, child_visited
-                    )
-                    query += "} } "
+                query += self._build_edge_traversal(ctx)
 
         # Find incoming edges to this node (where this node is the OBJECT)
         for edge_id, edge in edges.items():
@@ -648,65 +727,17 @@ class DgraphTranspiler(Tier0Transpiler):
                     continue  # Skip cycles
 
                 source_node = nodes[source_id]
-
-                # Check if predicate is symmetric
-                predicates = edge.get("predicates", [])
-                is_symmetric = any(
-                    self._is_symmetric_predicate(str(pred)) for pred in predicates
-                ) if predicates else False
-
-                edge_filter = self._build_edge_filter(edge)
-                filter_clause = f" @filter({edge_filter})" if edge_filter else ""
-
-                # Edge block with cascade requiring predicate and the 'subject' endpoint
-                query += f"in_edges_{edge_id}: ~{self._v('object')}{filter_clause}"
-                query += f" @cascade({self._v('predicate')}, {self._v('subject')}) {{ "
-                query += self._add_standard_edge_fields()
-
-                # Build the filter for the connected source node.
-                source_filter = self._build_node_filter(source_node)
-                query += f"node_{source_id}: {self._v('subject')}"
-                if source_filter:
-                    query += f" @filter({source_filter})"
-
-                # For the child node, include cascade(id, ~subject?, ~object?) based on remaining unvisited hops
-                child_visited = visited | {source_id}
-                query += self._build_node_cascade_clause(
-                    source_id, edges, child_visited
+                ctx = EdgeTraversalContext(
+                    edge_id=edge_id,
+                    edge=edge,
+                    target_id=source_id,
+                    target_node=source_node,
+                    edge_direction="in",
+                    visited=visited,
+                    nodes=nodes,
+                    edges=edges,
                 )
-
-                # Open child node block
-                query += " { "
-                query += self._add_standard_node_fields()
-
-                # Recurse from the newly connected source node
-                query += self._build_further_hops(
-                    source_id, nodes, edges, child_visited
-                )
-
-                # Close blocks
-                query += "} } "
-
-                # If symmetric, also check the reverse direction
-                if is_symmetric:
-                    query += f"in_edges_{edge_id}_reverse: ~{self._v('subject')}{filter_clause}"
-                    query += f" @cascade({self._v('predicate')}, {self._v('object')}) {{ "
-                    query += self._add_standard_edge_fields()
-
-                    query += f"node_{source_id}: {self._v('object')}"
-                    if source_filter:
-                        query += f" @filter({source_filter})"
-
-                    query += self._build_node_cascade_clause(
-                        source_id, edges, child_visited
-                    )
-
-                    query += " { "
-                    query += self._add_standard_node_fields()
-                    query += self._build_further_hops(
-                        source_id, nodes, edges, child_visited
-                    )
-                    query += "} } "
+                query += self._build_edge_traversal(ctx)
 
         return query
 
