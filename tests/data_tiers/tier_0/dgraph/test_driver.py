@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch, AsyncMock
 
 import asyncio
 import aiohttp
+import grpc
 import pytest
 
 import retriever.config.general as general_mod
@@ -35,9 +36,16 @@ class _TestDgraphGrpcDriver(driver_mod.DgraphGrpcDriver):
         """Initialize and pass version to the parent class."""
         super().__init__(version=version)
 
+    _client: driver_mod.DgraphClientProtocol | None = None
+
     @property
     def client(self) -> driver_mod.DgraphClientProtocol | None:
         return self._client
+
+    @client.setter
+    def client(self, value: driver_mod.DgraphClientProtocol | None) -> None:
+        """Allow setting the client for testing purposes."""
+        self._client = value
 
 
 def new_http_driver(version: str | None = None) -> _TestDgraphHttpDriver:
@@ -786,5 +794,93 @@ async def test_simple_one_query_http_parallel_live_nonblocking() -> None:
 
     # If queries are non-blocking, elapsed should be just over 1 second, not 2+
     assert elapsed < 2, f"Queries are blocking each other! Elapsed: {elapsed:.2f}s"
+
+    await driver.close()
+
+@pytest.mark.asyncio
+@patch.object(driver_mod.DgraphGrpcDriver, "_connect_grpc", new_callable=AsyncMock)
+@patch("pydgraph.Txn.handle_query_future")
+async def test_run_grpc_query_raises_timeout_on_deadline_exceeded(
+    mock_handle_query: MagicMock,
+    _mock_connect_grpc: AsyncMock,
+) -> None:
+    """Test that a grpc.RpcError with DEADLINE_EXCEEDED raises a TimeoutError."""
+    # 1. Arrange
+    driver = new_grpc_driver()
+    await driver.connect()
+
+    # Manually set up the mock client that connect() would have created
+    driver.client = MagicMock()
+    driver.client.txn.return_value.handle_query_future = mock_handle_query
+
+    # Mock the RpcError
+    mock_rpc_error = grpc.RpcError()
+    mock_rpc_error.code = MagicMock(return_value=grpc.StatusCode.DEADLINE_EXCEEDED)
+    mock_rpc_error.details = MagicMock(return_value="Deadline exceeded")
+    mock_handle_query.side_effect = mock_rpc_error
+
+    # 2. Act & Assert
+    with pytest.raises(TimeoutError, match="Dgraph query exceeded (.*) timeout"):
+        await driver.run_query("any query")
+
+    await driver.close()
+
+
+@pytest.mark.asyncio
+@patch.object(driver_mod.DgraphGrpcDriver, "_connect_grpc", new_callable=AsyncMock)
+@patch("pydgraph.Txn.handle_query_future")
+async def test_run_grpc_query_raises_connection_error_on_generic_rpc_error(
+    mock_handle_query: MagicMock,
+    _mock_connect_grpc: AsyncMock,
+) -> None:
+    """Test that a generic grpc.RpcError raises a ConnectionError."""
+    # 1. Arrange
+    driver = new_grpc_driver()
+    await driver.connect()
+
+    driver.client = MagicMock()
+    driver.client.txn.return_value.handle_query_future = mock_handle_query
+
+    # Mock the RpcError
+    mock_rpc_error = grpc.RpcError()
+    mock_rpc_error.code = MagicMock(return_value=grpc.StatusCode.UNKNOWN)
+    mock_rpc_error.details = MagicMock(return_value="Some other gRPC error")
+    mock_handle_query.side_effect = mock_rpc_error
+
+    # 2. Act & Assert
+    with pytest.raises(ConnectionError, match="Dgraph gRPC query failed: Some other gRPC error"):
+        await driver.run_query("any query")
+
+    await driver.close()
+
+
+@pytest.mark.asyncio
+@patch.object(driver_mod.DgraphGrpcDriver, "_connect_grpc", new_callable=AsyncMock)
+@patch("pydgraph.Txn.handle_query_future")
+async def test_run_grpc_query_name_error_workaround(
+    mock_handle_query: MagicMock,
+    _mock_connect_grpc: AsyncMock,
+) -> None:
+    """Test the workaround for pydgraph raising NameError instead of RpcError."""
+    # 1. Arrange
+    driver = new_grpc_driver()
+    await driver.connect()
+
+    driver.client = MagicMock()
+    driver.client.txn.return_value.handle_query_future = mock_handle_query
+
+    # Mock the underlying RpcError
+    mock_rpc_error = grpc.RpcError()
+    mock_rpc_error.code = MagicMock(return_value=grpc.StatusCode.UNKNOWN)
+    mock_rpc_error.details = MagicMock(return_value="while running ToJson")
+
+    # Create a NameError and set its __context__ to our mock RpcError
+    name_error = NameError("name 'txn' is not defined")
+    name_error.__context__ = mock_rpc_error
+    mock_handle_query.side_effect = name_error
+
+    # 2. Act & Assert
+    with pytest.raises(ConnectionError, match="Dgraph gRPC query failed: while running ToJson"):
+        await driver.run_query("any query")
 
     await driver.close()

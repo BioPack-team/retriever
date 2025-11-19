@@ -383,6 +383,10 @@ class DgraphDriver(DatabaseDriver):
             raw: Any = response.json
 
             return dg_models.DgraphResponse.parse(raw, prefix=prefix)
+        except grpc.RpcError as e:
+            if e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
+                raise TimeoutError(f"Dgraph gRPC query timed out: {e.details()}") from e
+            raise ConnectionError(f"Dgraph gRPC query failed: {e.details()}") from e
         except (pydgraph.errors.AbortedError, NameError) as e:
             original_error = e.__context__
             if isinstance(original_error, grpc.RpcError):
