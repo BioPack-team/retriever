@@ -35,6 +35,18 @@ from retriever.utils.trapi import hash_edge, hash_hex
 # Or just a built-in annotation
 
 
+NODE_FIELDS_MAPPING = {
+    "ids": "id.keyword",
+    "categories": "category",
+}
+
+
+EDGE_FIELDS_MAPPING = {
+    "predicates": "predicate_ancestors",
+}
+
+
+
 class ElasticsearchTranspiler(Tier1Transpiler):
     """Transpiler for TRAPI to/from Elasticsearch queries."""
 
@@ -63,14 +75,11 @@ class ElasticsearchTranspiler(Tier1Transpiler):
 
         Example return value: { "terms": { "subject.id": ["NCBIGene:22828"] }},
         """
-        field_mapping = {
-            "ids": "id.keyword",
-            "categories": "category",
-        }
+
 
         return [
             self.generate_query_term(f"{side}.{es_field}", values)
-            for qfield, es_field in field_mapping.items()
+            for qfield, es_field in NODE_FIELDS_MAPPING.items()
             if (values := qnode.get(qfield))
         ]
 
@@ -86,13 +95,10 @@ class ElasticsearchTranspiler(Tier1Transpiler):
             raise Exception("Invalid predicates values")
 
         # Scalable to more fields
-        field_mapping = {
-            "predicates": "predicate_ancestors",
-        }
 
         return [
             self.generate_query_term(f"{es_field}", values)
-            for qfield, es_field in field_mapping.items()
+            for qfield, es_field in EDGE_FIELDS_MAPPING.items()
             if (values := qedge.get(qfield))
         ]
 

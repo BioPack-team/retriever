@@ -2,9 +2,12 @@ from typing import cast, Any
 
 import pytest
 
-from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
-from retriever.data_tiers.tier_1.elasticsearch.types import ESPayload, ESHit
+from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler, NODE_FIELDS_MAPPING, \
+    EDGE_FIELDS_MAPPING
+from retriever.data_tiers.tier_1.elasticsearch.types import ESPayload, ESHit, ESQueryContext, ESBooleanQuery, \
+    ESFilterClause
 from retriever.types.trapi import QueryGraphDict
+from retriever.utils import biolink
 
 
 def qg(d: dict[str, Any]) -> QueryGraphDict:
@@ -29,6 +32,32 @@ SIMPLE_QGRAPH_0: QueryGraphDict = qg({
         },
     },
 })
+
+
+
+SIMPLE_QGRAPH_0_ESPAYLOAD: ESPayload = ESPayload(
+        query=ESQueryContext(
+            bool=ESBooleanQuery(
+                filter=[
+                    ESFilterClause(terms={
+                        "subject.id.keyword":[
+                          "UMLS:C1564592"
+                        ]
+                      }),
+                    ESFilterClause(terms={
+                        "object.id.keyword":[
+                          "CHEBI:4514"
+                        ]
+                    },),
+                    ESFilterClause(terms={
+                        "predicate_ancestors":[
+                          "subclass_of"
+                        ]
+                      },),
+                  ]
+            )
+        )
+)
 
 SIMPLE_QGRAPH_1: QueryGraphDict = qg({
         "nodes": {
@@ -334,30 +363,56 @@ def check_list_fields(reference: list, against: list):
             assert ref == ag
 
 
+
+def remove_biolink_prefixes(input: list):
+    return list(
+        map(
+            biolink.rmprefix,
+            input
+        )
+    )
+
+
 def check_single_query_payload(
     q_graph: QueryGraphDict, generated_payload:ESPayload
 ):
     assert generated_payload is not None
-
     filter_content = generated_payload["query"]["bool"]["filter"]
     assert filter_content is not None
     assert isinstance(filter_content, list)
 
     q_edge = next(iter(q_graph["edges"].values()), None)
-    in_node = q_graph["nodes"][q_edge["subject"]]
-    out_node = q_graph["nodes"][q_edge["object"]]
+    out_node = q_graph["nodes"][q_edge["subject"]]
+    in_node = q_graph["nodes"][q_edge["object"]]
+
+
+
+    # generate check targets
+    required_fields_to_check = dict()
+    # Generated field targets
+    # {'predicate_ancestors': ['causes'], 'object.id.keyword': ['UMLS:C0011847'], 'subject.category': ['Gene'], 'object.category': ['Disease']}
+
+    for field in EDGE_FIELDS_MAPPING.keys():
+        if field in q_edge:
+            required_fields_to_check[EDGE_FIELDS_MAPPING[field]] = remove_biolink_prefixes(q_edge[field])
+
+    for field in NODE_FIELDS_MAPPING.keys():
+        if field in out_node:
+            required_fields_to_check[f"subject.{NODE_FIELDS_MAPPING[field]}"] = remove_biolink_prefixes(out_node[field])
+        if field in in_node:
+            required_fields_to_check[f"object.{NODE_FIELDS_MAPPING[field]}"] = remove_biolink_prefixes(in_node[field])
+
 
     for single_filter in filter_content:
         terms = single_filter["terms"]
-        if "subject.id" in terms:
-            assert in_node["ids"] == terms["subject.id"]
-        if "object.id" in terms:
-            assert out_node["ids"] == terms["object.id"]
 
-        for field_name in ["predicates", "categories"]:
-            variant = f"all_{field_name}"
-            if variant in terms:
-                check_list_fields(q_edge[field_name], terms[variant])
+        for term in terms.keys():
+            if term in required_fields_to_check:
+                assert terms[term] == required_fields_to_check[term]
+                required_fields_to_check.pop(term)
+
+    assert not required_fields_to_check
+
 
 
 Q_GRAPH_CASES = (
