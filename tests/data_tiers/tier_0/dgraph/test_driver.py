@@ -81,7 +81,8 @@ def assert_query_equals(actual: str, expected: str) -> None:
 
 @pytest.fixture
 def mock_dgraph_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    monkeypatch.setenv("TIER0__DGRAPH__HOST", "localhost")
+    # monkeypatch.setenv("TIER0__DGRAPH__HOST", "localhost")
+    monkeypatch.setenv("TIER0__DGRAPH__HOST", "transltr.biothings.io")
     monkeypatch.setenv("TIER0__DGRAPH__HTTP_PORT", "8080")
     monkeypatch.setenv("TIER0__DGRAPH__GRPC_PORT", "9080")
     monkeypatch.setenv("TIER0__DGRAPH__PREFERRED_VERSION", "vC")
@@ -611,7 +612,7 @@ async def test_simple_reverse_query_live_grpc() -> None:
             "e0": {
                 "object": "n0",
                 "subject": "n1",
-                "predicates": ["biolink:related_to"],
+                "predicates": ["biolink:has_phenotype"],
                 "attribute_constraints": [],
                 "qualifier_constraints": [],
             }
@@ -622,7 +623,7 @@ async def test_simple_reverse_query_live_grpc() -> None:
     {
         q0_node_n1(func: eq(vC_id, "NCBIGene:3778")) @cascade(vC_id, ~vC_subject) {
             expand(vC_Node)
-            out_edges_e0: ~vC_subject @filter(eq(vC_predicate_ancestors, "related_to")) @cascade(vC_predicate, vC_object) {
+            out_edges_e0: ~vC_subject @filter(eq(vC_predicate_ancestors, "has_phenotype")) @cascade(vC_predicate, vC_object) {
                 expand(vC_Edge) { vC_sources expand(vC_Source) }
                 node_n0: vC_object @filter(eq(vC_category, "NamedThing")) @cascade(vC_id) {
                     expand(vC_Node)
@@ -660,9 +661,7 @@ async def test_simple_reverse_query_live_grpc() -> None:
     root_node = result.data["q0"][0]
     assert root_node.binding == "n1"
     assert root_node.id == "NCBIGene:3778"
-    assert len(root_node.edges) == 82
-
-    print("root_node.edges:", len(root_node.edges))
+    assert len(root_node.edges) == 60
 
     # 3. Assertions for the outgoing edge (e0)
     out_edge = root_node.edges[0]
