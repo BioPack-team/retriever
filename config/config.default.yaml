@@ -27,7 +27,7 @@ category_conflations: # A list of category conflation sets where a QNode having 
 job:
   callback:
     retries: 3  # Number of times to retry the callback.
-    timeout: 10 # Time in seconds before a callback attempt should time out.
+    timeout: 60 # Time in seconds before a callback attempt should time out.
   lookup:
     timeout: 10  # Time in seconds before a job should time out, set to -1 to disable.
   metakg:
@@ -96,4 +96,4 @@ telemetry:
   sentry_enabled: false
   sentry_dsn:
   traces_sample_rate: 0.1  # Proportion of traces to send to Sentry.
-  profiles_sample_rate: 1.0 # Proportion of sampled traces to profile.
+  profiles_sample_rate: 0.5 # Proportion of sampled traces to profile.
