@@ -45,9 +45,9 @@ class DgraphTranspiler(Tier0Transpiler):
     """Transpiler for converting TRAPI queries into Dgraph GraphQL queries."""
 
     # --- Constants for Pinnedness Algorithm ---
-    N: int = 1_000_000  # total number of nodes
-    R: int = 25  # number of edges per node
-    MAX_PINNEDNESS_LEVEL: int = 10  # max recursion depth for pinnedness
+    PINNEDNESS_DEFAULT_TOTAL_NODES: int = 1_000_000  # Default assumption for total nodes in the graph
+    PINNEDNESS_DEFAULT_EDGES_PER_NODE: int = 25  # Default assumption for average edges per node
+    PINNEDNESS_RECURSION_DEPTH: int = 10  # Max recursion depth for pinnedness calculation
 
     FilterScalar: TypeAlias = str | int | float | bool  # noqa: UP040
     FilterValue: TypeAlias = FilterScalar | list[FilterScalar]  # noqa: UP040
@@ -139,7 +139,7 @@ class DgraphTranspiler(Tier0Transpiler):
             if ids:
                 num_ids_map[qnode_id] = len(ids)
             else:
-                num_ids_map[qnode_id] = self.N
+                num_ids_map[qnode_id] = self.PINNEDNESS_DEFAULT_TOTAL_NODES
         return num_ids_map
 
     def _compute_log_expected_n(
@@ -152,7 +152,7 @@ class DgraphTranspiler(Tier0Transpiler):
     ) -> float:
         """Compute the log of the expected number of unique knodes bound to the specified qnode."""
         log_expected_n = math.log(num_ids[qnode_id])
-        if level < self.MAX_PINNEDNESS_LEVEL:
+        if level < self.PINNEDNESS_RECURSION_DEPTH:
             for neighbor, num_edges in adjacency_mat[qnode_id].items():
                 if neighbor == last:
                     continue
@@ -167,7 +167,10 @@ class DgraphTranspiler(Tier0Transpiler):
                         ),
                         0,
                     )
-                    + math.log(self.R / self.N),
+                    + math.log(
+                        self.PINNEDNESS_DEFAULT_EDGES_PER_NODE
+                        / self.PINNEDNESS_DEFAULT_TOTAL_NODES
+                    ),
                     0,
                 )
         return log_expected_n
