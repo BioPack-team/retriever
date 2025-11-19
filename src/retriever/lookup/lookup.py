@@ -33,7 +33,7 @@ from retriever.types.trapi import (
     ResultDict,
 )
 from retriever.types.trapi_pydantic import AsyncQuery, TierNumber
-from retriever.utils.calls import CALLBACK_CLIENT
+from retriever.utils.calls import get_callback_client
 from retriever.utils.logs import TRAPILogger, trapi_level_to_int
 from retriever.utils.mongo import MONGO_QUEUE
 from retriever.utils.trapi import merge_results, prune_kg, update_kgraph
@@ -53,7 +53,8 @@ async def async_lookup(query: QueryInfo) -> None:
 
     job_log.debug(f"Sending callback to `{query.body.callback}`...")
     try:
-        callback_response = await CALLBACK_CLIENT.post(
+        client = get_callback_client()
+        callback_response = await client.post(
             url=str(query.body.callback), json=response
         )
         callback_response.raise_for_status()

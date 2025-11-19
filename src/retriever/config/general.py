@@ -113,7 +113,7 @@ class CallbackSettings(BaseModel):
     timeout: Annotated[
         int,
         Field(description="Time in seconds before a callback attempt should time out."),
-    ] = 10
+    ] = 60
 
 
 class LookupSettings(BaseModel):
