@@ -3,6 +3,12 @@ from functools import lru_cache
 import bmt
 
 from retriever.config.openapi import OPENAPI_CONFIG
+from retriever.types.trapi import (
+    BiolinkPredicate,
+    QualifierConstraintDict,
+    QualifierDict,
+    QualifierTypeID,
+)
 
 biolink = bmt.Toolkit(
     schema=f"https://raw.githubusercontent.com/biolink/biolink-model/refs/tags/v{OPENAPI_CONFIG.x_translator.biolink_version}/biolink-model.yaml",
@@ -49,4 +55,41 @@ def get_all_qualifiers() -> set[str]:
     }
 
 
+def get_inverse(predicate: BiolinkPredicate) -> BiolinkPredicate | None:
+    """Return the inverse of a given predicate."""
+    inverse = biolink.get_inverse_predicate(predicate, formatted=True)
+    return BiolinkPredicate(inverse) if inverse else None
+
+
+def reverse_qualifier_constraints(
+    qualifier_constraints: list[QualifierConstraintDict],
+) -> list[QualifierConstraintDict]:
+    """Reverse a given list of qualifier constraints."""
+    new = list[QualifierConstraintDict]()
+    for constraint in qualifier_constraints:
+        new_qualifier_set = set[QualifierDict]()
+        for qualifier in constraint["qualifier_set"]:
+            new_qualifier = QualifierDict(**qualifier)
+            if "object" in qualifier["qualifier_type_id"]:
+                new_qualifier["qualifier_type_id"] = QualifierTypeID(
+                    qualifier["qualifier_type_id"].replace("object", "subject")
+                )
+            elif "subject" in qualifier["qualifier_type_id"]:
+                new_qualifier["qualifier_type_id"] = QualifierTypeID(
+                    qualifier["qualifier_type_id"].replace("subject", "object")
+                )
+            elif inverse := qualifier[
+                "qualifier_type_id"
+            ] == "biolink:qualified_predicate" and get_inverse(
+                BiolinkPredicate(qualifier["qualifier_value"])
+            ):
+                # BUG: Technically invalid if we can't reverse the predicate
+                # but this is vanishingly rare and not worth addressing right now
+                new_qualifier["qualifier_value"] = inverse
+            new_qualifier_set.add(new_qualifier)
+        new.append(constraint)
+    return new
+
+
 is_qualifier = biolink.is_qualifier
+is_symmetric = biolink.is_symmetric
