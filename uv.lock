@@ -2063,7 +2063,7 @@ dependencies = [
     { name = "reasoner-transpiler" },
     { name = "redis" },
     { name = "ruamel-yaml" },
-    { name = "sentry-sdk", extra = ["loguru"] },
+    { name = "sentry-sdk", extra = ["fastapi", "httpx", "loguru"] },
     { name = "uvicorn", extra = ["standard"] },
     { name = "uvloop" },
     { name = "zstandard" },
@@ -2118,7 +2118,7 @@ requires-dist = [
     { name = "reasoner-transpiler", specifier = ">=2.3.5" },
     { name = "redis", specifier = ">=5.0.4,<6" },
     { name = "ruamel-yaml", specifier = ">=0.18.14" },
-    { name = "sentry-sdk", extras = ["loguru"], specifier = ">=2.20.0" },
+    { name = "sentry-sdk", extras = ["fastapi", "httpx", "loguru"], specifier = ">=2.45.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.1,<0.33" },
     { name = "uvloop", specifier = ">=0.21.0" },
     { name = "zstandard", specifier = ">=0.24.0" },
@@ -2304,18 +2304,24 @@ wheels = [
 
 [[package]]
 name = "sentry-sdk"
-version = "2.36.0"
+version = "2.45.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a1/ac/52fcbba981793d3c90807b79cf6fa130cd25a54d152e653da3ed6d5defef/sentry_sdk-2.36.0.tar.gz", hash = "sha256:af9260e8155e41e8217615a453828e98aa40740865ac4b16b1ccb6a63b4b2e31", size = 343655, upload-time = "2025-09-04T07:56:37.688Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/61/89/1561b3dc8e28bf7978d031893297e89be266f53650c87bb14a29406a9791/sentry_sdk-2.45.0.tar.gz", hash = "sha256:e9bbfe69d5f6742f48bad22452beffb525bbc5b797d817c7f1b1f7d210cdd271", size = 373631, upload-time = "2025-11-18T13:23:22.475Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cd/17/41ea723cb40f036d699cd954e2894fe7a044b0fd9a0e6bd881b1c9dda14e/sentry_sdk-2.36.0-py2.py3-none-any.whl", hash = "sha256:0f95586a141068d215376e5bf8ebd279e126f7f42805e9570190ef82a7e232b3", size = 364905, upload-time = "2025-09-04T07:56:36.159Z" },
+    { url = "https://files.pythonhosted.org/packages/94/c6/039121a0355bc1b5bcceef0dabf211b021fd435d0ee5c46393717bb1c09f/sentry_sdk-2.45.0-py2.py3-none-any.whl", hash = "sha256:86c8ab05dc3e8666aece77a5c747b45b25aa1d5f35f06cde250608f495d50f23", size = 404791, upload-time = "2025-11-18T13:23:20.533Z" },
 ]
 
 [package.optional-dependencies]
+fastapi = [
+    { name = "fastapi" },
+]
+httpx = [
+    { name = "httpx" },
+]
 loguru = [
     { name = "loguru" },
 ]

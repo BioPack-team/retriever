@@ -1,9 +1,12 @@
+import contextlib
 import traceback
 import uuid
 from typing import Any, Literal, overload
 
+import sentry_sdk
 from fastapi import Request, Response
 from opentelemetry import trace
+from reasoner_pydantic import QueryGraph
 
 from retriever.config.general import CONFIG
 from retriever.lookup.lookup import async_lookup, lookup
@@ -63,6 +66,7 @@ async def make_query(
     Unhandled errors are handled by middleware.
     """
     job_id = uuid.uuid4().hex
+
     timeout: float = {
         "lookup": CONFIG.job.lookup.timeout,
         "metakg": CONFIG.job.metakg.timeout,
@@ -84,6 +88,9 @@ async def make_query(
         timeout=timeout,
     )
 
+    with contextlib.suppress(Exception):
+        contextualize_query_telemetry(query, func, ctx.background_tasks is not None)
+
     query_function = {"lookup": lookup, "metakg": trapi_metakg}[func]
     if func == "lookup":
         MONGO_QUEUE.put("job_state", {"job_id": job_id, "status": "Running"})
@@ -100,6 +107,39 @@ async def make_query(
         status_code, response_body = await query_function(query)
         ctx.response.status_code = status_code
         return response_body
+
+
+def contextualize_query_telemetry(query: QueryInfo, func: str, is_async: bool) -> None:
+    """Provide some advanced information about the query for Telemetry."""
+    span_tags = {
+        "job_id": query.job_id,
+        "job_timeout": query.timeout,
+        "data_tier": str(sorted(query.tiers)),
+        "query_type": func if not is_async else f"{func}-async",
+    }
+
+    body = query.body
+
+    if (
+        submitter := body is not None
+        and body.model_extra is not None
+        and body.model_extra.get("submitter")
+    ):
+        span_tags["submitter"] = str(submitter)
+    else:
+        span_tags["submitter"] = "not_provided"
+
+    if body is not None and body.message.query_graph is not None:
+        span_tags["qnodes"] = len(body.message.query_graph.nodes)
+        if isinstance(body.message.query_graph, QueryGraph):
+            span_tags["qedges"] = len(body.message.query_graph.edges)
+        else:
+            span_tags["qpaths"] = len(body.message.query_graph.paths)
+
+    current_span = trace.get_current_span()
+    current_span.set_attributes(span_tags)
+    # Have to set separately in Sentry to make searchable tags
+    sentry_sdk.set_tags(span_tags)
 
 
 async def get_job_state(

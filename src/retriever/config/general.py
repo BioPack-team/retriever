@@ -101,7 +101,7 @@ class TelemetrySettings(BaseModel):
     ] = 0.1
     profiles_sample_rate: Annotated[
         float, Field(description="Proportion of sampled traces to profile.")
-    ] = 1.0
+    ] = 0.5
 
 
 class CallbackSettings(BaseModel):
