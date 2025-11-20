@@ -87,15 +87,6 @@ class DgraphTranspiler(Tier0Transpiler):
         10  # Max recursion depth for pinnedness calculation
     )
 
-    # Define symmetric predicates
-    SYMMETRIC_PREDICATES: frozenset[str] = frozenset({
-        "biolink:related_to",
-        "biolink:correlated_with",
-        "biolink:associated_with",
-        "biolink:coexpressed_with",
-        "biolink:similar_to",
-    })
-
     FilterScalar: TypeAlias = str | int | float | bool  # noqa: UP040
     FilterValue: TypeAlias = FilterScalar | list[FilterScalar]  # noqa: UP040
     version: str | None
@@ -122,10 +113,6 @@ class DgraphTranspiler(Tier0Transpiler):
         if self.version:
             return " ".join(f"{field}: {self._v(field)}" for field in fields) + " "
         return " ".join(fields) + " "
-
-    def _is_symmetric_predicate(self, predicate: str) -> bool:
-        """Check if a predicate is symmetric."""
-        return predicate in self.SYMMETRIC_PREDICATES
 
     @override
     def process_qgraph(
@@ -606,7 +593,7 @@ class DgraphTranspiler(Tier0Transpiler):
         # Check if predicate is symmetric
         predicates = ctx.edge.get("predicates") or []
         is_symmetric = any(
-            self._is_symmetric_predicate(str(pred)) for pred in predicates
+            biolink.is_symmetric(str(pred)) for pred in predicates
         )
 
         edge_filter = self._build_edge_filter(ctx.edge)
