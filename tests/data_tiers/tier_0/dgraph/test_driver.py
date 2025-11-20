@@ -81,8 +81,7 @@ def assert_query_equals(actual: str, expected: str) -> None:
 
 @pytest.fixture
 def mock_dgraph_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    # monkeypatch.setenv("TIER0__DGRAPH__HOST", "localhost")
-    monkeypatch.setenv("TIER0__DGRAPH__HOST", "transltr.biothings.io")
+    monkeypatch.setenv("TIER0__DGRAPH__HOST", "localhost")
     monkeypatch.setenv("TIER0__DGRAPH__HTTP_PORT", "8080")
     monkeypatch.setenv("TIER0__DGRAPH__GRPC_PORT", "9080")
     monkeypatch.setenv("TIER0__DGRAPH__PREFERRED_VERSION", "vC")
@@ -687,8 +686,8 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
 
     qgraph_query: QueryGraphDict = qg({
         "nodes": {
-            "n0": {"ids": ["GO:0031410"], "constraints": []},
-            "n1": {"ids": ["NCBIGene:11276"], "constraints": []},
+            "n0": {"categories": ["biolink:NamedThing"], "constraints": []},
+            "n1": {"ids": ["NCBIGene:3778"], "constraints": []}
         },
         "edges": {
             "e0": {
@@ -697,46 +696,39 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
                 "predicates": ["biolink:related_to"],
                 "attribute_constraints": [],
                 "qualifier_constraints": [],
-            },
-        },
-    })
-
-    # TODO: Find a real query that uses a symmetric predicate and update this test accordingly.
-    dgraph_query_match: str = dedent("""
-    {
-        q0_node_n1(func: eq(vC_id, "NCBIGene:11276")) @cascade(vC_id, ~vC_subject) {
-            expand(vC_Node)
-
-            out_edges_e0: ~vC_subject
-            @filter(eq(vC_predicate_ancestors, "related_to"))
-            @cascade(vC_predicate, vC_object) {
-                expand(vC_Edge) {
-                vC_sources
-                expand(vC_Source)
-                }
-
-                node_n0: vC_object
-                @filter(eq(vC_id, "GO:0031410"))
-                @cascade(vC_id) {
-                    expand(vC_Node)
-                }
-            }
-
-            out_edges_e0_reverse: ~vC_object
-            @filter(eq(vC_predicate_ancestors, "related_to"))
-            @cascade(vC_predicate, vC_subject) {
-                expand(vC_Edge) {
-                vC_sources
-                expand(vC_Source)
-                }
-
-                node_n0: vC_subject
-                @filter(eq(vC_id, "GO:0031410"))
-                @cascade(vC_id) {
-                    expand(vC_Node)
-                }
             }
         }
+    })
+
+    dgraph_query_match: str = dedent("""
+    {
+    q0_node_n1(func: eq(vC_id, "NCBIGene:3778")) @cascade(vC_id, ~vC_subject) {
+        expand(vC_Node)
+
+        out_edges_e0: ~vC_subject
+        @filter(eq(vC_predicate_ancestors, "related_to"))
+        @cascade(vC_predicate, vC_object) {
+            expand(vC_Edge) { vC_sources expand(vC_Source) }
+
+            node_n0: vC_object
+            @filter(eq(vC_category, "NamedThing"))
+            @cascade(vC_id) {
+                expand(vC_Node)
+            }
+        }
+
+        out_edges_e0_reverse: ~vC_object
+        @filter(eq(vC_predicate_ancestors, "related_to"))
+        @cascade(vC_predicate, vC_subject) {
+            expand(vC_Edge) { vC_sources expand(vC_Source) }
+
+            node_n0: vC_subject
+            @filter(eq(vC_category, "NamedThing"))
+            @cascade(vC_id) {
+                expand(vC_Node)
+            }
+        }
+    }
     }
     """).strip()
 
@@ -767,30 +759,33 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
     # 2. Assertions for the root node (n0)
     root_node = result.data["q0"][0]
     assert root_node.binding == "n1"
-    assert root_node.id == "NCBIGene:11276"
-    assert len(root_node.edges) == 1
+    assert root_node.id == "NCBIGene:3778"
+    assert len(root_node.edges) == 100
 
-    # 3. Assertions for the incoming edge (e0)
-    in_edge = root_node.edges[0]
-    assert in_edge.binding == "e0"
-    assert in_edge.direction == "out"
-    assert in_edge.predicate == "located_in"
+    # Symmetric predicate should produce both bindings:
+    forward_edges = [e for e in root_node.edges if e.binding == "e0"]
+    reverse_edges = [e for e in root_node.edges if e.binding == "e0_reverse"]
 
-    # 4. Assertions for the connected node (n1)
-    connected_node = in_edge.node
-    assert connected_node.binding == "n0"
-    assert connected_node.id == "GO:0031410"
+    # Both forward and reverse edge groups must be present and non-empty
+    assert forward_edges, "Expected at least one forward edge with binding 'e0'"
+    assert reverse_edges, "Expected at least one reverse edge with binding 'e0_reverse'"
 
-    # # 5. Assertions for the incoming edge (e0_reverse)
-    # in_edge = root_node.edges[0]
-    # assert in_edge.binding == "e0_reverse"
-    # assert in_edge.direction == "out"
-    # assert in_edge.predicate == "located_in"
+    # Both edges should have been parsed as outgoing edges (the query used out_edges_...)
+    assert all(e.direction == "out" for e in forward_edges), "Forward edges should be 'out' direction"
+    assert all(e.direction == "out" for e in reverse_edges), "Reverse edges (from ~vC_object) are parsed as out direction"
 
-    # # 6. Assertions for the connected node (n1)
-    # connected_node = in_edge.node
-    # assert connected_node.binding == "n0"
-    # assert connected_node.id == "GO:0031410"
+    # Predicate/ancestors should reflect the symmetric predicate filter ("related_to")
+    assert all(
+        ("related_to" in e.predicate_ancestors) or (e.predicate == "related_to")
+        for e in forward_edges
+    ), "All forward edge should have 'related_to' in predicate/ancestors"
+    assert all(
+        ("related_to" in e.predicate_ancestors) or (e.predicate == "related_to")
+        for e in reverse_edges
+    ), "All reverse edge should have 'related_to' in predicate/ancestors"
+    # Connected nodes should be parsed and have the expected binding for the query (n0)
+    assert all(e.node.binding == "n0" for e in forward_edges + reverse_edges)
+    assert all(isinstance(e.node.id, str) and e.node.id for e in forward_edges + reverse_edges)
 
     await driver.close()
 
