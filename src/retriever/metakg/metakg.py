@@ -1,5 +1,7 @@
 import asyncio
 import itertools
+import math
+import time
 from typing import NamedTuple
 
 import aiofiles
@@ -50,19 +52,14 @@ class MetaKGManager:
     def parse_trapi_metakg(
         self,
         metakg_info: TRAPIMetaKGInfo,
-        operations: dict[str, list[Operation]],
+        operations: list[Operation],
         nodes: dict[BiolinkEntity, OperationNode],
     ) -> None:
         """Parse a TRAPI MetaKG to build operations."""
         metakg, tier, infores = metakg_info
         for edge in metakg["edges"]:
             edge_dict = MetaEdgeDict(**edge)
-            spo = (
-                f"{edge_dict['subject']} {edge_dict['predicate']} {edge_dict['object']}"
-            )
-            if spo not in operations:
-                operations[spo] = list[Operation]()
-            operations[spo].append(
+            operations.append(
                 Operation(
                     subject=edge_dict["subject"],
                     predicate=edge_dict["predicate"],
@@ -92,7 +89,7 @@ class MetaKGManager:
 
         logger.info("Building MetaKG...")
 
-        operations = dict[str, list[Operation]]()
+        operations = list[Operation]()
         nodes = dict[BiolinkEntity, OperationNode]()
 
         # TODO: make this part of config
@@ -123,7 +120,7 @@ class MetaKGManager:
 
         await REDIS_CLIENT.update_metakg(self._metakg)
         logger.success(
-            f"Built MetaKG containing {sum(len(ops) for ops in operations.values())} operations / {len(nodes)} nodes."
+            f"Built MetaKG containing {len(operations)} operations / {len(nodes)} nodes."
         )
 
     async def periodic_build_metakg(self) -> None:
@@ -185,28 +182,20 @@ class MetaKGManager:
         )
         predicates = expand(set(edge.predicates or ["biolink:related_to"]))
 
-        spo_combos = (
-            f"{s} {p} {o}"
-            for s, p, o in itertools.product(
-                input_categories, predicates, output_categories
-            )
-        )
-
         operations = list[Operation]()
 
         metakg = await self.get_metakg()
 
-        for spo in spo_combos:
-            if spo not in metakg.operations:
-                continue
-            for operation in metakg.operations[spo]:
-                if operation.tier not in tiers:
-                    continue
-                # TODO: filter by API (once TRAPI source filtering exists)
-                if not meta_qualifier_meets_constraints(
+        for operation in metakg.operations:
+            if (
+                operation.tier in tiers
+                and operation.subject in input_categories
+                and operation.predicate in predicates
+                and operation.object in output_categories
+                and meta_qualifier_meets_constraints(
                     operation.qualifiers, edge.qualifier_constraints
-                ):
-                    continue
+                )
+            ):
                 operations.append(operation)
 
         return operations
@@ -218,6 +207,7 @@ class MetaKGManager:
 
         Returns None if any QEdge is unsupported by the current operation table.
         """
+        start = time.time()
         plan = OperationPlan()
         unsupported_qedges = list[QEdgeID]()
         for qedge_id, qedge in qgraph.edges.items():
@@ -226,6 +216,9 @@ class MetaKGManager:
                 unsupported_qedges.append(QEdgeID(qedge_id))
             plan[QEdgeID(qedge_id)] = operations
 
+        end = time.time()
+        duration_ms = math.ceil((end - start) * 1000)
+        print(f"operation plan took {duration_ms}ms")
         if len(unsupported_qedges) > 0:
             return unsupported_qedges
         return plan
@@ -240,49 +233,56 @@ async def get_trapi_metakg(tiers: tuple[TierNumber, ...]) -> MetaKnowledgeGraphD
     Because it depends on METAKG_MANAGER, it can't be used with the lead manager.
     This shouldn't be a problem because the lead manager isn't used to answer API calls.
     """
-    edges = list[MetaEdgeDict]()
+    edges = dict[str, MetaEdgeDict]()
+    edge_qualifiers = dict[str, dict[str, set[str]]]()
+    edge_attributes = dict[str, dict[int, MetaAttributeDict]]()
     mentioned_nodes = set[BiolinkEntity]()
     nodes = dict[BiolinkEntity, MetaNodeDict]()
     op_table = await METAKG_MANAGER.get_metakg()
-    for op_list in op_table.operations.values():
-        add_edge = False
-        # op_list should always be of length >= 1
-        sbj, obj, pred = op_list[0].subject, op_list[0].object, op_list[0].predicate
-        meta_edge = MetaEdgeDict(subject=sbj, predicate=pred, object=obj)
-        qualifiers = dict[str, set[str]]()
-        attributes = dict[int, MetaAttributeDict]()
+    for op in op_table.operations:
+        if op.tier not in tiers:
+            continue
 
-        for op in op_list:
-            if op.tier in tiers:
-                add_edge = True
-            else:
-                continue
+        sbj, obj, pred = op.subject, op.object, op.predicate
+        mentioned_nodes.update((sbj, obj))
 
-            # Merge qualifiers
-            if op.qualifiers is not None:
-                for qual_type, values in op.qualifiers.items():
-                    if qual_type not in qualifiers:
-                        qualifiers[qual_type] = set[str]()
-                    qualifiers[qual_type].update(values)
+        spo = f"{sbj} {pred} {obj}"
+        if spo in edges:
+            meta_edge = edges[spo]
+            qualifiers = edge_qualifiers[spo]
+            attributes = edge_attributes[spo]
+        else:
+            meta_edge = MetaEdgeDict(subject=sbj, predicate=pred, object=obj)
+            qualifiers = dict[str, set[str]]()
+            attributes = dict[int, MetaAttributeDict]()
 
-            # Merge attributes
-            if op.attributes is not None:
-                attributes.update(
-                    {hash_meta_attribute(attr): attr for attr in op.attributes}
-                )
+        # Merge qualifiers
+        if op.qualifiers is not None:
+            for qual_type, values in op.qualifiers.items():
+                if qual_type not in qualifiers:
+                    qualifiers[qual_type] = set[str]()
+                qualifiers[qual_type].update(values)
 
-        if add_edge:
-            meta_edge["qualifiers"] = [
-                MetaQualifierDict(
-                    qualifier_type_id=QualifierTypeID(qual_type),
-                    applicable_values=list(values),
-                )
-                for qual_type, values in qualifiers.items()
-            ]
-            meta_edge["attributes"] = list(attributes.values())
+        # Merge attributes
+        if op.attributes is not None:
+            attributes.update(
+                {hash_meta_attribute(attr): attr for attr in op.attributes}
+            )
 
-            edges.append(meta_edge)
-            mentioned_nodes.update((sbj, obj))
+        if spo not in edges:
+            edges[spo] = meta_edge
+            edge_qualifiers[spo] = qualifiers
+            edge_attributes[spo] = attributes
+
+    for spo, edge in edges.items():
+        edge["qualifiers"] = [
+            MetaQualifierDict(
+                qualifier_type_id=QualifierTypeID(qual_type),
+                applicable_values=list(values),
+            )
+            for qual_type, values in edge_qualifiers[spo].items()
+        ]
+        edge["attributes"] = list(edge_attributes[spo].values())
 
     for category, node in op_table.nodes.items():
         if category not in mentioned_nodes:
@@ -296,4 +296,4 @@ async def get_trapi_metakg(tiers: tuple[TierNumber, ...]) -> MetaKnowledgeGraphD
             attributes=list(attributes.values()),
         )
 
-    return MetaKnowledgeGraphDict(nodes=nodes, edges=edges)
+    return MetaKnowledgeGraphDict(nodes=nodes, edges=list(edges.values()))

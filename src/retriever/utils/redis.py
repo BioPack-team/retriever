@@ -72,10 +72,7 @@ class RedisClient:
         metakg_json = ZSTD_COMPRESSOR.compress(
             ormsgpack.packb(
                 {
-                    "operations": {
-                        spo: [op._asdict() for op in ops]
-                        for spo, ops in metakg.operations.items()
-                    },
+                    "operations": [op._asdict() for op in metakg.operations],
                     "nodes": {
                         cat: node._asdict() for cat, node in metakg.nodes.items()
                     },
@@ -94,10 +91,7 @@ class RedisClient:
             return None
         metakg_json = ormsgpack.unpackb(ZSTD_DECOMPRESSOR.decompress(stored))
         return OperationTable(
-            operations={
-                spo: [Operation(**op) for op in ops]
-                for spo, ops in metakg_json["operations"].items()
-            },
+            operations=[Operation(**op) for op in metakg_json["operations"]],
             nodes={
                 spo: OperationNode(**node) for spo, node in metakg_json["nodes"].items()
             },
