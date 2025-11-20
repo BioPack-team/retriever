@@ -119,12 +119,24 @@ class CallbackSettings(BaseModel):
 class LookupSettings(BaseModel):
     """Settings pertaining to lookups."""
 
-    timeout: Annotated[
+    tier0_timeout: Annotated[
         int,
         Field(
-            description="Time in seconds before a job should time out, set to -1 to disable."
+            description="Time in seconds before a tier 0 query should time out, set to -1 to disable."
+        ),
+    ] = 180
+    tier1_timeout: Annotated[
+        int,
+        Field(
+            description="Time in seconds before a tier 1 query should time out, set to -1 to disable."
         ),
     ] = 10
+    tier2_timeout: Annotated[
+        int,
+        Field(
+            description="Time in seconds before a tier 2 query should time out, set to -1 to disable."
+        ),
+    ] = 300
 
 
 class MetaKGSettings(BaseModel):

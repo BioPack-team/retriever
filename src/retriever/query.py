@@ -11,7 +11,7 @@ from reasoner_pydantic import QueryGraph
 from retriever.config.general import CONFIG
 from retriever.lookup.lookup import async_lookup, lookup
 from retriever.metakg.trapi_metakg import trapi_metakg
-from retriever.types.general import APIInfo, QueryInfo
+from retriever.types.general import APIInfo, ErrorDetail, QueryInfo
 from retriever.types.trapi import (
     AsyncQueryResponseDict,
     MetaKnowledgeGraphDict,
@@ -60,24 +60,26 @@ async def make_query(
     *,
     body: TRAPIQuery | TRAPIAsyncQuery | None = None,
     tiers: list[TierNumber] | None = None,  # Guaranteed to be 0 <= x <= 2
-) -> ResponseDict | AsyncQueryResponseDict | MetaKnowledgeGraphDict:
+) -> ResponseDict | AsyncQueryResponseDict | MetaKnowledgeGraphDict | ErrorDetail:
     """Process a request and await its response before returning.
 
     Unhandled errors are handled by middleware.
     """
     job_id = uuid.uuid4().hex
 
-    timeout: float = {
-        "lookup": CONFIG.job.lookup.timeout,
-        "metakg": CONFIG.job.metakg.timeout,
-    }[func]
+    custom_timeout = (
+        body is not None and body.parameters is not None and body.parameters.timeout
+    )
+    timeout: dict[int, float] = {
+        -1: CONFIG.job.metakg.timeout,
+        0: custom_timeout or CONFIG.job.lookup.tier0_timeout,
+        1: custom_timeout or CONFIG.job.lookup.tier1_timeout,
+        2: custom_timeout or CONFIG.job.lookup.tier2_timeout,
+    }
     if tiers is None:
         tiers = [0]
-    if body is not None and body.parameters is not None:
-        if body.parameters.timeout is not None:
-            timeout = body.parameters.timeout
-        if body.parameters.tiers is not None:
-            tiers = body.parameters.tiers
+    if custom_tiers := body and body.parameters and body.parameters.tiers:
+        tiers = custom_tiers
 
     query = QueryInfo(
         endpoint=ctx.request.url.path,
@@ -111,10 +113,12 @@ async def make_query(
 
 def contextualize_query_telemetry(query: QueryInfo, func: str, is_async: bool) -> None:
     """Provide some advanced information about the query for Telemetry."""
-    span_tags = {
+    span_tags: dict[str, str | int] = {
         "job_id": query.job_id,
-        "job_timeout": query.timeout,
-        "data_tier": str(sorted(query.tiers)),
+        "job_timeout": ", ".join(
+            f"{tgt}: {timeout}" for tgt, timeout in query.timeout.items()
+        ),
+        "data_tier": ", ".join(str(tier) for tier in sorted(query.tiers)),
         "query_type": func if not is_async else f"{func}-async",
     }
 

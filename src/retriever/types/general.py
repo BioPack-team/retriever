@@ -56,7 +56,7 @@ class QueryInfo(NamedTuple):
     body: Query | AsyncQuery | None
     job_id: str
     tiers: set[TierNumber]
-    timeout: float
+    timeout: dict[int, float]
 
 
 class BackendResult(TypedDict):
