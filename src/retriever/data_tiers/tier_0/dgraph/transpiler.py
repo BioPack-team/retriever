@@ -604,14 +604,14 @@ class DgraphTranspiler(Tier0Transpiler):
         # Determine field names based on direction
         if ctx.edge_direction == "out":
             edge_name = f"out_edges_{ctx.edge_id}"
-            reverse_edge_name = f"out_edges_{ctx.edge_id}_reverse"
+            reverse_edge_name = f"in_edges_{ctx.edge_id}_reverse"
             edge_reverse_field = self._v("subject")
             predicate_field = self._v("object")
             reverse_edge_reverse_field = self._v("object")
             reverse_predicate_field = self._v("subject")
         else:  # "in"
             edge_name = f"in_edges_{ctx.edge_id}"
-            reverse_edge_name = f"in_edges_{ctx.edge_id}_reverse"
+            reverse_edge_name = f"out_edges_{ctx.edge_id}_reverse"
             edge_reverse_field = self._v("object")
             predicate_field = self._v("subject")
             reverse_edge_reverse_field = self._v("subject")

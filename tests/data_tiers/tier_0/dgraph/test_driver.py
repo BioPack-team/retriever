@@ -717,7 +717,7 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
             }
         }
 
-        out_edges_e0_reverse: ~vC_object
+        in_edges_e0_reverse: ~vC_object
         @filter(eq(vC_predicate_ancestors, "related_to"))
         @cascade(vC_predicate, vC_subject) {
             expand(vC_Edge) { vC_sources expand(vC_Source) }
@@ -772,7 +772,7 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
 
     # Both edges should have been parsed as outgoing edges (the query used out_edges_...)
     assert all(e.direction == "out" for e in forward_edges), "Forward edges should be 'out' direction"
-    assert all(e.direction == "out" for e in reverse_edges), "Reverse edges (from ~vC_object) are parsed as out direction"
+    assert all(e.direction == "in" for e in reverse_edges), "Reverse edges (from ~vC_object) are parsed as in direction"
 
     # Predicate/ancestors should reflect the symmetric predicate filter ("related_to")
     assert all(
