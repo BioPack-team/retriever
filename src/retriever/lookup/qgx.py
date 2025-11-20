@@ -620,6 +620,8 @@ class QueryGraphExecutor:
             self.job_log.info(
                 f"QGX timeout is {'disabled' if self.timeout < 0 else f'{self.timeout}s'}."
             )
+            if self.timeout < 0:
+                return
             await asyncio.sleep(self.timeout)
             self.job_log.error("QGX hit timeout, attempting wrapup...")
             self.terminate = True

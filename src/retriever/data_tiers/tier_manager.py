@@ -15,14 +15,14 @@ from retriever.data_tiers.tier_1.elasticsearch.driver import ElasticSearchDriver
 from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
 from retriever.types.trapi_pydantic import TierNumber
 
-BACKEND_DRIVERS = dict[str, DatabaseDriver](
-    elasticsearch=ElasticSearchDriver(),
-    dgraph=DgraphGrpcDriver(),
+BACKEND_DRIVERS = dict[str, type[DatabaseDriver]](
+    elasticsearch=ElasticSearchDriver,
+    dgraph=DgraphGrpcDriver,
 )
 
-TRANSPILERS = dict[str, Transpiler](
-    elasticsearch=ElasticsearchTranspiler(),
-    dgraph=DgraphTranspiler(),
+TRANSPILERS = dict[str, type[Transpiler]](
+    elasticsearch=ElasticsearchTranspiler,
+    dgraph=DgraphTranspiler,
 )
 
 QUERY_HANDLERS = dict[str, type[Tier0Query]](
@@ -33,9 +33,9 @@ QUERY_HANDLERS = dict[str, type[Tier0Query]](
 def get_driver(tier: TierNumber) -> DatabaseDriver:
     """Get the configured driver for the given tier."""
     if tier == 0:
-        return BACKEND_DRIVERS[CONFIG.tier0.backend]
+        return BACKEND_DRIVERS[CONFIG.tier0.backend]()
     elif tier == 1:
-        return BACKEND_DRIVERS[CONFIG.tier1.backend]
+        return BACKEND_DRIVERS[CONFIG.tier1.backend]()
     else:
         raise NotImplementedError(f"Tier {tier} is not yet implemented.")
 
@@ -43,9 +43,9 @@ def get_driver(tier: TierNumber) -> DatabaseDriver:
 def get_transpiler(tier: TierNumber) -> Transpiler:
     """Get the configured transpiler for the given tier."""
     if tier == 0:
-        return TRANSPILERS[CONFIG.tier0.backend]
+        return TRANSPILERS[CONFIG.tier0.backend]()
     elif tier == 1:
-        return TRANSPILERS[CONFIG.tier1.backend]
+        return TRANSPILERS[CONFIG.tier1.backend]()
     else:
         raise NotImplementedError(f"Tier {tier} is not yet implemented.")
 

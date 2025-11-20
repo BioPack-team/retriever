@@ -1,7 +1,5 @@
 import asyncio
 import itertools
-import math
-import time
 from typing import NamedTuple
 
 import aiofiles
@@ -207,7 +205,6 @@ class MetaKGManager:
 
         Returns None if any QEdge is unsupported by the current operation table.
         """
-        start = time.time()
         plan = OperationPlan()
         unsupported_qedges = list[QEdgeID]()
         for qedge_id, qedge in qgraph.edges.items():
@@ -216,9 +213,6 @@ class MetaKGManager:
                 unsupported_qedges.append(QEdgeID(qedge_id))
             plan[QEdgeID(qedge_id)] = operations
 
-        end = time.time()
-        duration_ms = math.ceil((end - start) * 1000)
-        print(f"operation plan took {duration_ms}ms")
         if len(unsupported_qedges) > 0:
             return unsupported_qedges
         return plan
