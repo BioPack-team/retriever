@@ -34,9 +34,7 @@ def expand(items: str | set[str]) -> set[str]:
     initial = {items} if isinstance(items, str) else items
     expanded = set(initial)
     for item in initial:
-        # Have to strip biolink prefix due to bug in bmt, see https://github.com/biolink/biolink-model-toolkit/issues/154
-        lookup = rmprefix(item)
-        expanded.update(biolink.get_descendants(lookup, formatted=True))
+        expanded.update(biolink.get_descendants(item, formatted=True))
     return expanded
 
 

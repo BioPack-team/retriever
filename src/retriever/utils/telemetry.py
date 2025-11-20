@@ -23,8 +23,10 @@ def configure_telemetry(app: FastAPI | None = None) -> None:
             else None,
             traces_sample_rate=CONFIG.telemetry.traces_sample_rate,
             profiles_sample_rate=CONFIG.telemetry.profiles_sample_rate,
+            profile_lifecycle="trace",
             instrumenter="otel",
             environment=CONFIG.instance_env,
+            enable_logs=True,
         )
 
     if any([CONFIG.telemetry.sentry_enabled, CONFIG.telemetry.otel_enabled]):

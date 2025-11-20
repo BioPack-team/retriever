@@ -33,7 +33,7 @@ from retriever.types.trapi import (
     ResultDict,
 )
 from retriever.types.trapi_pydantic import AsyncQuery, TierNumber
-from retriever.utils.calls import CALLBACK_CLIENT
+from retriever.utils.calls import get_callback_client
 from retriever.utils.logs import TRAPILogger, trapi_level_to_int
 from retriever.utils.mongo import MONGO_QUEUE
 from retriever.utils.trapi import merge_results, prune_kg, update_kgraph
@@ -53,7 +53,8 @@ async def async_lookup(query: QueryInfo) -> None:
 
     job_log.debug(f"Sending callback to `{query.body.callback}`...")
     try:
-        callback_response = await CALLBACK_CLIENT.post(
+        client = get_callback_client()
+        callback_response = await client.post(
             url=str(query.body.callback), json=response
         )
         callback_response.raise_for_status()
@@ -87,9 +88,6 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
     try:
         start_time = time.time()
         job_log.info(f"Begin processing job {job_id}.")
-        job_log.debug(
-            f"Job timeout is {str(query.timeout) + 's' if query.timeout >= 0 else 'disabled'}."
-        )
 
         qgraph = query.body.message.query_graph
         if qgraph is None:
@@ -162,6 +160,9 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
             "Received QueryGraph of type None, query graph should be present."
         )
 
+    parameters = ParametersDict(tiers=list(query.tiers))
+    if timeout := query.body.parameters and query.body.parameters.timeout:
+        parameters["timeout"] = timeout
     return (
         job_id,
         job_log,
@@ -176,7 +177,7 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
             biolink_version=OPENAPI_CONFIG.x_translator.biolink_version,
             schema_version=OPENAPI_CONFIG.x_trapi.version,
             workflow=query.body.workflow.model_dump() if query.body.workflow else None,
-            parameters=ParametersDict(tiers=list(query.tiers), timeout=query.timeout),
+            parameters=parameters,
             job_id=job_id,  # pyright:ignore[reportCallIssue] Extra is allowed
         ),
     )

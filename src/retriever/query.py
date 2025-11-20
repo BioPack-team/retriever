@@ -1,14 +1,17 @@
+import contextlib
 import traceback
 import uuid
 from typing import Any, Literal, overload
 
+import sentry_sdk
 from fastapi import Request, Response
 from opentelemetry import trace
+from reasoner_pydantic import QueryGraph
 
 from retriever.config.general import CONFIG
 from retriever.lookup.lookup import async_lookup, lookup
 from retriever.metakg.trapi_metakg import trapi_metakg
-from retriever.types.general import APIInfo, QueryInfo
+from retriever.types.general import APIInfo, ErrorDetail, QueryInfo
 from retriever.types.trapi import (
     AsyncQueryResponseDict,
     MetaKnowledgeGraphDict,
@@ -57,23 +60,26 @@ async def make_query(
     *,
     body: TRAPIQuery | TRAPIAsyncQuery | None = None,
     tiers: list[TierNumber] | None = None,  # Guaranteed to be 0 <= x <= 2
-) -> ResponseDict | AsyncQueryResponseDict | MetaKnowledgeGraphDict:
+) -> ResponseDict | AsyncQueryResponseDict | MetaKnowledgeGraphDict | ErrorDetail:
     """Process a request and await its response before returning.
 
     Unhandled errors are handled by middleware.
     """
     job_id = uuid.uuid4().hex
-    timeout: float = {
-        "lookup": CONFIG.job.lookup.timeout,
-        "metakg": CONFIG.job.metakg.timeout,
-    }[func]
+
+    custom_timeout = (
+        body is not None and body.parameters is not None and body.parameters.timeout
+    )
+    timeout: dict[int, float] = {
+        -1: CONFIG.job.metakg.timeout,
+        0: custom_timeout or CONFIG.job.lookup.tier0_timeout,
+        1: custom_timeout or CONFIG.job.lookup.tier1_timeout,
+        2: custom_timeout or CONFIG.job.lookup.tier2_timeout,
+    }
     if tiers is None:
         tiers = [0]
-    if body is not None and body.parameters is not None:
-        if body.parameters.timeout is not None:
-            timeout = body.parameters.timeout
-        if body.parameters.tiers is not None:
-            tiers = body.parameters.tiers
+    if custom_tiers := body and body.parameters and body.parameters.tiers:
+        tiers = custom_tiers
 
     query = QueryInfo(
         endpoint=ctx.request.url.path,
@@ -83,6 +89,9 @@ async def make_query(
         tiers=set(tiers),
         timeout=timeout,
     )
+
+    with contextlib.suppress(Exception):
+        contextualize_query_telemetry(query, func, ctx.background_tasks is not None)
 
     query_function = {"lookup": lookup, "metakg": trapi_metakg}[func]
     if func == "lookup":
@@ -100,6 +109,41 @@ async def make_query(
         status_code, response_body = await query_function(query)
         ctx.response.status_code = status_code
         return response_body
+
+
+def contextualize_query_telemetry(query: QueryInfo, func: str, is_async: bool) -> None:
+    """Provide some advanced information about the query for Telemetry."""
+    span_tags: dict[str, str | int] = {
+        "job_id": query.job_id,
+        "job_timeout": ", ".join(
+            f"{tgt}: {timeout}" for tgt, timeout in query.timeout.items()
+        ),
+        "data_tier": ", ".join(str(tier) for tier in sorted(query.tiers)),
+        "query_type": func if not is_async else f"{func}-async",
+    }
+
+    body = query.body
+
+    if (
+        submitter := body is not None
+        and body.model_extra is not None
+        and body.model_extra.get("submitter")
+    ):
+        span_tags["submitter"] = str(submitter)
+    else:
+        span_tags["submitter"] = "not_provided"
+
+    if body is not None and body.message.query_graph is not None:
+        span_tags["qnodes"] = len(body.message.query_graph.nodes)
+        if isinstance(body.message.query_graph, QueryGraph):
+            span_tags["qedges"] = len(body.message.query_graph.edges)
+        else:
+            span_tags["qpaths"] = len(body.message.query_graph.paths)
+
+    current_span = trace.get_current_span()
+    current_span.set_attributes(span_tags)
+    # Have to set separately in Sentry to make searchable tags
+    sentry_sdk.set_tags(span_tags)
 
 
 async def get_job_state(

@@ -22,10 +22,12 @@ tracer = trace.get_tracer("lookup.execution.tracer")
 
 
 @tracer.start_as_current_span("subquery")
-async def mock_subquery(
+async def subquery(
     job_id: str, branch: Branch, qg: QueryGraph
 ) -> tuple[KnowledgeGraphDict, list[LogEntryDict]]:
-    """Placeholder subquery function to mockup retrieving from Tier 1.
+    """Basic subquery function for retrieving from Tier 1.
+
+    Intended to be replaced by subquery dispatcher in the future.
 
     Assumptions:
         Returns KEdges in the direction of the QEdge
@@ -92,7 +94,7 @@ async def mock_subquery(
 
         end = time.time()
         job_log.debug(
-            f"Subquery mock got {len(result['knowledge_graph']['edges'])} records in {math.ceil((end - start) * 1000)}ms"
+            f"Subquery got {len(result['knowledge_graph']['edges'])} records in {math.ceil((end - start) * 1000)}ms"
         )
 
         # Have to do this for each

@@ -101,7 +101,7 @@ class TelemetrySettings(BaseModel):
     ] = 0.1
     profiles_sample_rate: Annotated[
         float, Field(description="Proportion of sampled traces to profile.")
-    ] = 1.0
+    ] = 0.5
 
 
 class CallbackSettings(BaseModel):
@@ -113,18 +113,30 @@ class CallbackSettings(BaseModel):
     timeout: Annotated[
         int,
         Field(description="Time in seconds before a callback attempt should time out."),
-    ] = 10
+    ] = 60
 
 
 class LookupSettings(BaseModel):
     """Settings pertaining to lookups."""
 
-    timeout: Annotated[
+    tier0_timeout: Annotated[
         int,
         Field(
-            description="Time in seconds before a job should time out, set to -1 to disable."
+            description="Time in seconds before a tier 0 query should time out, set to -1 to disable."
+        ),
+    ] = 180
+    tier1_timeout: Annotated[
+        int,
+        Field(
+            description="Time in seconds before a tier 1 query should time out, set to -1 to disable."
         ),
     ] = 10
+    tier2_timeout: Annotated[
+        int,
+        Field(
+            description="Time in seconds before a tier 2 query should time out, set to -1 to disable."
+        ),
+    ] = 300
 
 
 class MetaKGSettings(BaseModel):
