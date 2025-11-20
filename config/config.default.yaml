@@ -29,7 +29,9 @@ job:
     retries: 3  # Number of times to retry the callback.
     timeout: 60 # Time in seconds before a callback attempt should time out.
   lookup:
-    timeout: 10  # Time in seconds before a job should time out, set to -1 to disable.
+    tier0_timeout: 180  # Time in seconds before a tier 0 query should time out, set to -1 to disable.
+    tier1_timeout: 10 # Time in seconds before a tier 1 query should time out, set to -1 to disable.
+    tier2_timeout: 300 # Time in seconds before a tier 2 query should time out, set to -1 to disable.
   metakg:
     timeout: 10  # Time in seconds before a job should time out, set to -1 to disable.
     build_time: -1 # Time in seconds before MetaKG should be rebuilt. Set to -1 to only build at start.
