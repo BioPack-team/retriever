@@ -1,6 +1,7 @@
 from functools import lru_cache
 
 import bmt
+from reasoner_pydantic import BiolinkQualifier
 
 from retriever.config.openapi import OPENAPI_CONFIG
 from retriever.types.trapi import (
@@ -59,6 +60,19 @@ def get_inverse(predicate: BiolinkPredicate) -> BiolinkPredicate | None:
     """Return the inverse of a given predicate."""
     inverse = biolink.get_inverse_predicate(predicate, formatted=True)
     return BiolinkPredicate(inverse) if inverse else None
+
+
+def get_descendant_values(qualifier_type: BiolinkQualifier, value: str) -> set[str]:
+    """Given a biolink qualifier and an associated value, return applicable descendant values."""
+    ranges = biolink.get_slot_range(qualifier_type)  # pyright:ignore[reportUnknownMemberType]
+
+    permissible_values = set[str]()
+    for enum in ranges:
+        permissible_values.update(
+            biolink.get_permissible_value_descendants(value, enum)
+        )
+
+    return permissible_values
 
 
 def reverse_qualifier_constraints(
