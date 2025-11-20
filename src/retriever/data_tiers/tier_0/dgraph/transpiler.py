@@ -592,9 +592,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
         # Check if predicate is symmetric
         predicates = ctx.edge.get("predicates") or []
-        is_symmetric = any(
-            biolink.is_symmetric(str(pred)) for pred in predicates
-        )
+        is_symmetric = any(biolink.is_symmetric(str(pred)) for pred in predicates)
 
         edge_filter = self._build_edge_filter(ctx.edge)
         filter_clause = f" @filter({edge_filter})" if edge_filter else ""
@@ -607,17 +605,17 @@ class DgraphTranspiler(Tier0Transpiler):
         if ctx.edge_direction == "out":
             edge_name = f"out_edges_{ctx.edge_id}"
             reverse_edge_name = f"out_edges_{ctx.edge_id}_reverse"
-            edge_reverse_field = self._v('subject')
-            predicate_field = self._v('object')
-            reverse_edge_reverse_field = self._v('object')
-            reverse_predicate_field = self._v('subject')
+            edge_reverse_field = self._v("subject")
+            predicate_field = self._v("object")
+            reverse_edge_reverse_field = self._v("object")
+            reverse_predicate_field = self._v("subject")
         else:  # "in"
             edge_name = f"in_edges_{ctx.edge_id}"
             reverse_edge_name = f"in_edges_{ctx.edge_id}_reverse"
-            edge_reverse_field = self._v('object')
-            predicate_field = self._v('subject')
-            reverse_edge_reverse_field = self._v('subject')
-            reverse_predicate_field = self._v('object')
+            edge_reverse_field = self._v("object")
+            predicate_field = self._v("subject")
+            reverse_edge_reverse_field = self._v("subject")
+            reverse_predicate_field = self._v("object")
 
         # Build primary direction
         primary_ctx = DirectionTraversalContext(
@@ -667,11 +665,15 @@ class DgraphTranspiler(Tier0Transpiler):
         if ctx.target_filter:
             query += f" @filter({ctx.target_filter})"
 
-        query += self._build_node_cascade_clause(ctx.target_id, ctx.edges, ctx.child_visited)
+        query += self._build_node_cascade_clause(
+            ctx.target_id, ctx.edges, ctx.child_visited
+        )
 
         query += " { "
         query += self._add_standard_node_fields()
-        query += self._build_further_hops(ctx.target_id, ctx.nodes, ctx.edges, ctx.child_visited)
+        query += self._build_further_hops(
+            ctx.target_id, ctx.nodes, ctx.edges, ctx.child_visited
+        )
         query += "} } "
 
         return query
