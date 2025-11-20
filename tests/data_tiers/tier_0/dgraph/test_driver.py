@@ -756,36 +756,37 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
     assert "q0" in result.data
     assert len(result.data["q0"]) == 1
 
-    # 2. Assertions for the root node (n0)
+    # 2. Assertions for the root node (n1)
     root_node = result.data["q0"][0]
     assert root_node.binding == "n1"
     assert root_node.id == "NCBIGene:3778"
     assert len(root_node.edges) == 100
 
-    # Symmetric predicate should produce both bindings:
-    forward_edges = [e for e in root_node.edges if e.binding == "e0"]
-    reverse_edges = [e for e in root_node.edges if e.binding == "e0_reverse"]
+    # With split("_", 3), both out_edges_e0 and in_edges_e0_reverse are merged under binding "e0"
+    e0_edges = [e for e in root_node.edges if e.binding == "e0"]
+    assert len(e0_edges) == 100, "All edges should have binding 'e0' (merged)"
 
-    # Both forward and reverse edge groups must be present and non-empty
-    assert forward_edges, "Expected at least one forward edge with binding 'e0'"
-    assert reverse_edges, "Expected at least one reverse edge with binding 'e0_reverse'"
+    # Separate by direction instead of binding
+    out_edges = [e for e in e0_edges if e.direction == "out"]
+    in_edges = [e for e in e0_edges if e.direction == "in"]
 
-    # Both edges should have been parsed as outgoing edges (the query used out_edges_...)
-    assert all(e.direction == "out" for e in forward_edges), "Forward edges should be 'out' direction"
-    assert all(e.direction == "in" for e in reverse_edges), "Reverse edges (from ~vC_object) are parsed as in direction"
+    # Both forward (out) and reverse (in) edge groups must be present and non-empty
+    assert out_edges, "Expected at least one outgoing edge (from out_edges_e0)"
+    assert in_edges, "Expected at least one incoming edge (from in_edges_e0_reverse)"
 
     # Predicate/ancestors should reflect the symmetric predicate filter ("related_to")
     assert all(
         ("related_to" in e.predicate_ancestors) or (e.predicate == "related_to")
-        for e in forward_edges
-    ), "All forward edge should have 'related_to' in predicate/ancestors"
+        for e in out_edges
+    ), "All outgoing edges should have 'related_to' in predicate/ancestors"
     assert all(
         ("related_to" in e.predicate_ancestors) or (e.predicate == "related_to")
-        for e in reverse_edges
-    ), "All reverse edge should have 'related_to' in predicate/ancestors"
+        for e in in_edges
+    ), "All incoming edges should have 'related_to' in predicate/ancestors"
+
     # Connected nodes should be parsed and have the expected binding for the query (n0)
-    assert all(e.node.binding == "n0" for e in forward_edges + reverse_edges)
-    assert all(isinstance(e.node.id, str) and e.node.id for e in forward_edges + reverse_edges)
+    assert all(e.node.binding == "n0" for e in e0_edges)
+    assert all(isinstance(e.node.id, str) and e.node.id for e in e0_edges)
 
     await driver.close()
 
