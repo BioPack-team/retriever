@@ -236,7 +236,7 @@ class Node:
         for key, value in norm.items():
             # Parse incoming edges (where this node is the OBJECT)
             if key.startswith("in_edges_"):
-                edge_binding = key.split("_", 2)[2]
+                edge_binding = key.split("_", 3)[2]
                 if isinstance(value, list):
                     edges.extend(
                         Edge.from_dict(
@@ -246,7 +246,7 @@ class Node:
                     )
             # Parse outgoing edges (where this node is the SUBJECT)
             elif key.startswith("out_edges_"):
-                edge_binding = key.split("_", 2)[2]
+                edge_binding = key.split("_", 3)[2]
                 if isinstance(value, list):
                     edges.extend(
                         Edge.from_dict(

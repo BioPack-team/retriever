@@ -50,3 +50,4 @@ def get_all_qualifiers() -> set[str]:
 
 
 is_qualifier = biolink.is_qualifier
+is_symmetric = biolink.is_symmetric

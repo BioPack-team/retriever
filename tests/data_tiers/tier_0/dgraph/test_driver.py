@@ -611,7 +611,7 @@ async def test_simple_reverse_query_live_grpc() -> None:
             "e0": {
                 "object": "n0",
                 "subject": "n1",
-                "predicates": ["biolink:related_to"],
+                "predicates": ["biolink:has_phenotype"],
                 "attribute_constraints": [],
                 "qualifier_constraints": [],
             }
@@ -622,7 +622,7 @@ async def test_simple_reverse_query_live_grpc() -> None:
     {
         q0_node_n1(func: eq(vC_id, "NCBIGene:3778")) @cascade(vC_id, ~vC_subject) {
             expand(vC_Node)
-            out_edges_e0: ~vC_subject @filter(eq(vC_predicate_ancestors, "related_to")) @cascade(vC_predicate, vC_object) {
+            out_edges_e0: ~vC_subject @filter(eq(vC_predicate_ancestors, "has_phenotype")) @cascade(vC_predicate, vC_object) {
                 expand(vC_Edge) { vC_sources expand(vC_Source) }
                 node_n0: vC_object @filter(eq(vC_category, "NamedThing")) @cascade(vC_id) {
                     expand(vC_Node)
@@ -660,9 +660,7 @@ async def test_simple_reverse_query_live_grpc() -> None:
     root_node = result.data["q0"][0]
     assert root_node.binding == "n1"
     assert root_node.id == "NCBIGene:3778"
-    assert len(root_node.edges) == 82
-
-    print("root_node.edges:", len(root_node.edges))
+    assert len(root_node.edges) == 60
 
     # 3. Assertions for the outgoing edge (e0)
     out_edge = root_node.edges[0]
@@ -674,6 +672,121 @@ async def test_simple_reverse_query_live_grpc() -> None:
     connected_node = out_edge.node
     assert connected_node.binding == "n0"
     assert isinstance(connected_node.id, str) and connected_node.id
+
+    await driver.close()
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
+    """
+    Integration test: Run the 'simple-one' query with symmetric predicate against a live Dgraph HTTP instance.
+    """
+
+    qgraph_query: QueryGraphDict = qg({
+        "nodes": {
+            "n0": {"categories": ["biolink:NamedThing"], "constraints": []},
+            "n1": {"ids": ["NCBIGene:3778"], "constraints": []}
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["biolink:related_to"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            }
+        }
+    })
+
+    dgraph_query_match: str = dedent("""
+    {
+    q0_node_n1(func: eq(vC_id, "NCBIGene:3778")) @cascade(vC_id, ~vC_subject) {
+        expand(vC_Node)
+
+        out_edges_e0: ~vC_subject
+        @filter(eq(vC_predicate_ancestors, "related_to"))
+        @cascade(vC_predicate, vC_object) {
+            expand(vC_Edge) { vC_sources expand(vC_Source) }
+
+            node_n0: vC_object
+            @filter(eq(vC_category, "NamedThing"))
+            @cascade(vC_id) {
+                expand(vC_Node)
+            }
+        }
+
+        in_edges_e0_reverse: ~vC_object
+        @filter(eq(vC_predicate_ancestors, "related_to"))
+        @cascade(vC_predicate, vC_subject) {
+            expand(vC_Edge) { vC_sources expand(vC_Source) }
+
+            node_n0: vC_subject
+            @filter(eq(vC_category, "NamedThing"))
+            @cascade(vC_id) {
+                expand(vC_Node)
+            }
+        }
+    }
+    }
+    """).strip()
+
+    driver = new_grpc_driver()
+    await driver.connect()
+
+    # Get the active Dgraph schema version
+    dgraph_schema_version = await driver.get_active_version()
+
+    # Initialize the transpiler with the detected version
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+    assert transpiler.version == "vC"
+    assert transpiler.prefix == "vC_"
+
+    # Use the transpiler to generate the Dgraph query
+    dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
+    assert_query_equals(dgraph_query, dgraph_query_match)
+
+    # Run the query against the live Dgraph instance
+    result: dg_models.DgraphResponse = await driver.run_query(dgraph_query_match)
+    assert isinstance(result, dg_models.DgraphResponse)
+
+    # Assertions to check that some data is returned
+    assert result.data, "No data returned from Dgraph for simple-one query"
+    assert "q0" in result.data
+    assert len(result.data["q0"]) == 1
+
+    # 2. Assertions for the root node (n1)
+    root_node = result.data["q0"][0]
+    assert root_node.binding == "n1"
+    assert root_node.id == "NCBIGene:3778"
+    assert len(root_node.edges) == 100
+
+    # With split("_", 3), both out_edges_e0 and in_edges_e0_reverse are merged under binding "e0"
+    e0_edges = [e for e in root_node.edges if e.binding == "e0"]
+    assert len(e0_edges) == 100, "All edges should have binding 'e0' (merged)"
+
+    # Separate by direction instead of binding
+    out_edges = [e for e in e0_edges if e.direction == "out"]
+    in_edges = [e for e in e0_edges if e.direction == "in"]
+
+    # Both forward (out) and reverse (in) edge groups must be present and non-empty
+    assert out_edges, "Expected at least one outgoing edge (from out_edges_e0)"
+    assert in_edges, "Expected at least one incoming edge (from in_edges_e0_reverse)"
+
+    # Predicate/ancestors should reflect the symmetric predicate filter ("related_to")
+    assert all(
+        ("related_to" in e.predicate_ancestors) or (e.predicate == "related_to")
+        for e in out_edges
+    ), "All outgoing edges should have 'related_to' in predicate/ancestors"
+    assert all(
+        ("related_to" in e.predicate_ancestors) or (e.predicate == "related_to")
+        for e in in_edges
+    ), "All incoming edges should have 'related_to' in predicate/ancestors"
+
+    # Connected nodes should be parsed and have the expected binding for the query (n0)
+    assert all(e.node.binding == "n0" for e in e0_edges)
+    assert all(isinstance(e.node.id, str) and e.node.id for e in e0_edges)
 
     await driver.close()
 
