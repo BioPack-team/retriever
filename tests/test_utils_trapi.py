@@ -566,7 +566,8 @@ def test_meta_qualifier_meets_constraints() -> None:
             dict(
                 qualifier_set=[
                     Qualifier(
-                        qualifier_type_id="biolink:some_type", qualifier_value="some_value"
+                        qualifier_type_id="biolink:object_direction_qualifier",
+                        qualifier_value="decreased",
                     )
                 ]
             )
@@ -576,11 +577,20 @@ def test_meta_qualifier_meets_constraints() -> None:
     assert not meta_qualifier_meets_constraints(None, constraints)
     assert not meta_qualifier_meets_constraints({}, constraints)
     assert meta_qualifier_meets_constraints(
-        {QualifierTypeID("biolink:some_type"): ["different_value"]}, []
+        {QualifierTypeID("biolink:object_direction_qualifier"): ["increased"]}, []
     )
     assert not meta_qualifier_meets_constraints(
-        {QualifierTypeID("biolink:some_type"): ["different_value"]}, constraints
+        {QualifierTypeID("biolink:object_direction_qualifier"): ["increased"]},
+        constraints,
     )
     assert meta_qualifier_meets_constraints(
-        {QualifierTypeID("biolink:some_type"): ["some_value"]}, constraints
+        {QualifierTypeID("biolink:object_direction_qualifier"): ["decreased"]},
+        constraints,
+    )
+    # Hierarchy expansion
+    assert meta_qualifier_meets_constraints(
+        {
+            QualifierTypeID("biolink:object_direction_qualifier"): ["downregulated"],
+        },
+        constraints,
     )
