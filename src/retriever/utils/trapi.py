@@ -356,6 +356,9 @@ def meta_qualifier_meets_constraints(
                 expanded_vals = biolink.get_descendant_values(q_type, q_val)
                 if expanded_vals & set(meta_qualifiers[QualifierTypeID(q_type)]):
                     continue
+                else:
+                    qualifiers_met = False
+                    break
 
             else:
                 qualifiers_met = False
