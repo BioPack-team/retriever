@@ -273,11 +273,16 @@ class Node:
         edges: list[Edge] = []
         for key, value in norm.items():
             # Parse incoming edges (where this node is the OBJECT)
-            if key.startswith("in_edges_"):
-                # Extract normalized edge binding: split by "_" with limit 3
-                # This handles both "in_edges_e0" and "in_edges_e0_reverse"
-                parts = key.split("_", 3)
+            # Handle both "in_edges_e0" and "in_edges-symmetric_e0"
+            if key.startswith("in_edges"):
+                # Remove the "in_edges" prefix and any "-symmetric" suffix
+                # Then extract the edge ID
+                # Examples:
+                #   "in_edges_e0" -> "in_edges" + "_e0" -> parts = ["in", "edges", "e0"]
+                #   "in_edges-symmetric_e0" -> "in_edges-symmetric" + "_e0" -> parts = ["in", "edges-symmetric", "e0"]
+                parts = key.split("_", 2)  # Split into max 3 parts
                 if len(parts) >= 3:
+                    # parts[2] is the edge ID (e.g., "e0")
                     normalized_edge_binding = parts[2]
                     # Convert back to original edge ID if mapping provided
                     edge_binding = (
@@ -287,7 +292,7 @@ class Node:
                     )
                 else:
                     # Fallback for unexpected format
-                    edge_binding = key.split("_", 2)[2] if len(key.split("_", 2)) > 2 else binding
+                    edge_binding = binding
 
                 if isinstance(value, list):
                     edges.extend(
@@ -301,11 +306,12 @@ class Node:
                         for e in filter(_is_mapping, cast(list[Any], value))
                     )
             # Parse outgoing edges (where this node is the SUBJECT)
-            elif key.startswith("out_edges_"):
-                # Extract normalized edge binding: split by "_" with limit 3
-                # This handles both "out_edges_e0" and "out_edges_e0_reverse"
-                parts = key.split("_", 3)
+            # Handle both "out_edges_e0" and "out_edges-symmetric_e0"
+            elif key.startswith("out_edges"):
+                # Same logic as incoming edges
+                parts = key.split("_", 2)  # Split into max 3 parts
                 if len(parts) >= 3:
+                    # parts[2] is the edge ID (e.g., "e0")
                     normalized_edge_binding = parts[2]
                     # Convert back to original edge ID if mapping provided
                     edge_binding = (
@@ -315,7 +321,7 @@ class Node:
                     )
                 else:
                     # Fallback for unexpected format
-                    edge_binding = key.split("_", 2)[2] if len(key.split("_", 2)) > 2 else binding
+                    edge_binding = binding
 
                 if isinstance(value, list):
                     edges.extend(

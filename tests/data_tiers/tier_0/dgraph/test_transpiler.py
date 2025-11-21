@@ -1289,7 +1289,7 @@ def test_symmetric_predicate_generates_bidirectional_queries(transpiler: _TestDg
             out_edges_e0: ~subject @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, object) {
                 expand(Edge) { sources expand(Source) }
                 node_n1: object @filter(eq(category, "Gene")) @cascade(id) { expand(Node) } }
-            in_edges_e0: ~object @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, subject) {
+            in_edges-symmetric_e0: ~object @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, subject) {
                 expand(Edge) { sources expand(Source) }
                 node_n1: subject @filter(eq(category, "Gene")) @cascade(id) {
                     expand(Node)
@@ -1303,7 +1303,7 @@ def test_symmetric_predicate_generates_bidirectional_queries(transpiler: _TestDg
     assert normalize(actual) == normalize(expected)
     # Should have both the normal direction and reverse direction
     assert "out_edges_e0:" in actual
-    assert "in_edges_e0:" in actual
+    assert "in_edges-symmetric_e0:" in actual
 
 
 def test_symmetric_predicate_incoming_edge(transpiler: _TestDgraphTranspiler) -> None:
@@ -1335,7 +1335,7 @@ def test_symmetric_predicate_incoming_edge(transpiler: _TestDgraphTranspiler) ->
                     expand(Node)
                 }
             }
-            out_edges_e0: ~subject @filter(eq(predicate_ancestors, "correlated_with")) @cascade(predicate, object) {
+            out_edges-symmetric_e0: ~subject @filter(eq(predicate_ancestors, "correlated_with")) @cascade(predicate, object) {
                 expand(Edge) { sources expand(Source) }
                 node_n1: object @filter(eq(category, "Gene")) @cascade(id) {
                     expand(Node)
@@ -1349,7 +1349,7 @@ def test_symmetric_predicate_incoming_edge(transpiler: _TestDgraphTranspiler) ->
     assert normalize(actual) == normalize(expected)
     # Should have both the incoming direction and its reverse
     assert "in_edges_e0:" in actual
-    assert "out_edges_e0:" in actual
+    assert "out_edges-symmetric_e0:" in actual
 
 
 def test_symmetric_predicate_multi_hop(transpiler: _TestDgraphTranspiler) -> None:
@@ -1393,7 +1393,7 @@ def test_symmetric_predicate_multi_hop(transpiler: _TestDgraphTranspiler) -> Non
                     }
                 }
             }
-            in_edges_e0: ~object @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, subject) {
+            in_edges-symmetric_e0: ~object @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, subject) {
                 expand(Edge) { sources expand(Source) }
                 node_n1: subject @filter(eq(category, "Gene")) @cascade(id, ~subject) {
                     expand(Node)
@@ -1413,7 +1413,7 @@ def test_symmetric_predicate_multi_hop(transpiler: _TestDgraphTranspiler) -> Non
     assert normalize(actual) == normalize(expected)
     # First edge should have bidirectional queries
     assert "out_edges_e0:" in actual
-    assert "in_edges_e0:" in actual
+    assert "in_edges-symmetric_e0:" in actual
     # Second edge should only have one direction
     assert "out_edges_e1:" in actual
     assert "in_edges_e1:" not in actual
@@ -1451,7 +1451,7 @@ def test_multiple_symmetric_predicates_on_edge(transpiler: _TestDgraphTranspiler
                     expand(Node)
                 }
             }
-            in_edges_e0: ~object @filter(eq(predicate_ancestors, ["related_to", "associated_with"])) @cascade(predicate, subject) {
+            in_edges-symmetric_e0: ~object @filter(eq(predicate_ancestors, ["related_to", "associated_with"])) @cascade(predicate, subject) {
                 expand(Edge) { sources expand(Source) }
                 node_n1: subject @filter(eq(category, "Gene")) @cascade(id) {
                     expand(Node)
@@ -1465,7 +1465,7 @@ def test_multiple_symmetric_predicates_on_edge(transpiler: _TestDgraphTranspiler
     assert normalize(actual) == normalize(expected)
     # Should have both directions since at least one predicate is symmetric
     assert "out_edges_e0:" in actual
-    assert "in_edges_e0:" in actual
+    assert "in_edges-symmetric_e0:" in actual
 
 
 def test_mixed_predicates_treats_as_symmetric(transpiler: _TestDgraphTranspiler) -> None:
@@ -1500,7 +1500,7 @@ def test_mixed_predicates_treats_as_symmetric(transpiler: _TestDgraphTranspiler)
                     expand(Node)
                 }
             }
-            in_edges_e0: ~object @filter(eq(predicate_ancestors, ["related_to", "treated_by"])) @cascade(predicate, subject) {
+            in_edges-symmetric_e0: ~object @filter(eq(predicate_ancestors, ["related_to", "treated_by"])) @cascade(predicate, subject) {
                 expand(Edge) { sources expand(Source) }
                 node_n1: subject @filter(eq(category, "ChemicalEntity")) @cascade(id) {
                     expand(Node)
@@ -1514,7 +1514,7 @@ def test_mixed_predicates_treats_as_symmetric(transpiler: _TestDgraphTranspiler)
     assert normalize(actual) == normalize(expected)
     # If ANY predicate is symmetric, should check both directions
     assert "out_edges_e0:" in actual
-    assert "in_edges_e0:" in actual
+    assert "in_edges-symmetric_e0:" in actual
 
 
 # -----------------------
@@ -1743,7 +1743,7 @@ def test_normalization_symmetric_predicate(transpiler: _TestDgraphTranspiler) ->
                     expand(Node)
                 }
             }
-            in_edges_e0: ~object @filter(eq(predicate_ancestors, "correlated_with")) @cascade(predicate, subject) {
+            in_edges-symmetric_e0: ~object @filter(eq(predicate_ancestors, "correlated_with")) @cascade(predicate, subject) {
                 expand(Edge) { sources expand(Source) }
                 node_n1: subject @filter(eq(category, "Gene")) @cascade(id) {
                     expand(Node)
@@ -1758,7 +1758,7 @@ def test_normalization_symmetric_predicate(transpiler: _TestDgraphTranspiler) ->
 
     # Verify normalized IDs in both directions
     assert "out_edges_e0:" in actual
-    assert "in_edges_e0:" in actual
+    assert "in_edges-symmetric_e0:" in actual
     assert "node_n0" in actual
     assert "node_n1" in actual
 

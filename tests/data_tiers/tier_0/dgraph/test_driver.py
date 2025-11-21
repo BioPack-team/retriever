@@ -718,7 +718,7 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
                 }
             }
 
-            in_edges_e0: ~vC_object
+            in_edges-symmetric_e0: ~vC_object
             @filter(eq(vC_predicate_ancestors, "related_to"))
             @cascade(vC_predicate, vC_subject) {
                 expand(vC_Edge) { vC_sources expand(vC_Source) }

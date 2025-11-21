@@ -725,16 +725,14 @@ class DgraphTranspiler(Tier0Transpiler):
         # Determine field names based on direction
         if ctx.edge_direction == "out":
             edge_name = f"out_edges_{normalized_edge_id}"
-            # symmetric_edge_name = f"in_edges-symmetric_{normalized_edge_id}"
-            symmetric_edge_name = f"in_edges_{normalized_edge_id}"
+            symmetric_edge_name = f"in_edges-symmetric_{normalized_edge_id}"
             edge_reverse_field = self._v("subject")
             predicate_field = self._v("object")
             symmetric_edge_reverse_field = self._v("object")
             symmetric_predicate_field = self._v("subject")
         else:  # "in"
             edge_name = f"in_edges_{normalized_edge_id}"
-            # symmetric_edge_name = f"out_edges-symmetric_{normalized_edge_id}"
-            symmetric_edge_name = f"out_edges_{normalized_edge_id}"
+            symmetric_edge_name = f"out_edges-symmetric_{normalized_edge_id}"
             edge_reverse_field = self._v("object")
             predicate_field = self._v("subject")
             symmetric_edge_reverse_field = self._v("subject")
