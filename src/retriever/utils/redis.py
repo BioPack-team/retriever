@@ -158,5 +158,28 @@ class RedisClient:
                     await pubsub.unsubscribe(channel_key)  # pyright:ignore[reportUnknownMemberType] redis-py uses Unknown :(
                     break
 
+    async def set(
+        self, key: str, value: bytes, compress: bool = False, ttl: int = 0
+    ) -> None:
+        """Generically set a key-value pair."""
+        value_to_set = value
+        if compress:
+            value_to_set = ZSTD_COMPRESSOR.compress(value)
+        await self.client.set(
+            f"{PREFIX}{key}",
+            value_to_set,
+            ex=ttl if ttl > 0 else None,
+        )
+
+    async def get(self, key: str, compressed: bool = False) -> bytes | None:
+        """Generically get a key-value pair."""
+        data = await self.client.get(f"{PREFIX}{key}")
+        if data is None:
+            return
+
+        if compressed:
+            data = ZSTD_DECOMPRESSOR.decompress(data)
+        return data
+
 
 REDIS_CLIENT = RedisClient()
