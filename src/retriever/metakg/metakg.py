@@ -113,9 +113,7 @@ class MetaKGManager:
                         api=infores,
                         tier=tier,
                         attributes=[
-                            MetaAttributeDict(
-                                attribute_type_id=attr_type, constraint_use=True
-                            )
+                            MetaAttributeDict(attribute_type_id=attr_type)
                             for attr_type in edge["attributes"]
                         ],
                         qualifiers={qual_type: [] for qual_type in edge["qualifiers"]},
@@ -127,9 +125,7 @@ class MetaKGManager:
                     prefixes={infores: list(node["id_prefixes"].keys())},
                     attributes={
                         infores: [
-                            MetaAttributeDict(
-                                attribute_type_id=attr_type, constraint_use=True
-                            )
+                            MetaAttributeDict(attribute_type_id=attr_type)
                             for attr_type in node["attributes"]
                         ]
                     },
@@ -305,18 +301,20 @@ class MetaKGManager:
 METAKG_MANAGER = MetaKGManager()
 
 
-async def get_trapi_metakg(tiers: tuple[TierNumber, ...]) -> MetaKnowledgeGraphDict:
-    """Convert an OperationTable to a TRAPI MetaKG dict.
-
-    Because it depends on METAKG_MANAGER, it can't be used with the lead manager.
-    This shouldn't be a problem because the lead manager isn't used to answer API calls.
-    """
+async def build_edges(
+    op_table: OperationTable,
+    tiers: tuple[TierNumber, ...],
+) -> tuple[
+    dict[str, MetaEdgeDict],
+    dict[str, dict[str, set[str]]],
+    dict[str, dict[int, MetaAttributeDict]],
+    set[BiolinkEntity],
+]:
+    """Build merged TRAPI MetaEdges from the operation table."""
     edges = dict[str, MetaEdgeDict]()
     edge_qualifiers = dict[str, dict[str, set[str]]]()
     edge_attributes = dict[str, dict[int, MetaAttributeDict]]()
     mentioned_nodes = set[BiolinkEntity]()
-    nodes = dict[BiolinkEntity, MetaNodeDict]()
-    op_table = await METAKG_MANAGER.get_metakg()
     for op in op_table.operations:
         if op.tier not in tiers:
             continue
@@ -352,15 +350,34 @@ async def get_trapi_metakg(tiers: tuple[TierNumber, ...]) -> MetaKnowledgeGraphD
             edge_qualifiers[spo] = qualifiers
             edge_attributes[spo] = attributes
 
+    return edges, edge_qualifiers, edge_attributes, mentioned_nodes
+
+
+async def get_trapi_metakg(tiers: tuple[TierNumber, ...]) -> MetaKnowledgeGraphDict:
+    """Convert an OperationTable to a TRAPI MetaKG dict.
+
+    Because it depends on METAKG_MANAGER, it can't be used with the lead manager.
+    This shouldn't be a problem because the lead manager isn't used to answer API calls.
+    """
+    op_table = await METAKG_MANAGER.get_metakg()
+    edges, edge_qualifiers, edge_attributes, mentioned_nodes = await build_edges(
+        op_table, tiers
+    )
+    nodes = dict[BiolinkEntity, MetaNodeDict]()
+
     for spo, edge in edges.items():
-        edge["qualifiers"] = [
-            MetaQualifierDict(
+        qualifiers = list[MetaQualifierDict]()
+        for qual_type, values in edge_qualifiers[spo].items():
+            qualifier = MetaQualifierDict(
                 qualifier_type_id=QualifierTypeID(qual_type),
-                applicable_values=list(values),
             )
-            for qual_type, values in edge_qualifiers[spo].items()
-        ]
-        edge["attributes"] = list(edge_attributes[spo].values())
+            if len(values):
+                qualifier["applicable_values"] = list(values)
+            qualifiers.append(qualifier)
+        if len(qualifiers):
+            edge["qualifiers"] = qualifiers
+        if len(edge_attributes[spo]):
+            edge["attributes"] = list(edge_attributes[spo].values())
 
     for category, node in op_table.nodes.items():
         if category not in mentioned_nodes:
