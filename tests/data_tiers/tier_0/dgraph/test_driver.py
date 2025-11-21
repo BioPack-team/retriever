@@ -81,7 +81,8 @@ def assert_query_equals(actual: str, expected: str) -> None:
 
 @pytest.fixture
 def mock_dgraph_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    monkeypatch.setenv("TIER0__DGRAPH__HOST", "localhost")
+    # monkeypatch.setenv("TIER0__DGRAPH__HOST", "localhost")
+    monkeypatch.setenv("TIER0__DGRAPH__HOST", "transltr.biothings.io")
     monkeypatch.setenv("TIER0__DGRAPH__HTTP_PORT", "8080")
     monkeypatch.setenv("TIER0__DGRAPH__GRPC_PORT", "9080")
     monkeypatch.setenv("TIER0__DGRAPH__PREFERRED_VERSION", "vC")
@@ -522,12 +523,12 @@ async def test_simple_one_query_live_grpc() -> None:
 
     qgraph_query: QueryGraphDict = qg({
         "nodes": {
-            "n0": {"ids": ["GO:0031410"], "constraints": []},
+            "n0_test": {"ids": ["GO:0031410"], "constraints": []},
             "n1": {"ids": ["NCBIGene:11276"], "constraints": []},
         },
         "edges": {
-            "e0": {
-                "object": "n0",
+            "e0_test": {
+                "object": "n0_test",
                 "subject": "n1",
                 "predicates": ["located_in"],
                 "attribute_constraints": [],
@@ -540,9 +541,9 @@ async def test_simple_one_query_live_grpc() -> None:
     {
         q0_node_n1(func: eq(vC_id, "NCBIGene:11276")) @cascade(vC_id, ~vC_subject) {
             expand(vC_Node)
-            out_edges_e0: ~vC_subject @filter(eq(vC_predicate_ancestors, "located_in")) @cascade(vC_predicate, vC_object) {
+            out_edges_e0_test: ~vC_subject @filter(eq(vC_predicate_ancestors, "located_in")) @cascade(vC_predicate, vC_object) {
                 expand(vC_Edge) { vC_sources expand(vC_Source) }
-                node_n0: vC_object @filter(eq(vC_id, "GO:0031410")) @cascade(vC_id) {
+                node_n0_test: vC_object @filter(eq(vC_id, "GO:0031410")) @cascade(vC_id) {
                     expand(vC_Node)
                 }
             }
@@ -582,13 +583,13 @@ async def test_simple_one_query_live_grpc() -> None:
 
     # 3. Assertions for the incoming edge (e0)
     in_edge = root_node.edges[0]
-    assert in_edge.binding == "e0"
+    assert in_edge.binding == "e0_test"
     assert in_edge.direction == "out"
     assert in_edge.predicate == "located_in"
 
     # 4. Assertions for the connected node (n1)
     connected_node = in_edge.node
-    assert connected_node.binding == "n0"
+    assert connected_node.binding == "n0_test"
     assert connected_node.id == "GO:0031410"
 
     await driver.close()
@@ -702,33 +703,33 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-    q0_node_n1(func: eq(vC_id, "NCBIGene:3778")) @cascade(vC_id, ~vC_subject) {
-        expand(vC_Node)
+        q0_node_n1(func: eq(vC_id, "NCBIGene:3778")) @cascade(vC_id, ~vC_subject) {
+            expand(vC_Node)
 
-        out_edges_e0: ~vC_subject
-        @filter(eq(vC_predicate_ancestors, "related_to"))
-        @cascade(vC_predicate, vC_object) {
-            expand(vC_Edge) { vC_sources expand(vC_Source) }
+            out_edges_e0: ~vC_subject
+            @filter(eq(vC_predicate_ancestors, "related_to"))
+            @cascade(vC_predicate, vC_object) {
+                expand(vC_Edge) { vC_sources expand(vC_Source) }
 
-            node_n0: vC_object
-            @filter(eq(vC_category, "NamedThing"))
-            @cascade(vC_id) {
-                expand(vC_Node)
+                node_n0: vC_object
+                @filter(eq(vC_category, "NamedThing"))
+                @cascade(vC_id) {
+                    expand(vC_Node)
+                }
+            }
+
+            in_edges-symmetric_e0: ~vC_object
+            @filter(eq(vC_predicate_ancestors, "related_to"))
+            @cascade(vC_predicate, vC_subject) {
+                expand(vC_Edge) { vC_sources expand(vC_Source) }
+
+                node_n0: vC_subject
+                @filter(eq(vC_category, "NamedThing"))
+                @cascade(vC_id) {
+                    expand(vC_Node)
+                }
             }
         }
-
-        in_edges_e0_reverse: ~vC_object
-        @filter(eq(vC_predicate_ancestors, "related_to"))
-        @cascade(vC_predicate, vC_subject) {
-            expand(vC_Edge) { vC_sources expand(vC_Source) }
-
-            node_n0: vC_subject
-            @filter(eq(vC_category, "NamedThing"))
-            @cascade(vC_id) {
-                expand(vC_Node)
-            }
-        }
-    }
     }
     """).strip()
 
