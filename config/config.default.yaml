@@ -33,7 +33,9 @@ job:
     tier1_timeout: 10 # Time in seconds before a tier 1 query should time out, set to -1 to disable.
     tier2_timeout: 300 # Time in seconds before a tier 2 query should time out, set to -1 to disable.
   metakg:
-    timeout: 10  # Time in seconds before a job should time out, set to -1 to disable.
+    retries: 3  # Number of times to retry obtaining DINGO metadata.
+    acquire_timeout: 30 # Time in seconds until a metadata call should time out, set to -1 to disable.
+    timeout: 10 # Time in seconds before a job should time out, set to -1 to disable.
     build_time: -1 # Time in seconds before MetaKG should be rebuilt. Set to -1 to only build at start.
   ttl: 2592000  # Time in seconds for job state to remain after it was last touched
   ttl_max: 31536000 # Time in seconds after which job state is cleared, regardless of last touch
@@ -59,8 +61,9 @@ mongo:
   flood_batch_size: 1000 #  Batch size for basic mongo inserts.
 tier0:
   backend: dgraph
-  metakg_file: data/rtx-kg2-metakg.json
-  backend_infores: infores:automat-robokop
+  metakg_url:
+    https://stars.renci.org/var/translator/releases/translator_kg/latest/graph-metadata.json
+  backend_infores: infores:dogpark-tier0
   neo4j:
     query_timeout: 3600  # Time in seconds before a neo4j query should time out.
     connect_retries: 5 # Number of retries before declaring a connection failure.
@@ -81,8 +84,9 @@ tier0:
     grpc_max_receive_message_length: -1 # gRPC max receive message length in bytes (-1 for unlimited).
 tier1:
   backend: elasticsearch
-  metakg_file: data/rtx-kg2-metakg.json
-  backend_infores: infores:rtx-kg2
+  metakg_url:
+    https://stars.renci.org/var/translator/releases/translator_kg/latest/graph-metadata.json
+  backend_infores: infores:dogpark-tier1
   elasticsearch:
     query_timeout: 180  # Time in seconds before a Elasticsearch query should time out.
     connect_retries: 5 # Number of retries before declaring a connection failure.

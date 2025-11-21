@@ -30,7 +30,6 @@ dependencies = [
     "ruamel-yaml>=0.18.14",
     "pydantic-core>=2.33.1",
     "orjson>=3.11.2",
-    "aiofiles>=24.1.0",
     "zstandard>=0.24.0",
     "ormsgpack>=1.10.0",
     "uvloop>=0.21.0",

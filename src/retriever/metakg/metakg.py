@@ -2,12 +2,12 @@ import asyncio
 import itertools
 from typing import NamedTuple
 
-import aiofiles
-import orjson
+import ormsgpack
 from loguru import logger
 from reasoner_pydantic import QEdge, QueryGraph
 
 from retriever.config.general import CONFIG
+from retriever.types.dingo import DINGO_ADAPTER, DINGOMetadata
 from retriever.types.metakg import Operation, OperationNode, OperationTable
 from retriever.types.trapi import (
     BiolinkEntity,
@@ -21,18 +21,31 @@ from retriever.types.trapi import (
 )
 from retriever.types.trapi_pydantic import TierNumber
 from retriever.utils.biolink import expand
+from retriever.utils.calls import get_metadata_client
 from retriever.utils.redis import METAKG_UPDATE_CHANNEL, REDIS_CLIENT
-from retriever.utils.trapi import hash_meta_attribute, meta_qualifier_meets_constraints
+from retriever.utils.trapi import (
+    hash_hex,
+    hash_meta_attribute,
+    meta_qualifier_meets_constraints,
+)
 
 METAKG_GET_ATTEMPTS = 3
 
 OperationPlan = dict[QEdgeID, list[Operation]]
 
 
+class DINGOMetaKGInfo(NamedTuple):
+    """Basic info about a given MetaKG resource."""
+
+    metadata: DINGOMetadata
+    tier: TierNumber
+    infores: str
+
+
 class TRAPIMetaKGInfo(NamedTuple):
     """Basic info about a given MetaKG resource."""
 
-    metakg: MetaKnowledgeGraphDict
+    metadata: MetaKnowledgeGraphDict
     tier: TierNumber
     infores: str
 
@@ -80,6 +93,81 @@ class MetaKGManager:
                 attributes={infores: (node_dict.get("attributes", []) or [])},
             )
 
+    def parse_dingo_metadata(
+        self,
+        metakg_info: DINGOMetaKGInfo,
+        operations: list[Operation],
+        nodes: dict[BiolinkEntity, OperationNode],
+    ) -> None:
+        """Parse a DINGO Metadata object to build operations."""
+        metadata, tier, infores = metakg_info
+        for edge in metadata["schema"]["edges"]:
+            for sbj, obj in itertools.product(
+                edge["subject_category"], edge["object_category"]
+            ):
+                operations.append(
+                    Operation(
+                        subject=sbj,
+                        predicate=edge["predicate"],
+                        object=obj,
+                        api=infores,
+                        tier=tier,
+                        attributes=[
+                            MetaAttributeDict(
+                                attribute_type_id=attr_type, constraint_use=True
+                            )
+                            for attr_type in edge["attributes"]
+                        ],
+                        qualifiers={qual_type: [] for qual_type in edge["qualifiers"]},
+                    )
+                )
+        for node in metadata["schema"]["nodes"]:
+            for category in node["category"]:
+                nodes[category] = OperationNode(
+                    prefixes={infores: list(node["id_prefixes"].keys())},
+                    attributes={
+                        infores: [
+                            MetaAttributeDict(
+                                attribute_type_id=attr_type, constraint_use=True
+                            )
+                            for attr_type in node["attributes"]
+                        ]
+                    },
+                )
+
+    async def pull_metadata(self, url: str) -> None:
+        """Update metadata for a given DINGO ingest."""
+        logger.info(f"Pulling DINGO Metadata from {url}...")
+        client = get_metadata_client()
+        response = await client.get(url)
+        response.raise_for_status()
+
+        raw_data = response.json()
+        metadata = DINGO_ADAPTER.validate_python(raw_data)
+
+        async with self.metakg_lock:
+            await REDIS_CLIENT.set(
+                hash_hex(hash(url)),
+                ormsgpack.packb(metadata),
+                compress=True,
+                ttl=CONFIG.job.metakg.build_time,
+            )
+        logger.success("DINGO Metadata retrieved!")
+
+    async def get_metadata(self, url: str, retries: int = 0) -> DINGOMetadata:
+        """Obtain metadata for a given DINGO ingest."""
+        metadata_pack = await REDIS_CLIENT.get(hash_hex(hash(url)), compressed=True)
+
+        if metadata_pack is None:
+            await self.pull_metadata(url)
+            if retries >= 3:  # noqa: PLR2004
+                raise ValueError("Failed to retrieve a built metakg!")
+            return await self.get_metadata(url, retries + 1)
+
+        # Don't validate because if we've gotten it at this stage, it's already been validated
+        metadata = ormsgpack.unpackb(metadata_pack)
+        return DINGOMetadata(**metadata)
+
     async def build_metakg(self) -> None:
         """Build Retriever's internal MetaKG and store it to Redis."""
         if CONFIG.instance_idx != 0:
@@ -90,24 +178,20 @@ class MetaKGManager:
         operations = list[Operation]()
         nodes = dict[BiolinkEntity, OperationNode]()
 
-        # TODO: make this part of config
-        metakg_files = {
+        metakg_locations = {
             0: {
-                CONFIG.tier0.backend_infores: CONFIG.tier0.metakg_file,
+                CONFIG.tier0.backend_infores: CONFIG.tier0.metakg_url,
             },
             1: {
-                CONFIG.tier1.backend_infores: CONFIG.tier1.metakg_file,
+                CONFIG.tier1.backend_infores: CONFIG.tier1.metakg_url,
             },
         }
 
-        for tier, sources in metakg_files.items():
-            for infores, path in sources.items():
-                async with aiofiles.open(path) as file:
-                    trapi_metakg = MetaKnowledgeGraphDict(
-                        orjson.loads(await file.read())
-                    )
-                self.parse_trapi_metakg(
-                    TRAPIMetaKGInfo(trapi_metakg, tier, infores),
+        for tier, sources in metakg_locations.items():
+            for infores, url in sources.items():
+                metadata = await self.get_metadata(url)
+                self.parse_dingo_metadata(
+                    DINGOMetaKGInfo(metadata, tier, infores),
                     operations,
                     nodes,
                 )

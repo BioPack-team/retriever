@@ -1,8 +1,7 @@
 import warnings
-from pathlib import Path
 from typing import Annotated, ClassVar, override
 
-from pydantic import AfterValidator, BaseModel, Field, FilePath, SecretStr
+from pydantic import AfterValidator, BaseModel, Field, SecretStr
 from pydantic_file_secrets import FileSecretsSettingsSource, SettingsConfigDict
 from pydantic_settings import (
     BaseSettings,
@@ -142,6 +141,15 @@ class LookupSettings(BaseModel):
 class MetaKGSettings(BaseModel):
     """Settings pertaining to metakg queries."""
 
+    retries: Annotated[
+        int, Field(description="Number of times to retry obtaining DINGO metadata.")
+    ] = 3
+    acquire_timeout: Annotated[
+        int,
+        Field(
+            description="Time in seconds until a metadata call should time out, set to -1 to disable."
+        ),
+    ] = 30
     timeout: Annotated[
         int,
         Field(
@@ -215,8 +223,8 @@ class Tier1Settings(BaseModel):
     """Settings concern Tier 1 abstraction layers."""
 
     backend: str = "elasticsearch"
-    metakg_file: FilePath = Path("data/rtx-kg2-metakg.json")
-    backend_infores: str = "infores:rtx-kg2"
+    metakg_url: str = "https://stars.renci.org/var/translator/releases/translator_kg/latest/graph-metadata.json"
+    backend_infores: str = "infores:dogpark-tier1"
     elasticsearch: ElasticSearchSettings = ElasticSearchSettings()
 
 
@@ -286,8 +294,8 @@ class Tier0Settings(BaseModel):
     """Settings concern Tier 0 abstraction layers."""
 
     backend: str = "dgraph"
-    metakg_file: FilePath = Path("data/rtx-kg2-metakg.json")
-    backend_infores: str = "infores:automat-robokop"
+    metakg_url: str = "https://stars.renci.org/var/translator/releases/translator_kg/latest/graph-metadata.json"
+    backend_infores: str = "infores:dogpark-tier0"
     neo4j: Neo4jSettings = Neo4jSettings()
     dgraph: DgraphSettings = DgraphSettings()
 
