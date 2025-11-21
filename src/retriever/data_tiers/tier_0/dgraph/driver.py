@@ -322,6 +322,7 @@ class DgraphDriver(DatabaseDriver):
 
         Args:
             query: The Dgraph query string to execute
+            *args: Variable positional arguments (unused, for protocol compatibility)
             **kwargs: Additional arguments:
                 - transpiler: Optional DgraphTranspiler instance for ID mapping
 
