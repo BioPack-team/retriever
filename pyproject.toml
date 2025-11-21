@@ -30,7 +30,6 @@ dependencies = [
     "ruamel-yaml>=0.18.14",
     "pydantic-core>=2.33.1",
     "orjson>=3.11.2",
-    "aiofiles>=24.1.0",
     "zstandard>=0.24.0",
     "ormsgpack>=1.10.0",
     "uvloop>=0.21.0",
@@ -101,12 +100,12 @@ echo "✅ All set!"
         -d \
         -p 6379:6379 \
         --ulimit memlock=-1 \
-        docker.dragonflydb.io/dragonflydb/dragonfly
+        docker.dragonflydb.io/dragonflydb/dragonfly:v1.35.0
 """
 'dragonfly:stop' = 'echo "stopping dragonfly..." && docker rm --force test-dragonfly'
 dragonfly = 'task dragonfly:stop && task dragonfly:start'
 
-'mongo:start' = 'echo "starting mongodb..." && docker run --name test-mongodb -p 27017:27017 -d mongodb/mongodb-community-server:latest'
+'mongo:start' = 'echo "starting mongodb..." && docker run --name test-mongodb -p 27017:27017 -d mongodb/mongodb-community-server:7.0-ubuntu2204'
 'mongo:stop' = 'echo "stopping mongodb..." && docker rm -f test-mongodb'
 mongo = 'task mongo:stop && task mongo:start'
 
@@ -123,7 +122,7 @@ dbs = 'task dbs:stop && task dbs:start'
         -p 16686:16686 \
         -p 4317:4317 \
         -p 4318:4318 \
-        jaegertracing/all-in-one:latest
+        jaegertracing/all-in-one:1.75.0
 """
 'jaeger:stop' = 'echo "stopping jaeger..." && docker rm --force test-jaeger'
 'jaeger:open' = 'python -m webbrowser http://localhost:16686'
