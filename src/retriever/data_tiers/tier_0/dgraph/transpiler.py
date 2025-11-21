@@ -364,10 +364,7 @@ class DgraphTranspiler(Tier0Transpiler):
         if constraints:
             filters.extend(self._convert_constraints_to_filters(constraints))
 
-        if not filters:
-            return ""
-
-        return " AND ".join(filters)
+        return " AND ".join(filters) if filters else ""
 
     def _build_edge_filter(self, edge: QEdgeDict) -> str:
         """Build a filter expression for an edge based on its properties."""
