@@ -30,6 +30,12 @@ def _strip_prefix(d: Mapping[str, Any], prefix: str | None) -> Mapping[str, Any]
 # -----------------
 
 
+# It represents the expected number of parts when splitting edge keys by underscore
+# Format: "direction_edges_id" or "direction_edges-symmetric_id"
+# Example: "in_edges_e0" splits to ["in", "edges", "e0"] = 3 parts
+_EDGE_KEY_PARTS = 3
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Source:
     """Represents a single source with its resource ID and role."""
@@ -279,7 +285,7 @@ class Node:
                 #   "in_edges_e0" -> "in_edges" + "_e0" -> parts = ["in", "edges", "e0"]
                 #   "in_edges-symmetric_e0" -> "in_edges-symmetric" + "_e0" -> parts = ["in", "edges-symmetric", "e0"]
                 parts = key.split("_", 2)  # Split into max 3 parts
-                if len(parts) >= 3:
+                if len(parts) >= _EDGE_KEY_PARTS:
                     # parts[2] is the edge ID (e.g., "e0")
                     normalized_edge_binding = parts[2]
                     # Convert back to original edge ID if mapping provided
@@ -308,7 +314,7 @@ class Node:
             elif key.startswith("out_edges"):
                 # Same logic as incoming edges
                 parts = key.split("_", 2)  # Split into max 3 parts
-                if len(parts) >= 3:
+                if len(parts) >= _EDGE_KEY_PARTS:
                     # parts[2] is the edge ID (e.g., "e0")
                     normalized_edge_binding = parts[2]
                     # Convert back to original edge ID if mapping provided
