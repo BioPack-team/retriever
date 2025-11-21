@@ -290,7 +290,9 @@ class Node:
                     normalized_edge_binding = parts[2]
                     # Convert back to original edge ID if mapping provided
                     edge_binding = (
-                        edge_id_map.get(normalized_edge_binding, normalized_edge_binding)
+                        edge_id_map.get(
+                            normalized_edge_binding, normalized_edge_binding
+                        )
                         if edge_id_map
                         else normalized_edge_binding
                     )
@@ -319,7 +321,9 @@ class Node:
                     normalized_edge_binding = parts[2]
                     # Convert back to original edge ID if mapping provided
                     edge_binding = (
-                        edge_id_map.get(normalized_edge_binding, normalized_edge_binding)
+                        edge_id_map.get(
+                            normalized_edge_binding, normalized_edge_binding
+                        )
                         if edge_id_map
                         else normalized_edge_binding
                     )
