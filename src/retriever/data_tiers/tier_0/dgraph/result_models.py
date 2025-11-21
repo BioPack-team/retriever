@@ -122,7 +122,7 @@ class Edge:
             edge_dict: Raw edge data from Dgraph response
             binding: Edge binding (already converted to original ID by Node.from_dict)
             direction: Edge direction ('in' or 'out')
-            prefix: Schema version prefix (e.g., 'vC_')
+            prefix: Schema version prefix (e.g., 'vC_'), or None for no prefix
             edge_id_map: Optional mapping from normalized edge IDs to original IDs
 
         Returns:
@@ -252,8 +252,7 @@ class Node:
         data: Mapping[str, Any],
         *,
         binding: str = "",
-        direction: str = "",
-        prefix: str = "",
+        prefix: str | None = None,
         edge_id_map: Mapping[str, str] | None = None,
     ) -> Self:
         """Parse a node mapping into a Node dataclass (handles versioned keys).
@@ -261,8 +260,7 @@ class Node:
         Args:
             data: Raw node data from Dgraph response
             binding: Node binding (normalized ID like 'n0')
-            direction: Edge direction context (not used for nodes)
-            prefix: Schema version prefix (e.g., 'vC_')
+            prefix: Schema version prefix (e.g., 'vC_'), or None for no prefix
             edge_id_map: Optional mapping from normalized edge IDs to original IDs
 
         Returns:
