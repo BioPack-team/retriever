@@ -354,6 +354,8 @@ def meta_qualifier_meets_constraints(
             q_type, q_val = qualifier.qualifier_type_id, qualifier.qualifier_value
             if q_type in meta_qualifiers:
                 expanded_vals = biolink.get_descendant_values(q_type, q_val)
+                if not len(meta_qualifiers[QualifierTypeID(q_type)]):
+                    continue
                 if expanded_vals & set(meta_qualifiers[QualifierTypeID(q_type)]):
                     continue
                 else:
