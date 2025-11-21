@@ -318,7 +318,16 @@ class DgraphDriver(DatabaseDriver):
     async def run_query(
         self, query: str, *args: Any, **kwargs: Any
     ) -> dg_models.DgraphResponse:
-        """Execute a query against the Dgraph database and parse into dataclasses."""
+        """Execute a query against the Dgraph database and parse into dataclasses.
+
+        Args:
+            query: The Dgraph query string to execute
+            **kwargs: Additional arguments:
+                - transpiler: Optional DgraphTranspiler instance for ID mapping
+
+        Returns:
+            Parsed DgraphResponse with bindings converted back to original IDs
+        """
         if self.protocol == DgraphProtocol.GRPC and not self._client:
             raise RuntimeError(
                 "DgraphDriver (gRPC) not connected. Call connect() first."
@@ -340,11 +349,26 @@ class DgraphDriver(DatabaseDriver):
         version = await self.get_active_version()
         prefix = f"{version}_" if version else None
 
+        # Extract ID mappings from transpiler if provided
+        transpiler = kwargs.get("transpiler")
+        node_id_map = transpiler._reverse_node_map if transpiler else None
+        edge_id_map = transpiler._reverse_edge_map if transpiler else None
+
         try:
             if self.protocol == DgraphProtocol.GRPC:
-                result = await self._run_grpc_query(query, prefix=prefix)
+                result = await self._run_grpc_query(
+                    query,
+                    prefix=prefix,
+                    node_id_map=node_id_map,
+                    edge_id_map=edge_id_map,
+                )
             else:
-                result = await self._run_http_query(query, prefix=prefix)
+                result = await self._run_http_query(
+                    query,
+                    prefix=prefix,
+                    node_id_map=node_id_map,
+                    edge_id_map=edge_id_map,
+                )
         except TimeoutError as e:
             if otel_span is not None:
                 otel_span.add_event("dgraph_query_timeout")
@@ -358,9 +382,24 @@ class DgraphDriver(DatabaseDriver):
         return result
 
     async def _run_grpc_query(
-        self, query: str, *, prefix: str | None
+        self,
+        query: str,
+        *,
+        prefix: str | None,
+        node_id_map: dict[str, str] | None = None,
+        edge_id_map: dict[str, str] | None = None,
     ) -> dg_models.DgraphResponse:
-        """Execute query using gRPC protocol."""
+        """Execute query using gRPC protocol.
+
+        Args:
+            query: The Dgraph query string
+            prefix: Schema version prefix
+            node_id_map: Optional mapping from normalized to original node IDs
+            edge_id_map: Optional mapping from normalized to original edge IDs
+
+        Returns:
+            Parsed response with original bindings restored
+        """
         assert self._client is not None, "gRPC client not initialized"
 
         txn: DgraphTxnProtocol | None = None
@@ -382,7 +421,12 @@ class DgraphDriver(DatabaseDriver):
 
             raw: Any = response.json
 
-            return dg_models.DgraphResponse.parse(raw, prefix=prefix)
+            return dg_models.DgraphResponse.parse(
+                raw,
+                prefix=prefix,
+                node_id_map=node_id_map,
+                edge_id_map=edge_id_map,
+            )
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
                 raise TimeoutError(f"Dgraph gRPC query timed out: {e.details()}") from e
@@ -404,9 +448,24 @@ class DgraphDriver(DatabaseDriver):
                 await asyncio.to_thread(txn.discard)
 
     async def _run_http_query(
-        self, query: str, *, prefix: str | None
+        self,
+        query: str,
+        *,
+        prefix: str | None,
+        node_id_map: dict[str, str] | None = None,
+        edge_id_map: dict[str, str] | None = None,
     ) -> dg_models.DgraphResponse:
-        """Execute query using HTTP protocol with DQL."""
+        """Execute query using HTTP protocol with DQL.
+
+        Args:
+            query: The Dgraph query string
+            prefix: Schema version prefix
+            node_id_map: Optional mapping from normalized to original node IDs
+            edge_id_map: Optional mapping from normalized to original edge IDs
+
+        Returns:
+            Parsed response with original bindings restored
+        """
         assert self._http_session is not None, "HTTP session not initialized"
 
         clean_query = query.strip()
@@ -434,7 +493,12 @@ class DgraphDriver(DatabaseDriver):
             if "data" not in raw_data:
                 raise RuntimeError("Dgraph query returned no data field.")
 
-            return dg_models.DgraphResponse.parse(raw_data.get("data"), prefix=prefix)
+            return dg_models.DgraphResponse.parse(
+                raw_data.get("data"),
+                prefix=prefix,
+                node_id_map=node_id_map,
+                edge_id_map=edge_id_map,
+            )
 
     async def _cleanup_connections(self) -> None:
         """Clean up any open connections."""

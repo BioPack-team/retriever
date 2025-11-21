@@ -1076,7 +1076,7 @@ DGRAPH_FLOATING_OBJECT_QUERY = dedent("""
 {
     q0_node_n0(func: eq(id, "NCBIGene:3778")) @cascade(id, ~subject) {
         expand(Node)
-        out_edges_e01: ~subject @filter(eq(predicate_ancestors, "causes")) @cascade(predicate, object) {
+        out_edges_e0: ~subject @filter(eq(predicate_ancestors, "causes")) @cascade(predicate, object) {
             expand(Edge) { sources expand(Source) }
             node_n1: object @filter(eq(category, "Disease")) @cascade(id) {
                 expand(Node)
@@ -1090,7 +1090,7 @@ DGRAPH_FLOATING_OBJECT_QUERY_WITH_VERSION = dedent("""
 {
     q0_node_n0(func: eq(v1_id, "NCBIGene:3778")) @cascade(v1_id, ~v1_subject) {
         expand(v1_Node)
-        out_edges_e01: ~v1_subject @filter(eq(v1_predicate_ancestors, "causes")) @cascade(v1_predicate, v1_object) {
+        out_edges_e0: ~v1_subject @filter(eq(v1_predicate_ancestors, "causes")) @cascade(v1_predicate, v1_object) {
             expand(v1_Edge) { v1_sources expand(v1_Source) }
             node_n1: v1_object @filter(eq(v1_category, "Disease")) @cascade(v1_id) {
                 expand(v1_Node)
@@ -1104,7 +1104,7 @@ DGRAPH_FLOATING_OBJECT_QUERY_TWO_CATEGORIES = dedent("""
 {
     q0_node_n0(func: eq(id, "NCBIGene:3778")) @cascade(id, ~subject) {
         expand(Node)
-        out_edges_e01: ~subject @filter(eq(predicate_ancestors, "causes")) @cascade(predicate, object) {
+        out_edges_e0: ~subject @filter(eq(predicate_ancestors, "causes")) @cascade(predicate, object) {
             expand(Edge) { sources expand(Source) }
             node_n1: object @filter(eq(category, "Disease")) @cascade(id) {
                 expand(Node)
@@ -1259,6 +1259,10 @@ def test_convert_results_with_full_source_info(transpiler: _TestDgraphTranspiler
     assert source["source_record_urls"] == ["http://example.com/record1"]
 
 
+# -----------------------
+# Symmetric predicate tests
+# -----------------------
+
 def test_symmetric_predicate_generates_bidirectional_queries(transpiler: _TestDgraphTranspiler) -> None:
     """Test that symmetric predicates generate queries checking both directions."""
     # 1. Arrange
@@ -1285,7 +1289,7 @@ def test_symmetric_predicate_generates_bidirectional_queries(transpiler: _TestDg
             out_edges_e0: ~subject @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, object) {
                 expand(Edge) { sources expand(Source) }
                 node_n1: object @filter(eq(category, "Gene")) @cascade(id) { expand(Node) } }
-            in_edges-symmetric_e0: ~object @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, subject) {
+            in_edges_e0: ~object @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, subject) {
                 expand(Edge) { sources expand(Source) }
                 node_n1: subject @filter(eq(category, "Gene")) @cascade(id) {
                     expand(Node)
@@ -1299,7 +1303,7 @@ def test_symmetric_predicate_generates_bidirectional_queries(transpiler: _TestDg
     assert normalize(actual) == normalize(expected)
     # Should have both the normal direction and reverse direction
     assert "out_edges_e0:" in actual
-    assert "in_edges-symmetric_e0:" in actual
+    assert "in_edges_e0:" in actual
 
 
 def test_symmetric_predicate_incoming_edge(transpiler: _TestDgraphTranspiler) -> None:
@@ -1331,7 +1335,7 @@ def test_symmetric_predicate_incoming_edge(transpiler: _TestDgraphTranspiler) ->
                     expand(Node)
                 }
             }
-            out_edges-symmetric_e0: ~subject @filter(eq(predicate_ancestors, "correlated_with")) @cascade(predicate, object) {
+            out_edges_e0: ~subject @filter(eq(predicate_ancestors, "correlated_with")) @cascade(predicate, object) {
                 expand(Edge) { sources expand(Source) }
                 node_n1: object @filter(eq(category, "Gene")) @cascade(id) {
                     expand(Node)
@@ -1345,7 +1349,7 @@ def test_symmetric_predicate_incoming_edge(transpiler: _TestDgraphTranspiler) ->
     assert normalize(actual) == normalize(expected)
     # Should have both the incoming direction and its reverse
     assert "in_edges_e0:" in actual
-    assert "out_edges-symmetric_e0:" in actual
+    assert "out_edges_e0:" in actual
 
 
 def test_symmetric_predicate_multi_hop(transpiler: _TestDgraphTranspiler) -> None:
@@ -1389,7 +1393,7 @@ def test_symmetric_predicate_multi_hop(transpiler: _TestDgraphTranspiler) -> Non
                     }
                 }
             }
-            in_edges-symmetric_e0: ~object @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, subject) {
+            in_edges_e0: ~object @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, subject) {
                 expand(Edge) { sources expand(Source) }
                 node_n1: subject @filter(eq(category, "Gene")) @cascade(id, ~subject) {
                     expand(Node)
@@ -1409,10 +1413,10 @@ def test_symmetric_predicate_multi_hop(transpiler: _TestDgraphTranspiler) -> Non
     assert normalize(actual) == normalize(expected)
     # First edge should have bidirectional queries
     assert "out_edges_e0:" in actual
-    assert "in_edges-symmetric_e0:" in actual
+    assert "in_edges_e0:" in actual
     # Second edge should only have one direction
     assert "out_edges_e1:" in actual
-    assert "in_edges-symmetric_e1:" not in actual
+    assert "in_edges_e1:" not in actual
 
 
 def test_multiple_symmetric_predicates_on_edge(transpiler: _TestDgraphTranspiler) -> None:
@@ -1447,7 +1451,7 @@ def test_multiple_symmetric_predicates_on_edge(transpiler: _TestDgraphTranspiler
                     expand(Node)
                 }
             }
-            in_edges-symmetric_e0: ~object @filter(eq(predicate_ancestors, ["related_to", "associated_with"])) @cascade(predicate, subject) {
+            in_edges_e0: ~object @filter(eq(predicate_ancestors, ["related_to", "associated_with"])) @cascade(predicate, subject) {
                 expand(Edge) { sources expand(Source) }
                 node_n1: subject @filter(eq(category, "Gene")) @cascade(id) {
                     expand(Node)
@@ -1461,7 +1465,7 @@ def test_multiple_symmetric_predicates_on_edge(transpiler: _TestDgraphTranspiler
     assert normalize(actual) == normalize(expected)
     # Should have both directions since at least one predicate is symmetric
     assert "out_edges_e0:" in actual
-    assert "in_edges-symmetric_e0:" in actual
+    assert "in_edges_e0:" in actual
 
 
 def test_mixed_predicates_treats_as_symmetric(transpiler: _TestDgraphTranspiler) -> None:
@@ -1496,7 +1500,7 @@ def test_mixed_predicates_treats_as_symmetric(transpiler: _TestDgraphTranspiler)
                     expand(Node)
                 }
             }
-            in_edges-symmetric_e0: ~object @filter(eq(predicate_ancestors, ["related_to", "treated_by"])) @cascade(predicate, subject) {
+            in_edges_e0: ~object @filter(eq(predicate_ancestors, ["related_to", "treated_by"])) @cascade(predicate, subject) {
                 expand(Edge) { sources expand(Source) }
                 node_n1: subject @filter(eq(category, "ChemicalEntity")) @cascade(id) {
                     expand(Node)
@@ -1510,4 +1514,299 @@ def test_mixed_predicates_treats_as_symmetric(transpiler: _TestDgraphTranspiler)
     assert normalize(actual) == normalize(expected)
     # If ANY predicate is symmetric, should check both directions
     assert "out_edges_e0:" in actual
-    assert "in_edges-symmetric_e0:" in actual
+    assert "in_edges_e0:" in actual
+
+
+# -----------------------
+# Normalization tests
+# -----------------------
+
+def test_normalization_with_underscores_in_ids(transpiler: _TestDgraphTranspiler) -> None:
+    """Test that node and edge IDs with underscores are normalized to prevent injection."""
+    # 1. Arrange - Query with underscores in IDs
+    qgraph = qg({
+        "nodes": {
+            "n0_test": {"ids": ["GO:0031410"], "categories": ["biolink:CellularComponent"]},
+            "n1_patient": {"ids": ["NCBIGene:11276"], "categories": ["biolink:Gene"]},
+        },
+        "edges": {
+            "e0_test": {
+                "subject": "n1_patient",
+                "object": "n0_test",
+                "predicates": ["biolink:located_in"],
+            }
+        },
+    })
+
+    # 2. Act
+    actual = transpiler.convert_multihop_public(qgraph)
+
+    # 3. Expected - Should use normalized IDs (n0, n1, e0) not original ones
+    expected = dedent("""
+    {
+        q0_node_n1(func: eq(id, "NCBIGene:11276")) @cascade(id, ~subject) {
+            expand(Node)
+            out_edges_e0: ~subject @filter(eq(predicate_ancestors, "located_in")) @cascade(predicate, object) {
+                expand(Edge) { sources expand(Source) }
+                node_n0: object @filter(eq(id, "GO:0031410")) @cascade(id) {
+                    expand(Node)
+                }
+            }
+        }
+    }
+    """).strip()
+
+    # 4. Assert
+    assert_query_equals(actual, expected)
+
+    # Verify normalized IDs are used in the query
+    assert "node_n0" in actual, "Should use normalized node ID n0, not n0_test"
+    assert "node_n1" in actual, "Should use normalized node ID n1, not n1_patient"
+    assert "out_edges_e0:" in actual, "Should use normalized edge ID e0, not e0_test"
+
+    # Verify original IDs are NOT in the query structure
+    assert "node_n0_test" not in actual, "Original node ID should not appear in query"
+    assert "node_n1_patient" not in actual, "Original node ID should not appear in query"
+    assert "out_edges_e0_test:" not in actual, "Original edge ID should not appear in query"
+
+
+def test_normalization_with_special_characters(transpiler: _TestDgraphTranspiler) -> None:
+    """Test that IDs with special characters are normalized to safe identifiers."""
+    # 1. Arrange - Query with special characters that could cause injection
+    qgraph = qg({
+        "nodes": {
+            "n0-dash": {"ids": ["MONDO:0005148"], "categories": ["biolink:Disease"]},
+            "n1.dot": {"categories": ["biolink:Gene"]},
+        },
+        "edges": {
+            "e0@special": {
+                "subject": "n0-dash",
+                "object": "n1.dot",
+                "predicates": ["biolink:gene_associated_with_condition"],
+            }
+        },
+    })
+
+    # 2. Act
+    actual = transpiler.convert_multihop_public(qgraph)
+
+    # 3. Expected - Should use normalized IDs
+    expected = dedent("""
+    {
+        q0_node_n0(func: eq(id, "MONDO:0005148")) @cascade(id, ~subject) {
+            expand(Node)
+            out_edges_e0: ~subject @filter(eq(predicate_ancestors, "gene_associated_with_condition")) @cascade(predicate, object) {
+                expand(Edge) { sources expand(Source) }
+                node_n1: object @filter(eq(category, "Gene")) @cascade(id) {
+                    expand(Node)
+                }
+            }
+        }
+    }
+    """).strip()
+
+    # 4. Assert
+    assert_query_equals(actual, expected)
+
+    # Verify safe normalized IDs are used
+    assert "node_n0" in actual
+    assert "node_n1" in actual
+    assert "out_edges_e0:" in actual
+
+    # Verify special characters are NOT in query structure
+    assert "n0-dash" not in actual
+    assert "n1.dot" not in actual
+    assert "e0@special" not in actual
+
+
+def test_normalization_alphabetical_ordering(transpiler: _TestDgraphTranspiler) -> None:
+    """Test that normalization uses alphabetical ordering for consistent ID assignment."""
+    # 1. Arrange - Query with non-sequential node/edge names
+    qgraph = qg({
+        "nodes": {
+            "z_last": {"ids": ["A"], "categories": ["biolink:Gene"]},
+            "a_first": {"ids": ["B"], "categories": ["biolink:Disease"]},
+            "m_middle": {"ids": ["C"], "categories": ["biolink:Pathway"]},
+        },
+        "edges": {
+            "e_zulu": {
+                "subject": "a_first",
+                "object": "z_last",
+                "predicates": ["biolink:related_to"],
+            },
+            "e_alpha": {
+                "subject": "z_last",
+                "object": "m_middle",
+                "predicates": ["biolink:related_to"],
+            },
+        },
+    })
+
+    # 2. Act
+    actual = transpiler.convert_multihop_public(qgraph)
+
+    # 3. Assert - Check alphabetical assignment
+    # Nodes: a_first -> n0, m_middle -> n1, z_last -> n2 (alphabetical)
+    # Edges: e_alpha -> e0, e_zulu -> e1 (alphabetical)
+
+    # Since transpiler picks start node by pinnedness, we verify the normalized IDs exist
+    assert "node_n0" in actual, "a_first should map to n0"
+    assert "node_n1" in actual, "m_middle should map to n1"
+    assert "node_n2" in actual, "z_last should map to n2"
+
+    # Edges should be e0 and e1
+    assert "_e0:" in actual, "e_alpha should map to e0"
+    assert "_e1:" in actual, "e_zulu should map to e1"
+
+
+def test_normalization_batch_queries_independent(transpiler: _TestDgraphTranspiler) -> None:
+    """Test that each query in a batch gets independent normalization."""
+    # 1. Arrange - Batch with different edge/node names
+    qgraphs = [
+        qg({
+            "nodes": {
+                "custom_n0": {"ids": ["X"], "categories": ["biolink:Gene"]},
+                "custom_n1": {"ids": ["Y"], "categories": ["biolink:Disease"]},
+            },
+            "edges": {
+                "custom_e0": {
+                    "subject": "custom_n0",
+                    "object": "custom_n1",
+                    "predicates": ["biolink:related_to"],
+                }
+            },
+        }),
+        qg({
+            "nodes": {
+                "different_n0": {"ids": ["A"], "categories": ["biolink:Gene"]},
+                "different_n1": {"ids": ["B"], "categories": ["biolink:Disease"]},
+            },
+            "edges": {
+                "different_e0": {
+                    "subject": "different_n0",
+                    "object": "different_n1",
+                    "predicates": ["biolink:related_to"],
+                }
+            },
+        }),
+    ]
+
+    # 2. Act
+    actual = transpiler.convert_batch_multihop_public(qgraphs)
+
+    # 3. Assert - Both queries should use normalized IDs independently
+    # Query 0 should have q0_node_n0 or q0_node_n1
+    assert "q0_node_n0" in actual or "q0_node_n1" in actual
+
+    # Query 1 should also have q1_node_n0 or q1_node_n1
+    assert "q1_node_n0" in actual or "q1_node_n1" in actual
+
+    # Both should use e0 for their single edge
+    assert "q0" in actual and "_e0:" in actual
+    assert "q1" in actual and "_e0:" in actual
+
+    # Original names should not appear
+    assert "custom_n0" not in actual
+    assert "custom_e0" not in actual
+    assert "different_n0" not in actual
+    assert "different_e0" not in actual
+
+
+def test_normalization_symmetric_predicate(transpiler: _TestDgraphTranspiler) -> None:
+    """Test that normalization works correctly with symmetric predicates."""
+    # 1. Arrange
+    qgraph = qg({
+        "nodes": {
+            "node_alpha": {"ids": ["MONDO:0005148"], "categories": ["biolink:Disease"]},
+            "node_beta": {"categories": ["biolink:Gene"]},
+        },
+        "edges": {
+            "edge_gamma": {
+                "subject": "node_alpha",
+                "object": "node_beta",
+                "predicates": ["biolink:correlated_with"],  # Symmetric
+            }
+        },
+    })
+
+    # 2. Act
+    actual = transpiler.convert_multihop_public(qgraph)
+
+    # 3. Expected - Should use normalized IDs with symmetric edges
+    expected = dedent("""
+    {
+        q0_node_n0(func: eq(id, "MONDO:0005148")) @cascade(id, ~subject) {
+            expand(Node)
+            out_edges_e0: ~subject @filter(eq(predicate_ancestors, "correlated_with")) @cascade(predicate, object) {
+                expand(Edge) { sources expand(Source) }
+                node_n1: object @filter(eq(category, "Gene")) @cascade(id) {
+                    expand(Node)
+                }
+            }
+            in_edges_e0: ~object @filter(eq(predicate_ancestors, "correlated_with")) @cascade(predicate, subject) {
+                expand(Edge) { sources expand(Source) }
+                node_n1: subject @filter(eq(category, "Gene")) @cascade(id) {
+                    expand(Node)
+                }
+            }
+        }
+    }
+    """).strip()
+
+    # 4. Assert
+    assert_query_equals(actual, expected)
+
+    # Verify normalized IDs in both directions
+    assert "out_edges_e0:" in actual
+    assert "in_edges_e0:" in actual
+    assert "node_n0" in actual
+    assert "node_n1" in actual
+
+    # Verify original names not present
+    assert "edge_gamma" not in actual
+    assert "node_alpha" not in actual
+    assert "node_beta" not in actual
+
+
+def test_normalization_multihop_query(transpiler: _TestDgraphTranspiler) -> None:
+    """Test normalization in a multi-hop query with various ID formats."""
+    # 1. Arrange
+    qgraph = qg({
+        "nodes": {
+            "start_node": {"ids": ["CHEBI:3125"], "categories": ["biolink:SmallMolecule"]},
+            "middle_node": {"ids": ["UMLS:C0282090"], "categories": ["biolink:Disease"]},
+            "end_node": {"ids": ["UMLS:C0496995"], "categories": ["biolink:Phenotype"]},
+        },
+        "edges": {
+            "first_edge": {
+                "subject": "middle_node",
+                "object": "start_node",
+                "predicates": ["biolink:treats"],
+            },
+            "second_edge": {
+                "subject": "end_node",
+                "object": "middle_node",
+                "predicates": ["biolink:phenotype_of"],
+            },
+        },
+    })
+
+    # 2. Act
+    actual = transpiler.convert_multihop_public(qgraph)
+
+    # 3. Assert - Should use n0, n1, n2 and e0, e1 (alphabetically sorted)
+    # Nodes: end_node->n0, middle_node->n1, start_node->n2
+    # Edges: first_edge->e0, second_edge->e1
+
+    assert "node_n0" in actual
+    assert "node_n1" in actual
+    assert "node_n2" in actual
+    assert "_e0:" in actual
+    assert "_e1:" in actual
+
+    # Original names should not be in query structure
+    assert "start_node" not in actual
+    assert "middle_node" not in actual
+    assert "end_node" not in actual
+    assert "first_edge" not in actual
+    assert "second_edge" not in actual

@@ -541,9 +541,9 @@ async def test_simple_one_query_live_grpc() -> None:
     {
         q0_node_n1(func: eq(vC_id, "NCBIGene:11276")) @cascade(vC_id, ~vC_subject) {
             expand(vC_Node)
-            out_edges_e0_test: ~vC_subject @filter(eq(vC_predicate_ancestors, "located_in")) @cascade(vC_predicate, vC_object) {
+            out_edges_e0: ~vC_subject @filter(eq(vC_predicate_ancestors, "located_in")) @cascade(vC_predicate, vC_object) {
                 expand(vC_Edge) { vC_sources expand(vC_Source) }
-                node_n0_test: vC_object @filter(eq(vC_id, "GO:0031410")) @cascade(vC_id) {
+                node_n0: vC_object @filter(eq(vC_id, "GO:0031410")) @cascade(vC_id) {
                     expand(vC_Node)
                 }
             }
@@ -583,13 +583,13 @@ async def test_simple_one_query_live_grpc() -> None:
 
     # 3. Assertions for the incoming edge (e0)
     in_edge = root_node.edges[0]
-    assert in_edge.binding == "e0_test"
+    assert in_edge.binding == "e0"
     assert in_edge.direction == "out"
     assert in_edge.predicate == "located_in"
 
     # 4. Assertions for the connected node (n1)
     connected_node = in_edge.node
-    assert connected_node.binding == "n0_test"
+    assert connected_node.binding == "n0"
     assert connected_node.id == "GO:0031410"
 
     await driver.close()
@@ -718,7 +718,7 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
                 }
             }
 
-            in_edges-symmetric_e0: ~vC_object
+            in_edges_e0: ~vC_object
             @filter(eq(vC_predicate_ancestors, "related_to"))
             @cascade(vC_predicate, vC_subject) {
                 expand(vC_Edge) { vC_sources expand(vC_Source) }
@@ -763,7 +763,7 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
     assert root_node.id == "NCBIGene:3778"
     assert len(root_node.edges) == 100
 
-    # With split("_", 3), both out_edges_e0 and in_edges_e0_reverse are merged under binding "e0"
+    # Both out_edges_e0 and in_edges-symmetric_e0 are merged under binding "e0"
     e0_edges = [e for e in root_node.edges if e.binding == "e0"]
     assert len(e0_edges) == 100, "All edges should have binding 'e0' (merged)"
 
@@ -773,7 +773,7 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
 
     # Both forward (out) and reverse (in) edge groups must be present and non-empty
     assert out_edges, "Expected at least one outgoing edge (from out_edges_e0)"
-    assert in_edges, "Expected at least one incoming edge (from in_edges_e0_reverse)"
+    assert in_edges, "Expected at least one incoming edge (from in_edges_e0 - including symmetric predicate)"
 
     # Predicate/ancestors should reflect the symmetric predicate filter ("related_to")
     assert all(

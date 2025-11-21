@@ -92,6 +92,12 @@ class DgraphTranspiler(Tier0Transpiler):
     version: str | None
     prefix: str
 
+    # Normalization mappings for injection prevention
+    _node_id_map: dict[QNodeID, str]
+    _edge_id_map: dict[QEdgeID, str]
+    _reverse_node_map: dict[str, QNodeID]
+    _reverse_edge_map: dict[str, QEdgeID]
+
     def __init__(self, version: str | None = None) -> None:
         """Initialize a Transpiler instance.
 
@@ -104,6 +110,12 @@ class DgraphTranspiler(Tier0Transpiler):
         self.version = version
         self.prefix = f"{version}_" if version else ""
 
+        # Initialize normalization mappings
+        self._node_id_map = {}
+        self._edge_id_map = {}
+        self._reverse_node_map = {}
+        self._reverse_edge_map = {}
+
     def _v(self, field: str) -> str:
         """Return the versioned field name."""
         return f"{self.prefix}{field}"
@@ -114,6 +126,82 @@ class DgraphTranspiler(Tier0Transpiler):
             return " ".join(f"{field}: {self._v(field)}" for field in fields) + " "
         return " ".join(fields) + " "
 
+    def _normalize_qgraph_ids(self, qgraph: QueryGraphDict) -> None:
+        """Create normalized mappings for node and edge IDs to prevent injection attacks.
+
+        This method creates safe, predictable identifiers (n0, n1, e0, e1, etc.) that are
+        used in the generated Dgraph query. The mappings allow us to convert back to the
+        original user-provided IDs when parsing results.
+
+        Args:
+            qgraph: The query graph to normalize
+        """
+        # Clear any existing mappings
+        self._node_id_map.clear()
+        self._edge_id_map.clear()
+        self._reverse_node_map.clear()
+        self._reverse_edge_map.clear()
+
+        # Create normalized node IDs (n0, n1, n2, ...)
+        # Sort for deterministic ordering
+        for i, node_id in enumerate(sorted(qgraph["nodes"].keys())):
+            normalized = f"n{i}"
+            self._node_id_map[node_id] = normalized
+            self._reverse_node_map[normalized] = node_id
+            logger.debug(f"Normalized node ID: {node_id} -> {normalized}")
+
+        # Create normalized edge IDs (e0, e1, e2, ...)
+        # Sort for deterministic ordering
+        for i, edge_id in enumerate(sorted(qgraph["edges"].keys())):
+            normalized = f"e{i}"
+            self._edge_id_map[edge_id] = normalized
+            self._reverse_edge_map[normalized] = edge_id
+            logger.debug(f"Normalized edge ID: {edge_id} -> {normalized}")
+
+    def _get_normalized_node_id(self, node_id: QNodeID) -> str:
+        """Get the normalized ID for a node.
+
+        Args:
+            node_id: The original node ID from the query graph
+
+        Returns:
+            The normalized node ID (e.g., 'n0', 'n1')
+        """
+        return self._node_id_map.get(node_id, str(node_id))
+
+    def _get_normalized_edge_id(self, edge_id: QEdgeID) -> str:
+        """Get the normalized ID for an edge.
+
+        Args:
+            edge_id: The original edge ID from the query graph
+
+        Returns:
+            The normalized edge ID (e.g., 'e0', 'e1')
+        """
+        return self._edge_id_map.get(edge_id, str(edge_id))
+
+    def _get_original_node_id(self, normalized_id: str) -> QNodeID:
+        """Get the original node ID from a normalized ID.
+
+        Args:
+            normalized_id: The normalized ID (e.g., 'n0')
+
+        Returns:
+            The original node ID from the query graph
+        """
+        return self._reverse_node_map.get(normalized_id, QNodeID(normalized_id))
+
+    def _get_original_edge_id(self, normalized_id: str) -> QEdgeID:
+        """Get the original edge ID from a normalized ID.
+
+        Args:
+            normalized_id: The normalized ID (e.g., 'e0')
+
+        Returns:
+            The original edge ID from the query graph
+        """
+        return self._reverse_edge_map.get(normalized_id, QEdgeID(normalized_id))
+
     @override
     def process_qgraph(
         self, qgraph: QueryGraphDict, *additional_qgraphs: QueryGraphDict
@@ -122,7 +210,17 @@ class DgraphTranspiler(Tier0Transpiler):
 
     @override
     def convert_multihop(self, qgraph: QueryGraphDict) -> str:
-        """Convert a TRAPI multi-hop graph to a proper Dgraph multihop query."""
+        """Convert a TRAPI multi-hop graph to a proper Dgraph multihop query.
+
+        Args:
+            qgraph: The TRAPI query graph
+
+        Returns:
+            A Dgraph query string with normalized, injection-safe identifiers
+        """
+        # Normalize IDs first to prevent injection attacks
+        self._normalize_qgraph_ids(qgraph)
+
         nodes = qgraph["nodes"]
         edges = qgraph["edges"]
 
@@ -234,33 +332,40 @@ class DgraphTranspiler(Tier0Transpiler):
 
         If `primary` is True, it returns the most selective filter for a `func:` block.
         Otherwise, it returns all applicable filters for an `@filter` block.
+
+        Filter hierarchy (most to least selective):
+        1. IDs (uniquely identify nodes - sufficient alone)
+        2. Categories (narrow down by type)
+        3. Constraints (additional filtering)
         """
-        filters: list[str] = []
         ids = node.get("ids")
         categories = node.get("categories")
         constraints = node.get("constraints")
 
-        # For a primary filter, we want the single most selective option.
+        # For primary filter, return the most selective single option
         if primary:
             if ids:
                 return self._create_id_filter(ids)
             if categories:
                 return self._create_category_filter(categories)
             if constraints:
-                # Fallback to first constraint if no IDs or categories
                 return self._convert_constraints_to_filters(constraints)[0]
             return f"has({self._v('id')})"
 
-        # For secondary filters (@filter), we build a list of all constraints.
+        # For secondary filters (@filter)
+        # If we have IDs, they uniquely identify the node(s) - don't add redundant filters
         if ids:
-            filters.append(self._create_id_filter(ids))
+            return self._create_id_filter(ids)
+
+        # If no IDs, combine categories and constraints
+        filters: list[str] = []
         if categories:
             filters.append(self._create_category_filter(categories))
         if constraints:
             filters.extend(self._convert_constraints_to_filters(constraints))
 
         if not filters:
-            return ""  # Return empty string if no filters apply
+            return ""
 
         return " AND ".join(filters)
 
@@ -548,14 +653,27 @@ class DgraphTranspiler(Tier0Transpiler):
         edges: Mapping[QEdgeID, QEdgeDict],
         query_index: int | None = None,
     ) -> str:
-        """Recursively build a query for a node and its connected nodes."""
+        """Recursively build a query for a node and its connected nodes.
+
+        Args:
+            node_id: The original node ID from the query graph
+            nodes: Dictionary of all nodes in the query graph
+            edges: Dictionary of all edges in the query graph
+            query_index: Optional index for batch queries
+
+        Returns:
+            Query fragment string with normalized identifiers
+        """
         node = nodes[node_id]
+
+        # Use normalized node ID for query generation
+        normalized_node_id = self._get_normalized_node_id(node_id)
 
         # Get the primary filter for the `func:` block of the starting node.
         primary_filter = self._build_node_filter(node, primary=True)
 
         # Create the root node key, with an optional query index prefix
-        root_node_key = f"node_{node_id}"
+        root_node_key = f"node_{normalized_node_id}"
         if query_index is not None:
             root_node_key = f"q{query_index}_{root_node_key}"
 
@@ -586,9 +704,12 @@ class DgraphTranspiler(Tier0Transpiler):
             ctx: Edge traversal context containing all necessary information
 
         Returns:
-            Query fragment string
+            Query fragment string with normalized identifiers
         """
         query = ""
+
+        # Use normalized edge ID for query generation
+        normalized_edge_id = self._get_normalized_edge_id(ctx.edge_id)
 
         # Check if predicate is symmetric
         predicates = ctx.edge.get("predicates") or []
@@ -603,19 +724,21 @@ class DgraphTranspiler(Tier0Transpiler):
 
         # Determine field names based on direction
         if ctx.edge_direction == "out":
-            edge_name = f"out_edges_{ctx.edge_id}"
-            reverse_edge_name = f"in_edges-symmetric_{ctx.edge_id}"
+            edge_name = f"out_edges_{normalized_edge_id}"
+            # symmetric_edge_name = f"in_edges-symmetric_{normalized_edge_id}"
+            symmetric_edge_name = f"in_edges_{normalized_edge_id}"
             edge_reverse_field = self._v("subject")
             predicate_field = self._v("object")
-            reverse_edge_reverse_field = self._v("object")
-            reverse_predicate_field = self._v("subject")
+            symmetric_edge_reverse_field = self._v("object")
+            symmetric_predicate_field = self._v("subject")
         else:  # "in"
-            edge_name = f"in_edges_{ctx.edge_id}"
-            reverse_edge_name = f"out_edges-symmetric_{ctx.edge_id}"
+            edge_name = f"in_edges_{normalized_edge_id}"
+            # symmetric_edge_name = f"out_edges-symmetric_{normalized_edge_id}"
+            symmetric_edge_name = f"out_edges_{normalized_edge_id}"
             edge_reverse_field = self._v("object")
             predicate_field = self._v("subject")
-            reverse_edge_reverse_field = self._v("subject")
-            reverse_predicate_field = self._v("object")
+            symmetric_edge_reverse_field = self._v("subject")
+            symmetric_predicate_field = self._v("object")
 
         # Build primary direction
         primary_ctx = DirectionTraversalContext(
@@ -634,9 +757,9 @@ class DgraphTranspiler(Tier0Transpiler):
         # If symmetric, also build reverse direction
         if is_symmetric:
             reverse_ctx = DirectionTraversalContext(
-                edge_name=reverse_edge_name,
-                edge_reverse_field=reverse_edge_reverse_field,
-                predicate_field=reverse_predicate_field,
+                edge_name=symmetric_edge_name,
+                edge_reverse_field=symmetric_edge_reverse_field,
+                predicate_field=symmetric_predicate_field,
                 filter_clause=filter_clause,
                 target_id=ctx.target_id,
                 target_filter=target_filter,
@@ -655,13 +778,16 @@ class DgraphTranspiler(Tier0Transpiler):
             ctx: Direction traversal context containing all necessary information
 
         Returns:
-            Query fragment string
+            Query fragment string with normalized identifiers
         """
+        # Use normalized target node ID for query generation
+        normalized_target_id = self._get_normalized_node_id(ctx.target_id)
+
         query = f"{ctx.edge_name}: ~{ctx.edge_reverse_field}{ctx.filter_clause}"
         query += f" @cascade({self._v('predicate')}, {ctx.predicate_field}) {{ "
         query += self._add_standard_edge_fields()
 
-        query += f"node_{ctx.target_id}: {ctx.predicate_field}"
+        query += f"node_{normalized_target_id}: {ctx.predicate_field}"
         if ctx.target_filter:
             query += f" @filter({ctx.target_filter})"
 
@@ -734,12 +860,18 @@ class DgraphTranspiler(Tier0Transpiler):
     def convert_batch_multihop(self, qgraphs: list[QueryGraphDict]) -> str:
         """Convert a TRAPI multi-hop batch graph to a batch of Dgraph queries.
 
+        Args:
+            qgraphs: List of query graphs to batch
+
         Returns:
-            A combined Dgraph query containing all sub-queries
+            A combined Dgraph query containing all sub-queries with normalized identifiers
         """
         # Process each query graph in the list
         blocks: list[str] = []
         for i, sub_qgraph in enumerate(qgraphs):
+            # Normalize IDs for each qgraph independently
+            self._normalize_qgraph_ids(sub_qgraph)
+
             sub_qgraph_typed: QueryGraphDict = sub_qgraph
             nodes = sub_qgraph_typed["nodes"]
             edges = sub_qgraph_typed["edges"]
@@ -850,20 +982,33 @@ class DgraphTranspiler(Tier0Transpiler):
         return trapi_edge
 
     def _build_results(self, node: dg.Node) -> list[Partial]:
-        """Recursively build results from dgraph response."""
+        """Recursively build results from dgraph response.
+
+        Args:
+            node: Parsed node from Dgraph response (with normalized bindings)
+
+        Returns:
+            List of partial results with original node/edge IDs restored
+        """
+        # Convert normalized binding back to original node ID
+        original_node_id = self._get_original_node_id(node.binding)
+
         if node.id not in self.kgraph["nodes"]:
             self.kgraph["nodes"][CURIE(node.id)] = self._build_trapi_node(node)
 
         # If we hit a stop condition, return partial for the node
         if not len(node.edges):
-            return [Partial([(QNodeID(node.binding), CURIE(node.id))], [])]
+            return [Partial([(original_node_id, CURIE(node.id))], [])]
 
         partials = {QEdgeID(edge.binding): list[Partial]() for edge in node.edges}
 
         for edge in node.edges:
             subject_id = CURIE(edge.node.id if edge.direction == "in" else node.id)
             object_id = CURIE(node.id if edge.direction == "in" else edge.node.id)
-            qedge_id = QEdgeID(edge.binding)
+
+            # Convert normalized edge binding back to original edge ID
+            original_edge_id = self._get_original_edge_id(edge.binding)
+            qedge_id = original_edge_id
 
             trapi_edge = self._build_trapi_edge(edge, node.id)
             edge_hash = EdgeIdentifier(hash_hex(hash_edge(trapi_edge)))
@@ -885,7 +1030,7 @@ class DgraphTranspiler(Tier0Transpiler):
                 partials[qedge_id].append(
                     partial.combine(
                         Partial(
-                            [(QNodeID(node.binding), CURIE(node.id))],
+                            [(original_node_id, CURIE(node.id))],
                             [(qedge_id, subject_id, object_id)],
                         )
                     )
@@ -909,8 +1054,22 @@ class DgraphTranspiler(Tier0Transpiler):
     def convert_results(
         self, qgraph: QueryGraphDict, results: list[dg.Node]
     ) -> BackendResult:
-        """Convert Dgraph JSON results back to TRAPI BackendResults."""
+        """Convert Dgraph JSON results back to TRAPI BackendResults.
+
+        Args:
+            qgraph: The original query graph (for reverse mapping)
+            results: Parsed Dgraph response nodes
+
+        Returns:
+            TRAPI-formatted results with original node/edge IDs
+        """
         logger.info("Begin transforming records")
+
+        # Ensure normalization mappings exist
+        # (In case convert_results is called without convert_multihop first)
+        if not self._reverse_node_map or not self._reverse_edge_map:
+            self._normalize_qgraph_ids(qgraph)
+
         self.k_agraph = {
             QEdgeID(qedge_id): dict[CURIE, dict[CURIE, list[EdgeIdentifier]]]()
             for qedge_id in qgraph["edges"]
