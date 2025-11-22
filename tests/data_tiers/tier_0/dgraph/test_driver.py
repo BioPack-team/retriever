@@ -1060,9 +1060,14 @@ async def test_run_grpc_query_raises_timeout_on_deadline_exceeded(
     mock_rpc_error.details = MagicMock(return_value="Deadline exceeded")
     mock_handle_query.side_effect = mock_rpc_error
 
+    # Create a mock transpiler
+    mock_transpiler = MagicMock()
+    mock_transpiler._reverse_node_map = {}
+    mock_transpiler._reverse_edge_map = {}
+
     # 2. Act & Assert
     with pytest.raises(TimeoutError, match="Dgraph query exceeded (.*) timeout"):
-        await driver.run_query("any query")
+        await driver.run_query("any query", transpiler=mock_transpiler)
 
     await driver.close()
 
@@ -1088,9 +1093,14 @@ async def test_run_grpc_query_raises_connection_error_on_generic_rpc_error(
     mock_rpc_error.details = MagicMock(return_value="Some other gRPC error")
     mock_handle_query.side_effect = mock_rpc_error
 
+    # Create a mock transpiler
+    mock_transpiler = MagicMock()
+    mock_transpiler._reverse_node_map = {}
+    mock_transpiler._reverse_edge_map = {}
+
     # 2. Act & Assert
     with pytest.raises(ConnectionError, match="Dgraph gRPC query failed: Some other gRPC error"):
-        await driver.run_query("any query")
+        await driver.run_query("any query", transpiler=mock_transpiler)
 
     await driver.close()
 
@@ -1120,8 +1130,13 @@ async def test_run_grpc_query_name_error_workaround(
     name_error.__context__ = mock_rpc_error
     mock_handle_query.side_effect = name_error
 
+    # Create a mock transpiler
+    mock_transpiler = MagicMock()
+    mock_transpiler._reverse_node_map = {}
+    mock_transpiler._reverse_edge_map = {}
+
     # 2. Act & Assert
     with pytest.raises(ConnectionError, match="Dgraph gRPC query failed: while running ToJson"):
-        await driver.run_query("any query")
+        await driver.run_query("any query", transpiler=mock_transpiler)
 
     await driver.close()
