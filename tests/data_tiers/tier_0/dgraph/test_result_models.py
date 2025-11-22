@@ -335,7 +335,7 @@ def test_parse_symmetric_predicate_success_case():
                     }
                 }
             ],
-            "in_edges_e0_reverse": [
+            "in_edges-symmetric_e0": [
                 {
                     "vC_eid": "urn:uuid:f0e89fda-4d67-45a3-a4dc-a6a2aac2e873",
                     "vC_predicate": "has_part",
