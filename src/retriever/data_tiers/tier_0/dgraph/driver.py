@@ -252,10 +252,10 @@ class DgraphDriver(DatabaseDriver):
             await self._cleanup_connections()
             if retries < self.connect_retries:
                 await asyncio.sleep(1)
-                log.error(
-                    f"Could not establish connection to Dgraph via {self.protocol}, "
-                    + f"trying again... retry {retries + 1}"
-                )
+                log.error(f"""
+                    Could not establish connection to Dgraph via {self.protocol},
+                    trying again... retry {retries + 1}
+                """)
                 await self.connect(retries + 1)
             else:
                 log.error(f"Could not establish connection to Dgraph, error: {e}")
@@ -324,10 +324,13 @@ class DgraphDriver(DatabaseDriver):
             query: The Dgraph query string to execute
             *args: Variable positional arguments (unused, for protocol compatibility)
             **kwargs: Additional arguments:
-                - transpiler: Optional DgraphTranspiler instance for ID mapping
+                - transpiler: DgraphTranspiler instance for ID mapping (REQUIRED)
 
         Returns:
             Parsed DgraphResponse with bindings converted back to original IDs
+
+        Raises:
+            ValueError: If transpiler is not provided in kwargs
         """
         if self.protocol == DgraphProtocol.GRPC and not self._client:
             raise RuntimeError(
@@ -337,6 +340,14 @@ class DgraphDriver(DatabaseDriver):
             raise RuntimeError(
                 "DgraphDriver (HTTP) not connected. Call connect() first."
             )
+
+        # Extract transpiler and validate it's provided
+        transpiler = kwargs.get("transpiler")
+        if not transpiler:
+            raise ValueError("""
+                transpiler is required in run_query() to properly map normalized IDs back to original IDs. "
+                Pass transpiler=<DgraphTranspiler instance> in kwargs."
+            """)
 
         otel_span = trace.get_current_span()
         if otel_span and otel_span.is_recording():
@@ -350,10 +361,9 @@ class DgraphDriver(DatabaseDriver):
         version = await self.get_active_version()
         prefix = f"{version}_" if version else None
 
-        # Extract ID mappings from transpiler if provided
-        transpiler = kwargs.get("transpiler")
-        node_id_map = transpiler._reverse_node_map if transpiler else None
-        edge_id_map = transpiler._reverse_edge_map if transpiler else None
+        # Extract ID mappings from transpiler
+        node_id_map = transpiler._reverse_node_map
+        edge_id_map = transpiler._reverse_edge_map
 
         try:
             if self.protocol == DgraphProtocol.GRPC:

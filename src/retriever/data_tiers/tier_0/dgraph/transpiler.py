@@ -980,13 +980,12 @@ class DgraphTranspiler(Tier0Transpiler):
         """Recursively build results from dgraph response.
 
         Args:
-            node: Parsed node from Dgraph response (with normalized bindings)
+            node: Parsed node from Dgraph response (with bindings already restored to original IDs)
 
         Returns:
-            List of partial results with original node/edge IDs restored
+            List of partial results with original node/edge IDs
         """
-        # Convert normalized binding back to original node ID
-        original_node_id = self._get_original_node_id(node.binding)
+        original_node_id = QNodeID(node.binding)
 
         if node.id not in self.kgraph["nodes"]:
             self.kgraph["nodes"][CURIE(node.id)] = self._build_trapi_node(node)
@@ -1001,9 +1000,7 @@ class DgraphTranspiler(Tier0Transpiler):
             subject_id = CURIE(edge.node.id if edge.direction == "in" else node.id)
             object_id = CURIE(node.id if edge.direction == "in" else edge.node.id)
 
-            # Convert normalized edge binding back to original edge ID
-            original_edge_id = self._get_original_edge_id(edge.binding)
-            qedge_id = original_edge_id
+            qedge_id = QEdgeID(edge.binding)
 
             trapi_edge = self._build_trapi_edge(edge, node.id)
             edge_hash = EdgeIdentifier(hash_hex(hash_edge(trapi_edge)))
