@@ -1,9 +1,11 @@
 from typing import TypedDict, Literal, NotRequired
 
 
+AttrValType = Literal["text", "num", "date", "keyword"]
+
 class AttrFieldMeta(TypedDict):
     container: Literal["scalar", "array"]
-    value_type: Literal["bool", "text", "num", "date", "keyword"]
+    value_type: AttrValType
     curie: bool
 
 
