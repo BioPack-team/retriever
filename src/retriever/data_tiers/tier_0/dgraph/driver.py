@@ -1,6 +1,5 @@
 import asyncio
 import json
-import msgpack
 from enum import Enum
 from http import HTTPStatus
 from typing import Any, Protocol, TypedDict, cast, override
@@ -8,6 +7,7 @@ from urllib.parse import urljoin
 
 import aiohttp
 import grpc
+import msgpack
 import pydgraph
 from aiohttp import ClientTimeout
 from cachetools import TTLCache
