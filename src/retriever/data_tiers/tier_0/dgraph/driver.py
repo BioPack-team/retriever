@@ -282,6 +282,7 @@ class DgraphDriver(DatabaseDriver):
             if isinstance(mapping_blob, str):
                 # If it's a string, it might be base64-encoded
                 import base64
+
                 try:
                     mapping_bytes = base64.b64decode(mapping_blob)
                 except Exception:
