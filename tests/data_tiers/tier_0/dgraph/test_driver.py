@@ -594,7 +594,7 @@ async def test_simple_one_query_live_grpc() -> None:
 
     # 4. Assertions for the connected node (n1)
     connected_node = in_edge.node
-    assert connected_node.binding == "n0"
+    assert connected_node.binding == "n0_test"
     assert connected_node.id == "GO:0031410"
 
     await driver.close()
@@ -865,18 +865,18 @@ async def test_simple_one_query_grpc_parallel_live_nonblocking() -> None:
 @pytest.mark.usefixtures("mock_dgraph_config")
 async def test_normalization_with_special_edge_id_live_grpc() -> None:
     """
-    Integration test: Verify that edge IDs with special characters (e.g., 'e0_bad')
+    Integration test: Verify that edge IDs with special characters (e.g., 'e0_bad$%^')
     are normalized to safe identifiers ('e0') in the query but restored in results.
     """
 
     qgraph_query: QueryGraphDict = qg({
         "nodes": {
-            "n0": {"categories": ["biolink:NamedThing"], "constraints": []},
+            "n0_test!@#": {"categories": ["biolink:NamedThing"], "constraints": []},
             "n1": {"ids": ["NCBIGene:3778"], "constraints": []}
         },
         "edges": {
-            "e0_bad": {
-                "object": "n0",
+            "e0_bad$%^": {
+                "object": "n0_test!@#",
                 "subject": "n1",
                 "predicates": ["biolink:related_to"],
                 "attribute_constraints": [],
@@ -885,7 +885,7 @@ async def test_normalization_with_special_edge_id_live_grpc() -> None:
         }
     })
 
-    # Expected query should use normalized edge ID 'e0', not 'e0_bad'
+    # Expected query should use normalized edge ID 'e0', not 'e0_bad$%^'
     dgraph_query_match: str = dedent("""
     {
         q0_node_n1(func: eq(vD_id, "NCBIGene:3778")) @cascade(vD_id, ~vD_subject) {
@@ -932,11 +932,11 @@ async def test_normalization_with_special_edge_id_live_grpc() -> None:
     # Use the transpiler to generate the Dgraph query
     dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
 
-    # Verify the query uses normalized edge ID 'e0', not 'e0_bad'
+    # Verify the query uses normalized edge ID 'e0', not 'e0_bad$%^'
     assert_query_equals(dgraph_query, dgraph_query_match)
     assert "out_edges_e0:" in dgraph_query, "Query should use normalized edge ID 'e0'"
     assert "in_edges-symmetric_e0:" in dgraph_query, "Symmetric edge should use normalized ID 'e0'"
-    assert "e0_bad" not in dgraph_query, "Original edge ID 'e0_bad' should not appear in query"
+    assert "e0_bad$%^" not in dgraph_query, "Original edge ID 'e0_bad$%^' should not appear in query"
 
     # Run the query against the live Dgraph instance, passing transpiler for ID mapping
     result: dg_models.DgraphResponse = await driver.run_query(dgraph_query, transpiler=transpiler)
@@ -954,8 +954,8 @@ async def test_normalization_with_special_edge_id_live_grpc() -> None:
     assert len(root_node.edges) > 0, "Expected at least one edge"
 
     # CRITICAL: Verify that edges have the ORIGINAL binding 'e0_bad', not 'e0'
-    e0_bad_edges = [e for e in root_node.edges if e.binding == "e0_bad"]
-    assert len(e0_bad_edges) > 0, "Edges should have original binding 'e0_bad' restored from normalization"
+    e0_bad_edges = [e for e in root_node.edges if e.binding == "e0_bad$%^"]
+    assert len(e0_bad_edges) > 0, "Edges should have original binding 'e0_bad$%^' restored from normalization"
 
     # Verify no edges have the normalized binding 'e0'
     e0_edges = [e for e in root_node.edges if e.binding == "e0"]
@@ -965,11 +965,11 @@ async def test_normalization_with_special_edge_id_live_grpc() -> None:
     out_edges = [e for e in e0_bad_edges if e.direction == "out"]
     in_edges = [e for e in e0_bad_edges if e.direction == "in"]
 
-    assert out_edges, "Expected at least one outgoing edge with binding 'e0_bad'"
-    assert in_edges, "Expected at least one incoming edge with binding 'e0_bad' (symmetric)"
+    assert out_edges, "Expected at least one outgoing edge with binding 'e0_bad$%^'"
+    assert in_edges, "Expected at least one incoming edge with binding 'e0_bad$%^' (symmetric)"
 
     # Verify connected nodes have correct binding
-    assert all(e.node.binding == "n0" for e in e0_bad_edges)
+    assert all(e.node.binding == "n0_test!@#" for e in e0_bad_edges)
     assert all(isinstance(e.node.id, str) and e.node.id for e in e0_bad_edges)
 
     # Verify predicates match the query

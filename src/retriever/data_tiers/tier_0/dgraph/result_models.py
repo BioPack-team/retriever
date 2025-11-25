@@ -121,6 +121,7 @@ class Edge:
         direction: str,
         prefix: str | None = None,
         edge_id_map: Mapping[str, str] | None = None,
+        node_id_map: Mapping[str, str] | None = None,
     ) -> Self:
         """Parse an edge mapping into an Edge dataclass (handles versioned keys).
 
@@ -130,6 +131,7 @@ class Edge:
             direction: Edge direction ('in' or 'out')
             prefix: Schema version prefix (e.g., 'vC_'), or None for no prefix
             edge_id_map: Optional mapping from normalized edge IDs to original IDs
+            node_id_map: Optional mapping from normalized node IDs to original IDs
 
         Returns:
             Parsed Edge instance with connected node
@@ -144,9 +146,12 @@ class Edge:
             (k.split("_", 1)[1] for k in norm if k.startswith("node_")), ""
         )
 
-        # Note: We don't convert node binding here because node_id_map isn't passed down
-        # The node binding conversion happens at the top level in DgraphResponse.parse()
-        node_binding = normalized_node_binding
+        # Convert node binding back to original ID
+        node_binding = (
+            node_id_map.get(normalized_node_binding, normalized_node_binding)
+            if node_id_map
+            else normalized_node_binding
+        )
 
         # --- Parse sources ---
         sources_val = norm.get("sources")
@@ -168,6 +173,7 @@ class Edge:
                 binding=node_binding,
                 prefix=prefix,
                 edge_id_map=edge_id_map,
+                node_id_map=node_id_map,
             ),
             agent_type=str(norm["agent_type"]) if "agent_type" in norm else None,
             knowledge_level=str(norm["knowledge_level"])
@@ -260,6 +266,7 @@ class Node:
         binding: str = "",
         prefix: str | None = None,
         edge_id_map: Mapping[str, str] | None = None,
+        node_id_map: Mapping[str, str] | None = None,
     ) -> Self:
         """Parse a node mapping into a Node dataclass (handles versioned keys).
 
@@ -268,6 +275,7 @@ class Node:
             binding: Node binding (normalized ID like 'n0')
             prefix: Schema version prefix (e.g., 'vC_'), or None for no prefix
             edge_id_map: Optional mapping from normalized edge IDs to original IDs
+            node_id_map: Optional mapping from normalized node IDs to original IDs
 
         Returns:
             Parsed Node instance with edges having original bindings
@@ -308,6 +316,7 @@ class Node:
                             direction="in",
                             prefix=prefix,
                             edge_id_map=edge_id_map,
+                            node_id_map=node_id_map,
                         )
                         for e in filter(_is_mapping, cast(list[Any], value))
                     )
@@ -339,6 +348,7 @@ class Node:
                             direction="out",
                             prefix=prefix,
                             edge_id_map=edge_id_map,
+                            node_id_map=node_id_map,
                         )
                         for e in filter(_is_mapping, cast(list[Any], value))
                     )
@@ -427,6 +437,7 @@ class DgraphResponse:
                             binding=node_binding,
                             prefix=prefix,
                             edge_id_map=edge_id_map,
+                            node_id_map=node_id_map,
                         )
                     )
 
