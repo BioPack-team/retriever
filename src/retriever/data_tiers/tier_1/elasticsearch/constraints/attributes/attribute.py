@@ -7,7 +7,7 @@
 #   - https://github.com/NCATSTranslator/ReasonerAPI/blob/master/docs/reference.md#qnode-
 #   - field name: constraints
 from datetime import datetime
-from functools import partial
+# from functools import partial
 
 from retriever.data_tiers.tier_1.elasticsearch.attribute_types import AttrFieldMeta, AttrValType
 from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.meta_info import ATTR_META
@@ -35,10 +35,10 @@ def validate_constraint(constraint: AttributeConstraintDict):
     ]
 
     for field in required_fields:
-        if constraint.get(field, None) is None:
+        if field not in constraint:
             raise AttributeError(f"Attribute constraint must have the field {field}")
 
-def valid_operator(operator: any):
+def valid_operator(operator):
     ALLOWED_OPS = {
         "match",
         "==="
@@ -52,7 +52,7 @@ def valid_operator(operator: any):
     if not isinstance(operator, str) or operator not in ALLOWED_OPS:
         raise AttributeError(f"Operator must be one of {ALLOWED_OPS}")
 
-def validate_date(candidate: any) -> str | int | None:
+def validate_date(candidate) -> str | int | None:
     """Validate date payload
         only supports:
             - str: must be in or can be formatted into YYYY-MM-DD, or
@@ -60,7 +60,7 @@ def validate_date(candidate: any) -> str | int | None:
     """
     if isinstance(candidate, str):
         try:
-            parsed = datetime.datetime.strptime(candidate, "%Y-%m-%d")
+            parsed = datetime.strptime(candidate, "%Y-%m-%d")
             return parsed.strftime("%Y-%m-%d")
         except ValueError:
             # only allow YYYY-MM-DD
@@ -70,7 +70,7 @@ def validate_date(candidate: any) -> str | int | None:
 
     return None
 
-def ensure_type_consistency(field_type: AttrValType, raw_value: any):
+def ensure_type_consistency(field_type: AttrValType, raw_value):
     if field_type == "date":
         return validate_date(raw_value)
 
@@ -158,10 +158,6 @@ def process_single_constraint(constraint: AttributeConstraintDict):
     # we will handle more complex filtering at a later time
     else:
         return None
-
-
-
-
 
 
 

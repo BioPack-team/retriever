@@ -7,7 +7,7 @@ def validate_regex(regex: str) -> str:
 
 def handle_match(
         field_meta_info: AttrFieldMeta,
-        raw_value: any,
+        raw_value,
         target_field_name: str
 ) -> ESRegexQuery:
     """Generate ES query term for match-regex constraint."""

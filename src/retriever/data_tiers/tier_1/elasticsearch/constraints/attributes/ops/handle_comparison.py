@@ -1,5 +1,11 @@
-def get_operator(raw_operator: str):
-    op_mapping = {
+from typing import cast
+
+from retriever.data_tiers.tier_1.elasticsearch.attribute_types import ComparisonOperator, ESValueComparisonQuery, \
+     ESTermComparisonClause
+
+
+def get_operator(raw_operator: str) -> ComparisonOperator | str:
+    op_mapping: dict[str, ComparisonOperator] = {
         ">": "gt",
         "<": "lt",
         ">=": "gte",
@@ -13,26 +19,26 @@ def get_operator(raw_operator: str):
     return raw_operator
 
 def handle_simple_comparison(
-        value: any,
+        value: int | float | str,
         raw_operator: str,
         target_field_name: str
-):
+) -> ESValueComparisonQuery | ESTermComparisonClause:
     if raw_operator in ["==", "==="]:
-        return {
-            "term": {
+        return ESTermComparisonClause(
+            term={
                 target_field_name: value
             }
-        }
+        )
 
-    operator = get_operator(raw_operator)
+    operator = cast(ComparisonOperator, get_operator(raw_operator))
 
-    return {
-        "range": {
+    return ESValueComparisonQuery(
+        range={
             target_field_name: {
-                operator: value,
+                operator: value
             }
         }
-    }
+    )
 
 
 def handle_negation(raw_operator: str, should_negate: bool):
@@ -48,4 +54,4 @@ def handle_negation(raw_operator: str, should_negate: bool):
         raw_operator = negated_operator
         should_negate = False
 
-        return raw_operator, should_negate
+    return raw_operator, should_negate
