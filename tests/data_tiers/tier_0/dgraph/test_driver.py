@@ -214,6 +214,74 @@ async def test_get_active_version_success_http_live():
     await driver.close()
 
 
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_get_schema_metadata_mapping_success_grpc_live():
+    """Test get_schema_metadata_mapping when a version is found and that it's cached."""
+    driver = new_grpc_driver()
+    await driver.connect()
+
+    # Should return the mapping from the live Dgraph instance
+    mapping = await driver.get_schema_metadata_mapping()
+    assert mapping is not None, "Mapping should not be None"
+
+    # Verify top-level schema metadata structure
+    assert "@id" in mapping, "Mapping should contain @id field"
+    assert "@type" in mapping, "Mapping should contain @type field"
+    assert mapping["@type"] == "sc:Dataset", "Type should be sc:Dataset"
+
+    assert "name" in mapping, "Mapping should contain name field"
+    assert mapping["name"] == "translator_kg", "Name should be translator_kg"
+
+    assert "description" in mapping, "Mapping should contain description field"
+    assert "Translator" in mapping["description"], "Description should mention Translator"
+
+    assert "license" in mapping, "Mapping should contain license field"
+
+    assert "url" in mapping, "Mapping should contain url field"
+    assert "version" in mapping, "Mapping should contain version field"
+    assert "dateCreated" in mapping, "Mapping should contain dateCreated field"
+
+    assert "biolinkVersion" in mapping, "Mapping should contain biolinkVersion"
+
+    await driver.close()
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_get_schema_metadata_mapping_success_http_live():
+    """Test get_schema_metadata_mapping when a version is found and that it's cached."""
+    driver = new_http_driver()
+    await driver.connect()
+
+    # Should return the mapping from the live Dgraph instance
+    mapping = await driver.get_schema_metadata_mapping()
+    assert mapping is not None, "Mapping should not be None"
+
+    # Verify top-level schema metadata structure
+    assert "@id" in mapping, "Mapping should contain @id field"
+    assert "@type" in mapping, "Mapping should contain @type field"
+    assert mapping["@type"] == "sc:Dataset", "Type should be sc:Dataset"
+
+    assert "name" in mapping, "Mapping should contain name field"
+    assert mapping["name"] == "translator_kg", "Name should be translator_kg"
+
+    assert "description" in mapping, "Mapping should contain description field"
+    assert "Translator" in mapping["description"], "Description should mention Translator"
+
+    assert "license" in mapping, "Mapping should contain license field"
+
+    assert "url" in mapping, "Mapping should contain url field"
+    assert "version" in mapping, "Mapping should contain version field"
+    assert "dateCreated" in mapping, "Mapping should contain dateCreated field"
+
+    assert "biolinkVersion" in mapping, "Mapping should contain biolinkVersion"
+
+    await driver.close()
+
+
 @pytest.mark.asyncio
 @patch("pydgraph.DgraphClient")
 async def test_get_active_version_prefers_manual_version(

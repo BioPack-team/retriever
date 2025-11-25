@@ -1,5 +1,6 @@
 import asyncio
 import json
+import msgpack
 from enum import Enum
 from http import HTTPStatus
 from typing import Any, Protocol, TypedDict, cast, override
@@ -227,6 +228,77 @@ class DgraphDriver(DatabaseDriver):
             return None
         finally:
             # Only discard the transaction if it was successfully created
+            if self.protocol == DgraphProtocol.GRPC and txn:
+                await asyncio.to_thread(txn.discard)
+
+    async def get_schema_metadata_mapping(self) -> dict[str, Any] | None:
+        """Queries Dgraph for the active schema's metadata mapping.
+
+        The mapping is stored as a msgpack-serialized JSON blob in the
+        schema_metadata_mapping field. This method retrieves and deserializes it.
+
+        Returns:
+            Deserialized mapping dictionary, or None if not found or on error.
+        """
+        query = """
+            query schema_mapping() {
+            metadata(func: type(SchemaMetadata)) @filter(eq(schema_metadata_is_active, true)) {
+                schema_metadata_mapping
+            }
+            }
+        """
+        txn: DgraphTxnProtocol | None = None
+        try:
+            metadata_list = []
+            if self.protocol == DgraphProtocol.GRPC:
+                assert self._client is not None, "gRPC client not initialized"
+                txn = self._client.txn(read_only=True)
+                response = await asyncio.to_thread(txn.query, query)
+                raw_data = json.loads(response.json)
+                metadata_list = raw_data.get("metadata", [])
+            else:  # HTTP
+                assert self._http_session is not None, "HTTP session not initialized"
+                async with self._http_session.post(
+                    urljoin(self.endpoint, "/query"),
+                    json={"query": query},
+                    timeout=ClientTimeout(total=self.query_timeout),
+                ) as response:
+                    raw_data = await response.json()
+                    metadata_list = raw_data.get("data", {}).get("metadata", [])
+
+            if not metadata_list:
+                log.warning("No active schema metadata found in Dgraph")
+                return None
+
+            # Get the msgpack-encoded mapping
+            mapping_blob = metadata_list[0].get("schema_metadata_mapping")
+            if not mapping_blob:
+                log.warning("schema_metadata_mapping field is empty or missing")
+                return None
+
+            # Dgraph may return the blob as a base64-encoded string or raw bytes
+            # depending on how it was stored. Try to handle both cases.
+            mapping_bytes: bytes
+            if isinstance(mapping_blob, str):
+                # If it's a string, it might be base64-encoded
+                import base64
+                try:
+                    mapping_bytes = base64.b64decode(mapping_blob)
+                except Exception:
+                    # If base64 decode fails, assume it's UTF-8 encoded msgpack
+                    mapping_bytes = mapping_blob.encode("utf-8")
+            else:
+                mapping_bytes = mapping_blob
+
+            # Deserialize msgpack - explicitly type the result
+            mapping = cast(dict[str, Any], msgpack.unpackb(mapping_bytes, raw=False))
+            log.info("Successfully retrieved and deserialized schema metadata mapping")
+            return mapping
+
+        except Exception as e:
+            log.error(f"Failed to retrieve schema metadata mapping: {e}")
+            return None
+        finally:
             if self.protocol == DgraphProtocol.GRPC and txn:
                 await asyncio.to_thread(txn.discard)
 
