@@ -1,7 +1,7 @@
 from typing import Any, NotRequired, TypedDict
 
-from anyio import typed_attribute
 
+from retriever.data_tiers.tier_1.elasticsearch.attribute_types import AttributeFilterQuery
 from retriever.data_tiers.tier_1.elasticsearch.qualifier_types import ESQueryForSingleQualifierConstraint, ESTermClause
 from retriever.types.trapi import CURIE, Infores
 
@@ -18,6 +18,8 @@ class ESBooleanQuery(TypedDict):
     filter: list[ESFilterClause | ESTermClause]
     should: NotRequired[list[ESQueryForSingleQualifierConstraint | ESTermClause]]
     minimum_should_match: NotRequired[int]
+    must: NotRequired[list[AttributeFilterQuery]]
+    must_not: NotRequired[list[AttributeFilterQuery]]
 
 
 class ESQueryContext(TypedDict):

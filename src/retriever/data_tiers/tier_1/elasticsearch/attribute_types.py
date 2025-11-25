@@ -29,3 +29,9 @@ class RegexTerm(TypedDict):
 
 class ESRegexQuery(TypedDict):
     regexp: dict[str, RegexTerm]
+
+AttributeFilterQuery = ESRegexQuery | ESTermComparisonClause | ESValueComparisonQuery
+
+class SingleAttributeFilterQueryPayload(TypedDict):
+    query: AttributeFilterQuery
+    negate: bool

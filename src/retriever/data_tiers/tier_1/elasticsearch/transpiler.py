@@ -1,6 +1,7 @@
 from typing import Literal, override
 
 from retriever.data_tiers.base_transpiler import Tier1Transpiler
+from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.attribute import process_attribute_constraints
 from retriever.data_tiers.tier_1.elasticsearch.constraints.qualifier import process_qualifier_constraints
 from retriever.data_tiers.tier_1.elasticsearch.types import (
     ESBooleanQuery,
@@ -147,6 +148,14 @@ class ElasticsearchTranspiler(Tier1Transpiler):
             elif "term" in qualifier_terms:
                 query_kwargs["filter"].append(qualifier_terms)
 
+        attribute_constraints = edge.get("attribute_constraints", None)
+
+        if attribute_constraints:
+            must, must_not = process_attribute_constraints(attribute_constraints)
+            if must:
+                query_kwargs["must"] = must
+            if must_not:
+                query_kwargs["must_not"] = must_not
 
 
         return ESPayload(
