@@ -114,7 +114,7 @@ class Edge:
         return qualifiers
 
     @classmethod
-    def from_dict(
+    def from_dict(  # noqa: PLR0913
         cls,
         edge_dict: Mapping[str, Any],
         binding: str,
