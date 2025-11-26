@@ -244,7 +244,9 @@ class DgraphDriver(DatabaseDriver):
         # Get the active version (respects manual version, env var, or DB query)
         version = await self.get_active_version()
         if not version:
-            log.warning("Cannot retrieve schema metadata mapping: no active version found")
+            log.warning(
+                "Cannot retrieve schema metadata mapping: no active version found"
+            )
             return None
 
         query = f"""
@@ -281,7 +283,9 @@ class DgraphDriver(DatabaseDriver):
             # Get the msgpack-encoded mapping
             mapping_blob = metadata_list[0].get("schema_metadata_mapping")
             if not mapping_blob:
-                log.warning(f"schema_metadata_mapping field is empty for version '{version}'")
+                log.warning(
+                    f"schema_metadata_mapping field is empty for version '{version}'"
+                )
                 return None
 
             # Dgraph may return the blob as a base64-encoded string or raw bytes
@@ -301,11 +305,15 @@ class DgraphDriver(DatabaseDriver):
 
             # Deserialize msgpack - explicitly type the result
             mapping = cast(dict[str, Any], msgpack.unpackb(mapping_bytes, raw=False))
-            log.info(f"Successfully retrieved schema metadata mapping for version '{version}'")
+            log.info(
+                f"Successfully retrieved schema metadata mapping for version '{version}'"
+            )
             return mapping
 
         except Exception as e:
-            log.error(f"Failed to retrieve schema metadata mapping for version '{version}': {e}")
+            log.error(
+                f"Failed to retrieve schema metadata mapping for version '{version}': {e}"
+            )
             return None
         finally:
             if self.protocol == DgraphProtocol.GRPC and txn:
