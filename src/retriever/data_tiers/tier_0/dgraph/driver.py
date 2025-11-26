@@ -235,17 +235,25 @@ class DgraphDriver(DatabaseDriver):
         """Queries Dgraph for the active schema's metadata mapping.
 
         The mapping is stored as a msgpack-serialized JSON blob in the
-        schema_metadata_mapping field. This method retrieves and deserializes it.
+        schema_metadata_mapping field. This method retrieves and deserializes it
+        for the active schema version.
 
         Returns:
             Deserialized mapping dictionary, or None if not found or on error.
         """
-        query = """
-            query schema_mapping() {
-            metadata(func: type(SchemaMetadata)) @filter(eq(schema_metadata_is_active, true)) {
+        # Get the active version (respects manual version, env var, or DB query)
+        version = await self.get_active_version()
+        if not version:
+            log.warning("Cannot retrieve schema metadata mapping: no active version found")
+            return None
+
+        query = f"""
+            query schema_mapping() {{
+            metadata(func: type(SchemaMetadata))
+                @filter(eq(schema_metadata_version, "{version}")) {{
                 schema_metadata_mapping
-            }
-            }
+            }}
+            }}
         """
         txn: DgraphTxnProtocol | None = None
         try:
@@ -267,13 +275,13 @@ class DgraphDriver(DatabaseDriver):
                     metadata_list = raw_data.get("data", {}).get("metadata", [])
 
             if not metadata_list:
-                log.warning("No active schema metadata found in Dgraph")
+                log.warning(f"No schema metadata found for version '{version}'")
                 return None
 
             # Get the msgpack-encoded mapping
             mapping_blob = metadata_list[0].get("schema_metadata_mapping")
             if not mapping_blob:
-                log.warning("schema_metadata_mapping field is empty or missing")
+                log.warning(f"schema_metadata_mapping field is empty for version '{version}'")
                 return None
 
             # Dgraph may return the blob as a base64-encoded string or raw bytes
@@ -293,11 +301,11 @@ class DgraphDriver(DatabaseDriver):
 
             # Deserialize msgpack - explicitly type the result
             mapping = cast(dict[str, Any], msgpack.unpackb(mapping_bytes, raw=False))
-            log.info("Successfully retrieved and deserialized schema metadata mapping")
+            log.info(f"Successfully retrieved schema metadata mapping for version '{version}'")
             return mapping
 
         except Exception as e:
-            log.error(f"Failed to retrieve schema metadata mapping: {e}")
+            log.error(f"Failed to retrieve schema metadata mapping for version '{version}': {e}")
             return None
         finally:
             if self.protocol == DgraphProtocol.GRPC and txn:
