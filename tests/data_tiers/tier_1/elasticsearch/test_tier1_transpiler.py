@@ -125,6 +125,15 @@ def check_single_query_payload(
             # all qualifiers should have been represented in the query
             assert len(check_set) == 0
 
+    # hacky attribute checking for now
+    if "attribute_constraints" in q_edge and q_edge["attribute_constraints"]:
+        assert "must" in query_content
+        must = query_content["must"]
+        assert must == [
+            {"range": {"has_total": {"gt": 2}}},
+            {"range": {"has_total": {"lte": 4}}}
+        ]
+
     # generate check targets
     required_fields_to_check = dict()
     # Generated field targets

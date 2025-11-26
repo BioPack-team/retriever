@@ -2,6 +2,7 @@ import copy
 from typing import cast, Any
 
 from retriever.types.trapi import QueryGraphDict, QEdgeID, QualifierConstraintDict
+from tests.data_tiers.tier_1.elasticsearch.payload.trapi_attributes import ATTRIBUTE_CONSTRAINTS
 from tests.data_tiers.tier_1.elasticsearch.payload.trapi_qualifiers import multiple_qualifier_constraints, \
     single_qualifier_constraint, single_qualifier_constraint_with_single_qualifier_entry
 
@@ -51,6 +52,11 @@ def generate_qgraph_with_qualifier_constraints(qualifier_constraints: list[Quali
 
     return _q_graph
 
+Q_GRAPH_WITH_ATTRIBUTE_CONSTRAINTS = copy.deepcopy(BASE_QGRAPH)
+Q_GRAPH_WITH_ATTRIBUTE_CONSTRAINTS["edges"][E0]["attribute_constraints"] = ATTRIBUTE_CONSTRAINTS
+
+
+
 
 qualifier_constraints_variants = [
     multiple_qualifier_constraints,
@@ -62,3 +68,6 @@ Q_GRAPHS_WITH_QUALIFIER_CONSTRAINTS: list[QueryGraphDict] = [
     generate_qgraph_with_qualifier_constraints(variant)
     for variant in qualifier_constraints_variants
 ]
+
+COMPREHENSIVE_QGRAPH = copy.deepcopy(Q_GRAPHS_WITH_QUALIFIER_CONSTRAINTS[0])
+COMPREHENSIVE_QGRAPH["edges"][E0]["attribute_constraints"] = ATTRIBUTE_CONSTRAINTS
