@@ -37,7 +37,7 @@ from retriever.utils.trapi import hash_edge, hash_hex
 
 
 NODE_FIELDS_MAPPING = {
-    "ids": "id.keyword",
+    "ids": "id",
     "categories": "category",
 }
 
