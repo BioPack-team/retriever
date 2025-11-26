@@ -282,6 +282,124 @@ async def test_get_schema_metadata_mapping_success_http_live():
     await driver.close()
 
 
+@pytest.mark.parametrize(
+    "protocol, mock_path",
+    [
+        (driver_mod.DgraphProtocol.GRPC, "pydgraph.DgraphClient"),
+        (driver_mod.DgraphProtocol.HTTP, "aiohttp.ClientSession"),
+    ],
+)
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_get_schema_metadata_mapping_caching(
+    protocol: driver_mod.DgraphProtocol, mock_path: str
+):
+    """
+    Tests that get_schema_metadata_mapping properly caches results per-version.
+    """
+    import base64
+    import msgpack
+
+    # Create a sample mapping
+    mapping_data = {
+        "@id": "https://example.org/test_kg",
+        "name": "test_kg",
+        "version": "vTest",
+        "biolinkVersion": "4.3.4",
+    }
+
+    packed = msgpack.packb(mapping_data)
+    encoded = base64.b64encode(packed).decode("utf-8")
+
+    with patch(mock_path) as mock_class:
+        if protocol == driver_mod.DgraphProtocol.GRPC:
+            mock_response = MagicMock()
+            mock_response.json = json.dumps(
+                {"metadata": [{"schema_metadata_mapping": encoded}]}
+            ).encode("utf-8")
+            mock_txn = MagicMock()
+            mock_txn.query.return_value = mock_response
+            mock_class.return_value.txn.return_value = mock_txn
+        else:  # HTTP
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.json = AsyncMock(
+                return_value={
+                    "data": {"metadata": [{"schema_metadata_mapping": encoded}]}
+                }
+            )
+            mock_post = MagicMock()
+            mock_post.__aenter__.return_value = mock_response
+            mock_post.__aexit__ = AsyncMock(return_value=None)
+            mock_session = mock_class.return_value
+            mock_session.post.return_value = mock_post
+            mock_session.close = AsyncMock()
+
+        driver = (
+            new_grpc_driver()
+            if protocol == driver_mod.DgraphProtocol.GRPC
+            else new_http_driver()
+        )
+
+        # Clear cache
+        driver.clear_mapping_cache()
+        driver.clear_version_cache()
+
+        # Mock version to return "vTest"
+        with patch.object(driver, "get_active_version", new=AsyncMock(return_value="vTest")):
+            await driver.connect()
+
+            # First call - should query DB
+            mapping1 = await driver.get_schema_metadata_mapping()
+            assert mapping1 is not None
+            assert mapping1["name"] == "test_kg"
+            assert mapping1["version"] == "vTest"
+
+            # Get call count after first query
+            if protocol == driver_mod.DgraphProtocol.GRPC:
+                call_count_1 = mock_class.return_value.txn.return_value.query.call_count
+            else:
+                call_count_1 = mock_class.return_value.post.call_count
+
+            # Second call - should use cache (same version)
+            mapping2 = await driver.get_schema_metadata_mapping()
+            assert mapping2 is not None
+            assert mapping2["name"] == "test_kg"
+
+            # Verify same object (cached)
+            assert mapping1 is mapping2
+
+            # Get call count after second query
+            if protocol == driver_mod.DgraphProtocol.GRPC:
+                call_count_2 = mock_class.return_value.txn.return_value.query.call_count
+            else:
+                call_count_2 = mock_class.return_value.post.call_count
+
+            # Should be same count (cache hit, no new query)
+            assert call_count_2 == call_count_1
+
+            # Clear cache and fetch again
+            driver.clear_mapping_cache()
+
+            mapping3 = await driver.get_schema_metadata_mapping()
+            assert mapping3 is not None
+            assert mapping3["name"] == "test_kg"
+
+            # Should be different object (new fetch)
+            assert mapping3 is not mapping1
+
+            # Get call count after third query
+            if protocol == driver_mod.DgraphProtocol.GRPC:
+                call_count_3 = mock_class.return_value.txn.return_value.query.call_count
+            else:
+                call_count_3 = mock_class.return_value.post.call_count
+
+            # Should be one more call (cache was cleared)
+            assert call_count_3 == call_count_1 + 1
+
+        await driver.close()
+
+
 @pytest.mark.asyncio
 @patch("pydgraph.DgraphClient")
 async def test_get_active_version_prefers_manual_version(

@@ -118,6 +118,8 @@ class DgraphDriver(DatabaseDriver):
     _http_session: aiohttp.ClientSession | None = None
     _failed: bool = False
     _version_cache: TTLCache[str, str | None] = TTLCache(maxsize=1, ttl=60)
+    _mapping_cache: TTLCache[str, dict[str, Any] | None] = TTLCache(maxsize=1, ttl=300)
+
 
     def __init__(
         self,
@@ -160,6 +162,11 @@ class DgraphDriver(DatabaseDriver):
         """Clears the internal schema version cache. Primarily for testing."""
         log.debug("Clearing Dgraph schema version cache.")
         self._version_cache.clear()
+
+    def clear_mapping_cache(self) -> None:
+        """Clears the internal schema mapping cache. Primarily for testing."""
+        log.debug("Clearing Dgraph schema mapping cache.")
+        self._mapping_cache.clear()
 
     async def get_active_version(self) -> str | None:
         """Queries Dgraph for the active schema version and caches the result.
@@ -231,30 +238,21 @@ class DgraphDriver(DatabaseDriver):
             if self.protocol == DgraphProtocol.GRPC and txn:
                 await asyncio.to_thread(txn.discard)
 
-    async def get_schema_metadata_mapping(self) -> dict[str, Any] | None:
-        """Queries Dgraph for the active schema's metadata mapping.
+    async def _fetch_mapping_from_db(self, version: str) -> dict[str, Any] | None:
+        """Helper to fetch and deserialize mapping from Dgraph.
 
-        The mapping is stored as a msgpack-serialized JSON blob in the
-        schema_metadata_mapping field. This method retrieves and deserializes it
-        for the active schema version.
+        Args:
+            version: The schema version to fetch mapping for
 
         Returns:
             Deserialized mapping dictionary, or None if not found or on error.
         """
-        # Get the active version (respects manual version, env var, or DB query)
-        version = await self.get_active_version()
-        if not version:
-            log.warning(
-                "Cannot retrieve schema metadata mapping: no active version found"
-            )
-            return None
-
         query = f"""
             query schema_mapping() {{
-            metadata(func: type(SchemaMetadata))
-                @filter(eq(schema_metadata_version, "{version}")) {{
-                schema_metadata_mapping
-            }}
+                metadata(func: type(SchemaMetadata))
+                    @filter(eq(schema_metadata_version, "{version}")) {{
+                    schema_metadata_mapping
+                }}
             }}
         """
         txn: DgraphTxnProtocol | None = None
@@ -318,6 +316,42 @@ class DgraphDriver(DatabaseDriver):
         finally:
             if self.protocol == DgraphProtocol.GRPC and txn:
                 await asyncio.to_thread(txn.discard)
+
+    async def get_schema_metadata_mapping(self) -> dict[str, Any] | None:
+        """Queries Dgraph for the active schema's metadata mapping.
+
+        The mapping is stored as a msgpack-serialized JSON blob in the
+        schema_metadata_mapping field. This method retrieves and deserializes it
+        for the active schema version.
+
+        The result is cached per-version with a 5-minute TTL.
+
+        Returns:
+            Deserialized mapping dictionary, or None if not found or on error.
+        """
+        # Get the active version (respects manual version, env var, or DB query)
+        version = await self.get_active_version()
+        if not version:
+            log.warning(
+                "Cannot retrieve schema metadata mapping: no active version found"
+            )
+            return None
+
+        # Check cache first (keyed by version)
+        cache_key = f"mapping_{version}"
+        try:
+            cached_mapping = self._mapping_cache[cache_key]
+            log.debug(f"Returning cached schema metadata mapping for version '{version}'")
+            return cached_mapping
+        except KeyError:
+            log.debug(f"Fetching schema metadata mapping for version '{version}' (cache miss)...")
+
+        # Fetch from database
+        mapping = await self._fetch_mapping_from_db(version)
+
+        # Cache the result (whether successful or None)
+        self._mapping_cache[cache_key] = mapping
+        return mapping
 
     @override
     async def connect(self, retries: int = 0) -> None:
