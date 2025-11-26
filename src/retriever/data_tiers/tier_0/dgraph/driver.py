@@ -237,7 +237,7 @@ class DgraphDriver(DatabaseDriver):
             if self.protocol == DgraphProtocol.GRPC and txn:
                 await asyncio.to_thread(txn.discard)
 
-    async def _fetch_mapping_from_db(self, version: str) -> dict[str, Any] | None:
+    async def fetch_mapping_from_db(self, version: str) -> dict[str, Any] | None:
         """Helper to fetch and deserialize mapping from Dgraph.
 
         Args:
@@ -350,7 +350,7 @@ class DgraphDriver(DatabaseDriver):
             )
 
         # Fetch from database
-        mapping = await self._fetch_mapping_from_db(version)
+        mapping = await self.fetch_mapping_from_db(version)
 
         # Cache the result (whether successful or None)
         self._mapping_cache[cache_key] = mapping

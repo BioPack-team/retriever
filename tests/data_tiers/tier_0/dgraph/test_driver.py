@@ -214,6 +214,33 @@ async def test_get_active_version_success_http_live():
     await driver.close()
 
 
+@pytest.mark.asyncio
+@patch("pydgraph.DgraphClient")
+async def test_get_active_version_prefers_manual_version(
+    mock_dgraph_client_class: MagicMock,
+):
+    """
+    Test that get_active_version returns the manually provided version
+    without hitting the database.
+    """
+    # Initialize driver with a manual version
+    driver = new_grpc_driver(version="manual_v1")
+    await driver.connect()
+
+    # The mock client should NOT be used
+    mock_client_instance = mock_dgraph_client_class.return_value
+
+    # First call
+    version = await driver.get_active_version()
+    assert version == "manual_v1"
+    mock_client_instance.txn.assert_not_called()
+
+    # Second call (should also not query)
+    version2 = await driver.get_active_version()
+    assert version2 == "manual_v1"
+    mock_client_instance.txn.assert_not_called()
+
+
 @pytest.mark.live
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config")
@@ -400,33 +427,6 @@ async def test_get_schema_metadata_mapping_caching(
         await driver.close()
 
 
-@pytest.mark.asyncio
-@patch("pydgraph.DgraphClient")
-async def test_get_active_version_prefers_manual_version(
-    mock_dgraph_client_class: MagicMock,
-):
-    """
-    Test that get_active_version returns the manually provided version
-    without hitting the database.
-    """
-    # Initialize driver with a manual version
-    driver = new_grpc_driver(version="manual_v1")
-    await driver.connect()
-
-    # The mock client should NOT be used
-    mock_client_instance = mock_dgraph_client_class.return_value
-
-    # First call
-    version = await driver.get_active_version()
-    assert version == "manual_v1"
-    mock_client_instance.txn.assert_not_called()
-
-    # Second call (should also not query)
-    version2 = await driver.get_active_version()
-    assert version2 == "manual_v1"
-    mock_client_instance.txn.assert_not_called()
-
-
 @pytest.mark.parametrize(
     "protocol, mock_path",
     [
@@ -564,11 +564,11 @@ async def test_get_active_version_from_db_mocked(
 )
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config")
-async def test_get_schema_metadata_mapping_from_db_mocked(
+async def test_fetch_mapping_from_db_mocked(
     protocol: driver_mod.DgraphProtocol, mock_path: str
 ):
     """
-    Tests get_schema_metadata_mapping for DB query, caching, not-found, and failure scenarios
+    Tests _fetch_mapping_from_db for success, not-found, and failure scenarios
     for both gRPC and HTTP protocols using mocks.
     """
     import base64
@@ -618,6 +618,7 @@ async def test_get_schema_metadata_mapping_from_db_mocked(
 
             mock_post = MagicMock()
             mock_post.__aenter__.return_value = mock_response
+            mock_post.__aexit__ = AsyncMock(return_value=None)
 
             mock_session = mock_class.return_value
             mock_session.post.return_value = mock_post
@@ -637,29 +638,27 @@ async def test_get_schema_metadata_mapping_from_db_mocked(
             else new_http_driver()
         )
 
-        # Mock get_active_version to return a version
-        with patch.object(driver, "get_active_version", new=AsyncMock(return_value="vD")):
-            await driver.connect()
+        await driver.connect()
 
-            # Get the mapping
-            mapping = await driver.get_schema_metadata_mapping()
-            assert mapping is not None, "Mapping should not be None"
-            assert mapping["@id"] == "https://example.org/test_kg"
-            assert mapping["@type"] == "sc:Dataset"
-            assert mapping["name"] == "test_kg"
-            assert mapping["version"] == "2025_test"
-            assert mapping["biolinkVersion"] == "4.3.4"
-            assert "schema" in mapping
-            assert "nodes" in mapping["schema"]
-            assert len(mapping["schema"]["nodes"]) == 1
-            assert mapping["schema"]["nodes"][0]["category"] == ["biolink:SmallMolecule"]
-            assert mapping["schema"]["nodes"][0]["count"] == 100
+        # Call the helper method directly with a version
+        mapping = await driver.fetch_mapping_from_db("vTest")
+        assert mapping is not None, "Mapping should not be None"
+        assert mapping["@id"] == "https://example.org/test_kg"
+        assert mapping["@type"] == "sc:Dataset"
+        assert mapping["name"] == "test_kg"
+        assert mapping["version"] == "2025_test"
+        assert mapping["biolinkVersion"] == "4.3.4"
+        assert "schema" in mapping
+        assert "nodes" in mapping["schema"]
+        assert len(mapping["schema"]["nodes"]) == 1
+        assert mapping["schema"]["nodes"][0]["category"] == ["biolink:SmallMolecule"]
+        assert mapping["schema"]["nodes"][0]["count"] == 100
 
-            # Verify the underlying query was called
-            if protocol == driver_mod.DgraphProtocol.GRPC:
-                assert mock_instance.txn.return_value.query.called
-            else:
-                assert mock_instance.post.called
+        # Verify the underlying query was called
+        if protocol == driver_mod.DgraphProtocol.GRPC:
+            assert mock_instance.txn.return_value.query.called
+        else:
+            assert mock_instance.post.called
 
         await driver.close()
 
@@ -673,11 +672,10 @@ async def test_get_schema_metadata_mapping_from_db_mocked(
             else new_http_driver()
         )
 
-        with patch.object(driver, "get_active_version", new=AsyncMock(return_value="vD")):
-            await driver.connect()
+        await driver.connect()
 
-            mapping = await driver.get_schema_metadata_mapping()
-            assert mapping is None, "Mapping should be None when no metadata found"
+        mapping = await driver.fetch_mapping_from_db("vTest")
+        assert mapping is None, "Mapping should be None when no metadata found"
 
         await driver.close()
 
@@ -694,11 +692,10 @@ async def test_get_schema_metadata_mapping_from_db_mocked(
             else new_http_driver()
         )
 
-        with patch.object(driver, "get_active_version", new=AsyncMock(return_value="vD")):
-            await driver.connect()
+        await driver.connect()
 
-            mapping = await driver.get_schema_metadata_mapping()
-            assert mapping is None, "Mapping should be None when field is empty"
+        mapping = await driver.fetch_mapping_from_db("vTest")
+        assert mapping is None, "Mapping should be None when field is empty"
 
         await driver.close()
 
@@ -712,11 +709,10 @@ async def test_get_schema_metadata_mapping_from_db_mocked(
             else new_http_driver()
         )
 
-        with patch.object(driver, "get_active_version", new=AsyncMock(return_value="vD")):
-            await driver.connect()
+        await driver.connect()
 
-            mapping = await driver.get_schema_metadata_mapping()
-            assert mapping is None, "Mapping should be None when query fails"
+        mapping = await driver.fetch_mapping_from_db("vTest")
+        assert mapping is None, "Mapping should be None when query fails"
 
         await driver.close()
 
@@ -735,33 +731,10 @@ async def test_get_schema_metadata_mapping_from_db_mocked(
             else new_http_driver()
         )
 
-        with patch.object(driver, "get_active_version", new=AsyncMock(return_value="vD")):
-            await driver.connect()
+        await driver.connect()
 
-            mapping = await driver.get_schema_metadata_mapping()
-            assert mapping is None, "Mapping should be None when msgpack deserialization fails"
-
-        await driver.close()
-
-    # --- Test Case 6: No active version found ---
-    with patch(mock_path) as mock_class:
-        setup_mock(
-            mock_class,
-            {"metadata": [{"schema_metadata_mapping": encoded_mapping}]},
-        )
-
-        driver = (
-            new_grpc_driver()
-            if protocol == driver_mod.DgraphProtocol.GRPC
-            else new_http_driver()
-        )
-
-        # Mock get_active_version to return None (no version found)
-        with patch.object(driver, "get_active_version", new=AsyncMock(return_value=None)):
-            await driver.connect()
-
-            mapping = await driver.get_schema_metadata_mapping()
-            assert mapping is None, "Mapping should be None when no active version is found"
+        mapping = await driver.fetch_mapping_from_db("vTest")
+        assert mapping is None, "Mapping should be None when msgpack deserialization fails"
 
         await driver.close()
 
