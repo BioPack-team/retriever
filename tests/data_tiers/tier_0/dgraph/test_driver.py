@@ -437,6 +437,189 @@ async def test_get_active_version_from_db_mocked(
             await driver.close()
 
 
+@pytest.mark.parametrize(
+    "protocol, mock_path",
+    [
+        (driver_mod.DgraphProtocol.GRPC, "pydgraph.DgraphClient"),
+        (driver_mod.DgraphProtocol.HTTP, "aiohttp.ClientSession"),
+    ],
+)
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_get_schema_metadata_mapping_from_db_mocked(
+    protocol: driver_mod.DgraphProtocol, mock_path: str
+):
+    """
+    Tests get_schema_metadata_mapping for DB query, caching, not-found, and failure scenarios
+    for both gRPC and HTTP protocols using mocks.
+    """
+    import base64
+    import msgpack
+
+    # Create a sample mapping to use in tests
+    sample_mapping = {
+        "@id": "https://example.org/test_kg",
+        "@type": "sc:Dataset",
+        "name": "test_kg",
+        "version": "2025_test",
+        "biolinkVersion": "4.3.4",
+        "schema": {
+            "nodes": [
+                {
+                    "category": ["biolink:SmallMolecule"],
+                    "count": 100,
+                    "id_prefixes": {"CHEBI": 90, "PUBCHEM.COMPOUND": 10},
+                }
+            ]
+        },
+    }
+
+    # Encode the mapping as msgpack + base64 (as stored in Dgraph)
+    packed_mapping = msgpack.packb(sample_mapping)
+    encoded_mapping = base64.b64encode(packed_mapping).decode("utf-8")
+
+    def setup_mock(mock_class: MagicMock, response_data: Any, *, fails: bool = False):
+        """Helper to configure the mock for either gRPC or HTTP."""
+        if protocol == driver_mod.DgraphProtocol.GRPC:
+            mock_response = MagicMock()
+            mock_response.json = json.dumps(response_data).encode("utf-8")
+            mock_txn = MagicMock()
+            if fails:
+                mock_txn.query.side_effect = Exception("DB connection failed")
+            else:
+                mock_txn.query.return_value = mock_response
+            mock_class.return_value.txn.return_value = mock_txn
+            return mock_class.return_value
+        else:  # HTTP
+            mock_response = MagicMock()
+            mock_response.status = 200
+            if fails:
+                mock_response.json = AsyncMock(side_effect=Exception("HTTP connection failed"))
+            else:
+                mock_response.json = AsyncMock(return_value={"data": response_data})
+
+            mock_post = MagicMock()
+            mock_post.__aenter__.return_value = mock_response
+
+            mock_session = mock_class.return_value
+            mock_session.post.return_value = mock_post
+            mock_session.close = AsyncMock()
+            return mock_session
+
+    # --- Test Case 1: Success ---
+    with patch(mock_path) as mock_class:
+        mock_instance = setup_mock(
+            mock_class,
+            {"metadata": [{"schema_metadata_mapping": encoded_mapping}]},
+        )
+
+        driver = (
+            new_grpc_driver()
+            if protocol == driver_mod.DgraphProtocol.GRPC
+            else new_http_driver()
+        )
+
+        await driver.connect()
+
+        # Get the mapping
+        mapping = await driver.get_schema_metadata_mapping()
+        assert mapping is not None, "Mapping should not be None"
+        assert mapping["@id"] == "https://example.org/test_kg"
+        assert mapping["@type"] == "sc:Dataset"
+        assert mapping["name"] == "test_kg"
+        assert mapping["version"] == "2025_test"
+        assert mapping["biolinkVersion"] == "4.3.4"
+        assert "schema" in mapping
+        assert "nodes" in mapping["schema"]
+        assert len(mapping["schema"]["nodes"]) == 1
+        assert mapping["schema"]["nodes"][0]["category"] == ["biolink:SmallMolecule"]
+        assert mapping["schema"]["nodes"][0]["count"] == 100
+
+        # Verify the underlying query was called
+        if protocol == driver_mod.DgraphProtocol.GRPC:
+            assert mock_instance.txn.return_value.query.called
+        else:
+            assert mock_instance.post.called
+
+        await driver.close()
+
+    # --- Test Case 2: Mapping Not Found (no metadata) ---
+    with patch(mock_path) as mock_class:
+        setup_mock(mock_class, {"metadata": []})
+
+        driver = (
+            new_grpc_driver()
+            if protocol == driver_mod.DgraphProtocol.GRPC
+            else new_http_driver()
+        )
+
+        await driver.connect()
+
+        mapping = await driver.get_schema_metadata_mapping()
+        assert mapping is None, "Mapping should be None when no metadata found"
+
+        await driver.close()
+
+    # --- Test Case 3: Mapping Field Empty ---
+    with patch(mock_path) as mock_class:
+        setup_mock(
+            mock_class,
+            {"metadata": [{"schema_metadata_mapping": None}]},
+        )
+
+        driver = (
+            new_grpc_driver()
+            if protocol == driver_mod.DgraphProtocol.GRPC
+            else new_http_driver()
+        )
+
+        await driver.connect()
+
+        mapping = await driver.get_schema_metadata_mapping()
+        assert mapping is None, "Mapping should be None when field is empty"
+
+        await driver.close()
+
+    # --- Test Case 4: Query Fails ---
+    with patch(mock_path) as mock_class:
+        setup_mock(mock_class, {}, fails=True)
+
+        driver = (
+            new_grpc_driver()
+            if protocol == driver_mod.DgraphProtocol.GRPC
+            else new_http_driver()
+        )
+
+        await driver.connect()
+
+        mapping = await driver.get_schema_metadata_mapping()
+        assert mapping is None, "Mapping should be None when query fails"
+
+        await driver.close()
+
+    # --- Test Case 5: Invalid msgpack data ---
+    with patch(mock_path) as mock_class:
+        # Send invalid base64/msgpack data
+        invalid_data = base64.b64encode(b"not valid msgpack").decode("utf-8")
+        setup_mock(
+            mock_class,
+            {"metadata": [{"schema_metadata_mapping": invalid_data}]},
+        )
+
+        driver = (
+            new_grpc_driver()
+            if protocol == driver_mod.DgraphProtocol.GRPC
+            else new_http_driver()
+        )
+
+        await driver.connect()
+
+        mapping = await driver.get_schema_metadata_mapping()
+        assert mapping is None, "Mapping should be None when msgpack deserialization fails"
+
+        await driver.close()
+
+
 @pytest.mark.live
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config")
