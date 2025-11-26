@@ -150,7 +150,7 @@ def process_single_constraint(constraint: AttributeConstraintDict) -> SingleAttr
         )
 
     # scalar vs scalar
-    if not isinstance(raw_value, list) and field_meta_info['container'] is not 'array':
+    if not isinstance(raw_value, list) and field_meta_info['container'] != 'array':
         # ensure type consistency
         value = ensure_type_consistency(field_meta_info['value_type'], raw_value)
 
