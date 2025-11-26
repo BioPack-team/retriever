@@ -40,6 +40,7 @@ dependencies = [
     "grpcio>=1.65.1",
     "aiohttp>=3.9.0",
     "cachetools>=5.3.1",
+    "msgpack>=1.1.1",
 ]
 
 [project.scripts]
@@ -60,6 +61,7 @@ dev = [
     "pytest-cov>=6.2.1",
     "pytest-asyncio>=1.1.0",
     "bpython>=0.25",
+    "msgpack-types>=0.5.0",
 ]
 
 [tool.uv]
