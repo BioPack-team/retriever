@@ -2,11 +2,13 @@ from typing import cast, Any
 
 import pytest
 
+from retriever.data_tiers.tier_1.elasticsearch.qualifier_types import ESQualifierConstraintQuery, ESTermClause, \
+    ESQueryForSingleQualifierConstraint
 from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler, NODE_FIELDS_MAPPING, \
     EDGE_FIELDS_MAPPING
 from retriever.data_tiers.tier_1.elasticsearch.types import ESPayload, ESHit, ESQueryContext, ESBooleanQuery, \
     ESFilterClause
-from retriever.types.trapi import QueryGraphDict
+from retriever.types.trapi import QueryGraphDict, QualifierConstraintDict, QualifierDict
 from retriever.utils import biolink
 
 
@@ -373,6 +375,23 @@ def remove_biolink_prefixes(input: list):
     )
 
 
+def verify_es_term_clause(qualifier:QualifierDict, generated_query: ESTermClause):
+    assert 'term' in generated_query
+    term = generated_query["term"]
+    qualifier_name = qualifier['qualifier_type_id']
+    qualifier_value = qualifier['qualifier_value']
+    assert term[biolink.rmprefix(qualifier_name)] == biolink.rmprefix(qualifier_value)
+
+def verify_chained_es_term_clauses(qualifiers: list[QualifierDict], generated_query: ESQueryForSingleQualifierConstraint):
+    assert 'bool' in generated_query
+    assert 'must' in generated_query['bool']
+    query_terms: list[ESTermClause] = generated_query["bool"]["must"]
+
+    assert len(query_terms) == len(qualifiers)
+
+    for qualifier, terms in zip(qualifiers, query_terms):
+        verify_es_term_clause(qualifier, terms)
+
 def check_single_query_payload(
     q_graph: QueryGraphDict, generated_payload:ESPayload
 ):
@@ -385,6 +404,9 @@ def check_single_query_payload(
     out_node = q_graph["nodes"][q_edge["subject"]]
     in_node = q_graph["nodes"][q_edge["object"]]
 
+    # qualifier checker
+    # 0. check should, if > 1 constraints; make sure minimum_should_match
+    # 1. otherwise, check filter; should have one or more filters with `term`
 
 
     # generate check targets

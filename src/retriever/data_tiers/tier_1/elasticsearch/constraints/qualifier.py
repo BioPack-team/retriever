@@ -32,6 +32,8 @@ def handle_single_constraint(constraint: QualifierConstraintDict) -> list[ESTerm
 
     must: list[ESTermClause] = []
 
+    # todo uniqueness check for specified type-value pair
+
     for qualifier in qualifiers:
         qual_type = biolink.rmprefix(qualifier["qualifier_type_id"])
         qual_value = biolink.rmprefix(qualifier["qualifier_value"])

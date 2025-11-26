@@ -19,7 +19,9 @@ class ESQueryForSingleQualifierConstraint(TypedDict):
     bool: ESBoolQueryForSingleQualifierConstraint
 
 
+ESQualifierConstraintQuery = ESQueryForSingleQualifierConstraint | ESTermClause
+
 class ESConstraintsChainedQuery(TypedDict):
     """Query entry specifying an OR relationship between constraints"""
 
-    should: list[ESQueryForSingleQualifierConstraint | ESTermClause]
+    should: list[ESQualifierConstraintQuery]
