@@ -120,7 +120,6 @@ class DgraphDriver(DatabaseDriver):
     _version_cache: TTLCache[str, str | None] = TTLCache(maxsize=1, ttl=60)
     _mapping_cache: TTLCache[str, dict[str, Any] | None] = TTLCache(maxsize=1, ttl=300)
 
-
     def __init__(
         self,
         protocol: DgraphProtocol = DgraphProtocol.GRPC,
@@ -341,10 +340,14 @@ class DgraphDriver(DatabaseDriver):
         cache_key = f"mapping_{version}"
         try:
             cached_mapping = self._mapping_cache[cache_key]
-            log.debug(f"Returning cached schema metadata mapping for version '{version}'")
+            log.debug(
+                f"Returning cached schema metadata mapping for version '{version}'"
+            )
             return cached_mapping
         except KeyError:
-            log.debug(f"Fetching schema metadata mapping for version '{version}' (cache miss)...")
+            log.debug(
+                f"Fetching schema metadata mapping for version '{version}' (cache miss)..."
+            )
 
         # Fetch from database
         mapping = await self._fetch_mapping_from_db(version)
