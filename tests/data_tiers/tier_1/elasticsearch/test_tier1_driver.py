@@ -4,12 +4,15 @@ from typing import Iterator, cast, Any
 import pytest
 import retriever.config.general as general_mod
 import retriever.data_tiers.tier_1.elasticsearch.driver as driver_mod
+from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
 from retriever.data_tiers.tier_1.elasticsearch.types import ESPayload, ESHit
+from tests.data_tiers.tier_1.elasticsearch.payload.trapi_qgraphs import DINGO_QGRAPH
 
 
 def esp(d: dict[str, Any]) -> ESPayload:
     """Cast a raw qgraph dict into a QueryGraphDict for type-checking in tests."""
     return cast(ESPayload, cast(object, d))
+
 
 @pytest.fixture
 def mock_elasticsearch_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
@@ -29,31 +32,56 @@ def mock_elasticsearch_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]
     yield
 
 
-
 PAYLOAD_0: ESPayload = esp({
-    'query': {
-        'bool':
-            {'filter': [
-                {'terms': {'subject.all_categories': ['Protein', 'Gene']}},
-                {'terms': {'object.id': ['UMLS:C0011847']}},
-                {'terms': {'object.all_categories': ['Disease']}},
-                {'terms': {'all_predicates': ['causes']}}]
-            }
+    "query": {
+        "bool":
+            {"filter": [
+                {"terms": {"subject.category": ["Protein", "Gene"]}},
+                {"terms": {"object.id": ["MONDO:0012507"]}},
+                {"terms": {"object.category": ["disease"]}},
+                {"terms": {"predicate_ancestors": ["causes"]}}
+            ]
         }
     }
+}
 )
 PAYLOAD_1: ESPayload = esp({
-    "query":{
-        "bool":{
-            "filter":[
-                {"terms":{"subject.id":["NCBITaxon:9606"]}}
+    "query": {
+        "bool": {
+            "filter": [
+                {"terms": {"object.id": ["MONDO:0005233"]}},
+                {"terms": {"subject.id": ["CHEBI:70839", "UMLS:C1872686"]}}
             ]
         }
     }
 })
 
-
-PAYLOAD_2: ESPayload = esp( {'query': {'bool': {'filter': [{'terms': {'subject.all_categories': ['Gene']}}, {'terms': {'object.id': ['UMLS:C0011847']}}, {'terms': {'object.all_categories': ['Disease']}}, {'terms': {'all_predicates': ['causes']}}]}}})
+PAYLOAD_2: ESPayload = esp({
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "terms": {
+            "subject.id": [
+              "MONDO:0030010",
+              "MONDO:0011766",
+              "MONDO:0009890"
+            ]
+          }
+        }
+      ],
+      "must": [
+        { "range": { "has_total": { "gt": 0 } } },
+        { "range": { "has_total": { "lte": 45 } } }
+      ],
+      "should": [
+        { "term": { "sex_qualifier": "PATO:0000383" } },
+        { "term": { "frequency_qualifier": "HP:0040280" } }
+      ],
+      "minimum_should_match": 1
+    }
+  }
+})
 
 
 @pytest.mark.usefixtures("mock_elasticsearch_config")
@@ -61,12 +89,12 @@ PAYLOAD_2: ESPayload = esp( {'query': {'bool': {'filter': [{'terms': {'subject.a
 @pytest.mark.parametrize(
     "payload, expected",
     [
-        (PAYLOAD_0, 42),
-        (PAYLOAD_1, 85),
-        (PAYLOAD_2, 22),
+        (PAYLOAD_0, 1),
+        (PAYLOAD_1, 26),
+        (PAYLOAD_2, 32),
         (
             [PAYLOAD_0, PAYLOAD_1,PAYLOAD_2],
-            [42,85,22]
+            [1,26,32]
         )
     ],
     ids=[
@@ -84,7 +112,7 @@ async def test_elasticsearch_driver(payload: ESPayload | list[ESPayload], expect
     except Exception:
         pytest.skip("skipping es driver connection test: cannot connect")
 
-    hits: list[ESHit] | list[ESHit]  = await driver.run_query(payload)
+    hits: list[ESHit] | list[ESHit] = await driver.run_query(payload)
 
     def assert_single_result(res, expected_result_num: int):
         if not isinstance(res, list):
@@ -106,3 +134,23 @@ async def test_elasticsearch_driver(payload: ESPayload | list[ESPayload], expect
 
 
 
+@pytest.mark.usefixtures("mock_elasticsearch_config")
+@pytest.mark.asyncio
+async def test_end_to_end():
+
+    target_qgraph = DINGO_QGRAPH
+    transpiler = ElasticsearchTranspiler()
+
+    payload = transpiler.convert_triple(target_qgraph)
+
+    driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
+
+    try:
+        await driver.connect()
+        assert driver.es_connection is not None
+    except Exception:
+        pytest.skip("skipping es driver connection test: cannot connect")
+
+    hits: list[ESHit] = await driver.run_query(payload)
+
+    assert len(hits) == 8
