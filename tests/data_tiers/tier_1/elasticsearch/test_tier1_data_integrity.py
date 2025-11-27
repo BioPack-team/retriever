@@ -20,7 +20,7 @@ query = {
 indices = [
     "ctd",
     "diseases",
-    "ebi_gene2phenotype",
+    "gene2phenotype",
     "go_cam",
     "goa",
     "hpoa",
