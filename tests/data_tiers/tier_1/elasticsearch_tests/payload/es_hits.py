@@ -12,11 +12,10 @@ SIMPLE_ES_HITS: list[ESHit] = [esh(
                     "subject": {
                         "id": "UMLS:C1564592",
                         "name": "Diclomin",
-                        "category": "ChemicalEntity",
                         "all_names": [
                             "Diclomin"
                         ],
-                        "all_categories": [
+                        "category": [
                             "Entity",
                             "ChemicalOrDrugOrTreatment",
                             "ChemicalEntity",
@@ -28,14 +27,13 @@ SIMPLE_ES_HITS: list[ESHit] = [esh(
                         ],
                         "iri": "https://identifiers.org/umls:C1564592",
                         "description": "UMLS Semantic Type: STY:T109; UMLS Semantic Type: STY:T121",
-                        "equivalent_curies": [
+                        "equivalent_identifiers": [
                             "UMLS:C1564592"
                         ]
                     },
                     "object": {
                         "id": "CHEBI:4514",
                         "name": "dicyclomine",
-                        "category": "SmallMolecule",
                         "all_names": [
                             "dicyclomine hydrochloride 2 MG/ML Oral Solution",
                             "dicyclomine Oral Tablet",
@@ -76,7 +74,7 @@ SIMPLE_ES_HITS: list[ESHit] = [esh(
                             "dicyclomine single use injection",
                             "dicyclomine hydrochloride 20 MG Oral Tablet"
                         ],
-                        "all_categories": [
+                        "category": [
                             "Entity",
                             "ChemicalEntity",
                             "ChemicalOrDrugOrTreatment",
@@ -94,7 +92,7 @@ SIMPLE_ES_HITS: list[ESHit] = [esh(
                         ],
                         "iri": "http://purl.obolibrary.org/obo/CHEBI_4514",
                         "description": "Dicyclomine is only found in individuals that have used or taken this drug. It is a muscarinic antagonist used as an antispasmodic and in urinary incontinence. It has little effect on glandular secretion or the cardiovascular system. It does have some local anesthetic properties and is used in gastrointestinal, biliary, and urinary tract spasms. [PubChem]Action is achieved via a dual mechanism: (1) a specific anticholinergic effect (antimuscarinic) at the acetylcholine-receptor sites and (2) a direct effect upon smooth muscle (musculotropic).",
-                        "equivalent_curies": [
+                        "equivalent_identifiers": [
                             "RXNORM:991063",
                             "RXNORM:1722904",
                             "RXNORM:991151",
@@ -249,7 +247,10 @@ SIMPLE_ES_HITS: list[ESHit] = [esh(
                         ]
                     },
                     "predicate": "subclass_of",
-                    "primary_knowledge_source": "infores:mesh",
+                    "sources": [{
+                        "resource_id": "infores:mesh",
+                        "resource_role": "primary_knowledge_source",
+                    }],
                     "kg2_ids": [
                         "UMLS:C1564592---MESH:RN---None---None---None---UMLS:C0012125---umls_source:MSH",
                         "UMLS:C0012125---MESH:RB---None---None---None---UMLS:C1564592---umls_source:MSH"
