@@ -13,8 +13,8 @@ def create_qualifier_constraint(name: str, value) -> QualifierConstraintDict:
     ]
 )
 
-sex_qualifier_constraint = create_qualifier_constraint("sex_qualifier", "PATO:0000383")
-frequency_qualifier_constraint = create_qualifier_constraint("frequency_qualifier", "HP:0040280")
+sex_qualifier_constraint = create_qualifier_constraint("biolink:sex_qualifier", "PATO:0000383")
+frequency_qualifier_constraint = create_qualifier_constraint("biolink:frequency_qualifier", "HP:0040280")
 
 
 qualifier_specifications = cast(list[QualifierDict],
