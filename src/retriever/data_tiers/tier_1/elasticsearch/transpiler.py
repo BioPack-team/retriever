@@ -190,20 +190,20 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                         name=node["name"],
                         categories=[
                             BiolinkEntity(biolink.ensure_prefix(cat))
-                            for cat in node["all_categories"]
+                            for cat in node["category"]
                         ],
                         attributes=[],
                     )
 
                     xref_only_self = (
-                        len(node["equivalent_curies"]) == 1
-                        and node["equivalent_curies"][0] == node["id"]
+                        len(node["equivalent_identifiers"]) == 1
+                        and node["equivalent_identifiers"][0] == node["id"]
                     )
                     if not xref_only_self:
                         trapi_node["attributes"].append(
                             AttributeDict(
                                 attribute_type_id="biolink:xref",
-                                value=node["equivalent_curies"],
+                                value=node["equivalent_identifiers"],
                             )
                         )
 
@@ -294,19 +294,30 @@ class ElasticsearchTranspiler(Tier1Transpiler):
         """Build TRAPI edges from backend representation."""
         edges = dict[EdgeIdentifier, EdgeDict]()
         for hit in hits:
+            primary_knowledge_source = None
+            for source in hit["sources"]:
+                if source["resource_role"] == "primary_knowledge_source":
+                    primary_knowledge_source = Infores(source["resource_id"])
+                    break
+
+            if primary_knowledge_source is None:
+                raise ValueError(
+                    f"no primary knowledge source found on edge {hit['id']}"
+                )
+
             edge = EdgeDict(
                 predicate=BiolinkPredicate(biolink.ensure_prefix(hit["predicate"])),
                 subject=hit["subject"]["id"],
                 object=hit["object"]["id"],
                 sources=[
                     RetrievalSourceDict(
-                        resource_id=hit["primary_knowledge_source"],
+                        resource_id=primary_knowledge_source,
                         resource_role="primary_knowledge_source",
                     ),
                     RetrievalSourceDict(
-                        resource_id=Infores("infores:rtx-kg2"),
+                        resource_id=Infores("infores:dogpark-tier1"),
                         resource_role="aggregator_knowledge_source",
-                        upstream_resource_ids=[hit["primary_knowledge_source"]],
+                        upstream_resource_ids=[primary_knowledge_source],
                     ),
                 ],
                 attributes=[],
