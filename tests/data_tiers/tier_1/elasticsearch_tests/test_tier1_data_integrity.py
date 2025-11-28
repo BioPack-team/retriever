@@ -67,5 +67,3 @@ def test_required_fields(es_client, index_name):
 
         if field == "seq_":
             assert isinstance(doc[field], int)
-
-

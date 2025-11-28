@@ -1,4 +1,4 @@
-from tests.data_tiers.tier_1.elasticsearch.payload.trapi_qgraphs import Q_GRAPHS_WITH_QUALIFIER_CONSTRAINTS, \
+from .trapi_qgraphs import Q_GRAPHS_WITH_QUALIFIER_CONSTRAINTS, \
     QGRAPH_MULTIPLE_IDS, COMPREHENSIVE_QGRAPH, Q_GRAPH_WITH_ATTRIBUTE_CONSTRAINTS
 
 Q_GRAPH_CASES = (

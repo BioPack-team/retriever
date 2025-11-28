@@ -1,10 +1,10 @@
 import copy
 from typing import cast, Any
 
-from retriever.types.trapi import QueryGraphDict, QEdgeID, QualifierConstraintDict, QEdgeDict
-from tests.data_tiers.tier_1.elasticsearch.payload.trapi_attributes import ATTRIBUTE_CONSTRAINTS, base_constraint, \
+from retriever.types.trapi import QueryGraphDict, QEdgeID, QualifierConstraintDict
+from .trapi_attributes import ATTRIBUTE_CONSTRAINTS, base_constraint, \
     base_negation_constraint
-from tests.data_tiers.tier_1.elasticsearch.payload.trapi_qualifiers import multiple_qualifier_constraints, \
+from .trapi_qualifiers import multiple_qualifier_constraints, \
     single_qualifier_constraint, single_qualifier_constraint_with_single_qualifier_entry, sex_qualifier_constraint, \
     frequency_qualifier_constraint
 
