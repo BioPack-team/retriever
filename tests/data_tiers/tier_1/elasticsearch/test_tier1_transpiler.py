@@ -7,9 +7,9 @@ from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTr
 from retriever.data_tiers.tier_1.elasticsearch.types import ESPayload
 from retriever.types.trapi import QueryGraphDict, QualifierConstraintDict, QualifierDict
 from retriever.utils import biolink
-from tests.data_tiers.tier_1.elasticsearch.payload.cases import Q_GRAPH_CASES, Q_GRAPH_CASES_IDS
-from tests.data_tiers.tier_1.elasticsearch.payload.es_hits import SIMPLE_ES_HITS
-from tests.data_tiers.tier_1.elasticsearch.payload.trapi_qgraphs import BASE_QGRAPH
+from .payload.cases import Q_GRAPH_CASES, Q_GRAPH_CASES_IDS
+from .payload.es_hits import SIMPLE_ES_HITS
+from .payload.trapi_qgraphs import BASE_QGRAPH
 
 
 # sample generated query
