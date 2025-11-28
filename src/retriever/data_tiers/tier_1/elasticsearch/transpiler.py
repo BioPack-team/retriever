@@ -1,6 +1,12 @@
 from typing import Literal, override
 
 from retriever.data_tiers.base_transpiler import Tier1Transpiler
+from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.attribute import (
+    process_attribute_constraints,
+)
+from retriever.data_tiers.tier_1.elasticsearch.constraints.qualifier import (
+    process_qualifier_constraints,
+)
 from retriever.data_tiers.tier_1.elasticsearch.types import (
     ESBooleanQuery,
     ESFilterClause,
@@ -34,6 +40,17 @@ from retriever.utils.trapi import hash_edge, hash_hex
 # Or just a built-in annotation
 
 
+NODE_FIELDS_MAPPING = {
+    "ids": "id",
+    "categories": "category",
+}
+
+
+EDGE_FIELDS_MAPPING = {
+    "predicates": "predicate_ancestors",
+}
+
+
 class ElasticsearchTranspiler(Tier1Transpiler):
     """Transpiler for TRAPI to/from Elasticsearch queries."""
 
@@ -62,21 +79,16 @@ class ElasticsearchTranspiler(Tier1Transpiler):
 
         Example return value: { "terms": { "subject.id": ["NCBIGene:22828"] }},
         """
-        field_mapping = {
-            "ids": "id",
-            "categories": "all_categories",  # Could be just "category"
-        }
-
         return [
             self.generate_query_term(f"{side}.{es_field}", values)
-            for qfield, es_field in field_mapping.items()
+            for qfield, es_field in NODE_FIELDS_MAPPING.items()
             if (values := qnode.get(qfield))
         ]
 
     def process_qedge(self, qedge: QEdgeDict) -> list[ESFilterClause]:
         """Provide query terms based on a given QEdgeDict.
 
-        Example return value: { "terms": { "predicates": ["biolink:Gene"] }},
+        Example return value: { "terms": { "predicates": ["Gene"] }},
         """
         # Check required field
         predicates = qedge.get("predicates")
@@ -85,13 +97,10 @@ class ElasticsearchTranspiler(Tier1Transpiler):
             raise Exception("Invalid predicates values")
 
         # Scalable to more fields
-        field_mapping = {
-            "predicates": "all_predicates",
-        }
 
         return [
             self.generate_query_term(f"{es_field}", values)
-            for qfield, es_field in field_mapping.items()
+            for qfield, es_field in EDGE_FIELDS_MAPPING.items()
             if (values := qedge.get(qfield))
         ]
 
@@ -117,11 +126,41 @@ class ElasticsearchTranspiler(Tier1Transpiler):
         object_terms = self.process_qnode(out_node, "object")
         edge_terms = self.process_qedge(edge)
 
-        return ESPayload(
-            query=ESQueryContext(
-                bool=ESBooleanQuery(filter=[*subject_terms, *object_terms, *edge_terms])
-            )
-        )
+        query_kwargs: ESBooleanQuery = {
+            "filter": [*subject_terms, *object_terms, *edge_terms]
+        }
+
+        qualifier_constraints = edge.get("qualifier_constraints", None)
+        qualifier_terms = process_qualifier_constraints(qualifier_constraints)
+
+        if qualifier_terms:
+            # if we have `should` in results, this is a multi-constraint
+            if "should" in qualifier_terms:
+                query_kwargs["should"] = qualifier_terms["should"]
+                query_kwargs["minimum_should_match"] = (
+                    1  # ensure `should` array is honored
+                )
+
+            # otherwise we have either
+            # 0) `ESQueryForSingleQualifierConstraint`, a single constraint with multiple qualifiers, or
+            # 1) `ESTermClause`, a single qualifier in a single constraint
+            # in both cases, inner payload of one or more qualifier terms can be added
+            # as a single or a list of `ESQueryForOneQualifierEntry` to `filter` field
+            elif "bool" in qualifier_terms:
+                query_kwargs["filter"].extend(qualifier_terms["bool"]["must"])
+            elif "term" in qualifier_terms:
+                query_kwargs["filter"].append(qualifier_terms)
+
+        attribute_constraints = edge.get("attribute_constraints", None)
+
+        if attribute_constraints:
+            must, must_not = process_attribute_constraints(attribute_constraints)
+            if must:
+                query_kwargs["must"] = must
+            if must_not:
+                query_kwargs["must_not"] = must_not
+
+        return ESPayload(query=ESQueryContext(bool=ESBooleanQuery(**query_kwargs)))
 
     @override
     def convert_triple(self, qgraph: QueryGraphDict) -> ESPayload:

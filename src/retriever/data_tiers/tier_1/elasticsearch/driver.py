@@ -54,7 +54,7 @@ class ElasticSearchDriver(DatabaseDriver):
             await self.close()
             await asyncio.sleep(1)
             log.error(
-                f"Could not establish connection to elasticsearch, trying again... retry {retries + 1}"
+                f"Could not establish connection to elasticsearch_tests, trying again... retry {retries + 1}"
             )
             return await self.connect(retries + 1)
 
@@ -64,7 +64,9 @@ class ElasticSearchDriver(DatabaseDriver):
             connection_info = await cast(AsyncElasticsearch, self.es_connection).info()
         except Exception as e:
             # Failed to get connection info
-            log.error(f"Could not establish connection to elasticsearch, error: {e}")
+            log.error(
+                f"Could not establish connection to elasticsearch_tests, error: {e}"
+            )
             self._failed = True
             raise e
         finally:
@@ -72,10 +74,10 @@ class ElasticSearchDriver(DatabaseDriver):
 
         # Theoretical corner case, when ping() failed but connection_info() succeeded
         log.error(
-            f"Could not establish connection to elasticsearch, more info: {connection_info}"
+            f"Could not establish connection to elasticsearch_tests, more info: {connection_info}"
         )
         raise Exception(
-            f"Could not establish connection to elasticsearch, error: {connection_info}"
+            f"Could not establish connection to elasticsearch_tests, error: {connection_info}"
         )
 
     @override

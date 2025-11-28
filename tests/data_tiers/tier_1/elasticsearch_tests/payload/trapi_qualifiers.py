@@ -1,0 +1,56 @@
+from typing import cast
+
+from retriever.types.trapi import QualifierDict, QualifierConstraintDict, QualifierTypeID
+
+
+def create_qualifier_constraint(name: str, value) -> QualifierConstraintDict:
+    return QualifierConstraintDict(
+    qualifier_set=[
+        QualifierDict(
+            qualifier_type_id=QualifierTypeID(name),
+            qualifier_value=value,
+        )
+    ]
+)
+
+sex_qualifier_constraint = create_qualifier_constraint("sex_qualifier", "PATO:0000383")
+frequency_qualifier_constraint = create_qualifier_constraint("frequency_qualifier", "HP:0040280")
+
+
+qualifier_specifications = cast(list[QualifierDict],
+                                [
+                                    {
+                                        "qualifier_type_id": "biolink:object_aspect_qualifier",
+                                        "qualifier_value": "activity"
+                                    },
+
+                                    {
+                                        "qualifier_type_id": "biolink:object_modifier_qualifier",
+                                        "qualifier_value": "increased"
+                                    },
+
+                                    {
+                                        "qualifier_type_id": "biolink:qualified_predicate",
+                                        "qualifier_value": "biolink:causes"
+                                    }
+                                ]
+)
+single_entry_qualifier_set: QualifierConstraintDict = {
+    "qualifier_set": qualifier_specifications[:1]
+}
+multi_entry_qualifier_set: QualifierConstraintDict = {
+    "qualifier_set": qualifier_specifications[1:]
+}
+
+multiple_qualifier_constraints =  [
+                single_entry_qualifier_set,
+                multi_entry_qualifier_set
+]
+
+single_qualifier_constraint = [
+    multi_entry_qualifier_set
+]
+
+single_qualifier_constraint_with_single_qualifier_entry = [
+    single_entry_qualifier_set
+]

@@ -1,5 +1,12 @@
 from typing import Any, NotRequired, TypedDict
 
+from retriever.data_tiers.tier_1.elasticsearch.attribute_types import (
+    AttributeFilterQuery,
+)
+from retriever.data_tiers.tier_1.elasticsearch.qualifier_types import (
+    ESQueryForSingleQualifierConstraint,
+    ESTermClause,
+)
 from retriever.types.trapi import CURIE, Infores
 
 
@@ -12,7 +19,11 @@ class ESFilterClause(TypedDict):
 class ESBooleanQuery(TypedDict):
     """An Elasticsearch boolean query."""
 
-    filter: list[ESFilterClause]
+    filter: list[ESFilterClause | ESTermClause]
+    should: NotRequired[list[ESQueryForSingleQualifierConstraint | ESTermClause]]
+    minimum_should_match: NotRequired[int]
+    must: NotRequired[list[AttributeFilterQuery]]
+    must_not: NotRequired[list[AttributeFilterQuery]]
 
 
 class ESQueryContext(TypedDict):
@@ -54,6 +65,7 @@ class ESNode(TypedDict):
 class ESHit(TypedDict):
     """The main data of an Elasticsearch hit."""
 
+    _index: NotRequired[str]
     subject: ESNode
     object: ESNode
     predicate: str
@@ -74,6 +86,7 @@ class ESDocument(TypedDict):
     """A source document returned from Elasticsearch."""
 
     _source: ESHit
+    _index: NotRequired[str]
     sort: list[Any]
 
 
