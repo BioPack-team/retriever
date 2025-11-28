@@ -1,5 +1,8 @@
 import itertools
+import math
+from collections import defaultdict
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any, Protocol, TypeAlias, override
 
 from loguru import logger
@@ -25,11 +28,42 @@ from retriever.types.trapi import (
     QEdgeID,
     QNodeDict,
     QNodeID,
+    QualifierDict,
+    QualifierTypeID,
     QueryGraphDict,
     RetrievalSourceDict,
 )
 from retriever.utils import biolink
 from retriever.utils.trapi import hash_edge, hash_hex
+
+
+@dataclass(frozen=True)
+class EdgeTraversalContext:
+    """Context for building an edge traversal query."""
+
+    edge_id: QEdgeID
+    edge: QEdgeDict
+    target_id: QNodeID
+    target_node: QNodeDict
+    edge_direction: str  # "out" or "in"
+    visited: set[QNodeID]
+    nodes: Mapping[QNodeID, QNodeDict]
+    edges: Mapping[QEdgeID, QEdgeDict]
+
+
+@dataclass(frozen=True)
+class DirectionTraversalContext:
+    """Context for building a single direction traversal."""
+
+    edge_name: str
+    edge_reverse_field: str
+    predicate_field: str
+    filter_clause: str
+    target_id: QNodeID
+    target_filter: str
+    child_visited: set[QNodeID]
+    nodes: Mapping[QNodeID, QNodeDict]
+    edges: Mapping[QEdgeID, QEdgeDict]
 
 
 class FilterValueProtocol(Protocol):
@@ -42,10 +76,27 @@ class FilterValueProtocol(Protocol):
 class DgraphTranspiler(Tier0Transpiler):
     """Transpiler for converting TRAPI queries into Dgraph GraphQL queries."""
 
+    # --- Constants for Pinnedness Algorithm ---
+    PINNEDNESS_DEFAULT_TOTAL_NODES: int = (
+        1_000_000  # Default assumption for total nodes in the graph
+    )
+    PINNEDNESS_DEFAULT_EDGES_PER_NODE: int = (
+        25  # Default assumption for average edges per node
+    )
+    PINNEDNESS_RECURSION_DEPTH: int = (
+        10  # Max recursion depth for pinnedness calculation
+    )
+
     FilterScalar: TypeAlias = str | int | float | bool  # noqa: UP040
     FilterValue: TypeAlias = FilterScalar | list[FilterScalar]  # noqa: UP040
     version: str | None
     prefix: str
+
+    # Normalization mappings for injection prevention
+    _node_id_map: dict[QNodeID, str]
+    _edge_id_map: dict[QEdgeID, str]
+    _reverse_node_map: dict[str, QNodeID]
+    _reverse_edge_map: dict[str, QEdgeID]
 
     def __init__(self, version: str | None = None) -> None:
         """Initialize a Transpiler instance.
@@ -59,6 +110,12 @@ class DgraphTranspiler(Tier0Transpiler):
         self.version = version
         self.prefix = f"{version}_" if version else ""
 
+        # Initialize normalization mappings
+        self._node_id_map = {}
+        self._edge_id_map = {}
+        self._reverse_node_map = {}
+        self._reverse_edge_map = {}
+
     def _v(self, field: str) -> str:
         """Return the versioned field name."""
         return f"{self.prefix}{field}"
@@ -69,6 +126,82 @@ class DgraphTranspiler(Tier0Transpiler):
             return " ".join(f"{field}: {self._v(field)}" for field in fields) + " "
         return " ".join(fields) + " "
 
+    def _normalize_qgraph_ids(self, qgraph: QueryGraphDict) -> None:
+        """Create normalized mappings for node and edge IDs to prevent injection attacks.
+
+        This method creates safe, predictable identifiers (n0, n1, e0, e1, etc.) that are
+        used in the generated Dgraph query. The mappings allow us to convert back to the
+        original user-provided IDs when parsing results.
+
+        Args:
+            qgraph: The query graph to normalize
+        """
+        # Clear any existing mappings
+        self._node_id_map.clear()
+        self._edge_id_map.clear()
+        self._reverse_node_map.clear()
+        self._reverse_edge_map.clear()
+
+        # Create normalized node IDs (n0, n1, n2, ...)
+        # Sort for deterministic ordering
+        for i, node_id in enumerate(sorted(qgraph["nodes"].keys())):
+            normalized = f"n{i}"
+            self._node_id_map[node_id] = normalized
+            self._reverse_node_map[normalized] = node_id
+            logger.debug(f"Normalized node ID: {node_id} -> {normalized}")
+
+        # Create normalized edge IDs (e0, e1, e2, ...)
+        # Sort for deterministic ordering
+        for i, edge_id in enumerate(sorted(qgraph["edges"].keys())):
+            normalized = f"e{i}"
+            self._edge_id_map[edge_id] = normalized
+            self._reverse_edge_map[normalized] = edge_id
+            logger.debug(f"Normalized edge ID: {edge_id} -> {normalized}")
+
+    def _get_normalized_node_id(self, node_id: QNodeID) -> str:
+        """Get the normalized ID for a node.
+
+        Args:
+            node_id: The original node ID from the query graph
+
+        Returns:
+            The normalized node ID (e.g., 'n0', 'n1')
+        """
+        return self._node_id_map.get(node_id, str(node_id))
+
+    def _get_normalized_edge_id(self, edge_id: QEdgeID) -> str:
+        """Get the normalized ID for an edge.
+
+        Args:
+            edge_id: The original edge ID from the query graph
+
+        Returns:
+            The normalized edge ID (e.g., 'e0', 'e1')
+        """
+        return self._edge_id_map.get(edge_id, str(edge_id))
+
+    def _get_original_node_id(self, normalized_id: str) -> QNodeID:
+        """Get the original node ID from a normalized ID.
+
+        Args:
+            normalized_id: The normalized ID (e.g., 'n0')
+
+        Returns:
+            The original node ID from the query graph
+        """
+        return self._reverse_node_map.get(normalized_id, QNodeID(normalized_id))
+
+    def _get_original_edge_id(self, normalized_id: str) -> QEdgeID:
+        """Get the original edge ID from a normalized ID.
+
+        Args:
+            normalized_id: The normalized ID (e.g., 'e0')
+
+        Returns:
+            The original edge ID from the query graph
+        """
+        return self._reverse_edge_map.get(normalized_id, QEdgeID(normalized_id))
+
     @override
     def process_qgraph(
         self, qgraph: QueryGraphDict, *additional_qgraphs: QueryGraphDict
@@ -77,7 +210,17 @@ class DgraphTranspiler(Tier0Transpiler):
 
     @override
     def convert_multihop(self, qgraph: QueryGraphDict) -> str:
-        """Convert a TRAPI multi-hop graph to a proper Dgraph multihop query."""
+        """Convert a TRAPI multi-hop graph to a proper Dgraph multihop query.
+
+        Args:
+            qgraph: The TRAPI query graph
+
+        Returns:
+            A Dgraph query string with normalized, injection-safe identifiers
+        """
+        # Normalize IDs first to prevent injection attacks
+        self._normalize_qgraph_ids(qgraph)
+
         nodes = qgraph["nodes"]
         edges = qgraph["edges"]
 
@@ -96,65 +239,132 @@ class DgraphTranspiler(Tier0Transpiler):
         nodes: Mapping[QNodeID, QNodeDict],
         edges: Mapping[QEdgeID, QEdgeDict],
     ) -> QNodeID:
-        """Find the best node to start the traversal from."""
-        # Start with a node that has IDs and is the object of at least one edge
-        for node_id, node in nodes.items():
-            if node.get("ids") and any(e["object"] == node_id for e in edges.values()):
-                return node_id
+        """Find the best node to start the traversal from.
 
-        # If no ideal start node, just take the first one
-        return next(iter(nodes))
+        First, check if any node has IDs specified - if so, use that.
+        Otherwise, use pinnedness algorithm to find the most constrained node.
+        """
+        if not nodes:
+            raise ValueError("Query graph must have at least one node.")
 
-    def _build_node_filter(self, node: QNodeDict) -> str:
-        """Build a filter expression for a node based on its properties."""
-        filters: list[str] = []
+        # Use pinnedness algorithm to find the most constrained node
+        qgraph = QueryGraphDict(nodes=dict(nodes), edges=dict(edges))
+        pinnedness_scores = {
+            node_id: self._get_pinnedness(qgraph, node_id) for node_id in nodes
+        }
 
-        # Handle ID filtering - if present, it's the ONLY filter we need.
-        ids = node.get("ids")
-        if ids:
-            if len(ids) == 1:
-                # Single ID case - check if it contains a comma (multiple IDs in one string)
-                id_value = ids[0]
-                if "," in id_value:
-                    # Multiple IDs in a single string - split them
-                    id_list = [id_val.strip() for id_val in id_value.split(",")]
-                    ids_str = ", ".join(f'"{id_val}"' for id_val in id_list)
-                    return f"eq({self._v('id')}, [{ids_str}])"
-                else:
-                    # Single ID
-                    return f'eq({self._v("id")}, "{id_value}")'
+        # Return the node_id with the maximum pinnedness score
+        # Use node_id as tiebreaker for deterministic ordering
+        return max(pinnedness_scores, key=lambda nid: (pinnedness_scores[nid], nid))
+
+    # --- Pinnedness Algorithm Methods ---
+
+    def _get_adjacency_matrix(
+        self, qgraph: QueryGraphDict
+    ) -> defaultdict[str, defaultdict[str, int]]:
+        """Get adjacency matrix."""
+        adjacency_matrix: defaultdict[str, defaultdict[str, int]] = defaultdict(
+            lambda: defaultdict(int)
+        )
+        for qedge in qgraph["edges"].values():
+            adjacency_matrix[qedge["subject"]][qedge["object"]] += 1
+            adjacency_matrix[qedge["object"]][qedge["subject"]] += 1
+        return adjacency_matrix
+
+    def _get_num_ids(self, qgraph: QueryGraphDict) -> dict[str, int]:
+        """Get the number of ids for each node, defaulting to N."""
+        num_ids_map: dict[str, int] = {}
+        for qnode_id, qnode in qgraph["nodes"].items():
+            ids = qnode.get("ids")
+            if ids:
+                num_ids_map[qnode_id] = len(ids)
             else:
-                # Multiple IDs in array
-                ids_str = ", ".join(f'"{id_val}"' for id_val in ids)
-                return f"eq({self._v('id')}, [{ids_str}])"
+                num_ids_map[qnode_id] = self.PINNEDNESS_DEFAULT_TOTAL_NODES
+        return num_ids_map
 
-        # Handle category filtering
+    def _compute_log_expected_n(
+        self,
+        adjacency_mat: defaultdict[str, defaultdict[str, int]],
+        num_ids: dict[str, int],
+        qnode_id: str,
+        last: str | None = None,
+        level: int = 0,
+    ) -> float:
+        """Compute the log of the expected number of unique knodes bound to the specified qnode."""
+        log_expected_n = math.log(num_ids[qnode_id])
+        if level < self.PINNEDNESS_RECURSION_DEPTH:
+            for neighbor, num_edges in adjacency_mat[qnode_id].items():
+                if neighbor == last:
+                    continue
+                log_expected_n += num_edges * min(
+                    max(
+                        self._compute_log_expected_n(
+                            adjacency_mat,
+                            num_ids,
+                            neighbor,
+                            qnode_id,
+                            level + 1,
+                        ),
+                        0,
+                    )
+                    + math.log(
+                        self.PINNEDNESS_DEFAULT_EDGES_PER_NODE
+                        / self.PINNEDNESS_DEFAULT_TOTAL_NODES
+                    ),
+                    0,
+                )
+        return log_expected_n
+
+    def _get_pinnedness(self, qgraph: QueryGraphDict, qnode_id: str) -> float:
+        """Get pinnedness of a single node."""
+        adjacency_mat = self._get_adjacency_matrix(qgraph)
+        num_ids = self._get_num_ids(qgraph)
+        return -self._compute_log_expected_n(
+            adjacency_mat,
+            num_ids,
+            qnode_id,
+        )
+
+    # --- Nodes and Edges Methods ---
+
+    def _build_node_filter(self, node: QNodeDict, *, primary: bool = False) -> str:
+        """Build a filter expression for a node based on its properties.
+
+        If `primary` is True, it returns the most selective filter for a `func:` block.
+        Otherwise, it returns all applicable filters for an `@filter` block.
+
+        Filter hierarchy (most to least selective):
+        1. IDs (uniquely identify nodes - sufficient alone)
+        2. Categories (narrow down by type)
+        3. Constraints (additional filtering)
+        """
+        ids = node.get("ids")
         categories = node.get("categories")
-        if categories:
-            if len(categories) == 1:
-                filters.append(
-                    f'eq({self._v("category")}, "{categories[0].replace("biolink:", "")}")'
-                )
-            elif len(categories) > 1:
-                categories_str = ", ".join(
-                    f'"{cat.replace("biolink:", "")}"' for cat in categories
-                )
-                filters.append(f"eq({self._v('category')}, [{categories_str}])")
-
-        # Handle attribute constraints
         constraints = node.get("constraints")
+
+        # For primary filter, return the most selective single option
+        if primary:
+            if ids:
+                return self._create_id_filter(ids)
+            if categories:
+                return self._create_category_filter(categories)
+            if constraints:
+                return self._convert_constraints_to_filters(constraints)[0]
+            return f"has({self._v('id')})"
+
+        # For secondary filters (@filter)
+        # If we have IDs, they uniquely identify the node(s) - don't add redundant filters
+        if ids:
+            return self._create_id_filter(ids)
+
+        # If no IDs, combine categories and constraints
+        filters: list[str] = []
+        if categories:
+            filters.append(self._create_category_filter(categories))
         if constraints:
             filters.extend(self._convert_constraints_to_filters(constraints))
 
-        # If no filters, use a generic filter
-        if not filters:
-            return f"has({self._v('id')})"
-
-        # Combine all filters with AND
-        if len(filters) == 1:
-            return filters[0]
-        else:
-            return " AND ".join(filters)
+        return " AND ".join(filters) if filters else ""
 
     def _build_edge_filter(self, edge: QEdgeDict) -> str:
         """Build a filter expression for an edge based on its properties."""
@@ -440,20 +650,32 @@ class DgraphTranspiler(Tier0Transpiler):
         edges: Mapping[QEdgeID, QEdgeDict],
         query_index: int | None = None,
     ) -> str:
-        """Recursively build a query for a node and its connected nodes."""
+        """Recursively build a query for a node and its connected nodes.
+
+        Args:
+            node_id: The original node ID from the query graph
+            nodes: Dictionary of all nodes in the query graph
+            edges: Dictionary of all edges in the query graph
+            query_index: Optional index for batch queries
+
+        Returns:
+            Query fragment string with normalized identifiers
+        """
         node = nodes[node_id]
 
-        # Get the combined filter for the node.
-        # This will correctly prioritize ID if available.
-        node_filter = self._build_node_filter(node)
+        # Use normalized node ID for query generation
+        normalized_node_id = self._get_normalized_node_id(node_id)
+
+        # Get the primary filter for the `func:` block of the starting node.
+        primary_filter = self._build_node_filter(node, primary=True)
 
         # Create the root node key, with an optional query index prefix
-        root_node_key = f"node_{node_id}"
+        root_node_key = f"node_{normalized_node_id}"
         if query_index is not None:
             root_node_key = f"q{query_index}_{root_node_key}"
 
         # Start the query with the primary filter, using the generated key
-        query = f"{root_node_key}(func: {node_filter})"
+        query = f"{root_node_key}(func: {primary_filter})"
 
         # Prepare visited set and add node-level cascade
         visited = {node_id}
@@ -470,6 +692,111 @@ class DgraphTranspiler(Tier0Transpiler):
 
         # Close the node block
         query += "} "
+        return query
+
+    def _build_edge_traversal(self, ctx: EdgeTraversalContext) -> str:
+        """Build query fragment for traversing an edge in a specific direction.
+
+        Args:
+            ctx: Edge traversal context containing all necessary information
+
+        Returns:
+            Query fragment string with normalized identifiers
+        """
+        query = ""
+
+        # Use normalized edge ID for query generation
+        normalized_edge_id = self._get_normalized_edge_id(ctx.edge_id)
+
+        # Check if predicate is symmetric
+        predicates = ctx.edge.get("predicates") or []
+        is_symmetric = any(biolink.is_symmetric(str(pred)) for pred in predicates)
+
+        edge_filter = self._build_edge_filter(ctx.edge)
+        filter_clause = f" @filter({edge_filter})" if edge_filter else ""
+
+        # Build the filter for the target node
+        target_filter = self._build_node_filter(ctx.target_node)
+        child_visited = ctx.visited | {ctx.target_id}
+
+        # Determine field names based on direction
+        if ctx.edge_direction == "out":
+            edge_name = f"out_edges_{normalized_edge_id}"
+            symmetric_edge_name = f"in_edges-symmetric_{normalized_edge_id}"
+            edge_reverse_field = self._v("subject")
+            predicate_field = self._v("object")
+            symmetric_edge_reverse_field = self._v("object")
+            symmetric_predicate_field = self._v("subject")
+        else:  # "in"
+            edge_name = f"in_edges_{normalized_edge_id}"
+            symmetric_edge_name = f"out_edges-symmetric_{normalized_edge_id}"
+            edge_reverse_field = self._v("object")
+            predicate_field = self._v("subject")
+            symmetric_edge_reverse_field = self._v("subject")
+            symmetric_predicate_field = self._v("object")
+
+        # Build primary direction
+        primary_ctx = DirectionTraversalContext(
+            edge_name=edge_name,
+            edge_reverse_field=edge_reverse_field,
+            predicate_field=predicate_field,
+            filter_clause=filter_clause,
+            target_id=ctx.target_id,
+            target_filter=target_filter,
+            child_visited=child_visited,
+            nodes=ctx.nodes,
+            edges=ctx.edges,
+        )
+        query += self._build_single_direction_traversal(primary_ctx)
+
+        # If symmetric, also build reverse direction
+        if is_symmetric:
+            reverse_ctx = DirectionTraversalContext(
+                edge_name=symmetric_edge_name,
+                edge_reverse_field=symmetric_edge_reverse_field,
+                predicate_field=symmetric_predicate_field,
+                filter_clause=filter_clause,
+                target_id=ctx.target_id,
+                target_filter=target_filter,
+                child_visited=child_visited,
+                nodes=ctx.nodes,
+                edges=ctx.edges,
+            )
+            query += self._build_single_direction_traversal(reverse_ctx)
+
+        return query
+
+    def _build_single_direction_traversal(self, ctx: DirectionTraversalContext) -> str:
+        """Build a single directional edge traversal query fragment.
+
+        Args:
+            ctx: Direction traversal context containing all necessary information
+
+        Returns:
+            Query fragment string with normalized identifiers
+        """
+        # Use normalized target node ID for query generation
+        normalized_target_id = self._get_normalized_node_id(ctx.target_id)
+
+        query = f"{ctx.edge_name}: ~{ctx.edge_reverse_field}{ctx.filter_clause}"
+        query += f" @cascade({self._v('predicate')}, {ctx.predicate_field}) {{ "
+        query += self._add_standard_edge_fields()
+
+        query += f"node_{normalized_target_id}: {ctx.predicate_field}"
+        if ctx.target_filter:
+            query += f" @filter({ctx.target_filter})"
+
+        query += self._build_node_cascade_clause(
+            ctx.target_id, ctx.edges, ctx.child_visited
+        )
+
+        query += " { "
+        query += self._add_standard_node_fields()
+        query += self._build_further_hops(
+            ctx.target_id, ctx.nodes, ctx.edges, ctx.child_visited
+        )
+        query += "} } "
+
         return query
 
     def _build_further_hops(
@@ -490,40 +817,17 @@ class DgraphTranspiler(Tier0Transpiler):
                     continue  # Skip cycles
 
                 object_node = nodes[object_id]
-                edge_filter = self._build_edge_filter(edge)
-                filter_clause = f" @filter({edge_filter})" if edge_filter else ""
-
-                # Edge block with cascade requiring predicate and the 'object' endpoint
-                query += f"out_edges_{edge_id}: ~{self._v('subject')}{filter_clause}"
-                query += f" @cascade({self._v('predicate')}, {self._v('object')}) {{ "
-                query += self._add_standard_edge_fields()
-
-                # Build connected node (object) with its own cascade
-                object_filter = self._build_node_filter(object_node)
-                object_filter_clause = (
-                    f" @filter({object_filter})"
-                    if object_filter != f"has({self._v('id')})"
-                    else ""
+                ctx = EdgeTraversalContext(
+                    edge_id=edge_id,
+                    edge=edge,
+                    target_id=object_id,
+                    target_node=object_node,
+                    edge_direction="out",
+                    visited=visited,
+                    nodes=nodes,
+                    edges=edges,
                 )
-                query += f"node_{object_id}: {self._v('object')}{object_filter_clause}"
-
-                # For the child node, include cascade(id, ~subject?, ~object?) based on remaining unvisited hops
-                child_visited = visited | {object_id}
-                query += self._build_node_cascade_clause(
-                    object_id, edges, child_visited
-                )
-
-                # Open child node block
-                query += " { "
-                query += self._add_standard_node_fields()
-
-                # Recurse from the newly connected object node
-                query += self._build_further_hops(
-                    object_id, nodes, edges, child_visited
-                )
-
-                # Close blocks
-                query += "} } "
+                query += self._build_edge_traversal(ctx)
 
         # Find incoming edges to this node (where this node is the OBJECT)
         for edge_id, edge in edges.items():
@@ -533,40 +837,17 @@ class DgraphTranspiler(Tier0Transpiler):
                     continue  # Skip cycles
 
                 source_node = nodes[source_id]
-                edge_filter = self._build_edge_filter(edge)
-                filter_clause = f" @filter({edge_filter})" if edge_filter else ""
-
-                # Edge block with cascade requiring predicate and the 'subject' endpoint
-                query += f"in_edges_{edge_id}: ~{self._v('object')}{filter_clause}"
-                query += f" @cascade({self._v('predicate')}, {self._v('subject')}) {{ "
-                query += self._add_standard_edge_fields()
-
-                # Build connected node (subject) with its own cascade
-                source_filter = self._build_node_filter(source_node)
-                source_filter_clause = (
-                    f" @filter({source_filter})"
-                    if source_filter != f"has({self._v('id')})"
-                    else ""
+                ctx = EdgeTraversalContext(
+                    edge_id=edge_id,
+                    edge=edge,
+                    target_id=source_id,
+                    target_node=source_node,
+                    edge_direction="in",
+                    visited=visited,
+                    nodes=nodes,
+                    edges=edges,
                 )
-                query += f"node_{source_id}: {self._v('subject')}{source_filter_clause}"
-
-                # For the child node, include cascade(id, ~subject?, ~object?) based on remaining unvisited hops
-                child_visited = visited | {source_id}
-                query += self._build_node_cascade_clause(
-                    source_id, edges, child_visited
-                )
-
-                # Open child node block
-                query += " { "
-                query += self._add_standard_node_fields()
-
-                # Recurse from the newly connected source node
-                query += self._build_further_hops(
-                    source_id, nodes, edges, child_visited
-                )
-
-                # Close blocks
-                query += "} } "
+                query += self._build_edge_traversal(ctx)
 
         return query
 
@@ -574,12 +855,18 @@ class DgraphTranspiler(Tier0Transpiler):
     def convert_batch_multihop(self, qgraphs: list[QueryGraphDict]) -> str:
         """Convert a TRAPI multi-hop batch graph to a batch of Dgraph queries.
 
+        Args:
+            qgraphs: List of query graphs to batch
+
         Returns:
-            A combined Dgraph query containing all sub-queries
+            A combined Dgraph query containing all sub-queries with normalized identifiers
         """
         # Process each query graph in the list
         blocks: list[str] = []
         for i, sub_qgraph in enumerate(qgraphs):
+            # Normalize IDs for each qgraph independently
+            self._normalize_qgraph_ids(sub_qgraph)
+
             sub_qgraph_typed: QueryGraphDict = sub_qgraph
             nodes = sub_qgraph_typed["nodes"]
             edges = sub_qgraph_typed["edges"]
@@ -596,50 +883,27 @@ class DgraphTranspiler(Tier0Transpiler):
         """Convert a Dgraph Node to a TRAPI NodeDict."""
         attributes: list[AttributeDict] = []
 
-        if not (
-            len(node.equivalent_identifiers) == 1
-            and node.equivalent_identifiers[0] == node.id
-        ):
-            attributes.append(
-                AttributeDict(
-                    attribute_type_id="biolink:xref",
-                    value=[CURIE(i) for i in node.equivalent_identifiers],
-                )
+        # Cases that require additional formatting to be TRAPI-compliant
+        special_cases: dict[str, tuple[str, Any]] = {
+            "equivalent_identifiers": (
+                "biolink:xref",
+                [CURIE(i) for i in node.equivalent_identifiers],
             )
+        }
 
-        if node.description:
-            attributes.append(
-                AttributeDict(
-                    attribute_type_id="biolink:description", value=node.description
+        for attr_id, value in node.get_attributes().items():
+            if attr_id in special_cases:
+                continue
+            if value is not None and value not in ([], ""):
+                attributes.append(
+                    AttributeDict(
+                        attribute_type_id=biolink.ensure_prefix(attr_id), value=value
+                    )
                 )
-            )
-        if node.in_taxon:
-            attributes.append(
-                AttributeDict(
-                    attribute_type_id="biolink:in_taxon",
-                    value=[CURIE(i) for i in node.in_taxon],
-                )
-            )
-        if node.information_content is not None:
-            attributes.append(
-                AttributeDict(
-                    attribute_type_id="biolink:information_content",
-                    value=node.information_content,
-                )
-            )
-        if node.inheritance:
-            attributes.append(
-                AttributeDict(
-                    attribute_type_id="biolink:inheritance", value=node.inheritance
-                )
-            )
-        if node.provided_by:
-            attributes.append(
-                AttributeDict(
-                    attribute_type_id="biolink:provided_by",
-                    value=[Infores(i) for i in node.provided_by],
-                )
-            )
+
+        for name, value in special_cases.values():
+            if value is not None and value not in ([], ""):
+                attributes.append(AttributeDict(attribute_type_id=name, value=value))
 
         trapi_node = NodeDict(
             name=node.name,
@@ -654,48 +918,52 @@ class DgraphTranspiler(Tier0Transpiler):
     def _build_trapi_edge(self, edge: dg.Edge, initial_curie: str) -> EdgeDict:
         """Convert a Dgraph Edge to a TRAPI EdgeDict."""
         attributes: list[AttributeDict] = []
-        attribute_map = {
-            "biolink:source_infores": edge.source_inforeses,
-            "biolink:id": edge.id,
-            "biolink:category": [
-                BiolinkEntity(biolink.ensure_prefix(cat)) for cat in edge.category
-            ],
-            "biolink:knowledge_level": edge.knowledge_level,
-            "biolink:agent_type": edge.agent_type,
-            "biolink:publications": edge.publications,
-            "biolink:qualified_predicate": edge.qualified_predicate,
-            "biolink:subject_form_or_variant_qualifier": edge.subject_form_or_variant_qualifier,
-            "biolink:disease_context_qualifier": edge.disease_context_qualifier,
-            "biolink:frequency_qualifier": edge.frequency_qualifier,
-            "biolink:onset_qualifier": edge.onset_qualifier,
-            "biolink:sex_qualifier": edge.sex_qualifier,
-            "biolink:original_subject": edge.original_subject,
-            "biolink:original_predicate": edge.original_predicate,
-            "biolink:original_object": edge.original_object,
-            "biolink:allelic_requirement": edge.allelic_requirement,
-            "biolink:update_date": edge.update_date,
-            "biolink:z_score": edge.z_score,
-            "biolink:has_evidence": edge.has_evidence,
-            "biolink:has_confidence_score": edge.has_confidence_score,
-            "biolink:has_count": edge.has_count,
-            "biolink:has_total": edge.has_total,
-            "biolink:has_percentage": edge.has_percentage,
-            "biolink:has_quotient": edge.has_quotient,
+        qualifiers: list[QualifierDict] = []
+        sources: list[RetrievalSourceDict] = []
+
+        # Cases that require additional formatting to be TRAPI-compliant
+        special_cases: dict[str, tuple[str, Any]] = {
+            "category": (
+                "biolink:category",
+                [BiolinkEntity(biolink.ensure_prefix(cat)) for cat in edge.category],
+            ),
         }
-        for attr_id, value in attribute_map.items():
+        for attr_id, value in edge.get_attributes().items():
+            if attr_id in special_cases:
+                continue
             if value is not None and value not in ([], ""):
-                attributes.append(AttributeDict(attribute_type_id=attr_id, value=value))
+                attributes.append(
+                    AttributeDict(
+                        attribute_type_id=biolink.ensure_prefix(attr_id), value=value
+                    )
+                )
+
+        for name, value in special_cases.values():
+            if value is not None and value not in ([], ""):
+                attributes.append(AttributeDict(attribute_type_id=name, value=value))
+
+        # Build qualifiers
+        for qualifier_id, value in edge.get_qualifiers().items():
+            qualifiers.append(
+                QualifierDict(
+                    qualifier_type_id=QualifierTypeID(qualifier_id),
+                    qualifier_value=value,
+                )
+            )
 
         # Build Sources
-        sources = [
-            RetrievalSourceDict(
-                resource_id=Infores(s.resource_id),
-                resource_role=s.resource_role,
-                upstream_resource_ids=[Infores(uid) for uid in s.upstream_resource_ids],
-                source_record_urls=s.source_record_urls,
+        for source in edge.sources:
+            retrieval_source = RetrievalSourceDict(
+                resource_id=Infores(source.resource_id),
+                resource_role=source.resource_role,
             )
-            for s in edge.sources
-        ]
+            if len(source.upstream_resource_ids):
+                retrieval_source["upstream_resource_ids"] = [
+                    Infores(upstream) for upstream in source.upstream_resource_ids
+                ]
+            if len(source.source_record_urls):
+                retrieval_source["source_record_urls"] = source.source_record_urls
+            sources.append(retrieval_source)
 
         # Build Edge
         trapi_edge = EdgeDict(
@@ -709,19 +977,29 @@ class DgraphTranspiler(Tier0Transpiler):
         return trapi_edge
 
     def _build_results(self, node: dg.Node) -> list[Partial]:
-        """Recursively build results from dgraph response."""
+        """Recursively build results from dgraph response.
+
+        Args:
+            node: Parsed node from Dgraph response (with bindings already restored to original IDs)
+
+        Returns:
+            List of partial results with original node/edge IDs
+        """
+        original_node_id = QNodeID(node.binding)
+
         if node.id not in self.kgraph["nodes"]:
             self.kgraph["nodes"][CURIE(node.id)] = self._build_trapi_node(node)
 
         # If we hit a stop condition, return partial for the node
         if not len(node.edges):
-            return [Partial([(QNodeID(node.binding), CURIE(node.id))], [])]
+            return [Partial([(original_node_id, CURIE(node.id))], [])]
 
         partials = {QEdgeID(edge.binding): list[Partial]() for edge in node.edges}
 
         for edge in node.edges:
             subject_id = CURIE(edge.node.id if edge.direction == "in" else node.id)
             object_id = CURIE(node.id if edge.direction == "in" else edge.node.id)
+
             qedge_id = QEdgeID(edge.binding)
 
             trapi_edge = self._build_trapi_edge(edge, node.id)
@@ -744,7 +1022,7 @@ class DgraphTranspiler(Tier0Transpiler):
                 partials[qedge_id].append(
                     partial.combine(
                         Partial(
-                            [(QNodeID(node.binding), CURIE(node.id))],
+                            [(original_node_id, CURIE(node.id))],
                             [(qedge_id, subject_id, object_id)],
                         )
                     )
@@ -768,8 +1046,22 @@ class DgraphTranspiler(Tier0Transpiler):
     def convert_results(
         self, qgraph: QueryGraphDict, results: list[dg.Node]
     ) -> BackendResult:
-        """Convert Dgraph JSON results back to TRAPI BackendResults."""
+        """Convert Dgraph JSON results back to TRAPI BackendResults.
+
+        Args:
+            qgraph: The original query graph (for reverse mapping)
+            results: Parsed Dgraph response nodes
+
+        Returns:
+            TRAPI-formatted results with original node/edge IDs
+        """
         logger.info("Begin transforming records")
+
+        # Ensure normalization mappings exist
+        # (In case convert_results is called without convert_multihop first)
+        if not self._reverse_node_map or not self._reverse_edge_map:
+            self._normalize_qgraph_ids(qgraph)
+
         self.k_agraph = {
             QEdgeID(qedge_id): dict[CURIE, dict[CURIE, list[EdgeIdentifier]]]()
             for qedge_id in qgraph["edges"]

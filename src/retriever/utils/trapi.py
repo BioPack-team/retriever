@@ -27,6 +27,7 @@ from retriever.types.trapi import (
     ResultDict,
     RetrievalSourceDict,
 )
+from retriever.utils import biolink
 from retriever.utils.logs import TRAPILogger
 
 tracer = trace.get_tracer("lookup.execution.tracer")
@@ -351,11 +352,16 @@ def meta_qualifier_meets_constraints(
         qualifiers_met = True
         for qualifier in constraint.qualifier_set:
             q_type, q_val = qualifier.qualifier_type_id, qualifier.qualifier_value
-            if (
-                q_type in meta_qualifiers
-                and q_val in meta_qualifiers[QualifierTypeID(q_type)]
-            ):
-                continue
+            if q_type in meta_qualifiers:
+                expanded_vals = biolink.get_descendant_values(q_type, q_val)
+                if not len(meta_qualifiers[QualifierTypeID(q_type)]):
+                    continue
+                if expanded_vals & set(meta_qualifiers[QualifierTypeID(q_type)]):
+                    continue
+                else:
+                    qualifiers_met = False
+                    break
+
             else:
                 qualifiers_met = False
                 break

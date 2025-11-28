@@ -7,6 +7,7 @@ from urllib.parse import urljoin
 
 import aiohttp
 import grpc
+import msgpack
 import pydgraph
 from aiohttp import ClientTimeout
 from cachetools import TTLCache
@@ -117,6 +118,7 @@ class DgraphDriver(DatabaseDriver):
     _http_session: aiohttp.ClientSession | None = None
     _failed: bool = False
     _version_cache: TTLCache[str, str | None] = TTLCache(maxsize=1, ttl=60)
+    _mapping_cache: TTLCache[str, dict[str, Any] | None] = TTLCache(maxsize=1, ttl=300)
 
     def __init__(
         self,
@@ -159,6 +161,11 @@ class DgraphDriver(DatabaseDriver):
         """Clears the internal schema version cache. Primarily for testing."""
         log.debug("Clearing Dgraph schema version cache.")
         self._version_cache.clear()
+
+    def clear_mapping_cache(self) -> None:
+        """Clears the internal schema mapping cache. Primarily for testing."""
+        log.debug("Clearing Dgraph schema mapping cache.")
+        self._mapping_cache.clear()
 
     async def get_active_version(self) -> str | None:
         """Queries Dgraph for the active schema version and caches the result.
@@ -230,6 +237,125 @@ class DgraphDriver(DatabaseDriver):
             if self.protocol == DgraphProtocol.GRPC and txn:
                 await asyncio.to_thread(txn.discard)
 
+    async def fetch_mapping_from_db(self, version: str) -> dict[str, Any] | None:
+        """Helper to fetch and deserialize mapping from Dgraph.
+
+        Args:
+            version: The schema version to fetch mapping for
+
+        Returns:
+            Deserialized mapping dictionary, or None if not found or on error.
+        """
+        query = f"""
+            query schema_mapping() {{
+                metadata(func: type(SchemaMetadata))
+                    @filter(eq(schema_metadata_version, "{version}")) {{
+                    schema_metadata_mapping
+                }}
+            }}
+        """
+        txn: DgraphTxnProtocol | None = None
+        try:
+            metadata_list = []
+            if self.protocol == DgraphProtocol.GRPC:
+                assert self._client is not None, "gRPC client not initialized"
+                txn = self._client.txn(read_only=True)
+                response = await asyncio.to_thread(txn.query, query)
+                raw_data = json.loads(response.json)
+                metadata_list = raw_data.get("metadata", [])
+            else:  # HTTP
+                assert self._http_session is not None, "HTTP session not initialized"
+                async with self._http_session.post(
+                    urljoin(self.endpoint, "/query"),
+                    json={"query": query},
+                    timeout=ClientTimeout(total=self.query_timeout),
+                ) as response:
+                    raw_data = await response.json()
+                    metadata_list = raw_data.get("data", {}).get("metadata", [])
+
+            if not metadata_list:
+                log.warning(f"No schema metadata found for version '{version}'")
+                return None
+
+            # Get the msgpack-encoded mapping
+            mapping_blob = metadata_list[0].get("schema_metadata_mapping")
+            if not mapping_blob:
+                log.warning(
+                    f"schema_metadata_mapping field is empty for version '{version}'"
+                )
+                return None
+
+            # Dgraph may return the blob as a base64-encoded string or raw bytes
+            # depending on how it was stored. Try to handle both cases.
+            mapping_bytes: bytes
+            if isinstance(mapping_blob, str):
+                # If it's a string, it might be base64-encoded
+                import base64
+
+                try:
+                    mapping_bytes = base64.b64decode(mapping_blob)
+                except Exception:
+                    # If base64 decode fails, assume it's UTF-8 encoded msgpack
+                    mapping_bytes = mapping_blob.encode("utf-8")
+            else:
+                mapping_bytes = mapping_blob
+
+            # Deserialize msgpack - explicitly type the result
+            mapping = cast(dict[str, Any], msgpack.unpackb(mapping_bytes, raw=False))
+            log.info(
+                f"Successfully retrieved schema metadata mapping for version '{version}'"
+            )
+            return mapping
+
+        except Exception as e:
+            log.error(
+                f"Failed to retrieve schema metadata mapping for version '{version}': {e}"
+            )
+            return None
+        finally:
+            if self.protocol == DgraphProtocol.GRPC and txn:
+                await asyncio.to_thread(txn.discard)
+
+    async def get_schema_metadata_mapping(self) -> dict[str, Any] | None:
+        """Queries Dgraph for the active schema's metadata mapping.
+
+        The mapping is stored as a msgpack-serialized JSON blob in the
+        schema_metadata_mapping field. This method retrieves and deserializes it
+        for the active schema version.
+
+        The result is cached per-version with a 5-minute TTL.
+
+        Returns:
+            Deserialized mapping dictionary, or None if not found or on error.
+        """
+        # Get the active version (respects manual version, env var, or DB query)
+        version = await self.get_active_version()
+        if not version:
+            log.warning(
+                "Cannot retrieve schema metadata mapping: no active version found"
+            )
+            return None
+
+        # Check cache first (keyed by version)
+        cache_key = f"mapping_{version}"
+        try:
+            cached_mapping = self._mapping_cache[cache_key]
+            log.debug(
+                f"Returning cached schema metadata mapping for version '{version}'"
+            )
+            return cached_mapping
+        except KeyError:
+            log.debug(
+                f"Fetching schema metadata mapping for version '{version}' (cache miss)..."
+            )
+
+        # Fetch from database
+        mapping = await self.fetch_mapping_from_db(version)
+
+        # Cache the result (whether successful or None)
+        self._mapping_cache[cache_key] = mapping
+        return mapping
+
     @override
     async def connect(self, retries: int = 0) -> None:
         """Connect to Dgraph using selected protocol."""
@@ -252,10 +378,10 @@ class DgraphDriver(DatabaseDriver):
             await self._cleanup_connections()
             if retries < self.connect_retries:
                 await asyncio.sleep(1)
-                log.error(
-                    f"Could not establish connection to Dgraph via {self.protocol}, "
-                    + f"trying again... retry {retries + 1}"
-                )
+                log.error(f"""
+                    Could not establish connection to Dgraph via {self.protocol},
+                    trying again... retry {retries + 1}
+                """)
                 await self.connect(retries + 1)
             else:
                 log.error(f"Could not establish connection to Dgraph, error: {e}")
@@ -318,7 +444,20 @@ class DgraphDriver(DatabaseDriver):
     async def run_query(
         self, query: str, *args: Any, **kwargs: Any
     ) -> dg_models.DgraphResponse:
-        """Execute a query against the Dgraph database and parse into dataclasses."""
+        """Execute a query against the Dgraph database and parse into dataclasses.
+
+        Args:
+            query: The Dgraph query string to execute
+            *args: Variable positional arguments (unused, for protocol compatibility)
+            **kwargs: Additional arguments:
+                - transpiler: DgraphTranspiler instance for ID mapping (REQUIRED)
+
+        Returns:
+            Parsed DgraphResponse with bindings converted back to original IDs
+
+        Raises:
+            ValueError: If transpiler is not provided in kwargs
+        """
         if self.protocol == DgraphProtocol.GRPC and not self._client:
             raise RuntimeError(
                 "DgraphDriver (gRPC) not connected. Call connect() first."
@@ -327,6 +466,14 @@ class DgraphDriver(DatabaseDriver):
             raise RuntimeError(
                 "DgraphDriver (HTTP) not connected. Call connect() first."
             )
+
+        # Extract transpiler and validate it's provided
+        transpiler = kwargs.get("transpiler")
+        if not transpiler:
+            raise ValueError("""
+                transpiler is required in run_query() to properly map normalized IDs back to original IDs. "
+                Pass transpiler=<DgraphTranspiler instance> in kwargs."
+            """)
 
         otel_span = trace.get_current_span()
         if otel_span and otel_span.is_recording():
@@ -340,11 +487,25 @@ class DgraphDriver(DatabaseDriver):
         version = await self.get_active_version()
         prefix = f"{version}_" if version else None
 
+        # Extract ID mappings from transpiler
+        node_id_map = transpiler._reverse_node_map
+        edge_id_map = transpiler._reverse_edge_map
+
         try:
             if self.protocol == DgraphProtocol.GRPC:
-                result = await self._run_grpc_query(query, prefix=prefix)
+                result = await self._run_grpc_query(
+                    query,
+                    prefix=prefix,
+                    node_id_map=node_id_map,
+                    edge_id_map=edge_id_map,
+                )
             else:
-                result = await self._run_http_query(query, prefix=prefix)
+                result = await self._run_http_query(
+                    query,
+                    prefix=prefix,
+                    node_id_map=node_id_map,
+                    edge_id_map=edge_id_map,
+                )
         except TimeoutError as e:
             if otel_span is not None:
                 otel_span.add_event("dgraph_query_timeout")
@@ -358,9 +519,24 @@ class DgraphDriver(DatabaseDriver):
         return result
 
     async def _run_grpc_query(
-        self, query: str, *, prefix: str | None
+        self,
+        query: str,
+        *,
+        prefix: str | None,
+        node_id_map: dict[str, str] | None = None,
+        edge_id_map: dict[str, str] | None = None,
     ) -> dg_models.DgraphResponse:
-        """Execute query using gRPC protocol."""
+        """Execute query using gRPC protocol.
+
+        Args:
+            query: The Dgraph query string
+            prefix: Schema version prefix
+            node_id_map: Optional mapping from normalized to original node IDs
+            edge_id_map: Optional mapping from normalized to original edge IDs
+
+        Returns:
+            Parsed response with original bindings restored
+        """
         assert self._client is not None, "gRPC client not initialized"
 
         txn: DgraphTxnProtocol | None = None
@@ -382,7 +558,16 @@ class DgraphDriver(DatabaseDriver):
 
             raw: Any = response.json
 
-            return dg_models.DgraphResponse.parse(raw, prefix=prefix)
+            return dg_models.DgraphResponse.parse(
+                raw,
+                prefix=prefix,
+                node_id_map=node_id_map,
+                edge_id_map=edge_id_map,
+            )
+        except grpc.RpcError as e:
+            if e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
+                raise TimeoutError(f"Dgraph gRPC query timed out: {e.details()}") from e
+            raise ConnectionError(f"Dgraph gRPC query failed: {e.details()}") from e
         except (pydgraph.errors.AbortedError, NameError) as e:
             original_error = e.__context__
             if isinstance(original_error, grpc.RpcError):
@@ -400,9 +585,24 @@ class DgraphDriver(DatabaseDriver):
                 await asyncio.to_thread(txn.discard)
 
     async def _run_http_query(
-        self, query: str, *, prefix: str | None
+        self,
+        query: str,
+        *,
+        prefix: str | None,
+        node_id_map: dict[str, str] | None = None,
+        edge_id_map: dict[str, str] | None = None,
     ) -> dg_models.DgraphResponse:
-        """Execute query using HTTP protocol with DQL."""
+        """Execute query using HTTP protocol with DQL.
+
+        Args:
+            query: The Dgraph query string
+            prefix: Schema version prefix
+            node_id_map: Optional mapping from normalized to original node IDs
+            edge_id_map: Optional mapping from normalized to original edge IDs
+
+        Returns:
+            Parsed response with original bindings restored
+        """
         assert self._http_session is not None, "HTTP session not initialized"
 
         clean_query = query.strip()
@@ -430,7 +630,12 @@ class DgraphDriver(DatabaseDriver):
             if "data" not in raw_data:
                 raise RuntimeError("Dgraph query returned no data field.")
 
-            return dg_models.DgraphResponse.parse(raw_data.get("data"), prefix=prefix)
+            return dg_models.DgraphResponse.parse(
+                raw_data.get("data"),
+                prefix=prefix,
+                node_id_map=node_id_map,
+                edge_id_map=edge_id_map,
+            )
 
     async def _cleanup_connections(self) -> None:
         """Clean up any open connections."""

@@ -17,7 +17,7 @@ from retriever.lookup.branch import (
     SuperpositionID,
 )
 from retriever.lookup.partial import Partial
-from retriever.lookup.subquery import mock_subquery
+from retriever.lookup.subquery import subquery
 from retriever.lookup.utils import get_subgraph, make_mappings
 from retriever.metakg.metakg import METAKG_MANAGER
 from retriever.types.general import (
@@ -93,13 +93,25 @@ class QueryGraphExecutor:
         self.terminate: bool = False
         self.start_time: float = 0  # replaced on execute start
 
+        # Because timeouts are configured on a per-tier basis, we take the longest timeout
+        # of the tiers we are accessing. If any of them are -1, we consider the timeout
+        # disabled.
+        timeouts = [
+            timeout
+            for tier, timeout in self.ctx.timeout.items()
+            if tier in self.ctx.tiers
+        ]
+        if -1 in timeouts:
+            self.timeout = -1
+        self.timeout: float = max(timeouts)
+
     @tracer.start_as_current_span("qgx_execute")
     async def execute(self) -> LookupArtifacts:
         """Execute query graph using a quantum-metaphor asynchronous approach.
 
         Note that this algorithm assumes that between any two nodes, there is at most one edge.
         """
-        timeout_task = asyncio.create_task(self.timeout())
+        timeout_task = asyncio.create_task(self.start_timeout_clock())
         try:
             self.start_time = time.time()
             self.job_log.info(
@@ -277,10 +289,10 @@ class QueryGraphExecutor:
             while parallel_tasks:
                 timeout = (
                     max(
-                        self.ctx.timeout - (time.time() - self.start_time),
+                        self.timeout - (time.time() - self.start_time),
                         0,
                     )
-                    if self.ctx.timeout >= 0
+                    if self.timeout >= 0
                     else None
                 )
                 done, pending = await asyncio.wait(
@@ -348,7 +360,7 @@ class QueryGraphExecutor:
 
             subquery_tasks = [
                 asyncio.create_task(
-                    mock_subquery(self.ctx.job_id, current_branch, self.qgraph),
+                    subquery(self.ctx.job_id, current_branch, self.qgraph),
                     name="subquery",
                 )
                 # for operation in current_branch.operations
@@ -602,12 +614,15 @@ class QueryGraphExecutor:
 
         return task_partials
 
-    async def timeout(self) -> None:
+    async def start_timeout_clock(self) -> None:
         """Set work to terminate after the configured timeout."""
         try:
-            if self.ctx.timeout < 0:
+            self.job_log.info(
+                f"QGX timeout is {'disabled' if self.timeout < 0 else f'{self.timeout}s'}."
+            )
+            if self.timeout < 0:
                 return
-            await asyncio.sleep(self.ctx.timeout)
+            await asyncio.sleep(self.timeout)
             self.job_log.error("QGX hit timeout, attempting wrapup...")
             self.terminate = True
         except asyncio.CancelledError:

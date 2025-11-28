@@ -18,11 +18,10 @@ dependencies = [
     "opentelemetry-instrumentation-fastapi>=0.50b0",
     "opentelemetry-exporter-otlp-proto-http>=1.30.0",
     "opentelemetry-instrumentation-httpx>=0.51b0",
-    "sentry-sdk[loguru]>=2.20.0",
+    "sentry-sdk[fastapi,httpx,loguru]>=2.45.0",
     "motor>=3.7.0",
     "loguru>=0.7.3",
-    "bmt>=1.4.4",
-    "reasoner-transpiler>=2.3.5",
+    "bmt>=1.4.6",
     "pyinstrument>=5.0.1",
     "pydantic-file-secrets>=0.4.4",
     "pyyaml>=6.0.2",
@@ -30,9 +29,7 @@ dependencies = [
     "reasoner-pydantic>=6.0.0,<7",
     "ruamel-yaml>=0.18.14",
     "pydantic-core>=2.33.1",
-    "neo4j-rust-ext>=5.28.2.1",
     "orjson>=3.11.2",
-    "aiofiles>=24.1.0",
     "zstandard>=0.24.0",
     "ormsgpack>=1.10.0",
     "uvloop>=0.21.0",
@@ -43,6 +40,7 @@ dependencies = [
     "grpcio>=1.65.1",
     "aiohttp>=3.9.0",
     "cachetools>=5.3.1",
+    "msgpack>=1.1.1",
 ]
 
 [project.scripts]
@@ -63,6 +61,7 @@ dev = [
     "pytest-cov>=6.2.1",
     "pytest-asyncio>=1.1.0",
     "bpython>=0.25",
+    "msgpack-types>=0.5.0",
 ]
 
 [tool.uv]
@@ -103,12 +102,12 @@ echo "✅ All set!"
         -d \
         -p 6379:6379 \
         --ulimit memlock=-1 \
-        docker.dragonflydb.io/dragonflydb/dragonfly
+        docker.dragonflydb.io/dragonflydb/dragonfly:v1.35.0
 """
 'dragonfly:stop' = 'echo "stopping dragonfly..." && docker rm --force test-dragonfly'
 dragonfly = 'task dragonfly:stop && task dragonfly:start'
 
-'mongo:start' = 'echo "starting mongodb..." && docker run --name test-mongodb -p 27017:27017 -d mongodb/mongodb-community-server:latest'
+'mongo:start' = 'echo "starting mongodb..." && docker run --name test-mongodb -p 27017:27017 -d mongodb/mongodb-community-server:7.0-ubuntu2204'
 'mongo:stop' = 'echo "stopping mongodb..." && docker rm -f test-mongodb'
 mongo = 'task mongo:stop && task mongo:start'
 
@@ -125,14 +124,23 @@ dbs = 'task dbs:stop && task dbs:start'
         -p 16686:16686 \
         -p 4317:4317 \
         -p 4318:4318 \
-        jaegertracing/all-in-one:latest
+        jaegertracing/all-in-one:1.75.0
 """
 'jaeger:stop' = 'echo "stopping jaeger..." && docker rm --force test-jaeger'
 'jaeger:open' = 'python -m webbrowser http://localhost:16686'
 jaeger = 'task jaeger:stop && task jaeger:start'
 
 launch = 'retriever'
-'launch:debug' = 'DEBUG=true LOG_LEVEL=TRACE JOB__LOOKUP__TIMEOUT=-1 WORKERS=1 retriever'
+'launch:debug' = """
+    DEBUG=true \
+    LOG_LEVEL=TRACE \
+    JOB__LOOKUP__TIER0_TIMEOUT=-1 \
+    JOB__LOOKUP__TIER1_TIMEOUT=-1 \
+    JOB__LOOKUP__TIER2_TIMEOUT=-1 \
+    JOB__METAKG__TIMEOUT=-1 \
+    WORKERS=1 \
+    retriever
+"""
 
 start = 'task dbs && task launch'
 dev = 'task dbs && task launch:debug'

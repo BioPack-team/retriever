@@ -3,10 +3,16 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from contextlib import suppress
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import Any, Literal, Self, TypeGuard, cast
 
 import orjson
+
+from retriever.data_tiers.utils import (
+    DINGO_KG_EDGE_TOPLEVEL_VALUES,
+    DINGO_KG_NODE_TOPLEVEL_VALUES,
+)
+from retriever.utils import biolink
 
 # Regex to find the node binding, ignoring an optional batch prefix like "q0_"
 # It captures the part after the optional prefix and "node_"
@@ -22,6 +28,12 @@ def _strip_prefix(d: Mapping[str, Any], prefix: str | None) -> Mapping[str, Any]
 # -----------------
 # Dataclasses
 # -----------------
+
+
+# It represents the expected number of parts when splitting edge keys by underscore
+# Format: "direction_edges_id" or "direction_edges-symmetric_id"
+# Example: "in_edges_e0" splits to ["in", "edges", "e0"] = 3 parts
+_EDGE_KEY_PARTS = 3
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -82,23 +94,63 @@ class Edge:
     id: str | None = None
     category: list[str] = field(default_factory=list)
 
+    def get_attributes(self) -> dict[str, Any]:
+        """Return all fields which correspond to TRAPI attributes as a dict."""
+        attrs = dict[str, Any]()
+        for data_field in fields(self):
+            if (
+                data_field.name not in DINGO_KG_EDGE_TOPLEVEL_VALUES
+                and not biolink.is_qualifier(data_field.name)
+            ):
+                attrs[data_field.name] = getattr(self, data_field.name)
+        return attrs
+
+    def get_qualifiers(self) -> dict[str, Any]:
+        """Return all fields which correspond to TRAPI qualfiers as a dict."""
+        qualifiers = dict[str, Any]()
+        for data_field in fields(self):
+            if biolink.is_qualifier(data_field.name):
+                qualifiers[data_field.name] = getattr(self, data_field.name)
+        return qualifiers
+
     @classmethod
-    def from_dict(
+    def from_dict(  # noqa: PLR0913
         cls,
         edge_dict: Mapping[str, Any],
         binding: str,
         direction: str,
         prefix: str | None = None,
+        edge_id_map: Mapping[str, str] | None = None,
+        node_id_map: Mapping[str, str] | None = None,
     ) -> Self:
-        """Parse an edge mapping into an Edge dataclass (handles versioned keys)."""
+        """Parse an edge mapping into an Edge dataclass (handles versioned keys).
+
+        Args:
+            edge_dict: Raw edge data from Dgraph response
+            binding: Edge binding (already converted to original ID by Node.from_dict)
+            direction: Edge direction ('in' or 'out')
+            prefix: Schema version prefix (e.g., 'vC_'), or None for no prefix
+            edge_id_map: Optional mapping from normalized edge IDs to original IDs
+            node_id_map: Optional mapping from normalized node IDs to original IDs
+
+        Returns:
+            Parsed Edge instance with connected node
+        """
         norm = _strip_prefix(edge_dict, prefix)
 
         node_val: Any = next(
             (v for k, v in norm.items() if k.startswith("node_")),
             cast(Mapping[str, Any], {}),
         )
-        node_binding = next(
+        normalized_node_binding = next(
             (k.split("_", 1)[1] for k in norm if k.startswith("node_")), ""
+        )
+
+        # Convert node binding back to original ID
+        node_binding = (
+            node_id_map.get(normalized_node_binding, normalized_node_binding)
+            if node_id_map
+            else normalized_node_binding
         )
 
         # --- Parse sources ---
@@ -116,7 +168,13 @@ class Edge:
             binding=binding,
             direction="in" if direction == "in" else "out",
             predicate=str(norm.get("predicate", "")),
-            node=Node.from_dict(node_val, binding=node_binding, prefix=prefix),
+            node=Node.from_dict(
+                node_val,
+                binding=node_binding,
+                prefix=prefix,
+                edge_id_map=edge_id_map,
+                node_id_map=node_id_map,
+            ),
             agent_type=str(norm["agent_type"]) if "agent_type" in norm else None,
             knowledge_level=str(norm["knowledge_level"])
             if "knowledge_level" in norm
@@ -192,30 +250,105 @@ class Node:
     description: str | None = None
     equivalent_identifiers: list[str] = field(default_factory=list)
 
+    def get_attributes(self) -> dict[str, Any]:
+        """Return all fields which correspond to TRAPI attributes as a dict."""
+        attrs = dict[str, Any]()
+        for data_field in fields(self):
+            if data_field.name not in DINGO_KG_NODE_TOPLEVEL_VALUES:
+                attrs[data_field.name] = getattr(self, data_field.name)
+        return attrs
+
     @classmethod
     def from_dict(
-        cls, node_dict: Mapping[str, Any], binding: str, prefix: str | None = None
+        cls,
+        data: Mapping[str, Any],
+        *,
+        binding: str = "",
+        prefix: str | None = None,
+        edge_id_map: Mapping[str, str] | None = None,
+        node_id_map: Mapping[str, str] | None = None,
     ) -> Self:
-        """Parse a node mapping into a Node dataclass (handles versioned keys)."""
-        norm = _strip_prefix(node_dict, prefix)
+        """Parse a node mapping into a Node dataclass (handles versioned keys).
+
+        Args:
+            data: Raw node data from Dgraph response
+            binding: Node binding (normalized ID like 'n0')
+            prefix: Schema version prefix (e.g., 'vC_'), or None for no prefix
+            edge_id_map: Optional mapping from normalized edge IDs to original IDs
+            node_id_map: Optional mapping from normalized node IDs to original IDs
+
+        Returns:
+            Parsed Node instance with edges having original bindings
+        """
+        norm = _strip_prefix(data, prefix)
 
         edges: list[Edge] = []
         for key, value in norm.items():
-            if key.startswith("in_edges_"):
-                edge_binding = key.split("_", 2)[2]
+            # Parse incoming edges (where this node is the OBJECT)
+            # Handle both "in_edges_e0" and "in_edges-symmetric_e0"
+            if key.startswith("in_edges"):
+                # Remove the "in_edges" prefix and any "-symmetric" suffix
+                # Then extract the edge ID
+                # Examples:
+                #   "in_edges_e0" -> "in_edges" + "_e0" -> parts = ["in", "edges", "e0"]
+                #   "in_edges-symmetric_e0" -> "in_edges-symmetric" + "_e0" -> parts = ["in", "edges-symmetric", "e0"]
+                parts = key.split("_", 2)  # Split into max 3 parts
+                if len(parts) >= _EDGE_KEY_PARTS:
+                    # parts[2] is the edge ID (e.g., "e0")
+                    normalized_edge_binding = parts[2]
+                    # Convert back to original edge ID if mapping provided
+                    edge_binding = (
+                        edge_id_map.get(
+                            normalized_edge_binding, normalized_edge_binding
+                        )
+                        if edge_id_map
+                        else normalized_edge_binding
+                    )
+                else:
+                    # Fallback for unexpected format
+                    edge_binding = binding
+
                 if isinstance(value, list):
                     edges.extend(
                         Edge.from_dict(
-                            e, binding=edge_binding, direction="in", prefix=prefix
+                            e,
+                            binding=edge_binding,
+                            direction="in",
+                            prefix=prefix,
+                            edge_id_map=edge_id_map,
+                            node_id_map=node_id_map,
                         )
                         for e in filter(_is_mapping, cast(list[Any], value))
                     )
-            elif key.startswith("out_edges_"):
-                edge_binding = key.split("_", 2)[2]
+            # Parse outgoing edges (where this node is the SUBJECT)
+            # Handle both "out_edges_e0" and "out_edges-symmetric_e0"
+            elif key.startswith("out_edges"):
+                # Same logic as incoming edges
+                parts = key.split("_", 2)  # Split into max 3 parts
+                if len(parts) >= _EDGE_KEY_PARTS:
+                    # parts[2] is the edge ID (e.g., "e0")
+                    normalized_edge_binding = parts[2]
+                    # Convert back to original edge ID if mapping provided
+                    edge_binding = (
+                        edge_id_map.get(
+                            normalized_edge_binding, normalized_edge_binding
+                        )
+                        if edge_id_map
+                        else normalized_edge_binding
+                    )
+                else:
+                    # Fallback for unexpected format
+                    edge_binding = binding
+
                 if isinstance(value, list):
                     edges.extend(
                         Edge.from_dict(
-                            e, binding=edge_binding, direction="out", prefix=prefix
+                            e,
+                            binding=edge_binding,
+                            direction="out",
+                            prefix=prefix,
+                            edge_id_map=edge_id_map,
+                            node_id_map=node_id_map,
                         )
                         for e in filter(_is_mapping, cast(list[Any], value))
                     )
@@ -249,27 +382,39 @@ class DgraphResponse:
         raw: str | bytes | bytearray | Mapping[str, Any],
         *,
         prefix: str | None = None,
+        node_id_map: Mapping[str, str] | None = None,
+        edge_id_map: Mapping[str, str] | None = None,
     ) -> Self:
         """Parse a raw Dgraph response into a structured DgraphResponse object.
 
         Args:
             raw: JSON string/bytes or already-parsed mapping from Dgraph.
             prefix: Explicit version prefix (e.g. 'v3_' or 'schema2025_'). If None, no stripping.
+            node_id_map: Mapping from normalized node IDs (e.g., 'n0') to original IDs (e.g., 'n0_test')
+            edge_id_map: Mapping from normalized edge IDs (e.g., 'e0') to original IDs (e.g., 'e0_test')
+
+        Returns:
+            Parsed DgraphResponse with original node/edge bindings restored
         """
-        # Use ternary operator per ruff (SIM108)
         parsed_data: dict[str, Any] = (
             dict(raw) if isinstance(raw, Mapping) else orjson.loads(raw)
         )
 
         processed_data: dict[str, list[Node]] = {}
-        # The top-level keys are the query aliases (e.g., "q0_node_n0")
         for query_alias, results in parsed_data.items():
             match = NODE_KEY_PATTERN.match(query_alias)
             if not match:
                 continue
 
-            # Extract the TRAPI node binding (e.g., "n0") from the key
-            node_binding = match.group(1)
+            # Extract the normalized node binding from the key
+            normalized_node_binding = match.group(1)
+
+            # Convert back to original node ID if mapping provided
+            node_binding = (
+                node_id_map.get(normalized_node_binding, normalized_node_binding)
+                if node_id_map
+                else normalized_node_binding
+            )
 
             # Determine the batch query key (e.g., "q0")
             query_key = "q0"
@@ -287,7 +432,13 @@ class DgraphResponse:
             for node_data in filter(_is_mapping, cast(list[Any], results)):
                 with suppress(Exception):
                     processed_data[query_key].append(
-                        Node.from_dict(node_data, binding=node_binding, prefix=prefix)
+                        Node.from_dict(
+                            node_data,
+                            binding=node_binding,
+                            prefix=prefix,
+                            edge_id_map=edge_id_map,
+                            node_id_map=node_id_map,
+                        )
                     )
 
         return cls(data=processed_data)

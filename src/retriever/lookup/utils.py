@@ -6,7 +6,6 @@ from reasoner_pydantic import (
     QueryGraph,
 )
 
-from retriever.config.general import CONFIG
 from retriever.lookup.branch import Branch, SuperpositionHop
 from retriever.types.general import (
     AdjacencyGraph,
@@ -38,13 +37,6 @@ def expand_qgraph(qg: QueryGraph, job_log: TRAPILogger) -> QueryGraph:
             job_log.info(
                 f"QNode {qnode_id}: Inferred NamedThing from empty category list."
             )
-        for conflation in CONFIG.category_conflations:
-            if match := categories & conflation:
-                job_log.info(
-                    f"QNode {qnode_id}: Added conflated categories {conflation - categories} from original {match}"
-                )
-
-                categories.update(conflation)
         # Not necessary because backends check against descendants
         # new_categories = biolink.expand(categories) - categories
 

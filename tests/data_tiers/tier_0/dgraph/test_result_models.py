@@ -313,3 +313,120 @@ def test_parse_empty_and_null_cases(
     else:
         # For an empty response, the data should be an empty dict.
         assert parsed.data == {}
+
+
+def test_parse_symmetric_predicate_success_case():
+    raw_response = {
+        "q0_node_n1": [{
+            "vC_id": "NCBIGene:3778",
+            "vC_name": "KCNMA1",
+            "out_edges_e0": [
+                {
+                    "vC_eid": "urn:uuid:3281005f-e94e-4e76-8779-01a6e812d397",
+                    "vC_predicate": "has_phenotype",
+                    "vC_predicate_ancestors": [
+                        "related_to_at_instance_level",
+                        "related_to",
+                        "has_phenotype"
+                    ],
+                    "node_n0": {
+                        "vC_name": "Hypertelorism",
+                        "vC_id": "HP:0000316"
+                    }
+                }
+            ],
+            "in_edges-symmetric_e0": [
+                {
+                    "vC_eid": "urn:uuid:f0e89fda-4d67-45a3-a4dc-a6a2aac2e873",
+                    "vC_predicate": "has_part",
+                    "vC_predicate_ancestors": [
+                        "has_part",
+                        "related_to_at_instance_level",
+                        "overlaps",
+                        "related_to"
+                    ],
+                    "node_n0": {
+                        "vC_id": "GO:0042391",
+                        "vC_name": "regulation of membrane potential",
+                    }
+                }
+            ],
+            "in_edges_e0": [
+                {
+                    "vC_eid": "urn:uuid:f0e89fda-4d67-45a3-a4dc-a6a2aac2e873",
+                    "vC_predicate": "has_part",
+                    "vC_predicate_ancestors": [
+                        "has_part",
+                        "related_to_at_instance_level",
+                        "overlaps",
+                        "related_to"
+                    ],
+                    "node_n0": {
+                        "vC_id": "GO:0034702",
+                        "vC_name": "monoatomic ion channel complex",
+                    }
+                }
+            ]            
+        }]
+    }
+
+    # 1. Parse the response
+    parsed = dg_models.DgraphResponse.parse(raw_response, prefix="vC_")
+    assert "q0" in parsed.data
+    assert len(parsed.data["q0"]) == 1
+
+    # 2. Assertions for the root node (n1)
+    root_node = parsed.data["q0"][0]
+    assert root_node.binding == "n1"
+    assert root_node.id == "NCBIGene:3778"
+    assert root_node.name == "KCNMA1"
+
+    # 3. Assert symmetric predicates: both in_edges_e0 and in_edges_e0_reverse 
+    #    are merged under binding "e0" (due to split("_", 3))
+    # Total: 1 out_edge + 2 in_edges (one from in_edges_e0, one from in_edges_e0_reverse)
+    assert len(root_node.edges) == 3, "Should have 3 edges total: 1 out + 2 in (merged)"
+
+    # All edges with binding "e0"
+    e0_edges = [e for e in root_node.edges if e.binding == "e0"]
+    assert len(e0_edges) == 3, "All edges should have binding 'e0'"
+
+    # 4. Separate by direction and predicate
+    out_edges = [e for e in e0_edges if e.direction == "out"]
+    in_edges = [e for e in e0_edges if e.direction == "in"]
+
+    assert len(out_edges) == 1, "Should have 1 outgoing edge"
+    assert len(in_edges) == 2, "Should have 2 incoming edges (merged from in_edges_e0 and in_edges_e0_reverse)"
+
+    # 5. Verify the outgoing edge (has_phenotype)
+    out_edge = out_edges[0]
+    assert out_edge.predicate == "has_phenotype"
+    assert "related_to" in out_edge.predicate_ancestors
+    assert out_edge.node.binding == "n0"
+    assert out_edge.node.id == "HP:0000316"
+    assert out_edge.node.name == "Hypertelorism"
+
+    # 6. Verify the incoming edges (both has_part - but pointing to different nodes)
+    has_part_edges = [e for e in in_edges if e.predicate == "has_part"]
+    assert len(has_part_edges) == 2, "Should have 2 has_part edges"
+
+    # Separate the two incoming edges by node ID
+    edge_to_membrane = next((e for e in has_part_edges if e.node.id == "GO:0042391"), None)
+    edge_to_channel = next((e for e in has_part_edges if e.node.id == "GO:0034702"), None)
+
+    assert edge_to_membrane is not None, "Should have edge to regulation of membrane potential"
+    assert edge_to_channel is not None, "Should have edge to monoatomic ion channel complex"
+
+    # Verify edge to GO:0042391 (from in_edges_e0_reverse)
+    assert edge_to_membrane.predicate == "has_part"
+    assert "related_to" in edge_to_membrane.predicate_ancestors
+    assert edge_to_membrane.node.binding == "n0"
+    assert edge_to_membrane.node.name == "regulation of membrane potential"
+
+    # Verify edge to GO:0034702 (from in_edges_e0)
+    assert edge_to_channel.predicate == "has_part"
+    assert "related_to" in edge_to_channel.predicate_ancestors
+    assert edge_to_channel.node.binding == "n0"
+    assert edge_to_channel.node.name == "monoatomic ion channel complex"
+
+    # 7. Verify all edges connect to nodes with binding "n0"
+    assert all(e.node.binding == "n0" for e in root_node.edges)

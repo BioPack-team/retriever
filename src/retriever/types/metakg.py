@@ -34,5 +34,5 @@ class Operation(NamedTuple):
 class OperationTable(NamedTuple):
     """A table of operations and related node information."""
 
-    operations: dict[TripleName, list[Operation]]
+    operations: list[Operation]
     nodes: dict[BiolinkEntity, OperationNode]

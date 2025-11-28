@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch, AsyncMock
 
 import asyncio
 import aiohttp
+import grpc
 import pytest
 
 import retriever.config.general as general_mod
@@ -35,9 +36,16 @@ class _TestDgraphGrpcDriver(driver_mod.DgraphGrpcDriver):
         """Initialize and pass version to the parent class."""
         super().__init__(version=version)
 
+    _client: driver_mod.DgraphClientProtocol | None = None
+
     @property
     def client(self) -> driver_mod.DgraphClientProtocol | None:
         return self._client
+
+    @client.setter
+    def client(self, value: driver_mod.DgraphClientProtocol | None) -> None:
+        """Allow setting the client for testing purposes."""
+        self._client = value
 
 
 def new_http_driver(version: str | None = None) -> _TestDgraphHttpDriver:
@@ -76,7 +84,7 @@ def mock_dgraph_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setenv("TIER0__DGRAPH__HOST", "localhost")
     monkeypatch.setenv("TIER0__DGRAPH__HTTP_PORT", "8080")
     monkeypatch.setenv("TIER0__DGRAPH__GRPC_PORT", "9080")
-    monkeypatch.setenv("TIER0__DGRAPH__PREFERRED_VERSION", "vC")
+    monkeypatch.setenv("TIER0__DGRAPH__PREFERRED_VERSION", "vD")
     monkeypatch.setenv("TIER0__DGRAPH__USE_TLS", "false")
     monkeypatch.setenv("TIER0__DGRAPH__QUERY_TIMEOUT", "5")
     monkeypatch.setenv("TIER0__DGRAPH__CONNECT_RETRIES", "0")
@@ -96,9 +104,15 @@ async def test_dgraph_live_with_http_settings_from_config() -> None:
     driver = new_http_driver()
     await driver.connect()
     assert driver.http_session is not None
-    print(f"HTTP host={driver.settings.host}, endpoint={driver.endpoint}")
+
+    # Get the active Dgraph schema version
+    dgraph_schema_version = await driver.get_active_version()
+
+    # Initialize the transpiler with the detected version
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+
     result: dg_models.DgraphResponse = await driver.run_query(
-        "{ node(func: has(id), first: 1) { id name category } }"
+        "{ node(func: has(id), first: 1) { id name category } }", transpiler=transpiler
     )
     assert isinstance(result, dg_models.DgraphResponse)
     await driver.close()
@@ -111,9 +125,10 @@ async def test_dgraph_live_with_grpc_settings_from_config() -> None:
     driver = new_grpc_driver()
     await driver.connect()
     assert driver.client is not None
-    print(f"gRPC host={driver.settings.host}, endpoint={driver.endpoint}")
+    dgraph_schema_version = await driver.get_active_version()
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
     result: dg_models.DgraphResponse = await driver.run_query(
-        "{ node(func: has(id), first: 1) { id name category } }"
+        "{ node(func: has(id), first: 1) { id name category } }", transpiler=transpiler
     )
     assert isinstance(result, dg_models.DgraphResponse)
     await driver.close()
@@ -176,7 +191,7 @@ async def test_get_active_version_success_grpc_live():
 
     # Should return the version "v2" as per the live Dgraph instance
     version = await driver.get_active_version()
-    assert version == "vC"
+    assert version == "vD"
 
     await driver.close()
 
@@ -194,7 +209,7 @@ async def test_get_active_version_success_http_live():
 
     # Should return the version "v2" as per the live Dgraph instance
     version = await driver.get_active_version()
-    assert version == "vC"
+    assert version == "vD"
 
     await driver.close()
 
@@ -224,6 +239,192 @@ async def test_get_active_version_prefers_manual_version(
     version2 = await driver.get_active_version()
     assert version2 == "manual_v1"
     mock_client_instance.txn.assert_not_called()
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_get_schema_metadata_mapping_success_grpc_live():
+    """Test get_schema_metadata_mapping when a version is found and that it's cached."""
+    driver = new_grpc_driver()
+    await driver.connect()
+
+    # Should return the mapping from the live Dgraph instance
+    mapping = await driver.get_schema_metadata_mapping()
+    assert mapping is not None, "Mapping should not be None"
+
+    # Verify top-level schema metadata structure
+    assert "@id" in mapping, "Mapping should contain @id field"
+    assert "@type" in mapping, "Mapping should contain @type field"
+    assert mapping["@type"] == "sc:Dataset", "Type should be sc:Dataset"
+
+    assert "name" in mapping, "Mapping should contain name field"
+    assert mapping["name"] == "translator_kg", "Name should be translator_kg"
+
+    assert "description" in mapping, "Mapping should contain description field"
+    assert "Translator" in mapping["description"], "Description should mention Translator"
+
+    assert "license" in mapping, "Mapping should contain license field"
+
+    assert "url" in mapping, "Mapping should contain url field"
+    assert "version" in mapping, "Mapping should contain version field"
+    assert "dateCreated" in mapping, "Mapping should contain dateCreated field"
+
+    assert "biolinkVersion" in mapping, "Mapping should contain biolinkVersion"
+
+    await driver.close()
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_get_schema_metadata_mapping_success_http_live():
+    """Test get_schema_metadata_mapping when a version is found and that it's cached."""
+    driver = new_http_driver()
+    await driver.connect()
+
+    # Should return the mapping from the live Dgraph instance
+    mapping = await driver.get_schema_metadata_mapping()
+    assert mapping is not None, "Mapping should not be None"
+
+    # Verify top-level schema metadata structure
+    assert "@id" in mapping, "Mapping should contain @id field"
+    assert "@type" in mapping, "Mapping should contain @type field"
+    assert mapping["@type"] == "sc:Dataset", "Type should be sc:Dataset"
+
+    assert "name" in mapping, "Mapping should contain name field"
+    assert mapping["name"] == "translator_kg", "Name should be translator_kg"
+
+    assert "description" in mapping, "Mapping should contain description field"
+    assert "Translator" in mapping["description"], "Description should mention Translator"
+
+    assert "license" in mapping, "Mapping should contain license field"
+
+    assert "url" in mapping, "Mapping should contain url field"
+    assert "version" in mapping, "Mapping should contain version field"
+    assert "dateCreated" in mapping, "Mapping should contain dateCreated field"
+
+    assert "biolinkVersion" in mapping, "Mapping should contain biolinkVersion"
+
+    await driver.close()
+
+
+@pytest.mark.parametrize(
+    "protocol, mock_path",
+    [
+        (driver_mod.DgraphProtocol.GRPC, "pydgraph.DgraphClient"),
+        (driver_mod.DgraphProtocol.HTTP, "aiohttp.ClientSession"),
+    ],
+)
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_get_schema_metadata_mapping_caching(
+    protocol: driver_mod.DgraphProtocol, mock_path: str
+):
+    """
+    Tests that get_schema_metadata_mapping properly caches results per-version.
+    """
+    import base64
+    import msgpack
+
+    # Create a sample mapping
+    mapping_data = {
+        "@id": "https://example.org/test_kg",
+        "name": "test_kg",
+        "version": "vTest",
+        "biolinkVersion": "4.3.4",
+    }
+
+    packed = msgpack.packb(mapping_data)
+    encoded = base64.b64encode(packed).decode("utf-8")
+
+    with patch(mock_path) as mock_class:
+        if protocol == driver_mod.DgraphProtocol.GRPC:
+            mock_response = MagicMock()
+            mock_response.json = json.dumps(
+                {"metadata": [{"schema_metadata_mapping": encoded}]}
+            ).encode("utf-8")
+            mock_txn = MagicMock()
+            mock_txn.query.return_value = mock_response
+            mock_class.return_value.txn.return_value = mock_txn
+        else:  # HTTP
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.json = AsyncMock(
+                return_value={
+                    "data": {"metadata": [{"schema_metadata_mapping": encoded}]}
+                }
+            )
+            mock_post = MagicMock()
+            mock_post.__aenter__.return_value = mock_response
+            mock_post.__aexit__ = AsyncMock(return_value=None)
+            mock_session = mock_class.return_value
+            mock_session.post.return_value = mock_post
+            mock_session.close = AsyncMock()
+
+        driver = (
+            new_grpc_driver()
+            if protocol == driver_mod.DgraphProtocol.GRPC
+            else new_http_driver()
+        )
+
+        # Clear cache
+        driver.clear_mapping_cache()
+        driver.clear_version_cache()
+
+        # Mock version to return "vTest"
+        with patch.object(driver, "get_active_version", new=AsyncMock(return_value="vTest")):
+            await driver.connect()
+
+            # First call - should query DB
+            mapping1 = await driver.get_schema_metadata_mapping()
+            assert mapping1 is not None
+            assert mapping1["name"] == "test_kg"
+            assert mapping1["version"] == "vTest"
+
+            # Get call count after first query
+            if protocol == driver_mod.DgraphProtocol.GRPC:
+                call_count_1 = mock_class.return_value.txn.return_value.query.call_count
+            else:
+                call_count_1 = mock_class.return_value.post.call_count
+
+            # Second call - should use cache (same version)
+            mapping2 = await driver.get_schema_metadata_mapping()
+            assert mapping2 is not None
+            assert mapping2["name"] == "test_kg"
+
+            # Verify same object (cached)
+            assert mapping1 is mapping2
+
+            # Get call count after second query
+            if protocol == driver_mod.DgraphProtocol.GRPC:
+                call_count_2 = mock_class.return_value.txn.return_value.query.call_count
+            else:
+                call_count_2 = mock_class.return_value.post.call_count
+
+            # Should be same count (cache hit, no new query)
+            assert call_count_2 == call_count_1
+
+            # Clear cache and fetch again
+            driver.clear_mapping_cache()
+
+            mapping3 = await driver.get_schema_metadata_mapping()
+            assert mapping3 is not None
+            assert mapping3["name"] == "test_kg"
+
+            # Should be different object (new fetch)
+            assert mapping3 is not mapping1
+
+            # Get call count after third query
+            if protocol == driver_mod.DgraphProtocol.GRPC:
+                call_count_3 = mock_class.return_value.txn.return_value.query.call_count
+            else:
+                call_count_3 = mock_class.return_value.post.call_count
+
+            # Should be one more call (cache was cleared)
+            assert call_count_3 == call_count_1 + 1
+
+        await driver.close()
 
 
 @pytest.mark.parametrize(
@@ -354,6 +555,190 @@ async def test_get_active_version_from_db_mocked(
             await driver.close()
 
 
+@pytest.mark.parametrize(
+    "protocol, mock_path",
+    [
+        (driver_mod.DgraphProtocol.GRPC, "pydgraph.DgraphClient"),
+        (driver_mod.DgraphProtocol.HTTP, "aiohttp.ClientSession"),
+    ],
+)
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_fetch_mapping_from_db_mocked(
+    protocol: driver_mod.DgraphProtocol, mock_path: str
+):
+    """
+    Tests _fetch_mapping_from_db for success, not-found, and failure scenarios
+    for both gRPC and HTTP protocols using mocks.
+    """
+    import base64
+    import msgpack
+
+    # Create a sample mapping to use in tests
+    sample_mapping = {
+        "@id": "https://example.org/test_kg",
+        "@type": "sc:Dataset",
+        "name": "test_kg",
+        "version": "2025_test",
+        "biolinkVersion": "4.3.4",
+        "schema": {
+            "nodes": [
+                {
+                    "category": ["biolink:SmallMolecule"],
+                    "count": 100,
+                    "id_prefixes": {"CHEBI": 90, "PUBCHEM.COMPOUND": 10},
+                }
+            ]
+        },
+    }
+
+    # Encode the mapping as msgpack + base64 (as stored in Dgraph)
+    packed_mapping = msgpack.packb(sample_mapping)
+    encoded_mapping = base64.b64encode(packed_mapping).decode("utf-8")
+
+    def setup_mock(mock_class: MagicMock, response_data: Any, *, fails: bool = False):
+        """Helper to configure the mock for either gRPC or HTTP."""
+        if protocol == driver_mod.DgraphProtocol.GRPC:
+            mock_response = MagicMock()
+            mock_response.json = json.dumps(response_data).encode("utf-8")
+            mock_txn = MagicMock()
+            if fails:
+                mock_txn.query.side_effect = Exception("DB connection failed")
+            else:
+                mock_txn.query.return_value = mock_response
+            mock_class.return_value.txn.return_value = mock_txn
+            return mock_class.return_value
+        else:  # HTTP
+            mock_response = MagicMock()
+            mock_response.status = 200
+            if fails:
+                mock_response.json = AsyncMock(side_effect=Exception("HTTP connection failed"))
+            else:
+                mock_response.json = AsyncMock(return_value={"data": response_data})
+
+            mock_post = MagicMock()
+            mock_post.__aenter__.return_value = mock_response
+            mock_post.__aexit__ = AsyncMock(return_value=None)
+
+            mock_session = mock_class.return_value
+            mock_session.post.return_value = mock_post
+            mock_session.close = AsyncMock()
+            return mock_session
+
+    # --- Test Case 1: Success ---
+    with patch(mock_path) as mock_class:
+        mock_instance = setup_mock(
+            mock_class,
+            {"metadata": [{"schema_metadata_mapping": encoded_mapping}]},
+        )
+
+        driver = (
+            new_grpc_driver()
+            if protocol == driver_mod.DgraphProtocol.GRPC
+            else new_http_driver()
+        )
+
+        await driver.connect()
+
+        # Call the helper method directly with a version
+        mapping = await driver.fetch_mapping_from_db("vTest")
+        assert mapping is not None, "Mapping should not be None"
+        assert mapping["@id"] == "https://example.org/test_kg"
+        assert mapping["@type"] == "sc:Dataset"
+        assert mapping["name"] == "test_kg"
+        assert mapping["version"] == "2025_test"
+        assert mapping["biolinkVersion"] == "4.3.4"
+        assert "schema" in mapping
+        assert "nodes" in mapping["schema"]
+        assert len(mapping["schema"]["nodes"]) == 1
+        assert mapping["schema"]["nodes"][0]["category"] == ["biolink:SmallMolecule"]
+        assert mapping["schema"]["nodes"][0]["count"] == 100
+
+        # Verify the underlying query was called
+        if protocol == driver_mod.DgraphProtocol.GRPC:
+            assert mock_instance.txn.return_value.query.called
+        else:
+            assert mock_instance.post.called
+
+        await driver.close()
+
+    # --- Test Case 2: Mapping Not Found (no metadata) ---
+    with patch(mock_path) as mock_class:
+        setup_mock(mock_class, {"metadata": []})
+
+        driver = (
+            new_grpc_driver()
+            if protocol == driver_mod.DgraphProtocol.GRPC
+            else new_http_driver()
+        )
+
+        await driver.connect()
+
+        mapping = await driver.fetch_mapping_from_db("vTest")
+        assert mapping is None, "Mapping should be None when no metadata found"
+
+        await driver.close()
+
+    # --- Test Case 3: Mapping Field Empty ---
+    with patch(mock_path) as mock_class:
+        setup_mock(
+            mock_class,
+            {"metadata": [{"schema_metadata_mapping": None}]},
+        )
+
+        driver = (
+            new_grpc_driver()
+            if protocol == driver_mod.DgraphProtocol.GRPC
+            else new_http_driver()
+        )
+
+        await driver.connect()
+
+        mapping = await driver.fetch_mapping_from_db("vTest")
+        assert mapping is None, "Mapping should be None when field is empty"
+
+        await driver.close()
+
+    # --- Test Case 4: Query Fails ---
+    with patch(mock_path) as mock_class:
+        setup_mock(mock_class, {}, fails=True)
+
+        driver = (
+            new_grpc_driver()
+            if protocol == driver_mod.DgraphProtocol.GRPC
+            else new_http_driver()
+        )
+
+        await driver.connect()
+
+        mapping = await driver.fetch_mapping_from_db("vTest")
+        assert mapping is None, "Mapping should be None when query fails"
+
+        await driver.close()
+
+    # --- Test Case 5: Invalid msgpack data ---
+    with patch(mock_path) as mock_class:
+        # Send invalid base64/msgpack data
+        invalid_data = base64.b64encode(b"not valid msgpack").decode("utf-8")
+        setup_mock(
+            mock_class,
+            {"metadata": [{"schema_metadata_mapping": invalid_data}]},
+        )
+
+        driver = (
+            new_grpc_driver()
+            if protocol == driver_mod.DgraphProtocol.GRPC
+            else new_http_driver()
+        )
+
+        await driver.connect()
+
+        mapping = await driver.fetch_mapping_from_db("vTest")
+        assert mapping is None, "Mapping should be None when msgpack deserialization fails"
+
+        await driver.close()
+
+
 @pytest.mark.live
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config")
@@ -380,19 +765,19 @@ async def test_simple_one_query_live_http() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n0(func: eq(vC_id, "GO:0031410")) @cascade(vC_id, ~vC_object) {
-            expand(vC_Node)
-            in_edges_e0: ~vC_object @filter(eq(vC_predicate_ancestors, "located_in")) @cascade(vC_predicate, vC_subject) {
-                expand(vC_Edge) { vC_sources expand(vC_Source) }
-                node_n1: vC_subject @filter(eq(vC_id, "NCBIGene:11276")) @cascade(vC_id) {
-                    expand(vC_Node)
+        q0_node_n1(func: eq(vD_id, "NCBIGene:11276")) @cascade(vD_id, ~vD_subject) {
+            expand(vD_Node)
+            out_edges_e0: ~vD_subject @filter(eq(vD_predicate_ancestors, "located_in")) @cascade(vD_predicate, vD_object) {
+                expand(vD_Edge) { vD_sources expand(vD_Source) }
+                node_n0: vD_object @filter(eq(vD_id, "GO:0031410")) @cascade(vD_id) {
+                    expand(vD_Node)
                 }
             }
         }
     }
     """).strip()
 
-    # driver = new_http_driver(version="vC")
+    # driver = new_http_driver(version="vD")
     driver = new_http_driver()
     await driver.connect()
 
@@ -401,14 +786,14 @@ async def test_simple_one_query_live_http() -> None:
 
     # Initialize the transpiler with the detected version
     transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
-    assert transpiler.version == "vC"
-    assert transpiler.prefix == "vC_"
+    assert transpiler.version == "vD"
+    assert transpiler.prefix == "vD_"
 
     dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
     assert_query_equals(dgraph_query, dgraph_query_match)
 
     # Run the query against the live Dgraph instance
-    result: dg_models.DgraphResponse = await driver.run_query(dgraph_query)
+    result: dg_models.DgraphResponse = await driver.run_query(dgraph_query, transpiler=transpiler)
     assert isinstance(result, dg_models.DgraphResponse)
 
     # Assertions to check that some data is returned
@@ -418,35 +803,43 @@ async def test_simple_one_query_live_http() -> None:
 
     # 2. Assertions for the root node (n0)
     root_node = result.data["q0"][0]
-    assert root_node.binding == "n0"
-    assert root_node.id == "GO:0031410"
-    assert root_node.name == "cytoplasmic vesicle"
-    assert root_node.category == [
-        'NamedThing', 'OrganismalEntity', 'PhysicalEssence', 'PhysicalEssenceOrOccurrent',
-        'CellularComponent', 'ThingWithTaxon', 'SubjectOfInvestigation', 'AnatomicalEntity',
-        'BiologicalEntity',
-    ]
-    assert root_node.in_taxon == []
-    assert root_node.information_content == 56.8
+    assert root_node.binding == "n1"
+    assert root_node.id == "NCBIGene:11276"
+    assert root_node.name == "SYNRG"
+    # Category list can be order-dependent, so sort for stable comparison
+    assert sorted(root_node.category) == sorted([
+        'MacromolecularMachineMixin', 'NamedThing', 'Gene', 'ChemicalEntityOrProteinOrPolypeptide',
+        'PhysicalEssence', 'PhysicalEssenceOrOccurrent', 'OntologyClass',
+        'ChemicalEntityOrGeneOrGeneProduct', 'GeneOrGeneProduct', 'Polypeptide',
+        'ThingWithTaxon', 'GenomicEntity', 'GeneProductMixin', 'Protein', 'BiologicalEntity',
+    ])
+    assert root_node.in_taxon == ['NCBITaxon:9606']
+    assert root_node.information_content == 83.6
     assert root_node.inheritance is None
     assert root_node.provided_by == []
-    assert root_node.description == "A vesicle found in the cytoplasm of a cell."
-    assert root_node.equivalent_identifiers == ['GO:0031410']
+    assert root_node.description == "Synergin gamma"
+    # Equivalent identifiers can be order-dependent, so sort for stable comparison
+    assert sorted(root_node.equivalent_identifiers) == sorted([
+        'PR:Q9UMZ2', 'OMIM:607291', 'UniProtKB:Q9UMZ2', 'ENSEMBL:ENSG00000275066',
+        'UMLS:C1412437', 'UMLS:C0893518', 'MESH:C121510', 'HGNC:557', 'NCBIGene:11276'
+    ])
     assert len(root_node.edges) == 1
 
     # 3. Assertions for the incoming edge (e0)
     in_edge = root_node.edges[0]
     assert in_edge.binding == "e0"
-    assert in_edge.direction == "in"
+    assert in_edge.direction == "out"
     assert in_edge.predicate == "located_in"
     assert in_edge.agent_type == "automated_agent"
     assert in_edge.knowledge_level == "prediction"
     assert in_edge.publications == []
     assert in_edge.qualified_predicate is None
-    assert in_edge.predicate_ancestors == [
+    # Ancestors can be order-dependent, so sort for stable comparison
+    assert sorted(in_edge.predicate_ancestors) == sorted([
         'related_to_at_instance_level', 'located_in', 'related_to'
-    ]
-    assert in_edge.source_inforeses == ['infores:biolink', 'infores:goa']
+    ])
+    # Source infores can be order-dependent, so sort for stable comparison
+    assert sorted(in_edge.source_inforeses) == sorted(['infores:biolink', 'infores:goa'])
     assert in_edge.subject_form_or_variant_qualifier is None
     assert in_edge.disease_context_qualifier is None
     assert in_edge.frequency_qualifier is None
@@ -464,7 +857,7 @@ async def test_simple_one_query_live_http() -> None:
     assert in_edge.has_total is None
     assert in_edge.has_percentage is None
     assert in_edge.has_quotient is None
-    assert in_edge.id == "urn:uuid:0763a393-7cc8-4d80-8720-0efcc0f9245f"
+    assert in_edge.id == "urn:uuid:965fe714-01eb-4cee-a60b-894f63f191ad"
     assert in_edge.category == ['Association']
     # sources (order-independent via sorting)
     assert len(in_edge.sources) == 2
@@ -476,25 +869,21 @@ async def test_simple_one_query_live_http() -> None:
 
     # 4. Assertions for the connected node (n1)
     connected_node = in_edge.node
-    assert connected_node.binding == "n1"
-    assert connected_node.id == "NCBIGene:11276"
-    assert connected_node.name == "SYNRG"
+    assert connected_node.binding == "n0"  # The binding is 'n0' for the connected node
+    assert connected_node.id == "GO:0031410"
+    assert connected_node.name == "cytoplasmic vesicle"
     assert connected_node.edges == []
-    assert connected_node.category == [
-        'MacromolecularMachineMixin', 'NamedThing', 'Gene', 'ChemicalEntityOrProteinOrPolypeptide',
-        'PhysicalEssence', 'PhysicalEssenceOrOccurrent', 'OntologyClass',
-        'ChemicalEntityOrGeneOrGeneProduct', 'GeneOrGeneProduct', 'Polypeptide',
-        'ThingWithTaxon', 'GenomicEntity', 'GeneProductMixin', 'Protein', 'BiologicalEntity',
-    ]
-    assert connected_node.in_taxon == ['NCBITaxon:9606']
-    assert connected_node.information_content == 83.6
+    # Category list can be order-dependent, so sort for stable comparison
+    assert sorted(connected_node.category) == sorted([
+        'NamedThing', 'OrganismalEntity', 'PhysicalEssence', 'PhysicalEssenceOrOccurrent',
+        'CellularComponent', 'ThingWithTaxon', 'SubjectOfInvestigation', 'AnatomicalEntity',
+        'BiologicalEntity',
+    ])
+    assert connected_node.in_taxon == []
+    assert connected_node.information_content == 56.8
     assert connected_node.inheritance is None
     assert connected_node.provided_by == []
-    assert connected_node.description == "synergin gamma"
-    assert connected_node.equivalent_identifiers == [
-        'PR:Q9UMZ2', 'OMIM:607291', 'UniProtKB:Q9UMZ2', 'ENSEMBL:ENSG00000275066',
-        'UMLS:C1412437', 'UMLS:C0893518', 'MESH:C121510', 'HGNC:557', 'NCBIGene:11276'
-    ]
+    assert connected_node.equivalent_identifiers == ['GO:0031410']
 
     await driver.close()
 
@@ -509,12 +898,12 @@ async def test_simple_one_query_live_grpc() -> None:
 
     qgraph_query: QueryGraphDict = qg({
         "nodes": {
-            "n0": {"ids": ["GO:0031410"], "constraints": []},
+            "n0_test": {"ids": ["GO:0031410"], "constraints": []},
             "n1": {"ids": ["NCBIGene:11276"], "constraints": []},
         },
         "edges": {
-            "e0": {
-                "object": "n0",
+            "e0_test": {
+                "object": "n0_test",
                 "subject": "n1",
                 "predicates": ["located_in"],
                 "attribute_constraints": [],
@@ -525,12 +914,12 @@ async def test_simple_one_query_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n0(func: eq(vC_id, "GO:0031410")) @cascade(vC_id, ~vC_object) {
-            expand(vC_Node)
-            in_edges_e0: ~vC_object @filter(eq(vC_predicate_ancestors, "located_in")) @cascade(vC_predicate, vC_subject) {
-                expand(vC_Edge) { vC_sources expand(vC_Source) }
-                node_n1: vC_subject @filter(eq(vC_id, "NCBIGene:11276")) @cascade(vC_id) {
-                    expand(vC_Node)
+        q0_node_n1(func: eq(vD_id, "NCBIGene:11276")) @cascade(vD_id, ~vD_subject) {
+            expand(vD_Node)
+            out_edges_e0: ~vD_subject @filter(eq(vD_predicate_ancestors, "located_in")) @cascade(vD_predicate, vD_object) {
+                expand(vD_Edge) { vD_sources expand(vD_Source) }
+                node_n0: vD_object @filter(eq(vD_id, "GO:0031410")) @cascade(vD_id) {
+                    expand(vD_Node)
                 }
             }
         }
@@ -545,15 +934,15 @@ async def test_simple_one_query_live_grpc() -> None:
 
     # Initialize the transpiler with the detected version
     transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
-    assert transpiler.version == "vC"
-    assert transpiler.prefix == "vC_"
+    assert transpiler.version == "vD"
+    assert transpiler.prefix == "vD_"
 
     # Use the transpiler to generate the Dgraph query
     dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
     assert_query_equals(dgraph_query, dgraph_query_match)
 
     # Run the query against the live Dgraph instance
-    result: dg_models.DgraphResponse = await driver.run_query(dgraph_query)
+    result: dg_models.DgraphResponse = await driver.run_query(dgraph_query, transpiler=transpiler)
     assert isinstance(result, dg_models.DgraphResponse)
 
     # Assertions to check that some data is returned
@@ -563,20 +952,220 @@ async def test_simple_one_query_live_grpc() -> None:
 
     # 2. Assertions for the root node (n0)
     root_node = result.data["q0"][0]
-    assert root_node.binding == "n0"
-    assert root_node.id == "GO:0031410"
+    assert root_node.binding == "n1"
+    assert root_node.id == "NCBIGene:11276"
     assert len(root_node.edges) == 1
 
     # 3. Assertions for the incoming edge (e0)
     in_edge = root_node.edges[0]
-    assert in_edge.binding == "e0"
-    assert in_edge.direction == "in"
+    assert in_edge.binding == "e0_test"
+    assert in_edge.direction == "out"
     assert in_edge.predicate == "located_in"
 
     # 4. Assertions for the connected node (n1)
     connected_node = in_edge.node
-    assert connected_node.binding == "n1"
-    assert connected_node.id == "NCBIGene:11276"
+    assert connected_node.binding == "n0_test"
+    assert connected_node.id == "GO:0031410"
+
+    await driver.close()
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_simple_reverse_query_live_grpc() -> None:
+    """
+    Integration test: Run the 'simple-one' query against a live Dgraph HTTP instance.
+    """
+
+    qgraph_query: QueryGraphDict = qg({
+        "nodes": {
+            "n0": {"categories": ["biolink:NamedThing"], "constraints": []},
+            "n1": {"ids": ["NCBIGene:3778"], "constraints": []}
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["biolink:has_phenotype"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            }
+        }
+    })
+
+    dgraph_query_match: str = dedent("""
+    {
+        q0_node_n1(func: eq(vD_id, "NCBIGene:3778")) @cascade(vD_id, ~vD_subject) {
+            expand(vD_Node)
+            out_edges_e0: ~vD_subject @filter(eq(vD_predicate_ancestors, "has_phenotype")) @cascade(vD_predicate, vD_object) {
+                expand(vD_Edge) { vD_sources expand(vD_Source) }
+                node_n0: vD_object @filter(eq(vD_category, "NamedThing")) @cascade(vD_id) {
+                    expand(vD_Node)
+                }
+            }
+        }
+    }
+    """).strip()
+
+    driver = new_grpc_driver()
+    await driver.connect()
+
+    # Get the active Dgraph schema version
+    dgraph_schema_version = await driver.get_active_version()
+
+    # Initialize the transpiler with the detected version
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+    assert transpiler.version == "vD"
+    assert transpiler.prefix == "vD_"
+
+    # Use the transpiler to generate the Dgraph query
+    dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
+    assert_query_equals(dgraph_query, dgraph_query_match)
+
+    # Run the query against the live Dgraph instance
+    result: dg_models.DgraphResponse = await driver.run_query(dgraph_query, transpiler=transpiler)
+    assert isinstance(result, dg_models.DgraphResponse)
+
+    # Assertions to check that some data is returned
+    assert result.data, "No data returned from Dgraph for simple-one query"
+    assert "q0" in result.data
+    assert len(result.data["q0"]) == 1
+
+    # 2. Assertions for the root node (n0)
+    root_node = result.data["q0"][0]
+    assert root_node.binding == "n1"
+    assert root_node.id == "NCBIGene:3778"
+    root_node_edges_count = len(root_node.edges)
+    assert root_node_edges_count == 65
+
+    # 3. Assertions for the outgoing edge (e0)
+    out_edge = root_node.edges[0]
+    assert out_edge.binding == "e0"
+    assert out_edge.direction == "out"
+    assert isinstance(out_edge.predicate, str) and out_edge.predicate
+
+    # 4. Assertions for the connected node (n1)
+    connected_node = out_edge.node
+    assert connected_node.binding == "n0"
+    assert isinstance(connected_node.id, str) and connected_node.id
+
+    await driver.close()
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
+    """
+    Integration test: Run the 'simple-one' query with symmetric predicate against a live Dgraph HTTP instance.
+    """
+
+    qgraph_query: QueryGraphDict = qg({
+        "nodes": {
+            "n0": {"categories": ["biolink:NamedThing"], "constraints": []},
+            "n1": {"ids": ["NCBIGene:3778"], "constraints": []}
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["biolink:related_to"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            }
+        }
+    })
+
+    dgraph_query_match: str = dedent("""
+    {
+        q0_node_n1(func: eq(vD_id, "NCBIGene:3778")) @cascade(vD_id, ~vD_subject) {
+            expand(vD_Node)
+
+            out_edges_e0: ~vD_subject
+            @filter(eq(vD_predicate_ancestors, "related_to"))
+            @cascade(vD_predicate, vD_object) {
+                expand(vD_Edge) { vD_sources expand(vD_Source) }
+
+                node_n0: vD_object
+                @filter(eq(vD_category, "NamedThing"))
+                @cascade(vD_id) {
+                    expand(vD_Node)
+                }
+            }
+
+            in_edges-symmetric_e0: ~vD_object
+            @filter(eq(vD_predicate_ancestors, "related_to"))
+            @cascade(vD_predicate, vD_subject) {
+                expand(vD_Edge) { vD_sources expand(vD_Source) }
+
+                node_n0: vD_subject
+                @filter(eq(vD_category, "NamedThing"))
+                @cascade(vD_id) {
+                    expand(vD_Node)
+                }
+            }
+        }
+    }
+    """).strip()
+
+    driver = new_grpc_driver()
+    await driver.connect()
+
+    # Get the active Dgraph schema version
+    dgraph_schema_version = await driver.get_active_version()
+
+    # Initialize the transpiler with the detected version
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+    assert transpiler.version == "vD"
+    assert transpiler.prefix == "vD_"
+
+    # Use the transpiler to generate the Dgraph query
+    dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
+    assert_query_equals(dgraph_query, dgraph_query_match)
+
+    # Run the query against the live Dgraph instance
+    result: dg_models.DgraphResponse = await driver.run_query(dgraph_query_match, transpiler=transpiler)
+    assert isinstance(result, dg_models.DgraphResponse)
+
+    # Assertions to check that some data is returned
+    assert result.data, "No data returned from Dgraph for simple-one query"
+    assert "q0" in result.data
+    assert len(result.data["q0"]) == 1
+
+    # 2. Assertions for the root node (n1)
+    root_node = result.data["q0"][0]
+    assert root_node.binding == "n1"
+    assert root_node.id == "NCBIGene:3778"
+    root_node_edges_count = len(root_node.edges)
+    assert root_node_edges_count == 138
+
+    # Both out_edges_e0 and in_edges-symmetric_e0 are merged under binding "e0"
+    e0_edges = [e for e in root_node.edges if e.binding == "e0"]
+    e0_edges_count = len(e0_edges)
+    assert e0_edges_count == 138, "Expected 100 total edges for binding 'e0' (merged)"
+
+    # Separate by direction instead of binding
+    out_edges = [e for e in e0_edges if e.direction == "out"]
+    in_edges = [e for e in e0_edges if e.direction == "in"]
+
+    # Both forward (out) and reverse (in) edge groups must be present and non-empty
+    assert out_edges, "Expected at least one outgoing edge (from out_edges_e0)"
+    assert in_edges, "Expected at least one incoming edge (from in_edges_e0 - including symmetric predicate)"
+
+    # Predicate/ancestors should reflect the symmetric predicate filter ("related_to")
+    assert all(
+        ("related_to" in e.predicate_ancestors) or (e.predicate == "related_to")
+        for e in out_edges
+    ), "All outgoing edges should have 'related_to' in predicate/ancestors"
+    assert all(
+        ("related_to" in e.predicate_ancestors) or (e.predicate == "related_to")
+        for e in in_edges
+    ), "All incoming edges should have 'related_to' in predicate/ancestors"
+
+    # Connected nodes should be parsed and have the expected binding for the query (n0)
+    assert all(e.node.binding == "n0" for e in e0_edges)
+    assert all(isinstance(e.node.id, str) and e.node.id for e in e0_edges)
 
     await driver.close()
 
@@ -619,7 +1208,7 @@ async def test_simple_one_query_grpc_parallel_live_nonblocking() -> None:
     async def run_query_with_delay():
         # Add an artificial delay to simulate a slow query
         await asyncio.sleep(1)
-        return await driver.run_query(dgraph_query)
+        return await driver.run_query(dgraph_query, transpiler=transpiler)
 
     start = time.perf_counter()
     # Run queries concurrently. Calling run_query_with_delay three times to increase chance of blocking.
@@ -637,6 +1226,127 @@ async def test_simple_one_query_grpc_parallel_live_nonblocking() -> None:
 
     # If queries are non-blocking, elapsed should be just over 1 second, not 2+
     assert elapsed < 2, f"Queries are blocking each other! Elapsed: {elapsed:.2f}s"
+
+    await driver.close()
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_normalization_with_special_edge_id_live_grpc() -> None:
+    """
+    Integration test: Verify that edge IDs with special characters (e.g., 'e0_bad$%^')
+    are normalized to safe identifiers ('e0') in the query but restored in results.
+    """
+
+    qgraph_query: QueryGraphDict = qg({
+        "nodes": {
+            "n0_test!@#": {"categories": ["biolink:NamedThing"], "constraints": []},
+            "n1": {"ids": ["NCBIGene:3778"], "constraints": []}
+        },
+        "edges": {
+            "e0_bad$%^": {
+                "object": "n0_test!@#",
+                "subject": "n1",
+                "predicates": ["biolink:related_to"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            }
+        }
+    })
+
+    # Expected query should use normalized edge ID 'e0', not 'e0_bad$%^'
+    dgraph_query_match: str = dedent("""
+    {
+        q0_node_n1(func: eq(vD_id, "NCBIGene:3778")) @cascade(vD_id, ~vD_subject) {
+            expand(vD_Node)
+
+            out_edges_e0: ~vD_subject
+            @filter(eq(vD_predicate_ancestors, "related_to"))
+            @cascade(vD_predicate, vD_object) {
+                expand(vD_Edge) { vD_sources expand(vD_Source) }
+
+                node_n0: vD_object
+                @filter(eq(vD_category, "NamedThing"))
+                @cascade(vD_id) {
+                    expand(vD_Node)
+                }
+            }
+
+            in_edges-symmetric_e0: ~vD_object
+            @filter(eq(vD_predicate_ancestors, "related_to"))
+            @cascade(vD_predicate, vD_subject) {
+                expand(vD_Edge) { vD_sources expand(vD_Source) }
+
+                node_n0: vD_subject
+                @filter(eq(vD_category, "NamedThing"))
+                @cascade(vD_id) {
+                    expand(vD_Node)
+                }
+            }
+        }
+    }
+    """).strip()
+
+    driver = new_grpc_driver()
+    await driver.connect()
+
+    # Get the active Dgraph schema version
+    dgraph_schema_version = await driver.get_active_version()
+
+    # Initialize the transpiler with the detected version
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+    assert transpiler.version == "vD"
+    assert transpiler.prefix == "vD_"
+
+    # Use the transpiler to generate the Dgraph query
+    dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
+
+    # Verify the query uses normalized edge ID 'e0', not 'e0_bad$%^'
+    assert_query_equals(dgraph_query, dgraph_query_match)
+    assert "out_edges_e0:" in dgraph_query, "Query should use normalized edge ID 'e0'"
+    assert "in_edges-symmetric_e0:" in dgraph_query, "Symmetric edge should use normalized ID 'e0'"
+    assert "e0_bad$%^" not in dgraph_query, "Original edge ID 'e0_bad$%^' should not appear in query"
+
+    # Run the query against the live Dgraph instance, passing transpiler for ID mapping
+    result: dg_models.DgraphResponse = await driver.run_query(dgraph_query, transpiler=transpiler)
+    assert isinstance(result, dg_models.DgraphResponse)
+
+    # Assertions to check that some data is returned
+    assert result.data, "No data returned from Dgraph for normalization test query"
+    assert "q0" in result.data
+    assert len(result.data["q0"]) == 1
+
+    # Verify the root node
+    root_node = result.data["q0"][0]
+    assert root_node.binding == "n1"
+    assert root_node.id == "NCBIGene:3778"
+    assert len(root_node.edges) > 0, "Expected at least one edge"
+
+    # CRITICAL: Verify that edges have the ORIGINAL binding 'e0_bad', not 'e0'
+    e0_bad_edges = [e for e in root_node.edges if e.binding == "e0_bad$%^"]
+    assert len(e0_bad_edges) > 0, "Edges should have original binding 'e0_bad$%^' restored from normalization"
+
+    # Verify no edges have the normalized binding 'e0'
+    e0_edges = [e for e in root_node.edges if e.binding == "e0"]
+    assert len(e0_edges) == 0, "No edges should have normalized binding 'e0' in results"
+
+    # Both forward (out) and reverse (in) edge groups should be present
+    out_edges = [e for e in e0_bad_edges if e.direction == "out"]
+    in_edges = [e for e in e0_bad_edges if e.direction == "in"]
+
+    assert out_edges, "Expected at least one outgoing edge with binding 'e0_bad$%^'"
+    assert in_edges, "Expected at least one incoming edge with binding 'e0_bad$%^' (symmetric)"
+
+    # Verify connected nodes have correct binding
+    assert all(e.node.binding == "n0_test!@#" for e in e0_bad_edges)
+    assert all(isinstance(e.node.id, str) and e.node.id for e in e0_bad_edges)
+
+    # Verify predicates match the query
+    assert all(
+        ("related_to" in e.predicate_ancestors) or (e.predicate == "related_to")
+        for e in e0_bad_edges
+    ), "All edges should have 'related_to' in predicate/ancestors"
 
     await driver.close()
 
@@ -679,7 +1389,7 @@ async def test_simple_one_query_http_parallel_live_nonblocking() -> None:
     async def run_query_with_delay():
         # Add an artificial delay to simulate a slow query
         await asyncio.sleep(1)
-        return await driver.run_query(dgraph_query)
+        return await driver.run_query(dgraph_query, transpiler=transpiler)
 
     start = time.perf_counter()
     # Run queries concurrently. Calling run_query_with_delay three times to increase chance of blocking.
@@ -697,5 +1407,108 @@ async def test_simple_one_query_http_parallel_live_nonblocking() -> None:
 
     # If queries are non-blocking, elapsed should be just over 1 second, not 2+
     assert elapsed < 2, f"Queries are blocking each other! Elapsed: {elapsed:.2f}s"
+
+    await driver.close()
+
+@pytest.mark.asyncio
+@patch.object(driver_mod.DgraphGrpcDriver, "_connect_grpc", new_callable=AsyncMock)
+@patch("pydgraph.Txn.handle_query_future")
+async def test_run_grpc_query_raises_timeout_on_deadline_exceeded(
+    mock_handle_query: MagicMock,
+    _mock_connect_grpc: AsyncMock,
+) -> None:
+    """Test that a grpc.RpcError with DEADLINE_EXCEEDED raises a TimeoutError."""
+    # 1. Arrange
+    driver = new_grpc_driver()
+    await driver.connect()
+
+    # Manually set up the mock client that connect() would have created
+    driver.client = MagicMock()
+    driver.client.txn.return_value.handle_query_future = mock_handle_query
+
+    # Mock the RpcError
+    mock_rpc_error = grpc.RpcError()
+    mock_rpc_error.code = MagicMock(return_value=grpc.StatusCode.DEADLINE_EXCEEDED)
+    mock_rpc_error.details = MagicMock(return_value="Deadline exceeded")
+    mock_handle_query.side_effect = mock_rpc_error
+
+    # Create a mock transpiler
+    mock_transpiler = MagicMock()
+    mock_transpiler._reverse_node_map = {}
+    mock_transpiler._reverse_edge_map = {}
+
+    # 2. Act & Assert
+    with pytest.raises(TimeoutError, match="Dgraph query exceeded (.*) timeout"):
+        await driver.run_query("any query", transpiler=mock_transpiler)
+
+    await driver.close()
+
+
+@pytest.mark.asyncio
+@patch.object(driver_mod.DgraphGrpcDriver, "_connect_grpc", new_callable=AsyncMock)
+@patch("pydgraph.Txn.handle_query_future")
+async def test_run_grpc_query_raises_connection_error_on_generic_rpc_error(
+    mock_handle_query: MagicMock,
+    _mock_connect_grpc: AsyncMock,
+) -> None:
+    """Test that a generic grpc.RpcError raises a ConnectionError."""
+    # 1. Arrange
+    driver = new_grpc_driver()
+    await driver.connect()
+
+    driver.client = MagicMock()
+    driver.client.txn.return_value.handle_query_future = mock_handle_query
+
+    # Mock the RpcError
+    mock_rpc_error = grpc.RpcError()
+    mock_rpc_error.code = MagicMock(return_value=grpc.StatusCode.UNKNOWN)
+    mock_rpc_error.details = MagicMock(return_value="Some other gRPC error")
+    mock_handle_query.side_effect = mock_rpc_error
+
+    # Create a mock transpiler
+    mock_transpiler = MagicMock()
+    mock_transpiler._reverse_node_map = {}
+    mock_transpiler._reverse_edge_map = {}
+
+    # 2. Act & Assert
+    with pytest.raises(ConnectionError, match="Dgraph gRPC query failed: Some other gRPC error"):
+        await driver.run_query("any query", transpiler=mock_transpiler)
+
+    await driver.close()
+
+
+@pytest.mark.asyncio
+@patch.object(driver_mod.DgraphGrpcDriver, "_connect_grpc", new_callable=AsyncMock)
+@patch("pydgraph.Txn.handle_query_future")
+async def test_run_grpc_query_name_error_workaround(
+    mock_handle_query: MagicMock,
+    _mock_connect_grpc: AsyncMock,
+) -> None:
+    """Test the workaround for pydgraph raising NameError instead of RpcError."""
+    # 1. Arrange
+    driver = new_grpc_driver()
+    await driver.connect()
+
+    driver.client = MagicMock()
+    driver.client.txn.return_value.handle_query_future = mock_handle_query
+
+    # Mock the underlying RpcError
+    mock_rpc_error = grpc.RpcError()
+    mock_rpc_error.code = MagicMock(return_value=grpc.StatusCode.UNKNOWN)
+    mock_rpc_error.details = MagicMock(return_value="while running ToJson")
+
+    # Create a NameError and set its __context__ to our mock RpcError
+    name_error = NameError("name 'txn' is not defined")
+    name_error.__context__ = mock_rpc_error
+    mock_handle_query.side_effect = name_error
+
+    # Create a mock transpiler
+    mock_transpiler = MagicMock()
+    mock_transpiler._reverse_node_map = {}
+    mock_transpiler._reverse_edge_map = {}
+
+    # 2. Act & Assert
+    with pytest.raises(ConnectionError, match="Dgraph gRPC query failed: while running ToJson"):
+        await driver.run_query("any query", transpiler=mock_transpiler)
 
     await driver.close()

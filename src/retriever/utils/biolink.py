@@ -1,8 +1,15 @@
 from functools import lru_cache
 
 import bmt
+from reasoner_pydantic import BiolinkQualifier
 
 from retriever.config.openapi import OPENAPI_CONFIG
+from retriever.types.trapi import (
+    BiolinkPredicate,
+    QualifierConstraintDict,
+    QualifierDict,
+    QualifierTypeID,
+)
 
 biolink = bmt.Toolkit(
     schema=f"https://raw.githubusercontent.com/biolink/biolink-model/refs/tags/v{OPENAPI_CONFIG.x_translator.biolink_version}/biolink-model.yaml",
@@ -34,9 +41,7 @@ def expand(items: str | set[str]) -> set[str]:
     initial = {items} if isinstance(items, str) else items
     expanded = set(initial)
     for item in initial:
-        # Have to strip biolink prefix due to bug in bmt, see https://github.com/biolink/biolink-model-toolkit/issues/154
-        lookup = rmprefix(item)
-        expanded.update(biolink.get_descendants(lookup, formatted=True))
+        expanded.update(biolink.get_descendants(item, formatted=True))
     return expanded
 
 
@@ -49,3 +54,56 @@ def get_all_qualifiers() -> set[str]:
         for slot in slots
         if biolink.is_qualifier(slot) and slot != "qualifier"
     }
+
+
+def get_inverse(predicate: BiolinkPredicate) -> BiolinkPredicate | None:
+    """Return the inverse of a given predicate."""
+    inverse = biolink.get_inverse_predicate(predicate, formatted=True)
+    return BiolinkPredicate(inverse) if inverse else None
+
+
+def get_descendant_values(qualifier_type: BiolinkQualifier, value: str) -> set[str]:
+    """Given a biolink qualifier and an associated value, return applicable descendant values."""
+    ranges = biolink.get_slot_range(qualifier_type)  # pyright:ignore[reportUnknownMemberType]
+
+    permissible_values: set[str] = {value}
+    for enum in ranges:
+        permissible_values.update(
+            biolink.get_permissible_value_descendants(value, enum)
+        )
+
+    return permissible_values
+
+
+def reverse_qualifier_constraints(
+    qualifier_constraints: list[QualifierConstraintDict],
+) -> list[QualifierConstraintDict]:
+    """Reverse a given list of qualifier constraints."""
+    new = list[QualifierConstraintDict]()
+    for constraint in qualifier_constraints:
+        new_qualifier_set = set[QualifierDict]()
+        for qualifier in constraint["qualifier_set"]:
+            new_qualifier = QualifierDict(**qualifier)
+            if "object" in qualifier["qualifier_type_id"]:
+                new_qualifier["qualifier_type_id"] = QualifierTypeID(
+                    qualifier["qualifier_type_id"].replace("object", "subject")
+                )
+            elif "subject" in qualifier["qualifier_type_id"]:
+                new_qualifier["qualifier_type_id"] = QualifierTypeID(
+                    qualifier["qualifier_type_id"].replace("subject", "object")
+                )
+            elif inverse := qualifier[
+                "qualifier_type_id"
+            ] == "biolink:qualified_predicate" and get_inverse(
+                BiolinkPredicate(qualifier["qualifier_value"])
+            ):
+                # BUG: Technically invalid if we can't reverse the predicate
+                # but this is vanishingly rare and not worth addressing right now
+                new_qualifier["qualifier_value"] = inverse
+            new_qualifier_set.add(new_qualifier)
+        new.append(constraint)
+    return new
+
+
+is_qualifier = biolink.is_qualifier
+is_symmetric = biolink.is_symmetric

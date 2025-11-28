@@ -47,7 +47,10 @@ class Tier0Query(ABC):
             self.job_log.info("Starting lookup against Tier 0...")
 
             try:
-                timeout = None if self.ctx.timeout < 0 else self.ctx.timeout
+                timeout = None if self.ctx.timeout[0] < 0 else self.ctx.timeout[0]
+                self.job_log.debug(
+                    f"Tier 0 timeout is {'disabled' if timeout is None else f'{timeout}s'}."
+                )
                 async with asyncio.timeout(timeout):
                     backend_results = await self.get_results(
                         QueryGraphDict(**self.qgraph.model_dump())
