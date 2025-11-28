@@ -1,37 +1,52 @@
-from typing import TypedDict, Literal, NotRequired, Union
+from typing import Literal, NotRequired, TypedDict
 
 AttrValType = Literal["text", "num", "date", "keyword"]
 
 
-
 class AttrFieldMeta(TypedDict):
+    """Stored attribute field metadata."""
+
     container: Literal["scalar", "array"]
     value_type: AttrValType
     curie: bool
 
 
 ComparisonOperator = Literal["lt", "gt", "lte", "gte"]
-ComparisonValue = Union[str, int, float]
+ComparisonValue = str | int | float
 
 ComparisonTerm = dict[ComparisonOperator, ComparisonValue]
 
+
 class ESValueComparisonQuery(TypedDict):
+    """ES comparison term wrapper."""
+
     range: dict[str, ComparisonTerm]
 
 
 class ESTermComparisonClause(TypedDict):
-    term: dict[str, str| int | float]
+    """ES comparison clause."""
+
+    term: dict[str, str | int | float]
 
 
 class RegexTerm(TypedDict):
+    """ES Regex clause.."""
+
     value: str
     case_sensitive: NotRequired[bool]
 
+
 class ESRegexQuery(TypedDict):
+    """ES Query content for `match` filter."""
+
     regexp: dict[str, RegexTerm]
+
 
 AttributeFilterQuery = ESRegexQuery | ESTermComparisonClause | ESValueComparisonQuery
 
+
 class SingleAttributeFilterQueryPayload(TypedDict):
+    """ES query generated based on one single attribute constraint."""
+
     query: AttributeFilterQuery
     negate: bool

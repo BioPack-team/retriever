@@ -35,7 +35,8 @@ async def parse_response(
         search_after = hits[-1]["sort"]
 
     hits = [
-        hit["_source"] if "_index" not in hit
+        hit["_source"]
+        if "_index" not in hit
         else {**hit["_source"], "_index": hit["_index"]}
         for hit in hits
     ]
@@ -51,11 +52,7 @@ def generate_query_body(query_info: QueryInfo, page_size: int) -> QueryBody:
     body: QueryBody = {
         "size": page_size,
         "query": query,
-
-        "sort": [
-            {"seq_": "asc"},
-            {"_index": "asc"}
-        ]
+        "sort": [{"seq_": "asc"}, {"_index": "asc"}],
     }
 
     if search_after is not None:

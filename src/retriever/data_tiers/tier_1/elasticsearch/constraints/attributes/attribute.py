@@ -6,18 +6,62 @@
 # - node:
 #   - https://github.com/NCATSTranslator/ReasonerAPI/blob/master/docs/reference.md#qnode-
 #   - field name: constraints
-from datetime import datetime
-# from functools import partial
 
-from retriever.data_tiers.tier_1.elasticsearch.attribute_types import AttrFieldMeta, AttrValType, \
-    SingleAttributeFilterQueryPayload
-from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.meta_info import ATTR_META
-from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.ops.handle_comparison import \
-    handle_simple_comparison, handle_negation
-from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.ops.handle_match import handle_match
+# decision tree:
+#
+#        - check operator
+#            - matches : evaluate value( a regex) against `target` field or each element thereof, true if any (OR)
+#            - ===     : evaluate type and strict positional equality (AND) must:
+#                            publications.keyword == a [a,b,c]
+#
+#            - ==, >, <, >=, <= :
+#                    - `target` field is an array (can only be an array of strings)
+#                            |- yes:
+#                                - the `value` is
+#                                    - an array of strings:
+#                                            - operator is ==
+#                                                    |- yes:
+#                                                        cross check (e.g. "publications", "==",  ["PMID:123", "PMID:234"]), true if any (OR)
+#                                                    |- no:
+#                                                        throw error, not meaningful comparison (ES does not support check like "publications", ">",  ["PMID:123", "PMID:234"])
+#                                    - an array of numbers:
+#                                            cross check against array length (e.g. "publications", "==" / ">",  [1,2,3]), true if any (OR)
+#                                    - a number:
+#                                            evaluate against array length (e.g. "publications", ">=", 2.5)
+#                                    - OTHER:
+#                                            throw error, not a meaningful comparison (e.g. "publications", ">", [1, "PMID:123", 5.5])"
+#
+#                            | - no:
+#                                - cross check meaningful comparison (i.e. of same type), true if any (OR)
+#                                    examples:
+#                                        - meaningful:
+#                                            - "original_predicate", "==", "RO:001231
+#                                            - "original_predicate", ">", ["RO:001231"] (extraneous, but lexically meaningful)
+#                                        - not meaningful:
+#                                            - "original_predicate", ">=", 5
+
+
+from datetime import datetime
+from typing import Any
+
+# from functools import partial
+from retriever.data_tiers.tier_1.elasticsearch.attribute_types import (
+    AttrFieldMeta,
+    AttrValType,
+    SingleAttributeFilterQueryPayload,
+)
+from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.meta_info import (
+    ATTR_META,
+)
+from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.ops.handle_comparison import (
+    handle_negation,
+    handle_simple_comparison,
+)
+from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.ops.handle_match import (
+    handle_match,
+)
 from retriever.types.trapi import AttributeConstraintDict
 from retriever.utils import biolink
-
 
 # sample
 # {
@@ -28,36 +72,29 @@ from retriever.utils import biolink
 # }
 
 
-def validate_constraint(constraint: AttributeConstraintDict):
-    required_fields = [
-        "id",
-        "operator",
-        "value"
-    ]
+def validate_constraint(constraint: AttributeConstraintDict) -> None:
+    """Validate attribute constraint for fields."""
+    required_fields = ["id", "operator", "value"]
 
     for field in required_fields:
         if field not in constraint:
             raise AttributeError(f"Attribute constraint must have the field {field}")
 
-def valid_operator(operator):
-    allowed_ops = {
-        "match",
-        "==="
-        "==",
-        ">",
-        "<",
-        ">=",
-        "<="
-    }
+
+def validate_operator(operator: str) -> None:
+    """Validate allowed operator in attribute constraints."""
+    allowed_ops = {"match", "===" "==", ">", "<", ">=", "<="}
 
     if not isinstance(operator, str) or operator not in allowed_ops:
         raise AttributeError(f"Operator must be one of {allowed_ops}")
 
-def validate_date(candidate) -> str | int | None:
-    """Validate date payload
-        only supports:
-            - str: must be in or can be formatted into YYYY-MM-DD, or
-            - int: treated as an Epoch number
+
+def validate_date(candidate: str | int) -> str | int | None:
+    """Validate date payload.
+
+    only supports:
+    - str: must be in or can be formatted into YYYY-MM-DD, or
+    - int: treated as an Epoch number
     """
     if isinstance(candidate, str):
         try:
@@ -71,7 +108,9 @@ def validate_date(candidate) -> str | int | None:
 
     return None
 
-def ensure_type_consistency(field_type: AttrValType, raw_value):
+
+def ensure_type_consistency(field_type: AttrValType, raw_value: Any) -> Any:
+    """Check type between compared values. Transform date string where possible."""
     if field_type == "date":
         return validate_date(raw_value)
 
@@ -84,47 +123,10 @@ def ensure_type_consistency(field_type: AttrValType, raw_value):
     return raw_value
 
 
-
-def process_single_constraint(constraint: AttributeConstraintDict) -> SingleAttributeFilterQueryPayload | None:
+def process_single_constraint(
+    constraint: AttributeConstraintDict,
+) -> SingleAttributeFilterQueryPayload | None:
     """Process a single attribute constraint."""
-
-    '''
-        decision tree:
-
-        - check operator
-            - matches : evaluate value( a regex) against `target` field or each element thereof, true if any (OR)
-            - ===     : evaluate type and strict positional equality (AND) must: 
-                            publications.keyword == a [a,b,c]
-
-            - ==, >, <, >=, <= : 
-                    - `target` field is an array (can only be an array of strings)
-                            |- yes: 
-                                - the `value` is 
-                                    - an array of strings:
-                                            - operator is ==
-                                                    |- yes: 
-                                                        cross check (e.g. "publications", "==",  ["PMID:123", "PMID:234"]), true if any (OR)
-                                                    |- no: 
-                                                        throw error, not meaningful comparison (ES does not support check like "publications", ">",  ["PMID:123", "PMID:234"])
-                                    - an array of numbers: 
-                                            cross check against array length (e.g. "publications", "==" / ">",  [1,2,3]), true if any (OR)
-                                    - a number: 
-                                            evaluate against array length (e.g. "publications", ">=", 2.5)
-                                    - OTHER:
-                                            throw error, not a meaningful comparison (e.g. "publications", ">", [1, "PMID:123", 5.5])"
-
-                            | - no:
-                                - cross check meaningful comparison (i.e. of same type), true if any (OR) 
-                                    examples:
-                                        - meaningful: 
-                                            - "original_predicate", "==", "RO:001231
-                                            - "original_predicate", ">", ["RO:001231"] (extraneous, but lexically meaningful) 
-                                        - not meaningful: 
-                                            - "original_predicate", ">=", 5
-
-      '''
-
-
     validate_constraint(constraint)
 
     # todo unit?
@@ -133,7 +135,7 @@ def process_single_constraint(constraint: AttributeConstraintDict) -> SingleAttr
     should_negate = constraint.get("not", False)
     target_field_name = biolink.rmprefix(constraint.get("id"))
 
-    valid_operator(raw_operator)
+    validate_operator(raw_operator)
 
     field_meta_info: AttrFieldMeta | None = ATTR_META.get(target_field_name, None)
 
@@ -146,23 +148,29 @@ def process_single_constraint(constraint: AttributeConstraintDict) -> SingleAttr
 
         return SingleAttributeFilterQueryPayload(
             query=handle_match(field_meta_info, raw_value, target_field_name),
-            negate=should_negate
+            negate=should_negate,
         )
 
     # scalar vs scalar
-    if not isinstance(raw_value, list) and field_meta_info['container'] != 'array':
+    if not isinstance(raw_value, list) and field_meta_info["container"] != "array":
         # ensure type consistency
-        value = ensure_type_consistency(field_meta_info['value_type'], raw_value)
+        value = ensure_type_consistency(field_meta_info["value_type"], raw_value)
 
         if value is None:
-            if field_meta_info['value_type'] == "date":
-                raise AttributeError(f"{raw_value} is not a supported date. Must be in YYYY-MM-DD format")
+            if field_meta_info["value_type"] == "date":
+                raise AttributeError(
+                    f"{raw_value} is not a supported date. Must be in YYYY-MM-DD format"
+                )
 
-            raise AttributeError(f"{field_meta_info['value_type']} field {target_field_name} is being compared with f{type(raw_value)}")
+            raise AttributeError(
+                f"{field_meta_info['value_type']} field {target_field_name} is being compared with f{type(raw_value)}"
+            )
 
         # ensure meaningful comparison
         if field_meta_info["value_type"] == "text" and raw_operator != "==":
-            raise AttributeError(f"text field{target_field_name} only supports loose match operator '==' ")
+            raise AttributeError(
+                f"text field{target_field_name} only supports loose match operator '==' "
+            )
 
         # translate negation where possible
         raw_operator, should_negate = handle_negation(raw_operator, should_negate)
@@ -170,7 +178,7 @@ def process_single_constraint(constraint: AttributeConstraintDict) -> SingleAttr
         # pass to translator
         return SingleAttributeFilterQueryPayload(
             query=handle_simple_comparison(value, raw_operator, target_field_name),
-            negate=should_negate
+            negate=should_negate,
         )
     # field: scalar, attr: array
     # elif isinstance(raw_value, list):
@@ -195,16 +203,18 @@ def process_single_constraint(constraint: AttributeConstraintDict) -> SingleAttr
     #             },
     #         }
 
-
-
     # we will handle more complex filtering at a later time
     # post filtering needed for some cases
     else:
         return None
 
 
-def process_attribute_constraints(constraints: list[AttributeConstraintDict]):
-
+def process_attribute_constraints(
+    constraints: list[AttributeConstraintDict],
+) -> tuple[
+    list[SingleAttributeFilterQueryPayload], list[SingleAttributeFilterQueryPayload]
+]:
+    """Generate ES query for attribute constraint field."""
     must = []
     must_not = []
 
@@ -216,15 +226,13 @@ def process_attribute_constraints(constraints: list[AttributeConstraintDict]):
 
             # None will be returned if not a supported filtering
             if not payload:
-                raise AttributeError(f"Constraint not currently supported: {constraint}.")
+                raise AttributeError(
+                    f"Constraint not currently supported: {constraint}."
+                )
 
-            if payload['negate']:
-                must_not.append(payload['query'])
+            if payload["negate"]:
+                must_not.append(payload["query"])
             else:
-                must.append(payload['query'])
+                must.append(payload["query"])
 
     return must, must_not
-
-
-
-

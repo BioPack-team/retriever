@@ -1,8 +1,12 @@
 from typing import Literal, override
 
 from retriever.data_tiers.base_transpiler import Tier1Transpiler
-from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.attribute import process_attribute_constraints
-from retriever.data_tiers.tier_1.elasticsearch.constraints.qualifier import process_qualifier_constraints
+from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.attribute import (
+    process_attribute_constraints,
+)
+from retriever.data_tiers.tier_1.elasticsearch.constraints.qualifier import (
+    process_qualifier_constraints,
+)
 from retriever.data_tiers.tier_1.elasticsearch.types import (
     ESBooleanQuery,
     ESFilterClause,
@@ -47,7 +51,6 @@ EDGE_FIELDS_MAPPING = {
 }
 
 
-
 class ElasticsearchTranspiler(Tier1Transpiler):
     """Transpiler for TRAPI to/from Elasticsearch queries."""
 
@@ -76,8 +79,6 @@ class ElasticsearchTranspiler(Tier1Transpiler):
 
         Example return value: { "terms": { "subject.id": ["NCBIGene:22828"] }},
         """
-
-
         return [
             self.generate_query_term(f"{side}.{es_field}", values)
             for qfield, es_field in NODE_FIELDS_MAPPING.items()
@@ -125,18 +126,21 @@ class ElasticsearchTranspiler(Tier1Transpiler):
         object_terms = self.process_qnode(out_node, "object")
         edge_terms = self.process_qedge(edge)
 
-        query_kwargs :ESBooleanQuery = {
+        query_kwargs: ESBooleanQuery = {
             "filter": [*subject_terms, *object_terms, *edge_terms]
         }
 
-        qualifier_terms = process_qualifier_constraints(edge.get("qualifier_constraints", None))
+        qualifier_terms = process_qualifier_constraints(
+            edge.get("qualifier_constraints", None)
+        )
 
         if qualifier_terms:
-
             # if we have `should` in results, this is a multi-constraint
             if "should" in qualifier_terms:
                 query_kwargs["should"] = qualifier_terms["should"]
-                query_kwargs["minimum_should_match"] = 1 # ensure `should` array is honored
+                query_kwargs["minimum_should_match"] = (
+                    1  # ensure `should` array is honored
+                )
 
             # otherwise we have either
             # 0) `ESQueryForSingleQualifierConstraint`, a single constraint with multiple qualifiers, or
@@ -157,12 +161,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
             if must_not:
                 query_kwargs["must_not"] = must_not
 
-
-        return ESPayload(
-            query=ESQueryContext(
-                bool=ESBooleanQuery(**query_kwargs)
-            )
-        )
+        return ESPayload(query=ESQueryContext(bool=ESBooleanQuery(**query_kwargs)))
 
     @override
     def convert_triple(self, qgraph: QueryGraphDict) -> ESPayload:
