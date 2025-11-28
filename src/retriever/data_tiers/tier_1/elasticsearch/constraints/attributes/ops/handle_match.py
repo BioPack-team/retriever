@@ -10,7 +10,7 @@ from retriever.data_tiers.tier_1.elasticsearch.attribute_types import (
 def validate_regex(regex: str) -> str:
     """Validate regex for `match` query."""
     # todo
-    pass
+    return regex
 
 
 def handle_match(
@@ -26,7 +26,7 @@ def handle_match(
         While it's allowed, A regex term `GO:` will not match the text `We have GO:123` because of standard tokenizer used by ES
         """
         raise TypeError(
-            f"{field_meta_info["value_type"]} fields does not support RegEx query"
+            f"{field_meta_info['value_type']} fields does not support RegEx query"
         )
 
     # 1. check if valid / efficient regex

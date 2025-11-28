@@ -3,13 +3,18 @@ from typing import Any, NotRequired
 from elastic_transport import ObjectApiResponse
 from elasticsearch import AsyncElasticsearch
 
-from retriever.data_tiers.tier_1.elasticsearch.types import ESHit, ESPayload, ESResponse
+from retriever.data_tiers.tier_1.elasticsearch.types import (
+    ESDocument,
+    ESHit,
+    ESPayload,
+    ESResponse,
+)
 
 
 class QueryInfo(ESPayload):
     """Query info needed to generate full query body."""
 
-    search_after: NotRequired[str | None]
+    search_after: NotRequired[list[Any] | None]
 
 
 class QueryBody(QueryInfo):
@@ -21,24 +26,24 @@ class QueryBody(QueryInfo):
 
 async def parse_response(
     response: ObjectApiResponse[ESResponse], page_size: int
-) -> tuple[list[ESHit], str | None]:
+) -> tuple[list[ESHit], list[Any] | None]:
     """Parse an ES response and for 0) list of hits, and 1) search_after i.e. the pagination anchor for next query."""
     if "hits" not in response:
         raise RuntimeError(f"Invalid ES response: no hits in response body: {response}")
 
-    hits = response["hits"]["hits"]
+    fetched_documents: list[ESDocument] = response["hits"]["hits"]
 
     search_after = None
 
     # next page exists
-    if len(hits) == page_size:
-        search_after = hits[-1]["sort"]
+    if len(fetched_documents) == page_size:
+        search_after = fetched_documents[-1]["sort"]
 
-    hits = [
+    hits: list[ESHit] = [
         hit["_source"]
         if "_index" not in hit
         else {**hit["_source"], "_index": hit["_index"]}
-        for hit in hits
+        for hit in fetched_documents
     ]
 
     return hits, search_after
@@ -70,7 +75,6 @@ async def run_single_query(
     """Adapter for running single query through _search and aggregating all hits."""
     query_info: QueryInfo = {
         "query": query["query"],
-        "search_after": None,
     }
 
     results: list[ESHit] = []
@@ -100,7 +104,6 @@ async def run_batch_query(
     query_collection: list[QueryInfo] = [
         {
             "query": query["query"],
-            "search_after": None,
         }
         for query in queries
     ]

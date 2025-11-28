@@ -1,32 +1,24 @@
 from retriever.data_tiers.tier_1.elasticsearch.attribute_types import AttrFieldMeta
 
-keyword_field = AttrFieldMeta(
-    container="scalar",
-    value_type="keyword",
-)
+keyword_field = AttrFieldMeta(container="scalar", value_type="keyword", curie=False)
+
 curie_keyword_field = AttrFieldMeta(
     container="scalar",
     value_type="keyword",
     curie=True,
 )
-text_field = AttrFieldMeta(
-    container="scalar",
-    value_type="text",
-)
+
+text_field = AttrFieldMeta(container="scalar", value_type="text", curie=False)
+
 curie_keyword_array_field = AttrFieldMeta(
     container="array",
     value_type="keyword",
     curie=True,
 )
-number_field = AttrFieldMeta(
-    container="scalar",
-    value_type="num",
-)
-datetime_field = AttrFieldMeta(
-    container="scalar",
-    value_type="date",
-)
 
+number_field = AttrFieldMeta(container="scalar", value_type="num", curie=False)
+
+datetime_field = AttrFieldMeta(container="scalar", value_type="date", curie=False)
 
 ATTR_META = {
     ## fields below are EDGE attributes

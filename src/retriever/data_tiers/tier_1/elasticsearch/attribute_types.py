@@ -1,12 +1,13 @@
 from typing import Literal, NotRequired, TypedDict
 
 AttrValType = Literal["text", "num", "date", "keyword"]
+AttrContainerType = Literal["scalar", "array"]
 
 
 class AttrFieldMeta(TypedDict):
     """Stored attribute field metadata."""
 
-    container: Literal["scalar", "array"]
+    container: AttrContainerType
     value_type: AttrValType
     curie: bool
 

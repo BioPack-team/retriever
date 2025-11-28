@@ -130,9 +130,8 @@ class ElasticsearchTranspiler(Tier1Transpiler):
             "filter": [*subject_terms, *object_terms, *edge_terms]
         }
 
-        qualifier_terms = process_qualifier_constraints(
-            edge.get("qualifier_constraints", None)
-        )
+        qualifier_constraints = edge.get("qualifier_constraints", None)
+        qualifier_terms = process_qualifier_constraints(qualifier_constraints)
 
         if qualifier_terms:
             # if we have `should` in results, this is a multi-constraint

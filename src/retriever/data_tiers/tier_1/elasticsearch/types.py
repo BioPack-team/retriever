@@ -86,6 +86,7 @@ class ESDocument(TypedDict):
     """A source document returned from Elasticsearch."""
 
     _source: ESHit
+    _index: NotRequired[str]
     sort: list[Any]
 
 

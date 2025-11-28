@@ -85,8 +85,8 @@ def process_qualifier_constraints(
     if constraints is None:
         return None
 
-    if not isinstance(constraints, list):
-        raise TypeError("qualifier constraints must be a list")
+    # if not isinstance(constraints, list):
+    #     raise TypeError("qualifier constraints must be a list")
 
     constraint_queries: list[list[ESTermClause]] = list(
         filter(None, map(handle_single_constraint, constraints))

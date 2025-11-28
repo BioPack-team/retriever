@@ -47,6 +47,7 @@ from typing import Any
 # from functools import partial
 from retriever.data_tiers.tier_1.elasticsearch.attribute_types import (
     AttrFieldMeta,
+    AttributeFilterQuery,
     AttrValType,
     SingleAttributeFilterQueryPayload,
 )
@@ -81,15 +82,15 @@ def validate_constraint(constraint: AttributeConstraintDict) -> None:
             raise AttributeError(f"Attribute constraint must have the field {field}")
 
 
-def validate_operator(operator: str) -> None:
+def validate_operator(operator: Any) -> None:
     """Validate allowed operator in attribute constraints."""
-    allowed_ops = {"match", "===" "==", ">", "<", ">=", "<="}
+    allowed_ops = {"match", "===", "==", ">", "<", ">=", "<="}
 
     if not isinstance(operator, str) or operator not in allowed_ops:
         raise AttributeError(f"Operator must be one of {allowed_ops}")
 
 
-def validate_date(candidate: str | int) -> str | int | None:
+def validate_date(candidate: Any) -> str | int | None:
     """Validate date payload.
 
     only supports:
@@ -211,28 +212,23 @@ def process_single_constraint(
 
 def process_attribute_constraints(
     constraints: list[AttributeConstraintDict],
-) -> tuple[
-    list[SingleAttributeFilterQueryPayload], list[SingleAttributeFilterQueryPayload]
-]:
+) -> tuple[list[AttributeFilterQuery], list[AttributeFilterQuery]]:
     """Generate ES query for attribute constraint field."""
-    must = []
-    must_not = []
+    must: list[AttributeFilterQuery] = []
+    must_not: list[AttributeFilterQuery] = []
 
     # fail fast. exception => not met => fails everything
     for constraint in constraints:
-        if constraint is not None:
-            # attribute error will ba raised if illegal
-            payload = process_single_constraint(constraint)
+        # attribute error will ba raised if illegal
+        payload = process_single_constraint(constraint)
 
-            # None will be returned if not a supported filtering
-            if not payload:
-                raise AttributeError(
-                    f"Constraint not currently supported: {constraint}."
-                )
+        # None will be returned if not a supported filtering
+        if not payload:
+            raise AttributeError(f"Constraint not currently supported: {constraint}.")
 
-            if payload["negate"]:
-                must_not.append(payload["query"])
-            else:
-                must.append(payload["query"])
+        if payload["negate"]:
+            must_not.append(payload["query"])
+        else:
+            must.append(payload["query"])
 
     return must, must_not
