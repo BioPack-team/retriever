@@ -32,7 +32,7 @@ indices = [
 def es_client():
     try:
         # should only be run in local setup, duh
-        es_url = f"http://{CONFIG.tier1.elasticsearch.host}:{CONFIG.tier1.elasticsearch.port}"
+        es_url = f"http://localhost:9200"
         client = Elasticsearch(es_url)
         # quick ping to check connection
         if not client.ping():
