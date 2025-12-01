@@ -44,7 +44,7 @@ DINGO_QGRAPH = qg({
         E0: {
             "subject": "n0",
             "object": "n1",
-            "predicates": ["has_phenotype"],
+            "predicates": ["biolink:has_phenotype"],
             "qualifier_constraints": [
                 sex_qualifier_constraint,
                 frequency_qualifier_constraint
