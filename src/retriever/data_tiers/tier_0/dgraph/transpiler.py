@@ -414,7 +414,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
     def _create_filter_expression(self, constraint: AttributeConstraintDict) -> str:
         """Create a filter expression for a single constraint."""
-        field_name = self._v(constraint["id"])
+        field_name = self._v(constraint["id"].replace("biolink:", ""))
         value = constraint["value"]
         operator = constraint["operator"]
         is_negated = constraint.get("not", False)
