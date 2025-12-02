@@ -20,6 +20,7 @@ from retriever.types.trapi import (
     QualifierTypeID,
 )
 from retriever.types.trapi_pydantic import TierNumber
+from retriever.utils import biolink
 from retriever.utils.biolink import expand
 from retriever.utils.calls import get_metadata_client
 from retriever.utils.redis import METAKG_UPDATE_CHANNEL, REDIS_CLIENT
@@ -116,7 +117,10 @@ class MetaKGManager:
                             MetaAttributeDict(attribute_type_id=attr_type)
                             for attr_type in edge["attributes"]
                         ],
-                        qualifiers={qual_type: [] for qual_type in edge["qualifiers"]},
+                        qualifiers={
+                            QualifierTypeID(biolink.ensure_prefix(qual_type)): []
+                            for qual_type in edge["qualifiers"]
+                        },
                     )
                 )
         for node in metadata["schema"]["nodes"]:
