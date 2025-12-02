@@ -89,6 +89,35 @@ SIMPLE_QGRAPH: QueryGraphDict = qg({
     },
 })
 
+SIMPLE_QGRAPH_GT_NOT: QueryGraphDict = qg({
+    "nodes": {
+        "n0": {
+            "ids": ["MONDO:0030010", "MONDO:0011766", "MONDO:0009890"],
+        },
+        "n1": {},
+    },
+    "edges": {
+        "e0": {
+            "subject": "n0",
+            "object": "n1",
+            "predicates": ["biolink:has_phenotype"],
+            "attribute_constraints": [
+                {
+                    "id": "biolink:has_total",
+                    "operator": ">",
+                    "value": 2,
+                },
+                {
+                    "id": "biolink:has_total",
+                    "operator": ">",
+                    "value": 4,
+                    "not": True,
+                },
+            ],
+        }
+    },
+})
+
 SIMPLE_QGRAPH_MULTIPLE_IDS: QueryGraphDict = qg({
     "nodes": {
         "n0": {"ids": ["CHEBI:3125", "CHEBI:53448"], "constraints": []},
@@ -600,6 +629,23 @@ EXP_SIMPLE = dedent("""
             }
         }
     }
+}
+""").strip()
+
+EXP_SIMPLE_GT_NOT = dedent("""
+{
+  q0_node_n0(func: eq(id, ["MONDO:0030010", "MONDO:0011766", "MONDO:0009890"])) @cascade(id, ~subject) {
+    expand(Node)
+    out_edges_e0: ~subject
+      @filter(eq(predicate_ancestors, "has_phenotype") AND
+        gt(has_total, "2") AND
+        NOT(gt(has_total, "4"))) @cascade(predicate, object) {
+      expand(Edge) { sources expand(Source) }
+      node_n1: object @cascade(id) {
+        expand(Node)
+      }
+    }
+  }
 }
 """).strip()
 
@@ -1121,6 +1167,7 @@ DGRAPH_FLOATING_OBJECT_QUERY_TWO_CATEGORIES = dedent("""
 
 CASES: list[QueryCase] = [
     QueryCase("simple-one", SIMPLE_QGRAPH, EXP_SIMPLE),
+    QueryCase("simple-gt-not", SIMPLE_QGRAPH_GT_NOT, EXP_SIMPLE_GT_NOT),
     QueryCase("simple-multiple-ids", SIMPLE_QGRAPH_MULTIPLE_IDS, EXP_SIMPLE_MULTIPLE_IDS),
     QueryCase("simple-reverse", SIMPLE_REVERSE_QGRAPH, EXP_SIMPLE_REVERSE),
     QueryCase("two-hop", TWO_HOP_QGRAPH, EXP_TWO_HOP),
