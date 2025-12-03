@@ -947,7 +947,9 @@ class DgraphTranspiler(Tier0Transpiler):
         for qualifier_id, value in edge.get_qualifiers().items():
             qualifiers.append(
                 QualifierDict(
-                    qualifier_type_id=QualifierTypeID(qualifier_id),
+                    qualifier_type_id=QualifierTypeID(
+                        biolink.ensure_prefix(qualifier_id)
+                    ),
                     qualifier_value=value,
                 )
             )
@@ -972,8 +974,11 @@ class DgraphTranspiler(Tier0Transpiler):
             subject=CURIE(edge.node.id if edge.direction == "in" else initial_curie),
             object=CURIE(initial_curie if edge.direction == "in" else edge.node.id),
             sources=sources,
-            attributes=attributes,
         )
+        if len(attributes) > 0:
+            trapi_edge["attributes"] = attributes
+        if len(qualifiers) > 0:
+            trapi_edge["qualifiers"] = qualifiers
 
         append_aggregator_source(trapi_edge, Infores(CONFIG.tier0.backend_infores))
 

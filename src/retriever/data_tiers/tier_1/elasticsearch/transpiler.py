@@ -254,14 +254,14 @@ class ElasticsearchTranspiler(Tier1Transpiler):
 
             # Build Attributes and Qualifiers
             for field, value in hit.items():
-                if field in DINGO_KG_EDGE_TOPLEVEL_VALUES:
-                    continue
-                if field in special_cases:
+                if field in DINGO_KG_EDGE_TOPLEVEL_VALUES or field in special_cases:
                     continue
                 if biolink.is_qualifier(field):
                     qualifiers.append(
                         QualifierDict(
-                            qualifier_type_id=QualifierTypeID(field),
+                            qualifier_type_id=QualifierTypeID(
+                                biolink.ensure_prefix(field)
+                            ),
                             qualifier_value=str(value),
                         )
                     )
@@ -301,8 +301,12 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                 subject=CURIE(hit["subject"]["id"]),
                 object=CURIE(hit["object"]["id"]),
                 sources=sources,
-                attributes=attributes,
             )
+            if len(attributes) > 0:
+                trapi_edge["attributes"] = attributes
+            if len(qualifiers) > 0:
+                trapi_edge["qualifiers"] = qualifiers
+
             append_aggregator_source(trapi_edge, Infores(CONFIG.tier1.backend_infores))
 
             edge_hash = hash_hex(hash_edge(trapi_edge))
