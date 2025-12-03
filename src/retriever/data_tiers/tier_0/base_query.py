@@ -52,9 +52,34 @@ class Tier0Query(ABC):
                     f"Tier 0 timeout is {'disabled' if timeout is None else f'{timeout}s'}."
                 )
                 async with asyncio.timeout(timeout):
-                    backend_results = await self.get_results(
-                        QueryGraphDict(**self.qgraph.model_dump())
-                    )
+                    qgraph_dict = QueryGraphDict(**self.qgraph.model_dump(by_alias=True))
+
+                    # WORKAROUND: Fix the 'not' field using raw JSON if available
+                    raw_json = None
+                    if (self.ctx.body and
+                        hasattr(self.ctx.body, 'model_extra') and
+                        self.ctx.body.model_extra and
+                        '_raw_json' in self.ctx.body.model_extra):
+                        raw_json = self.ctx.body.model_extra['_raw_json']
+                        self.job_log.debug(f"[base_query.py] Found raw JSON in model_extra")
+
+                    # Fix the bug: use raw JSON to get correct 'not' values
+                    if qgraph_dict.get("edges") and raw_json:
+                        raw_qgraph = raw_json.get('message', {}).get('query_graph', {})
+                        raw_edges = raw_qgraph.get('edges', {})
+
+                        for edge_id, edge in qgraph_dict["edges"].items():
+                            if edge.get("attribute_constraints") and edge_id in raw_edges:
+                                raw_edge = raw_edges[edge_id]
+                                raw_constraints = raw_edge.get('attribute_constraints', [])
+
+                                for i, constraint in enumerate(edge["attribute_constraints"]):
+                                    if i < len(raw_constraints):
+                                        # Get the correct 'not' value from raw JSON
+                                        constraint["not"] = raw_constraints[i].get("not", False)
+                                        self.job_log.debug(f"[base_query.py] Fixed constraint {i} 'not' to {constraint['not']} from raw JSON")
+
+                    backend_results = await self.get_results(qgraph_dict)
 
             except TimeoutError:
                 self.job_log.error("Tier 0 operation timed out.")

@@ -169,6 +169,41 @@ async def query(
     body: Annotated[TRAPIQuery, Body(examples=[EXAMPLE_QUERY])],
 ) -> ORJSONResponse:
     """Initiate a synchronous query."""
+
+    # --- BEGIN DIAGNOSTIC SNIPPET ---
+    from loguru import logger
+
+    logger.info("--- Running Pydantic Model Inspection ---")
+    try:
+        # Safely access the attribute constraints
+        qgraph = getattr(body.message, "query_graph", None)
+        if qgraph and qgraph.edges:
+            for edge_id, edge in qgraph.edges.items():
+                if edge.attribute_constraints:
+                    logger.debug(f"Inspecting constraints for edge '{edge_id}':")
+                    for i, constraint in enumerate(edge.attribute_constraints):
+                        # This will show the Python attribute name, which should be 'negated'
+                        logger.debug(f"  Constraint [{i}] __repr__: {constraint!r}")
+                        # This will show the dictionary using the JSON alias, which should be 'not'
+                        logger.debug(f"  Constraint [{i}] model_dump(by_alias=True): {constraint.model_dump(by_alias=True)}")
+    except Exception as e:
+        logger.error(f"Error during inspection: {e}")
+    logger.info("--- End of Pydantic Model Inspection ---")
+    # --- END DIAGNOSTIC SNIPPET ---
+
+    # WORKAROUND: Store the raw JSON request so we can use it later to get correct 'not' values
+    raw_body_bytes = await request.body()
+    import json
+    try:
+        raw_body_dict = json.loads(raw_body_bytes)
+        # Store it in model_extra for later retrieval
+        if not hasattr(body, 'model_extra') or body.model_extra is None:
+            body.model_extra = {}
+        body.model_extra['_raw_json'] = raw_body_dict
+    except Exception:
+        pass  # If parsing fails, continue without the workaround
+
+
     response_dict = await make_query("lookup", APIInfo(request, response), body=body)
     return ORJSONResponse(response_dict)
     # return {}
