@@ -1,10 +1,10 @@
-import contextlib
 import traceback
 import uuid
 from typing import Any, Literal, overload
 
 import sentry_sdk
 from fastapi import Request, Response
+from loguru import logger
 from opentelemetry import trace
 
 from retriever.config.general import CONFIG
@@ -98,7 +98,11 @@ async def make_query(
         timeout=timeout,
     )
 
-    with contextlib.suppress(Exception):
+    with logger.catch(
+        Exception,
+        level="ERROR",
+        message="Error while attempting to contextualize telemetry to query.",
+    ):
         contextualize_query_telemetry(query, func, ctx.background_tasks is not None)
 
     query_function = {"lookup": lookup, "metakg": trapi_metakg}[func]
