@@ -945,6 +945,8 @@ class DgraphTranspiler(Tier0Transpiler):
 
         # Build qualifiers
         for qualifier_id, value in edge.get_qualifiers().items():
+            if value is None:
+                continue
             qualifiers.append(
                 QualifierDict(
                     qualifier_type_id=QualifierTypeID(
