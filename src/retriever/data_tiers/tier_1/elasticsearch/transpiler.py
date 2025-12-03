@@ -247,7 +247,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                     "biolink:category",
                     [
                         BiolinkEntity(biolink.ensure_prefix(cat))
-                        for cat in hit["category"]
+                        for cat in hit.get("category", [])
                     ],
                 ),
             }
