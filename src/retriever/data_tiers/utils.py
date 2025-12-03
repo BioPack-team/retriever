@@ -7,6 +7,10 @@ DINGO_KG_EDGE_TOPLEVEL_VALUES = {
     "sources",
     "source_inforeses",
     "id",
+    "subject",
+    "object",
+    "_index",
+    "seq_",
 }
 
 
