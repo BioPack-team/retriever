@@ -105,6 +105,7 @@ class ESHit(TypedDict):
     has_quotient: NotRequired[float]
     category: list[str]
     seq_: NotRequired[int]
+    negated: NotRequired[bool]
 
 
 class ESDocument(TypedDict):
