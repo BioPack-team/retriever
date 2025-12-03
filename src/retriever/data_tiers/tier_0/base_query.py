@@ -4,9 +4,6 @@ import time
 from abc import ABC, abstractmethod
 
 from opentelemetry import trace
-from reasoner_pydantic import (
-    QueryGraph,
-)
 
 from retriever.types.general import BackendResult, LookupArtifacts, QueryInfo
 from retriever.types.trapi import (
@@ -31,10 +28,10 @@ tracer = trace.get_tracer("lookup.execution.tracer")
 class Tier0Query(ABC):
     """Handler class for running a single Tier 0 query."""
 
-    def __init__(self, qgraph: QueryGraph, query_info: QueryInfo) -> None:
+    def __init__(self, qgraph: QueryGraphDict, query_info: QueryInfo) -> None:
         """Initialize a Tier 0 Query instance."""
         self.ctx: QueryInfo = query_info
-        self.qgraph: QueryGraph = qgraph
+        self.qgraph: QueryGraphDict = qgraph
         self.job_log: TRAPILogger = TRAPILogger(self.ctx.job_id)
         self.kgraph: KnowledgeGraphDict = initialize_kgraph(self.qgraph)
         self.aux_graphs: dict[AuxGraphID, AuxiliaryGraphDict] = {}
@@ -52,9 +49,7 @@ class Tier0Query(ABC):
                     f"Tier 0 timeout is {'disabled' if timeout is None else f'{timeout}s'}."
                 )
                 async with asyncio.timeout(timeout):
-                    backend_results = await self.get_results(
-                        QueryGraphDict(**self.qgraph.model_dump())
-                    )
+                    backend_results = await self.get_results(self.qgraph)
 
             except TimeoutError:
                 self.job_log.error("Tier 0 operation timed out.")

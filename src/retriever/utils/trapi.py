@@ -4,10 +4,7 @@ from collections.abc import Sequence
 from typing import cast
 
 from opentelemetry import trace
-from reasoner_pydantic import (
-    QueryGraph,
-)
-from reasoner_pydantic.qgraph import QualifierConstraint
+from reasoner_pydantic import QueryGraph
 from reasoner_pydantic.utils import make_hashable
 
 from retriever.types.trapi import (
@@ -23,7 +20,9 @@ from retriever.types.trapi import (
     MetaAttributeDict,
     NodeBindingDict,
     NodeDict,
+    QualifierConstraintDict,
     QualifierTypeID,
+    QueryGraphDict,
     ResultDict,
     RetrievalSourceDict,
 )
@@ -33,17 +32,30 @@ from retriever.utils.logs import TRAPILogger
 tracer = trace.get_tracer("lookup.execution.tracer")
 
 
-def initialize_kgraph(qgraph: QueryGraph) -> KnowledgeGraphDict:
+def initialize_kgraph(qgraph: QueryGraphDict | QueryGraph) -> KnowledgeGraphDict:
     """Initialize a knowledge graph, using nodes from the query graph."""
     kgraph = KnowledgeGraphDict(nodes={}, edges={})
-    for qnode in qgraph.nodes.values():
-        if qnode.ids is None:
-            continue
-        for curie in qnode.ids:
-            kgraph["nodes"][CURIE(curie)] = NodeDict(
-                categories=[BiolinkEntity(cat) for cat in (qnode.categories or [])],
-                attributes=[],
-            )
+    if isinstance(qgraph, QueryGraph):
+        for qnode in qgraph.nodes.values():
+            if qnode.ids is None:
+                continue
+            for curie in qnode.ids:
+                kgraph["nodes"][CURIE(curie)] = NodeDict(
+                    categories=[BiolinkEntity(cat) for cat in (qnode.categories or [])],
+                    attributes=[],
+                )
+    else:
+        for qnode in qgraph["nodes"].values():
+            if "ids" not in qnode or qnode["ids"] is None:
+                continue
+            for curie in qnode["ids"]:
+                kgraph["nodes"][CURIE(curie)] = NodeDict(
+                    categories=[
+                        BiolinkEntity(cat)
+                        for cat in (qnode.get("categories", []) or [])
+                    ],
+                    attributes=[],
+                )
     return kgraph
 
 
@@ -340,7 +352,7 @@ def prune_kg(
 
 def meta_qualifier_meets_constraints(
     meta_qualifiers: dict[QualifierTypeID, list[str]] | None,
-    constraints: Sequence[QualifierConstraint],
+    constraints: Sequence[QualifierConstraintDict],
 ) -> bool:
     """Check if a number of qualifier constraints are met by a meta-qualifier set."""
     if len(constraints) == 0:  # No constraints to meet
@@ -350,8 +362,8 @@ def meta_qualifier_meets_constraints(
 
     for constraint in constraints:
         qualifiers_met = True
-        for qualifier in constraint.qualifier_set:
-            q_type, q_val = qualifier.qualifier_type_id, qualifier.qualifier_value
+        for qualifier in constraint["qualifier_set"]:
+            q_type, q_val = qualifier["qualifier_type_id"], qualifier["qualifier_value"]
             if q_type in meta_qualifiers:
                 expanded_vals = biolink.get_descendant_values(q_type, q_val)
                 if not len(meta_qualifiers[QualifierTypeID(q_type)]):

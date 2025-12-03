@@ -4,7 +4,6 @@ from typing import NamedTuple
 
 import ormsgpack
 from loguru import logger
-from reasoner_pydantic import QEdge, QueryGraph
 
 from retriever.config.general import CONFIG
 from retriever.types.dingo import DINGO_ADAPTER, DINGOMetadata
@@ -16,8 +15,10 @@ from retriever.types.trapi import (
     MetaKnowledgeGraphDict,
     MetaNodeDict,
     MetaQualifierDict,
+    QEdgeDict,
     QEdgeID,
     QualifierTypeID,
+    QueryGraphDict,
 )
 from retriever.types.trapi_pydantic import TierNumber
 from retriever.utils import biolink
@@ -252,17 +253,25 @@ class MetaKGManager:
             logger.exception("Exception occurred stopping MetaKG task.")
 
     async def find_operations(
-        self, edge: QEdge, qgraph: QueryGraph, tiers: set[TierNumber]
+        self, edge: QEdgeDict, qgraph: QueryGraphDict, tiers: set[TierNumber]
     ) -> list[Operation]:
         """Find a list of operations that match a given Branch."""
-        input_node = qgraph.nodes[edge.subject]
-        output_node = qgraph.nodes[edge.object]
+        input_node = qgraph["nodes"][edge["subject"]]
+        output_node = qgraph["nodes"][edge["object"]]
 
-        input_categories = expand(set(input_node.categories or ["biolink:NamedThing"]))
-        output_categories = expand(
-            set(output_node.categories or ["biolink:NamedThing"])
+        input_categories = expand(
+            set(
+                input_node.get("categories", ["biolink:NamedThing"])
+                or ["biolink:NamedThing"]
+            )
         )
-        predicates = expand(set(edge.predicates or ["biolink:related_to"]))
+        output_categories = expand(
+            set(
+                output_node.get("categories", ["biolink:NamedThing"])
+                or ["biolink:NamedThing"]
+            )
+        )
+        predicates = expand(set(edge.get("predicates") or ["biolink:related_to"]))
 
         operations = list[Operation]()
 
@@ -275,7 +284,7 @@ class MetaKGManager:
                 and operation.predicate in predicates
                 and operation.object in output_categories
                 and meta_qualifier_meets_constraints(
-                    operation.qualifiers, edge.qualifier_constraints
+                    operation.qualifiers, edge.get("qualifier_constraints", [])
                 )
             ):
                 operations.append(operation)
@@ -283,7 +292,7 @@ class MetaKGManager:
         return operations
 
     async def create_operation_plan(
-        self, qgraph: QueryGraph, tiers: set[TierNumber]
+        self, qgraph: QueryGraphDict, tiers: set[TierNumber]
     ) -> OperationPlan | list[QEdgeID]:
         """Obtain a list of supporting operations for each edge in the query graph.
 
@@ -291,7 +300,7 @@ class MetaKGManager:
         """
         plan = OperationPlan()
         unsupported_qedges = list[QEdgeID]()
-        for qedge_id, qedge in qgraph.edges.items():
+        for qedge_id, qedge in qgraph["edges"].items():
             operations = await self.find_operations(qedge, qgraph, tiers)
             if len(operations) == 0:
                 unsupported_qedges.append(QEdgeID(qedge_id))

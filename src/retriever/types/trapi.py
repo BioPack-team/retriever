@@ -184,7 +184,7 @@ class QueryGraphDict(BaseQueryGraphDict):
     edges: dict[QEdgeID, QEdgeDict]
 
 
-class PathfinderQueryGraphDict(TypedDict):
+class PathfinderQueryGraphDict(BaseQueryGraphDict):
     """Pathfinder QueryGraph."""
 
     paths: dict[QPathID, QPathDict]

@@ -27,6 +27,8 @@ from retriever.types.trapi import (
     QEdgeID,
     QNodeID,
     QPathID,
+    QualifierConstraintDict,
+    QualifierDict,
     QualifierTypeID,
     ResultDict,
     RetrievalSourceDict,
@@ -562,15 +564,15 @@ def test_update_node(knode0: NodeDict) -> None:
 
 def test_meta_qualifier_meets_constraints() -> None:
     constraints = [
-        QualifierConstraint.model_validate(
-            dict(
-                qualifier_set=[
-                    Qualifier(
-                        qualifier_type_id="biolink:object_direction_qualifier",
-                        qualifier_value="decreased",
-                    )
-                ]
-            )
+        QualifierConstraintDict(
+            qualifier_set=[
+                QualifierDict(
+                    qualifier_type_id=QualifierTypeID(
+                        "biolink:object_direction_qualifier"
+                    ),
+                    qualifier_value="decreased",
+                )
+            ]
         )
     ]
 
