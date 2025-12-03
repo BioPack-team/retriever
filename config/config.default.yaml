@@ -88,7 +88,7 @@ tier1:
     host: ''
     port: 9200
     database_name: elasticsearch
-    index_name: rtx_kg2
+    index_name: dingo
 telemetry:
   otel_enabled: false
   otel_host: jaeger-otel-collector.sri

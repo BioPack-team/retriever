@@ -44,6 +44,7 @@ class ElasticSearchDriver(DatabaseDriver):
 
         if is_connected:
             log.success("Elasticsearch connection successful!")
+            log.info(f"Using ES index: {CONFIG.tier1.elasticsearch.index_name}")
 
         return is_connected
 

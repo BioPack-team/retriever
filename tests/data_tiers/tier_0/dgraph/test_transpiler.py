@@ -1292,7 +1292,7 @@ def test_convert_results_with_full_source_info(transpiler: _TestDgraphTranspiler
     # Get the single edge from the knowledge graph to inspect its sources
     trapi_edge = next(iter(backend_result["knowledge_graph"]["edges"].values()))
 
-    assert len(trapi_edge["sources"]) == 1
+    assert len(trapi_edge["sources"]) == 2  # expect original source + tier0 aggregator we add
     source = trapi_edge["sources"][0]
 
     # Assert that the keys exist before accessing them.

@@ -7,6 +7,7 @@ from typing import Any, Protocol, TypeAlias, override
 
 from loguru import logger
 
+from retriever.config.general import CONFIG
 from retriever.data_tiers.base_transpiler import Tier0Transpiler
 from retriever.data_tiers.tier_0.dgraph import result_models as dg
 from retriever.lookup.partial import Partial
@@ -34,7 +35,7 @@ from retriever.types.trapi import (
     RetrievalSourceDict,
 )
 from retriever.utils import biolink
-from retriever.utils.trapi import hash_edge, hash_hex
+from retriever.utils.trapi import append_aggregator_source, hash_edge, hash_hex
 
 
 @dataclass(frozen=True)
@@ -973,6 +974,8 @@ class DgraphTranspiler(Tier0Transpiler):
             sources=sources,
             attributes=attributes,
         )
+
+        append_aggregator_source(trapi_edge, Infores(CONFIG.tier0.backend_infores))
 
         return trapi_edge
 
