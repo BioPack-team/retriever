@@ -29,6 +29,7 @@ from retriever.types.trapi import (
     QEdgeID,
     QNodeDict,
     QNodeID,
+    QualifierConstraintDict,
     QualifierDict,
     QualifierTypeID,
     QueryGraphDict,
@@ -392,7 +393,7 @@ class DgraphTranspiler(Tier0Transpiler):
             filters.extend(self._convert_constraints_to_filters(attribute_constraints))
 
         # Qualifier constraints
-        qualifier_constraints = edge.get("qualifier_constraints")
+        qualifier_constraints: Sequence[QualifierConstraintDict] | None = edge.get("qualifier_constraints")
         if qualifier_constraints:
             qc_filter = self._convert_qualifier_constraints_to_filter(qualifier_constraints)
             if qc_filter:
@@ -421,12 +422,12 @@ class DgraphTranspiler(Tier0Transpiler):
         return filters
 
     def _convert_qualifier_constraints_to_filter(
-        self, qualifier_constraints: list[dict]
+        self,
+        qualifier_constraints: Sequence[QualifierConstraintDict],
     ) -> str:
         """Convert TRAPI qualifier_constraints into a Dgraph filter string.
 
-        Each item has a `qualifier_set` list. Within a single set, we OR the individual
-        qualifier filters. Multiple qualifier_constraints are ANDed together.
+        Within a single `qualifier_set`, items are ORed. Multiple sets are ANDed.
         """
         if not qualifier_constraints:
             return ""
@@ -434,22 +435,18 @@ class DgraphTranspiler(Tier0Transpiler):
         set_filters: list[str] = []
 
         for qc in qualifier_constraints:
-            qset = qc.get("qualifier_set") or []
-            # Build OR across items in this set
+            qset: Sequence[QualifierDict] = qc["qualifier_set"]
             or_filters: list[str] = []
             for q in qset:
-                qtype = str(q.get("qualifier_type_id", "")).replace("biolink:", "")
-                qval = q.get("qualifier_value")
-                if not qtype or qval is None:
+                qtype = str(q["qualifier_type_id"]).replace("biolink:", "")
+                qval = q["qualifier_value"]
+                if not qtype or qval == "":
                     continue
                 field = self._v(qtype)
-                # Always compare as string (consistent with other filters)
-                or_filters.append(f'{self._get_operator_filter(field, "==", qval)}')
+                or_filters.append(self._get_operator_filter(field, "==", qval))
             if or_filters:
-                # Single item → just the expression; multiple → wrap with parentheses joined by OR
                 set_filters.append(" OR ".join(or_filters) if len(or_filters) == 1 else f"({' OR '.join(or_filters)})")
 
-        # AND the sets together; single set → just the expression
         if not set_filters:
             return ""
         return " AND ".join(set_filters) if len(set_filters) == 1 else f"({' AND '.join(set_filters)})"
