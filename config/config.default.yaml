@@ -17,7 +17,8 @@ cors:
   - '*'
   allow_headers: # Headers allowed in cross-origin requests.
   - '*'
-workers: # Number of workers, defaults to n_cpus if unset.
+workers: # Number of workers, defaults to n_cpus * worker_cpu_ratio if unset.
+worker_cpu_ratio: 1 # Ratio of workers to n_cpus if worker count is unset (rounds to ceiling after multiplication).
 allow_profiler: true # Allow all queries to enable profiling with a query parameter.
 job:
   callback:
