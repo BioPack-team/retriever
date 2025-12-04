@@ -393,9 +393,13 @@ class DgraphTranspiler(Tier0Transpiler):
             filters.extend(self._convert_constraints_to_filters(attribute_constraints))
 
         # Qualifier constraints
-        qualifier_constraints: Sequence[QualifierConstraintDict] | None = edge.get("qualifier_constraints")
+        qualifier_constraints: Sequence[QualifierConstraintDict] | None = edge.get(
+            "qualifier_constraints"
+        )
         if qualifier_constraints:
-            qc_filter = self._convert_qualifier_constraints_to_filter(qualifier_constraints)
+            qc_filter = self._convert_qualifier_constraints_to_filter(
+                qualifier_constraints
+            )
             if qc_filter:
                 filters.append(qc_filter)
 
@@ -445,11 +449,19 @@ class DgraphTranspiler(Tier0Transpiler):
                 field = self._v(qtype)
                 or_filters.append(self._get_operator_filter(field, "==", qval))
             if or_filters:
-                set_filters.append(" OR ".join(or_filters) if len(or_filters) == 1 else f"({' OR '.join(or_filters)})")
+                set_filters.append(
+                    " OR ".join(or_filters)
+                    if len(or_filters) == 1
+                    else f"({' OR '.join(or_filters)})"
+                )
 
         if not set_filters:
             return ""
-        return " AND ".join(set_filters) if len(set_filters) == 1 else f"({' AND '.join(set_filters)})"
+        return (
+            " AND ".join(set_filters)
+            if len(set_filters) == 1
+            else f"({' AND '.join(set_filters)})"
+        )
 
     def _create_filter_expression(self, constraint: AttributeConstraintDict) -> str:
         """Create a filter expression for a single constraint."""
