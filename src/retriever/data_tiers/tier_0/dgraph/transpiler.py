@@ -29,6 +29,7 @@ from retriever.types.trapi import (
     QEdgeID,
     QNodeDict,
     QNodeID,
+    QualifierConstraintDict,
     QualifierDict,
     QualifierTypeID,
     QueryGraphDict,
@@ -391,6 +392,17 @@ class DgraphTranspiler(Tier0Transpiler):
         if attribute_constraints:
             filters.extend(self._convert_constraints_to_filters(attribute_constraints))
 
+        # Qualifier constraints
+        qualifier_constraints: Sequence[QualifierConstraintDict] | None = edge.get(
+            "qualifier_constraints"
+        )
+        if qualifier_constraints:
+            qc_filter = self._convert_qualifier_constraints_to_filter(
+                qualifier_constraints
+            )
+            if qc_filter:
+                filters.append(qc_filter)
+
         # If no filters, return empty string
         if not filters:
             return ""
@@ -412,6 +424,46 @@ class DgraphTranspiler(Tier0Transpiler):
             filters.append(filter_expr)
 
         return filters
+
+    def _convert_qualifier_constraints_to_filter(
+        self,
+        qualifier_constraints: Sequence[QualifierConstraintDict],
+    ) -> str:
+        """Convert TRAPI qualifier_constraints into a Dgraph filter string.
+
+        Within a single `qualifier_set`, items are ANDed. Multiple sets are ORed.
+        """
+        if not qualifier_constraints:
+            return ""
+
+        set_filters: list[str] = []
+
+        for qc in qualifier_constraints:
+            qset: Sequence[QualifierDict] = qc["qualifier_set"]
+            and_filters: list[str] = []
+            for q in qset:
+                qtype = str(q["qualifier_type_id"]).replace("biolink:", "")
+                qval = q["qualifier_value"]
+                if not qtype or qval == "":
+                    continue
+                field = self._v(qtype)
+                and_filters.append(self._get_operator_filter(field, "==", qval))
+            if and_filters:
+                # AND items within the set; wrap in parentheses if more than one
+                set_filters.append(
+                    " AND ".join(and_filters)
+                    if len(and_filters) == 1
+                    else f"({' AND '.join(and_filters)})"
+                )
+
+        if not set_filters:
+            return ""
+        # OR the sets together; wrap in parentheses if more than one
+        return (
+            " OR ".join(set_filters)
+            if len(set_filters) == 1
+            else f"({' OR '.join(set_filters)})"
+        )
 
     def _create_filter_expression(self, constraint: AttributeConstraintDict) -> str:
         """Create a filter expression for a single constraint."""
