@@ -613,6 +613,60 @@ TRAPI_FLOATING_OBJECT_QUERY_TWO_CATEGORIES: QueryGraphDict = qg({
     }
 })
 
+QUALIFIER_SET_QGRAPH: QueryGraphDict = qg({
+    "nodes": {
+        "n0": {"ids": ["MONDO:0030010", "MONDO:0011766", "MONDO:0009890"], "constraints": []},
+        "n1": {"constraints": []},
+    },
+    "edges": {
+        "e0": {
+            "subject": "n0",
+            "object": "n1",
+            "predicates": ["biolink:has_phenotype"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [
+                {
+                    "qualifier_set": [
+                        {
+                            "qualifier_type_id": "biolink:frequency_qualifier",
+                            "qualifier_value": "HP:0040280",
+                        },
+                        {
+                            "qualifier_type_id": "biolink:onset_qualifier",
+                            "qualifier_value": "ANY_VALUE",
+                        },
+                        {
+                            "qualifier_type_id": "biolink:sex_qualifier",
+                            "qualifier_value": "ANY_OTHER_VALUE",
+                        },
+                    ]
+                }
+            ],
+        }
+    },
+})
+
+QUALIFIER_SETS_AND_QGRAPH: QueryGraphDict = qg({
+    "nodes": {"n0": {"ids": ["X"], "constraints": []}, "n1": {"constraints": []}},
+    "edges": {
+        "e0": {
+            "subject": "n0",
+            "object": "n1",
+            "predicates": ["R"],
+            "attribute_constraints": [],
+            "qualifier_constraints": [
+                {"qualifier_set": [
+                    {"qualifier_type_id": "biolink:frequency_qualifier", "qualifier_value": "F1"},
+                    {"qualifier_type_id": "biolink:onset_qualifier", "qualifier_value": "O1"},
+                ]},
+                {"qualifier_set": [
+                    {"qualifier_type_id": "biolink:sex_qualifier", "qualifier_value": "S1"},
+                ]},
+            ],
+        }
+    },
+})
+
 
 # -----------------------
 # Expected queries
@@ -1160,6 +1214,34 @@ DGRAPH_FLOATING_OBJECT_QUERY_TWO_CATEGORIES = dedent("""
 }
 """).strip()
 
+EXP_QUALIFIER_SET = dedent("""
+{
+  q0_node_n0(func: eq(id, ["MONDO:0030010", "MONDO:0011766", "MONDO:0009890"])) @cascade(id, ~subject) {
+    expand(Node)
+    out_edges_e0: ~subject @filter(eq(predicate_ancestors, "has_phenotype") AND
+      (eq(frequency_qualifier, "HP:0040280") OR eq(onset_qualifier, "ANY_VALUE") OR eq(sex_qualifier, "ANY_OTHER_VALUE"))) @cascade(predicate, object) {
+      expand(Edge) { sources expand(Source) }
+      node_n1: object @cascade(id) {
+        expand(Node)
+      }
+    }
+  }
+}
+""").strip()
+
+EXP_QUALIFIER_SETS_AND = dedent("""
+{
+  q0_node_n0(func: eq(id, "X")) @cascade(id, ~subject) {
+    expand(Node)
+    out_edges_e0: ~subject @filter(eq(predicate_ancestors, "R") AND
+      ((eq(frequency_qualifier, "F1") OR eq(onset_qualifier, "O1")) AND eq(sex_qualifier, "S1"))) @cascade(predicate, object) {
+      expand(Edge) { sources expand(Source) }
+      node_n1: object @cascade(id) { expand(Node) }
+    }
+  }
+}
+""").strip()
+
 
 # -----------------------
 # Case pairs
@@ -1186,7 +1268,8 @@ CASES: list[QueryCase] = [
     QueryCase("start-object-with-ids", START_OBJECT_WITH_IDS_QGRAPH, EXP_START_OBJECT_WITH_IDS),
     QueryCase("floating-object-query", TRAPI_FLOATING_OBJECT_QUERY, DGRAPH_FLOATING_OBJECT_QUERY),
     QueryCase("floating-object-query-two-categories", TRAPI_FLOATING_OBJECT_QUERY_TWO_CATEGORIES, DGRAPH_FLOATING_OBJECT_QUERY_TWO_CATEGORIES),
-
+    QueryCase("qualifier-set", QUALIFIER_SET_QGRAPH, EXP_QUALIFIER_SET),
+    QueryCase("qualifier-sets-and", QUALIFIER_SETS_AND_QGRAPH, EXP_QUALIFIER_SETS_AND),
 ]
 
 CASES_VERSIONED: list[QueryCase] = [
