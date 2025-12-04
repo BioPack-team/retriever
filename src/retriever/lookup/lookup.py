@@ -30,7 +30,7 @@ from retriever.types.trapi import (
     ResponseDict,
     ResultDict,
 )
-from retriever.types.trapi_pydantic import AsyncQuery, TierNumber
+from retriever.types.trapi_pydantic import TierNumber
 from retriever.utils.calls import get_callback_client
 from retriever.utils.logs import TRAPILogger, trapi_level_to_int
 from retriever.utils.mongo import MONGO_QUEUE
@@ -42,18 +42,18 @@ biolink = bmt.Toolkit()
 
 async def async_lookup(query: QueryInfo) -> None:
     """Handle running lookup as an async query where the client receives a callback."""
-    if not isinstance(query.body, AsyncQuery):
+    if query.body is None or "callback" not in query.body:
         raise TypeError(f"Expected AsyncQuery, received {type(query.body)}.")
 
     job_id = query.job_id
     job_log = log.bind(job_id=job_id)
     status, response = await lookup(query)
 
-    job_log.debug(f"Sending callback to `{query.body.callback}`...")
+    job_log.debug(f"Sending callback to `{query.body['callback']}`...")
     try:
         client = get_callback_client()
         callback_response = await client.post(
-            url=str(query.body.callback), json=response
+            url=str(query.body["callback"]), json=response
         )
         callback_response.raise_for_status()
         job_log.debug("Callback sent successfully.")

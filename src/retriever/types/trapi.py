@@ -48,7 +48,6 @@ class AsyncQueryDict(QueryDict):
     """AsyncQuery."""
 
     callback: URL
-    parameters: NotRequired[ParametersDict | None]
 
 
 class AsyncQueryResponseDict(TypedDict):
