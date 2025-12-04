@@ -1219,7 +1219,7 @@ EXP_QUALIFIER_SET = dedent("""
   q0_node_n0(func: eq(id, ["MONDO:0030010", "MONDO:0011766", "MONDO:0009890"])) @cascade(id, ~subject) {
     expand(Node)
     out_edges_e0: ~subject @filter(eq(predicate_ancestors, "has_phenotype") AND
-      (eq(frequency_qualifier, "HP:0040280") OR eq(onset_qualifier, "ANY_VALUE") OR eq(sex_qualifier, "ANY_OTHER_VALUE"))) @cascade(predicate, object) {
+      (eq(frequency_qualifier, "HP:0040280") AND eq(onset_qualifier, "ANY_VALUE") AND eq(sex_qualifier, "ANY_OTHER_VALUE"))) @cascade(predicate, object) {
       expand(Edge) { sources expand(Source) }
       node_n1: object @cascade(id) {
         expand(Node)
@@ -1234,7 +1234,7 @@ EXP_QUALIFIER_SETS_AND = dedent("""
   q0_node_n0(func: eq(id, "X")) @cascade(id, ~subject) {
     expand(Node)
     out_edges_e0: ~subject @filter(eq(predicate_ancestors, "R") AND
-      ((eq(frequency_qualifier, "F1") OR eq(onset_qualifier, "O1")) AND eq(sex_qualifier, "S1"))) @cascade(predicate, object) {
+      ((eq(frequency_qualifier, "F1") AND eq(onset_qualifier, "O1")) OR eq(sex_qualifier, "S1"))) @cascade(predicate, object) {
       expand(Edge) { sources expand(Source) }
       node_n1: object @cascade(id) { expand(Node) }
     }
