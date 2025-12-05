@@ -84,7 +84,7 @@ def mock_dgraph_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setenv("TIER0__DGRAPH__HOST", "localhost")
     monkeypatch.setenv("TIER0__DGRAPH__HTTP_PORT", "8080")
     monkeypatch.setenv("TIER0__DGRAPH__GRPC_PORT", "9080")
-    monkeypatch.setenv("TIER0__DGRAPH__PREFERRED_VERSION", "vD")
+    monkeypatch.setenv("TIER0__DGRAPH__PREFERRED_VERSION", "vF")
     monkeypatch.setenv("TIER0__DGRAPH__USE_TLS", "false")
     monkeypatch.setenv("TIER0__DGRAPH__QUERY_TIMEOUT", "5")
     monkeypatch.setenv("TIER0__DGRAPH__CONNECT_RETRIES", "0")
@@ -191,7 +191,7 @@ async def test_get_active_version_success_grpc_live():
 
     # Should return the version "v2" as per the live Dgraph instance
     version = await driver.get_active_version()
-    assert version == "vD"
+    assert version == "vF"
 
     await driver.close()
 
@@ -209,7 +209,7 @@ async def test_get_active_version_success_http_live():
 
     # Should return the version "v2" as per the live Dgraph instance
     version = await driver.get_active_version()
-    assert version == "vD"
+    assert version == "vF"
 
     await driver.close()
 
@@ -765,19 +765,19 @@ async def test_simple_one_query_live_http() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vD_id, "NCBIGene:11276")) @cascade(vD_id, ~vD_subject) {
-            expand(vD_Node)
-            out_edges_e0: ~vD_subject @filter(eq(vD_predicate_ancestors, "located_in")) @cascade(vD_predicate, vD_object) {
-                expand(vD_Edge) { vD_sources expand(vD_Source) }
-                node_n0: vD_object @filter(eq(vD_id, "GO:0031410")) @cascade(vD_id) {
-                    expand(vD_Node)
+        q0_node_n1(func: eq(vF_id, "NCBIGene:11276")) @cascade(vF_id, ~vF_subject) {
+            expand(vF_Node)
+            out_edges_e0: ~vF_subject @filter(eq(vF_predicate_ancestors, "located_in")) @cascade(vF_predicate, vF_object) {
+                expand(vF_Edge) { vF_sources expand(vF_Source) }
+                node_n0: vF_object @filter(eq(vF_id, "GO:0031410")) @cascade(vF_id) {
+                    expand(vF_Node)
                 }
             }
         }
     }
     """).strip()
 
-    # driver = new_http_driver(version="vD")
+    # driver = new_http_driver(version="vF")
     driver = new_http_driver()
     await driver.connect()
 
@@ -786,8 +786,8 @@ async def test_simple_one_query_live_http() -> None:
 
     # Initialize the transpiler with the detected version
     transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
-    assert transpiler.version == "vD"
-    assert transpiler.prefix == "vD_"
+    assert transpiler.version == "vF"
+    assert transpiler.prefix == "vF_"
 
     dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
     assert_query_equals(dgraph_query, dgraph_query_match)
@@ -914,12 +914,12 @@ async def test_simple_one_query_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vD_id, "NCBIGene:11276")) @cascade(vD_id, ~vD_subject) {
-            expand(vD_Node)
-            out_edges_e0: ~vD_subject @filter(eq(vD_predicate_ancestors, "located_in")) @cascade(vD_predicate, vD_object) {
-                expand(vD_Edge) { vD_sources expand(vD_Source) }
-                node_n0: vD_object @filter(eq(vD_id, "GO:0031410")) @cascade(vD_id) {
-                    expand(vD_Node)
+        q0_node_n1(func: eq(vF_id, "NCBIGene:11276")) @cascade(vF_id, ~vF_subject) {
+            expand(vF_Node)
+            out_edges_e0: ~vF_subject @filter(eq(vF_predicate_ancestors, "located_in")) @cascade(vF_predicate, vF_object) {
+                expand(vF_Edge) { vF_sources expand(vF_Source) }
+                node_n0: vF_object @filter(eq(vF_id, "GO:0031410")) @cascade(vF_id) {
+                    expand(vF_Node)
                 }
             }
         }
@@ -934,8 +934,8 @@ async def test_simple_one_query_live_grpc() -> None:
 
     # Initialize the transpiler with the detected version
     transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
-    assert transpiler.version == "vD"
-    assert transpiler.prefix == "vD_"
+    assert transpiler.version == "vF"
+    assert transpiler.prefix == "vF_"
 
     # Use the transpiler to generate the Dgraph query
     dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
@@ -996,12 +996,12 @@ async def test_simple_reverse_query_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vD_id, "NCBIGene:3778")) @cascade(vD_id, ~vD_subject) {
-            expand(vD_Node)
-            out_edges_e0: ~vD_subject @filter(eq(vD_predicate_ancestors, "has_phenotype")) @cascade(vD_predicate, vD_object) {
-                expand(vD_Edge) { vD_sources expand(vD_Source) }
-                node_n0: vD_object @filter(eq(vD_category, "NamedThing")) @cascade(vD_id) {
-                    expand(vD_Node)
+        q0_node_n1(func: eq(vF_id, "NCBIGene:3778")) @cascade(vF_id, ~vF_subject) {
+            expand(vF_Node)
+            out_edges_e0: ~vF_subject @filter(eq(vF_predicate_ancestors, "has_phenotype")) @cascade(vF_predicate, vF_object) {
+                expand(vF_Edge) { vF_sources expand(vF_Source) }
+                node_n0: vF_object @filter(eq(vF_category, "NamedThing")) @cascade(vF_id) {
+                    expand(vF_Node)
                 }
             }
         }
@@ -1016,8 +1016,8 @@ async def test_simple_reverse_query_live_grpc() -> None:
 
     # Initialize the transpiler with the detected version
     transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
-    assert transpiler.version == "vD"
-    assert transpiler.prefix == "vD_"
+    assert transpiler.version == "vF"
+    assert transpiler.prefix == "vF_"
 
     # Use the transpiler to generate the Dgraph query
     dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
@@ -1079,30 +1079,30 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vD_id, "NCBIGene:3778")) @cascade(vD_id, ~vD_subject) {
-            expand(vD_Node)
+        q0_node_n1(func: eq(vF_id, "NCBIGene:3778")) @cascade(vF_id, ~vF_subject) {
+            expand(vF_Node)
 
-            out_edges_e0: ~vD_subject
-            @filter(eq(vD_predicate_ancestors, "related_to"))
-            @cascade(vD_predicate, vD_object) {
-                expand(vD_Edge) { vD_sources expand(vD_Source) }
+            out_edges_e0: ~vF_subject
+            @filter(eq(vF_predicate_ancestors, "related_to"))
+            @cascade(vF_predicate, vF_object) {
+                expand(vF_Edge) { vF_sources expand(vF_Source) }
 
-                node_n0: vD_object
-                @filter(eq(vD_category, "NamedThing"))
-                @cascade(vD_id) {
-                    expand(vD_Node)
+                node_n0: vF_object
+                @filter(eq(vF_category, "NamedThing"))
+                @cascade(vF_id) {
+                    expand(vF_Node)
                 }
             }
 
-            in_edges-symmetric_e0: ~vD_object
-            @filter(eq(vD_predicate_ancestors, "related_to"))
-            @cascade(vD_predicate, vD_subject) {
-                expand(vD_Edge) { vD_sources expand(vD_Source) }
+            in_edges-symmetric_e0: ~vF_object
+            @filter(eq(vF_predicate_ancestors, "related_to"))
+            @cascade(vF_predicate, vF_subject) {
+                expand(vF_Edge) { vF_sources expand(vF_Source) }
 
-                node_n0: vD_subject
-                @filter(eq(vD_category, "NamedThing"))
-                @cascade(vD_id) {
-                    expand(vD_Node)
+                node_n0: vF_subject
+                @filter(eq(vF_category, "NamedThing"))
+                @cascade(vF_id) {
+                    expand(vF_Node)
                 }
             }
         }
@@ -1117,8 +1117,8 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
 
     # Initialize the transpiler with the detected version
     transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
-    assert transpiler.version == "vD"
-    assert transpiler.prefix == "vD_"
+    assert transpiler.version == "vF"
+    assert transpiler.prefix == "vF_"
 
     # Use the transpiler to generate the Dgraph query
     dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
@@ -1258,30 +1258,30 @@ async def test_normalization_with_special_edge_id_live_grpc() -> None:
     # Expected query should use normalized edge ID 'e0', not 'e0_bad$%^'
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vD_id, "NCBIGene:3778")) @cascade(vD_id, ~vD_subject) {
-            expand(vD_Node)
+        q0_node_n1(func: eq(vF_id, "NCBIGene:3778")) @cascade(vF_id, ~vF_subject) {
+            expand(vF_Node)
 
-            out_edges_e0: ~vD_subject
-            @filter(eq(vD_predicate_ancestors, "related_to"))
-            @cascade(vD_predicate, vD_object) {
-                expand(vD_Edge) { vD_sources expand(vD_Source) }
+            out_edges_e0: ~vF_subject
+            @filter(eq(vF_predicate_ancestors, "related_to"))
+            @cascade(vF_predicate, vF_object) {
+                expand(vF_Edge) { vF_sources expand(vF_Source) }
 
-                node_n0: vD_object
-                @filter(eq(vD_category, "NamedThing"))
-                @cascade(vD_id) {
-                    expand(vD_Node)
+                node_n0: vF_object
+                @filter(eq(vF_category, "NamedThing"))
+                @cascade(vF_id) {
+                    expand(vF_Node)
                 }
             }
 
-            in_edges-symmetric_e0: ~vD_object
-            @filter(eq(vD_predicate_ancestors, "related_to"))
-            @cascade(vD_predicate, vD_subject) {
-                expand(vD_Edge) { vD_sources expand(vD_Source) }
+            in_edges-symmetric_e0: ~vF_object
+            @filter(eq(vF_predicate_ancestors, "related_to"))
+            @cascade(vF_predicate, vF_subject) {
+                expand(vF_Edge) { vF_sources expand(vF_Source) }
 
-                node_n0: vD_subject
-                @filter(eq(vD_category, "NamedThing"))
-                @cascade(vD_id) {
-                    expand(vD_Node)
+                node_n0: vF_subject
+                @filter(eq(vF_category, "NamedThing"))
+                @cascade(vF_id) {
+                    expand(vF_Node)
                 }
             }
         }
@@ -1296,8 +1296,8 @@ async def test_normalization_with_special_edge_id_live_grpc() -> None:
 
     # Initialize the transpiler with the detected version
     transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
-    assert transpiler.version == "vD"
-    assert transpiler.prefix == "vD_"
+    assert transpiler.version == "vF"
+    assert transpiler.prefix == "vF_"
 
     # Use the transpiler to generate the Dgraph query
     dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
