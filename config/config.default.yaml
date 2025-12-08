@@ -57,8 +57,6 @@ mongo:
   flood_batch_size: 1000 #  Batch size for basic mongo inserts.
 tier0:
   backend: dgraph
-  metakg_url:
-    https://stars.renci.org/var/translator/releases/translator_kg/latest/graph-metadata.json
   backend_infores: infores:dogpark-tier0
   neo4j:
     query_timeout: 3600  # Time in seconds before a neo4j query should time out.
@@ -80,7 +78,7 @@ tier0:
     grpc_max_receive_message_length: -1 # gRPC max receive message length in bytes (-1 for unlimited).
 tier1:
   backend: elasticsearch
-  metakg_url:
+  metadata_url:
     https://stars.renci.org/var/translator/releases/translator_kg/latest/graph-metadata.json
   backend_infores: infores:dogpark-tier1
   elasticsearch:
