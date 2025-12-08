@@ -36,7 +36,12 @@ from retriever.types.trapi_pydantic import AsyncQuery, TierNumber
 from retriever.utils.calls import get_callback_client
 from retriever.utils.logs import TRAPILogger, trapi_level_to_int
 from retriever.utils.mongo import MONGO_QUEUE
-from retriever.utils.trapi import merge_results, prune_kg, update_kgraph
+from retriever.utils.trapi import (
+    merge_results,
+    prune_kg,
+    update_kgraph,
+    evaluate_set_interpretation,
+)
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 biolink = bmt.Toolkit()
@@ -110,6 +115,7 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
         job_log.log_deque.extend(logs)
 
         job_log.info(f"Collected {len(results)} results from query tasks.")
+        evaluate_set_interpretation(qgraph, results, kgraph, aux_graphs, job_log)
         prune_kg(results, kgraph, aux_graphs, job_log)
 
         end_time = time.time()
