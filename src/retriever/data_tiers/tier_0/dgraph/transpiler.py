@@ -7,6 +7,7 @@ from typing import Any, Protocol, TypeAlias, override
 
 from loguru import logger
 
+from retriever.config.general import CONFIG
 from retriever.data_tiers.base_transpiler import Tier0Transpiler
 from retriever.data_tiers.tier_0.dgraph import result_models as dg
 from retriever.lookup.partial import Partial
@@ -28,13 +29,14 @@ from retriever.types.trapi import (
     QEdgeID,
     QNodeDict,
     QNodeID,
+    QualifierConstraintDict,
     QualifierDict,
     QualifierTypeID,
     QueryGraphDict,
     RetrievalSourceDict,
 )
 from retriever.utils import biolink
-from retriever.utils.trapi import hash_edge, hash_hex
+from retriever.utils.trapi import append_aggregator_source, hash_edge, hash_hex
 
 
 @dataclass(frozen=True)
@@ -390,6 +392,17 @@ class DgraphTranspiler(Tier0Transpiler):
         if attribute_constraints:
             filters.extend(self._convert_constraints_to_filters(attribute_constraints))
 
+        # Qualifier constraints
+        qualifier_constraints: Sequence[QualifierConstraintDict] | None = edge.get(
+            "qualifier_constraints"
+        )
+        if qualifier_constraints:
+            qc_filter = self._convert_qualifier_constraints_to_filter(
+                qualifier_constraints
+            )
+            if qc_filter:
+                filters.append(qc_filter)
+
         # If no filters, return empty string
         if not filters:
             return ""
@@ -412,9 +425,49 @@ class DgraphTranspiler(Tier0Transpiler):
 
         return filters
 
+    def _convert_qualifier_constraints_to_filter(
+        self,
+        qualifier_constraints: Sequence[QualifierConstraintDict],
+    ) -> str:
+        """Convert TRAPI qualifier_constraints into a Dgraph filter string.
+
+        Within a single `qualifier_set`, items are ANDed. Multiple sets are ORed.
+        """
+        if not qualifier_constraints:
+            return ""
+
+        set_filters: list[str] = []
+
+        for qc in qualifier_constraints:
+            qset: Sequence[QualifierDict] = qc["qualifier_set"]
+            and_filters: list[str] = []
+            for q in qset:
+                qtype = str(q["qualifier_type_id"]).replace("biolink:", "")
+                qval = q["qualifier_value"]
+                if not qtype or qval == "":
+                    continue
+                field = self._v(qtype)
+                and_filters.append(self._get_operator_filter(field, "==", qval))
+            if and_filters:
+                # AND items within the set; wrap in parentheses if more than one
+                set_filters.append(
+                    " AND ".join(and_filters)
+                    if len(and_filters) == 1
+                    else f"({' AND '.join(and_filters)})"
+                )
+
+        if not set_filters:
+            return ""
+        # OR the sets together; wrap in parentheses if more than one
+        return (
+            " OR ".join(set_filters)
+            if len(set_filters) == 1
+            else f"({' OR '.join(set_filters)})"
+        )
+
     def _create_filter_expression(self, constraint: AttributeConstraintDict) -> str:
         """Create a filter expression for a single constraint."""
-        field_name = self._v(constraint["id"])
+        field_name = self._v(constraint["id"].replace("biolink:", ""))
         value = constraint["value"]
         operator = constraint["operator"]
         is_negated = constraint.get("not", False)
@@ -944,9 +997,13 @@ class DgraphTranspiler(Tier0Transpiler):
 
         # Build qualifiers
         for qualifier_id, value in edge.get_qualifiers().items():
+            if value is None:
+                continue
             qualifiers.append(
                 QualifierDict(
-                    qualifier_type_id=QualifierTypeID(qualifier_id),
+                    qualifier_type_id=QualifierTypeID(
+                        biolink.ensure_prefix(qualifier_id)
+                    ),
                     qualifier_value=value,
                 )
             )
@@ -971,8 +1028,13 @@ class DgraphTranspiler(Tier0Transpiler):
             subject=CURIE(edge.node.id if edge.direction == "in" else initial_curie),
             object=CURIE(initial_curie if edge.direction == "in" else edge.node.id),
             sources=sources,
-            attributes=attributes,
         )
+        if len(attributes) > 0:
+            trapi_edge["attributes"] = attributes
+        if len(qualifiers) > 0:
+            trapi_edge["qualifiers"] = qualifiers
+
+        append_aggregator_source(trapi_edge, Infores(CONFIG.tier0.backend_infores))
 
         return trapi_edge
 

@@ -336,8 +336,17 @@ class GeneralConfig(CommentedSettings):
     ] = True
     cors: CORSSettings = CORSSettings()
     workers: Annotated[
-        int | None, Field(description="Number of workers, defaults to n_cpus if unset.")
+        int | None,
+        Field(
+            description="Number of workers, defaults to n_cpus * worker_cpu_ratio if unset."
+        ),
     ] = None
+    worker_cpu_ratio: Annotated[
+        int,
+        Field(
+            description="Ratio of workers to n_cpus if worker count is unset (rounds to ceiling after multiplication)."
+        ),
+    ] = 1
     allow_profiler: Annotated[
         bool,
         Field(

@@ -5,31 +5,18 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Retriever",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "retriever",
-      "preLaunchTask": "Start DBs"
-    },
-    {
-      "name": "Retriever (no db reset)",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "retriever"
-    },
-    {
       "name": "Retriever (single worker)",
       "type": "debugpy",
       "request": "launch",
       "module": "retriever",
-      "env": { "WORKERS": "1" },
+      "env": { "WORKERS": "1", "DEBUG": "true" },
       "preLaunchTask": "Start DBs"
     },
     {
       "name": "Retriever (single worker, no db reset)",
       "type": "debugpy",
       "request": "launch",
-      "env": { "WORKERS": "1", "PORT": "451" },
+      "env": { "WORKERS": "1", "DEBUG": "true" },
       "module": "retriever"
     }
   ]

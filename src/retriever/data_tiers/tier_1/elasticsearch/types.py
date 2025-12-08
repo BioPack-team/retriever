@@ -53,6 +53,8 @@ class ESSourceInfo(TypedDict):
 
     resource_id: str
     resource_role: str
+    upstream_resource_ids: NotRequired[list[str]]
+    source_record_urls: NotRequired[list[str]]
 
 
 class ESNode(TypedDict):
@@ -61,13 +63,12 @@ class ESNode(TypedDict):
     id: CURIE
     name: str
     category: str
-    all_names: NotRequired[list[str]]
-    # all_categories: list[str]
-    iri: NotRequired[str]
     description: str
-    # equivalent_curies: list[str]
-    publications: NotRequired[list[str]]
     equivalent_identifiers: list[str]
+    in_taxon: NotRequired[list[str]]
+    information_content: NotRequired[float]
+    inheritance: NotRequired[str]
+    provided_by: NotRequired[list[str]]
 
 
 class ESHit(TypedDict):
@@ -77,18 +78,34 @@ class ESHit(TypedDict):
     subject: ESNode
     object: ESNode
     predicate: str
-    # primary_knowledge_source: Infores
     sources: list[ESSourceInfo]
-    publications: NotRequired[list[str]]
-    publications_info: NotRequired[list[ESPublicationsInfo | None]]
-    kg2_ids: list[str]
-    domain_range_exclusion: bool
-    knowledge_level: str | None
-    agent_type: str | None
-    id: int
-    qualified_object_aspect: NotRequired[str]
-    qualified_object_direction: NotRequired[str]
+    id: NotRequired[str]
+    agent_type: NotRequired[str]
+    knowledge_level: NotRequired[str]
+    publications: list[str]
     qualified_predicate: NotRequired[str]
+    predicate_ancestors: list[str]
+    source_inforeses: list[str]
+    subject_form_or_variant_qualifier: NotRequired[str]
+    disease_context_qualifier: NotRequired[str]
+    frequency_qualifier: NotRequired[str]
+    onset_qualifier: NotRequired[str]
+    sex_qualifier: NotRequired[str]
+    original_subject: NotRequired[str]
+    original_predicate: NotRequired[str]
+    original_object: NotRequired[str]
+    allelic_requirement: NotRequired[str]
+    update_date: NotRequired[str]
+    z_score: NotRequired[float]
+    has_evidence: list[str]
+    has_confidence_score: NotRequired[float]
+    has_count: NotRequired[float]
+    has_total: NotRequired[float]
+    has_percentage: NotRequired[float]
+    has_quotient: NotRequired[float]
+    category: list[str]
+    seq_: NotRequired[int]
+    negated: NotRequired[bool]
 
 
 class ESDocument(TypedDict):

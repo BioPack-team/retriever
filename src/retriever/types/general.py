@@ -4,20 +4,22 @@ from typing import Annotated, Literal, NamedTuple, TypedDict
 
 from fastapi import BackgroundTasks, Request, Response
 from pydantic import BaseModel, BeforeValidator
-from reasoner_pydantic import QEdge
 
 from retriever.types.trapi import (
     CURIE,
+    AsyncQueryDict,
     AuxGraphID,
     AuxiliaryGraphDict,
     EdgeIdentifier,
     KnowledgeGraphDict,
     LogEntryDict,
+    QEdgeDict,
     QEdgeID,
     QNodeID,
+    QueryDict,
     ResultDict,
 )
-from retriever.types.trapi_pydantic import AsyncQuery, Query, TierNumber
+from retriever.types.trapi_pydantic import TierNumber
 
 
 class ErrorDetail(BaseModel):
@@ -53,7 +55,7 @@ class QueryInfo(NamedTuple):
 
     endpoint: str
     method: str
-    body: Query | AsyncQuery | None
+    body: QueryDict | AsyncQueryDict | None
     job_id: str
     tiers: set[TierNumber]
     timeout: dict[int, float]
@@ -80,11 +82,11 @@ class LookupArtifacts(NamedTuple):
     error: bool | None = None
 
 
-AdjacencyGraph = dict[QNodeID, dict[QNodeID, list[QEdge]]]
+AdjacencyGraph = dict[QNodeID, dict[QNodeID, list[QEdgeDict]]]
 
 KAdjacencyGraph = dict[QEdgeID, dict[CURIE, dict[CURIE, list[EdgeIdentifier]]]]
 
-QEdgeIDMap = dict[QEdge, QEdgeID]
+QEdgeIDMap = dict[int, QEdgeID]
 
 # A pair of Qnode and CURIE, used to uniquely identify partial results
 QNodeCURIEPair = tuple[QNodeID, CURIE]

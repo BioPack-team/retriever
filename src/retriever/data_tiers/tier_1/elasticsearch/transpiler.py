@@ -1,5 +1,6 @@
-from typing import Literal, override
+from typing import Any, Literal, override
 
+from retriever.config.general import CONFIG
 from retriever.data_tiers.base_transpiler import Tier1Transpiler
 from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.attribute import (
     process_attribute_constraints,
@@ -13,6 +14,10 @@ from retriever.data_tiers.tier_1.elasticsearch.types import (
     ESHit,
     ESPayload,
     ESQueryContext,
+)
+from retriever.data_tiers.utils import (
+    DINGO_KG_EDGE_TOPLEVEL_VALUES,
+    DINGO_KG_NODE_TOPLEVEL_VALUES,
 )
 from retriever.types.general import BackendResult
 from retriever.types.trapi import (
@@ -33,7 +38,7 @@ from retriever.types.trapi import (
     RetrievalSourceDict,
 )
 from retriever.utils import biolink
-from retriever.utils.trapi import hash_edge, hash_hex
+from retriever.utils.trapi import append_aggregator_source, hash_edge, hash_hex
 
 # TODO: Eventually we can roll this into the Tier2 x-bte transpiler
 # And use x-bte annotations either on the SmartAPI for each Tier1 resource
@@ -185,166 +190,127 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                 node = hit[argument]
                 node_id = node["id"]
                 node_ids[argument] = node_id
-                if node_id not in nodes:
-                    trapi_node = NodeDict(
-                        name=node["name"],
-                        categories=[
-                            BiolinkEntity(biolink.ensure_prefix(cat))
-                            for cat in node["category"]
-                        ],
-                        attributes=[],
-                    )
-
-                    xref_only_self = (
-                        len(node["equivalent_identifiers"]) == 1
-                        and node["equivalent_identifiers"][0] == node["id"]
-                    )
-                    if not xref_only_self:
-                        trapi_node["attributes"].append(
-                            AttributeDict(
-                                attribute_type_id="biolink:xref",
-                                value=node["equivalent_identifiers"],
-                            )
-                        )
-
-                    name_only_self = ("all_names" not in node) or (
-                        len(node["all_names"]) == 1
-                        and node["all_names"][0] == node["name"]
-                    )
-                    if not name_only_self:
-                        trapi_node["attributes"].append(
-                            AttributeDict(
-                                attribute_type_id="biolink:synonym",
-                                value=node.get("all_names"),
-                            )
-                        )
-
-                    for attribute_type_id in ("publications",):  # iri?
-                        if attribute_type_id not in node:
-                            continue
-                        trapi_node["attributes"].append(
-                            AttributeDict(
-                                attribute_type_id=f"biolink:{attribute_type_id}",
-                                value=node[attribute_type_id],
-                            )
-                        )
-
-                    nodes[node_id] = trapi_node
-        return nodes
-
-    def populate_edge_attributes(self, hit: ESHit, edge: EdgeDict) -> None:
-        """Populate the `attributes` field of an edge using a given hit."""
-        if "attributes" not in edge or edge["attributes"] is None:
-            edge["attributes"] = []
-        edge["attributes"].extend(
-            (
-                AttributeDict(
-                    attribute_type_id="biolink:knowledge_level",
-                    value=hit["knowledge_level"] or "not_provided",
-                ),
-                AttributeDict(
-                    attribute_type_id="biolink:agent_type",
-                    value=hit["agent_type"] or "not_provided",
-                ),
-            )
-        )
-        if "publications" in hit:
-            edge["attributes"].append(
-                AttributeDict(
-                    attribute_type_id="biolink:publications",
-                    value=hit["publications"],
-                )
-            )
-
-        if "publications_info" in hit:
-            for info in hit["publications_info"]:
-                if info is None:
+                if node_id in nodes:
                     continue
-                study_attr = AttributeDict(
-                    attribute_type_id="biolink:has_supporting_study_result",
-                    value=info["pmid"],
-                    attributes=[],
-                )
-                sub_attrs = list[AttributeDict](
-                    (
-                        AttributeDict(
-                            attribute_type_id="biolink:publications",
-                            value=[info["pmid"]],
-                        ),
+                attributes: list[AttributeDict] = []
+
+                # Cases that require additional formatting to be TRAPI-compliant
+                special_cases: dict[str, tuple[str, Any]] = {
+                    "equivalent_identifiers": (
+                        "biolink:xref",
+                        [CURIE(i) for i in node["equivalent_identifiers"]],
                     )
-                )
-                if "sentence" in info:
-                    sub_attrs.append(
-                        AttributeDict(
-                            attribute_type_id="biolink:supporting_text",
-                            value=info["sentence"],
+                }
+
+                for field, value in node.items():
+                    if field in DINGO_KG_NODE_TOPLEVEL_VALUES:
+                        continue
+                    if field in special_cases:
+                        continue
+                    if value is not None and value not in ([], ""):
+                        attributes.append(
+                            AttributeDict(
+                                attribute_type_id=biolink.ensure_prefix(field),
+                                value=value,
+                            )
                         )
-                    )
-                if "publication_date" in info:
-                    sub_attrs.append(
-                        AttributeDict(
-                            attribute_type_id="biolink:publication_date",
-                            value=info["publication_date"],
+
+                for name, value in special_cases.values():
+                    if value is not None and value not in ([], ""):
+                        attributes.append(
+                            AttributeDict(attribute_type_id=name, value=value)
                         )
-                    )
-                study_attr["attributes"] = sub_attrs
-                edge["attributes"].append(study_attr)
+
+                trapi_node = NodeDict(
+                    name=node["name"],
+                    categories=[
+                        BiolinkEntity(biolink.ensure_prefix(cat))
+                        for cat in node["category"]
+                    ],
+                    attributes=attributes,
+                )
+
+                nodes[node_id] = trapi_node
+        return nodes
 
     def build_edges(self, hits: list[ESHit]) -> dict[EdgeIdentifier, EdgeDict]:
         """Build TRAPI edges from backend representation."""
         edges = dict[EdgeIdentifier, EdgeDict]()
         for hit in hits:
-            primary_knowledge_source = None
-            for source in hit["sources"]:
-                if source["resource_role"] == "primary_knowledge_source":
-                    primary_knowledge_source = Infores(source["resource_id"])
-                    break
+            attributes: list[AttributeDict] = []
+            qualifiers: list[QualifierDict] = []
+            sources: list[RetrievalSourceDict] = []
 
-            if primary_knowledge_source is None:
-                raise ValueError(
-                    f"no primary knowledge source found on edge {hit['id']}"
-                )
+            # Cases that require additional formatting to be TRAPI-compliant
+            special_cases: dict[str, tuple[str, Any]] = {
+                "category": (
+                    "biolink:category",
+                    [
+                        BiolinkEntity(biolink.ensure_prefix(cat))
+                        for cat in hit.get("category", [])
+                    ],
+                ),
+            }
 
-            edge = EdgeDict(
-                predicate=BiolinkPredicate(biolink.ensure_prefix(hit["predicate"])),
-                subject=hit["subject"]["id"],
-                object=hit["object"]["id"],
-                sources=[
-                    RetrievalSourceDict(
-                        resource_id=primary_knowledge_source,
-                        resource_role="primary_knowledge_source",
-                    ),
-                    RetrievalSourceDict(
-                        resource_id=Infores("infores:dogpark-tier1"),
-                        resource_role="aggregator_knowledge_source",
-                        upstream_resource_ids=[primary_knowledge_source],
-                    ),
-                ],
-                attributes=[],
-            )
-
-            self.populate_edge_attributes(hit, edge)
-
-            for qualifier_type_id in biolink.get_all_qualifiers():
-                if qualifier_type_id == "qualifier":
-                    continue  # Shouldn't be used (doesn't qualify anything)
-                qualifier_key = qualifier_type_id
-                if qualifier_type_id != "qualified_predicate":
-                    # ES index uses a different naming scheme for most qualifiers
-                    qualifier_key = (
-                        f"qualified_{qualifier_type_id.replace('_qualifier', '')}"
-                    )
-                if value := hit.get(qualifier_key):
-                    if "qualifiers" not in edge or edge["qualifiers"] is None:
-                        edge["qualifiers"] = []
-                    edge["qualifiers"].append(
+            # Build Attributes and Qualifiers
+            for field, value in hit.items():
+                if field in DINGO_KG_EDGE_TOPLEVEL_VALUES or field in special_cases:
+                    continue
+                if biolink.is_qualifier(field):
+                    qualifiers.append(
                         QualifierDict(
-                            qualifier_type_id=QualifierTypeID(qualifier_type_id),
-                            qualifier_value=value,
+                            qualifier_type_id=QualifierTypeID(
+                                biolink.ensure_prefix(field)
+                            ),
+                            qualifier_value=str(value),
                         )
                     )
-            edge_hash = hash_hex(hash_edge(edge))
-            edges[edge_hash] = edge
+                    pass
+                elif value is not None and value not in ([], ""):
+                    attributes.append(
+                        AttributeDict(
+                            attribute_type_id=biolink.ensure_prefix(field),
+                            value=value,
+                        )
+                    )
+
+            # Special case attributes
+            for name, value in special_cases.values():
+                if value is not None and value not in ([], ""):
+                    attributes.append(
+                        AttributeDict(attribute_type_id=name, value=value)
+                    )
+
+            # Build Sources
+            for source in hit["sources"]:
+                retrieval_source = RetrievalSourceDict(
+                    resource_id=Infores(source["resource_id"]),
+                    resource_role=source["resource_role"],
+                )
+                if upstream_resource_ids := source.get("upstream_resource_ids"):
+                    retrieval_source["upstream_resource_ids"] = [
+                        Infores(upstream) for upstream in upstream_resource_ids
+                    ]
+                if source_record_urls := source.get("source_record_urls"):
+                    retrieval_source["source_record_urls"] = source_record_urls
+                sources.append(retrieval_source)
+
+            # Build Edge
+            trapi_edge = EdgeDict(
+                predicate=BiolinkPredicate(biolink.ensure_prefix(hit["predicate"])),
+                subject=CURIE(hit["subject"]["id"]),
+                object=CURIE(hit["object"]["id"]),
+                sources=sources,
+            )
+            if len(attributes) > 0:
+                trapi_edge["attributes"] = attributes
+            if len(qualifiers) > 0:
+                trapi_edge["qualifiers"] = qualifiers
+
+            append_aggregator_source(trapi_edge, Infores(CONFIG.tier1.backend_infores))
+
+            edge_hash = hash_hex(hash_edge(trapi_edge))
+            edges[edge_hash] = trapi_edge
         return edges
 
     @override

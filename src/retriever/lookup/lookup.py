@@ -1,16 +1,13 @@
 import asyncio
 import math
 import time
+from copy import deepcopy
 from typing import Any, Literal, cast, overload
 
 import bmt
 import httpx
 from loguru import logger as log
 from opentelemetry import trace
-from reasoner_pydantic import (
-    QueryGraph,
-)
-from reasoner_pydantic.qgraph import PathfinderQueryGraph
 
 from retriever.config.general import CONFIG
 from retriever.config.openapi import OPENAPI_CONFIG
@@ -28,11 +25,12 @@ from retriever.types.trapi import (
     LogLevel,
     MessageDict,
     ParametersDict,
+    PathfinderQueryGraphDict,
     QueryGraphDict,
     ResponseDict,
     ResultDict,
 )
-from retriever.types.trapi_pydantic import AsyncQuery, TierNumber
+from retriever.types.trapi_pydantic import TierNumber
 from retriever.utils.calls import get_callback_client
 from retriever.utils.logs import TRAPILogger, trapi_level_to_int
 from retriever.utils.mongo import MONGO_QUEUE
@@ -49,18 +47,18 @@ biolink = bmt.Toolkit()
 
 async def async_lookup(query: QueryInfo) -> None:
     """Handle running lookup as an async query where the client receives a callback."""
-    if not isinstance(query.body, AsyncQuery):
+    if query.body is None or "callback" not in query.body:
         raise TypeError(f"Expected AsyncQuery, received {type(query.body)}.")
 
     job_id = query.job_id
     job_log = log.bind(job_id=job_id)
     status, response = await lookup(query)
 
-    job_log.debug(f"Sending callback to `{query.body.callback}`...")
+    job_log.debug(f"Sending callback to `{query.body['callback']}`...")
     try:
         client = get_callback_client()
         callback_response = await client.post(
-            url=str(query.body.callback), json=response
+            url=str(query.body["callback"]), json=response
         )
         callback_response.raise_for_status()
         job_log.debug("Callback sent successfully.")
@@ -94,17 +92,15 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
         start_time = time.time()
         job_log.info(f"Begin processing job {job_id}.")
 
-        qgraph = query.body.message.query_graph
+        qgraph = query.body["message"].get("query_graph")
         if qgraph is None:
             raise ValueError("Query Graph is None.")
 
         # Query graph validation that isn't handled by reasoner_pydantic
-        if not passes_validation(qgraph, response, job_log) or isinstance(
-            qgraph, PathfinderQueryGraph
-        ):
+        if not passes_validation(qgraph, response, job_log) or "paths" in qgraph:
             return tracked_response(422, response)
 
-        expanded_qgraph = expand_qgraph(qgraph.model_copy(), job_log)
+        expanded_qgraph = expand_qgraph(deepcopy(qgraph), job_log)
 
         if not await qgraph_supported(expanded_qgraph, response, job_log, query.tiers):
             return tracked_response(424, response)
@@ -126,7 +122,7 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
         response["description"] = finish_msg
         # Filter for desired log_level
         desired_log_level = trapi_level_to_int(
-            LogLevel(query.body.log_level or LogLevel.DEBUG)
+            LogLevel(query.body.get("log_level", LogLevel.DEBUG) or LogLevel.DEBUG)
         )
         response["logs"] = [
             log
@@ -161,28 +157,33 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
         raise TypeError(
             "Received body of type None, should have received Query or AsyncQuery."
         )
-    if query.body.message.query_graph is None:
+    if (
+        "query_graph" not in query.body["message"]
+        or query.body["message"]["query_graph"] is None
+    ):
         raise TypeError(
             "Received QueryGraph of type None, query graph should be present."
         )
 
     parameters = ParametersDict(tiers=list(query.tiers))
-    if timeout := query.body.parameters and query.body.parameters.timeout:
+    if (
+        timeout := "parameters" in query.body
+        and query.body["parameters"] is not None
+        and query.body["parameters"].get("timeout")
+    ):
         parameters["timeout"] = timeout
     return (
         job_id,
         job_log,
         ResponseDict(
             message=MessageDict(
-                query_graph=QueryGraphDict(
-                    **query.body.message.query_graph.model_dump()
-                ),
+                query_graph=query.body["message"]["query_graph"],
                 knowledge_graph=KnowledgeGraphDict(nodes={}, edges={}),
                 results=list[ResultDict](),
             ),
             biolink_version=OPENAPI_CONFIG.x_translator.biolink_version,
             schema_version=OPENAPI_CONFIG.x_trapi.version,
-            workflow=query.body.workflow.model_dump() if query.body.workflow else None,
+            workflow=query.body.get("workflow"),
             parameters=parameters,
             job_id=job_id,  # pyright:ignore[reportCallIssue] Extra is allowed
         ),
@@ -191,20 +192,20 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
 
 @overload
 def passes_validation(
-    qgraph: PathfinderQueryGraph, response: ResponseDict, job_log: TRAPILogger
+    qgraph: PathfinderQueryGraphDict, response: ResponseDict, job_log: TRAPILogger
 ) -> Literal[False]: ...
 
 
 @overload
 def passes_validation(
-    qgraph: QueryGraph,
+    qgraph: QueryGraphDict,
     response: ResponseDict,
     job_log: TRAPILogger,
 ) -> bool: ...
 
 
 def passes_validation(
-    qgraph: QueryGraph | PathfinderQueryGraph,
+    qgraph: QueryGraphDict | PathfinderQueryGraphDict,
     response: ResponseDict,
     job_log: TRAPILogger,
 ) -> bool:
@@ -231,7 +232,7 @@ def passes_validation(
 
 
 async def qgraph_supported(
-    qgraph: QueryGraph,
+    qgraph: QueryGraphDict,
     response: ResponseDict,
     job_log: TRAPILogger,
     tiers: set[TierNumber],
@@ -255,7 +256,7 @@ async def qgraph_supported(
 
 @tracer.start_as_current_span("execute_lookup")
 async def run_tiered_lookups(
-    query: QueryInfo, expanded_qgraph: QueryGraph
+    query: QueryInfo, expanded_qgraph: QueryGraphDict
 ) -> LookupArtifacts:
     """Run lookups against requested tier(s) and combine results."""
     results = dict[int, ResultDict]()

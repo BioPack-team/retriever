@@ -4,7 +4,6 @@ import time
 from typing import Any
 
 from opentelemetry import trace
-from reasoner_pydantic import QueryGraph
 
 from retriever.data_tiers import tier_manager
 from retriever.data_tiers.base_transpiler import Transpiler
@@ -16,7 +15,6 @@ from retriever.types.trapi import (
     KnowledgeGraphDict,
     LogEntryDict,
     QEdgeDict,
-    QNodeDict,
     QueryGraphDict,
 )
 from retriever.utils import biolink
@@ -30,16 +28,16 @@ tracer = trace.get_tracer("lookup.execution.tracer")
 
 
 def make_payloads(
-    branch: Branch, qg: QueryGraph, job_log: TRAPILogger
+    branch: Branch, qg: QueryGraphDict, job_log: TRAPILogger
 ) -> tuple[list[QueryGraphDict], list[Transpiler], list[Any]]:
     """Convert the existing branch edge to query payloads.
 
     Produces multiple if symmetric predicates are present.
     """
     edge_id = branch.current_edge
-    current_edge = QEdgeDict(**qg.edges[edge_id].model_dump())
-    subject_node = QNodeDict(**qg.nodes[current_edge["subject"]].model_dump())
-    object_node = QNodeDict(**qg.nodes[current_edge["object"]].model_dump())
+    current_edge = qg["edges"][edge_id]
+    subject_node = qg["nodes"][current_edge["subject"]]
+    object_node = qg["nodes"][current_edge["object"]]
     if not branch.reversed:
         subject_node["ids"] = [branch.input_curie]
     else:
@@ -166,7 +164,7 @@ async def run_queries(
 
 @tracer.start_as_current_span("subquery")
 async def subquery(
-    job_id: str, branch: Branch, qg: QueryGraph
+    job_id: str, branch: Branch, qg: QueryGraphDict
 ) -> tuple[KnowledgeGraphDict, list[LogEntryDict]]:
     """Basic subquery function for retrieving from Tier 1.
 

@@ -48,7 +48,6 @@ class AsyncQueryDict(QueryDict):
     """AsyncQuery."""
 
     callback: URL
-    parameters: NotRequired[ParametersDict | None]
 
 
 class AsyncQueryResponseDict(TypedDict):
@@ -184,7 +183,7 @@ class QueryGraphDict(BaseQueryGraphDict):
     edges: dict[QEdgeID, QEdgeDict]
 
 
-class PathfinderQueryGraphDict(TypedDict):
+class PathfinderQueryGraphDict(BaseQueryGraphDict):
     """Pathfinder QueryGraph."""
 
     paths: dict[QPathID, QPathDict]

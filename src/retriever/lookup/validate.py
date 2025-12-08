@@ -1,47 +1,48 @@
-from reasoner_pydantic import QueryGraph
-from reasoner_pydantic.qgraph import PathfinderQueryGraph
 from reasoner_pydantic.shared import KnowledgeType
 
 from retriever.config.openapi import OPENAPI_CONFIG
+from retriever.types.trapi import PathfinderQueryGraphDict, QueryGraphDict
 
 
-def validate(qg: QueryGraph | PathfinderQueryGraph) -> list[str]:
+def validate(qg: QueryGraphDict | PathfinderQueryGraphDict) -> list[str]:
     """Check that a given query graph is valid.
 
     Returns:
         A list of messages detailing validation problems.
         If the list is empty, the graph passes validation.
     """
-    if isinstance(qg, PathfinderQueryGraph):
+    if "paths" in qg:
         return ["Retriever does not support Pathfinder queries."]
     problems: dict[str, bool] = {}
-    problems["Query graph must have at least one node"] = len(qg.nodes.values()) > 0
-    problems["Query graph must have at least one edge"] = len(qg.edges.values()) > 0
+    problems["Query graph must have at least one node"] = len(qg["nodes"].values()) > 0
+    problems["Query graph must have at least one edge"] = len(qg["edges"].values()) > 0
     problems["Query graph must have at least one node with an ID"] = any(
-        node for node in qg.nodes.values() if node.ids is not None and len(node.ids) > 0
+        node
+        for node in qg["nodes"].values()
+        if "ids" in node and len(node["ids"] or []) > 0
     )
 
     # node_pairs = set[str]()
-    for edge_id, edge in qg.edges.items():
-        if edge.subject not in qg.nodes:
+    for edge_id, edge in qg["edges"].items():
+        if edge["subject"] not in qg["nodes"]:
             problems[
-                f"Edge `{edge_id}` subject `{edge.subject}` not defined in query graph."
+                f"Edge `{edge_id}` subject `{edge['subject']}` not defined in query graph."
             ] = False
-        if edge.object not in qg.nodes:
+        if edge["object"] not in qg["nodes"]:
             problems[
-                f"Edge `{edge_id}` object `{edge.object}` not defined in query graph."
+                f"Edge `{edge_id}` object `{edge['object']}` not defined in query graph."
             ] = False
 
-        for i, qualifier_constraint in enumerate(edge.qualifier_constraints):
+        for i, qualifier_constraint in enumerate(edge.get("qualifier_constraints", [])):
             qualifier_types: set[str] = set()
-            for qualifier in qualifier_constraint.qualifier_set:
-                if qualifier.qualifier_type_id in qualifier_types:
+            for qualifier in qualifier_constraint["qualifier_set"]:
+                if qualifier["qualifier_type_id"] in qualifier_types:
                     problems[
-                        f"Edge `{edge_id}` qualifier constraint {i} has duplicate qualifier_type_id `{qualifier.qualifier_type_id}`"
+                        f"Edge `{edge_id}` qualifier constraint {i} has duplicate qualifier_type_id `{qualifier['qualifier_type_id']}`"
                     ] = False
-                qualifier_types.add(qualifier.qualifier_type_id)
+                qualifier_types.add(qualifier["qualifier_type_id"])
 
-        if edge.knowledge_type == KnowledgeType.inferred:
+        if edge.get("knowledge_type") == KnowledgeType.inferred:
             problems["Retriever does not handle inferred-type queries."] = False
 
         # if (
@@ -51,12 +52,12 @@ def validate(qg: QueryGraph | PathfinderQueryGraph) -> list[str]:
         #     problems["Duplicate edges not allowed."] = False
         # node_pairs.add(f"{edge.subject}-{edge.object}")
 
-    for node_id, node in qg.nodes.items():
-        if node.ids is None:
+    for node_id, node in qg["nodes"].items():
+        if node.get("ids") is None:
             continue
-        if len(node.ids) > OPENAPI_CONFIG.x_trapi.batch_size_limit:
+        if len(node.get("ids", []) or []) > OPENAPI_CONFIG.x_trapi.batch_size_limit:
             problems[
-                f"Node `{node_id}` ID count ({len(node.ids)}) exceeds batch size limit of {OPENAPI_CONFIG.x_trapi.batch_size_limit}"
+                f"Node `{node_id}` ID count ({len(node.get('ids', []) or [])}) exceeds batch size limit of {OPENAPI_CONFIG.x_trapi.batch_size_limit}"
             ] = False
 
     return [name for name, passed in problems.items() if not passed]

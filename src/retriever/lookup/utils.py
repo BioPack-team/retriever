@@ -1,11 +1,3 @@
-from reasoner_pydantic import (
-    BiolinkEntity,
-    BiolinkPredicate,
-    HashableSequence,
-    QEdge,
-    QueryGraph,
-)
-
 from retriever.lookup.branch import Branch, SuperpositionHop
 from retriever.types.general import (
     AdjacencyGraph,
@@ -13,27 +5,31 @@ from retriever.types.general import (
 )
 from retriever.types.trapi import (
     CURIE,
+    BiolinkEntity,
+    BiolinkPredicate,
     EdgeDict,
     KnowledgeGraphDict,
     LogEntryDict,
+    QEdgeDict,
     QEdgeID,
     QNodeID,
+    QueryGraphDict,
 )
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.trapi import hash_edge, hash_hex
 
 
-def expand_qgraph(qg: QueryGraph, job_log: TRAPILogger) -> QueryGraph:
+def expand_qgraph(qg: QueryGraphDict, job_log: TRAPILogger) -> QueryGraphDict:
     """Ensure all nodes in qgraph have all descendant categories.
 
     See https://biolink.github.io/biolink-model/categories.html
     """
     # biolink functions are already LRU cached :)
-    for qnode_id, qnode in qg.nodes.items():
-        categories = set(qnode.categories or {})
+    for qnode_id, qnode in qg["nodes"].items():
+        categories = set(qnode.get("categories") or {})
         new_categories = set[BiolinkEntity]()
         if len(categories) == 0:
-            categories.add("biolink:NamedThing")
+            categories.add(BiolinkEntity("biolink:NamedThing"))
             job_log.info(
                 f"QNode {qnode_id}: Inferred NamedThing from empty category list."
             )
@@ -49,15 +45,13 @@ def expand_qgraph(qg: QueryGraph, job_log: TRAPILogger) -> QueryGraph:
                 f"QNode {qnode_id}: Added descendant categories {new_categories}."
             )
 
-        qnode.categories = HashableSequence[BiolinkEntity](
-            [*categories, *new_categories]
-        )
+        qnode["categories"] = [*categories, *new_categories]
 
-    for qedge_id, qedge in qg.edges.items():
-        predicates = set(qedge.predicates or {})
+    for qedge_id, qedge in qg["edges"].items():
+        predicates = set(qedge.get("predicates") or {})
         new_predicates = set[BiolinkPredicate]()
         if len(predicates) == 0:
-            predicates.add("biolink:related_to")
+            predicates.add(BiolinkPredicate("biolink:related_to"))
             job_log.info(
                 f"QEdge {qedge_id}: Inferred related_to from empty predicate list."
             )
@@ -73,29 +67,27 @@ def expand_qgraph(qg: QueryGraph, job_log: TRAPILogger) -> QueryGraph:
                 f"QEdge {qedge_id}: Added descendant predicates {new_predicates}."
             )
 
-        qedge.predicates = HashableSequence[BiolinkPredicate](
-            [*predicates, *new_predicates]
-        )
+        qedge["predicates"] = [*predicates, *new_predicates]
 
     return qg
 
 
-def make_mappings(qg: QueryGraph) -> tuple[AdjacencyGraph, QEdgeIDMap]:
+def make_mappings(qg: QueryGraphDict) -> tuple[AdjacencyGraph, QEdgeIDMap]:
     """Make an undirected QGraph representation in which edges are presented by their nodes."""
     agraph: AdjacencyGraph = {}
     edge_id_map: QEdgeIDMap = {}
-    for edge_id, edge in qg.edges.items():
-        edge_id_map[edge] = QEdgeID(edge_id)
-        subject_node = QNodeID(edge.subject)
-        object_node = QNodeID(edge.object)
+    for edge_id, edge in qg["edges"].items():
+        edge_id_map[id(edge)] = QEdgeID(edge_id)
+        subject_node = QNodeID(edge["subject"])
+        object_node = QNodeID(edge["object"])
         if subject_node not in agraph:
-            agraph[subject_node] = dict[QNodeID, list[QEdge]]()
+            agraph[subject_node] = dict[QNodeID, list[QEdgeDict]]()
         if object_node not in agraph:
-            agraph[object_node] = dict[QNodeID, list[QEdge]]()
+            agraph[object_node] = dict[QNodeID, list[QEdgeDict]]()
         if object_node not in agraph[subject_node]:
-            agraph[subject_node][object_node] = list[QEdge]()
+            agraph[subject_node][object_node] = list[QEdgeDict]()
         if subject_node not in agraph[object_node]:
-            agraph[object_node][subject_node] = list[QEdge]()
+            agraph[object_node][subject_node] = list[QEdgeDict]()
         agraph[subject_node][object_node].append(edge)
         agraph[object_node][subject_node].append(edge)
 

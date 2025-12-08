@@ -6,9 +6,6 @@ from asyncio.tasks import Task
 from collections.abc import AsyncGenerator, Hashable
 
 from opentelemetry import trace
-from reasoner_pydantic import (
-    QueryGraph,
-)
 
 from retriever.lookup.branch import (
     Branch,
@@ -36,6 +33,7 @@ from retriever.types.trapi import (
     KnowledgeGraphDict,
     LogEntryDict,
     QEdgeID,
+    QueryGraphDict,
     ResultDict,
 )
 from retriever.utils.general import EmptyIteratorError, merge_iterators
@@ -54,17 +52,17 @@ CompletePathName = str
 class QueryGraphExecutor:
     """Handler class for running the QGX algorithm."""
 
-    def __init__(self, qgraph: QueryGraph, query_info: QueryInfo) -> None:
+    def __init__(self, qgraph: QueryGraphDict, query_info: QueryInfo) -> None:
         """Initialize a QueryGraphExecutor, setting up information shared by methods."""
         self.ctx: QueryInfo = query_info
-        self.qgraph: QueryGraph = qgraph
+        self.qgraph: QueryGraphDict = qgraph
         self.job_log: TRAPILogger = TRAPILogger(self.ctx.job_id)
 
         q_agraph, qedge_map = make_mappings(self.qgraph)
         self.q_agraph: AdjacencyGraph = q_agraph
         self.qedge_map: QEdgeIDMap = qedge_map
         self.qedge_claims: dict[QEdgeID, Branch | None] = {
-            QEdgeID(qedge_id): None for qedge_id in self.qgraph.edges
+            QEdgeID(qedge_id): None for qedge_id in self.qgraph["edges"]
         }
 
         self.kgraph: KnowledgeGraphDict = initialize_kgraph(self.qgraph)
@@ -75,7 +73,7 @@ class QueryGraphExecutor:
         self.kedges_by_input: dict[SuperpositionHop, list[EdgeDict]] = {}
         self.k_agraph: KAdjacencyGraph = {
             QEdgeID(qedge_id): dict[CURIE, dict[CURIE, list[EdgeIdentifier]]]()
-            for qedge_id in self.qgraph.edges
+            for qedge_id in self.qgraph["edges"]
         }
 
         self.active_branches: set[BranchID] = set()
@@ -413,10 +411,10 @@ class QueryGraphExecutor:
 
         # Ensure "backwards" edges don't cause input curie to propogate
         input_categories = set(
-            self.qgraph.nodes[current_branch.input_node].categories or []
+            self.qgraph["nodes"][current_branch.input_node].get("categories", []) or []
         )
         output_categories = set(
-            self.qgraph.nodes[current_branch.output_node].categories or []
+            self.qgraph["nodes"][current_branch.output_node].get("categories", []) or []
         )
         qnodes_allow_self_edge = not input_categories.isdisjoint(output_categories)
 

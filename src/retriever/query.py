@@ -1,20 +1,21 @@
-import contextlib
 import traceback
 import uuid
 from typing import Any, Literal, overload
 
 import sentry_sdk
 from fastapi import Request, Response
+from loguru import logger
 from opentelemetry import trace
-from reasoner_pydantic import QueryGraph
 
 from retriever.config.general import CONFIG
 from retriever.lookup.lookup import async_lookup, lookup
 from retriever.metakg.trapi_metakg import trapi_metakg
 from retriever.types.general import APIInfo, ErrorDetail, QueryInfo
 from retriever.types.trapi import (
+    AsyncQueryDict,
     AsyncQueryResponseDict,
     MetaKnowledgeGraphDict,
+    QueryDict,
     ResponseDict,
 )
 from retriever.types.trapi_pydantic import AsyncQuery as TRAPIAsyncQuery
@@ -81,16 +82,27 @@ async def make_query(
     if custom_tiers := body and body.parameters and body.parameters.tiers:
         tiers = custom_tiers
 
+    body_transformed: QueryDict | AsyncQueryDict | None = None
+    if body is not None:
+        if isinstance(body, TRAPIQuery):
+            body_transformed = QueryDict(**body.model_dump())
+        else:
+            body_transformed = AsyncQueryDict(**body.model_dump())
+
     query = QueryInfo(
         endpoint=ctx.request.url.path,
         method=ctx.request.method,
-        body=body,
+        body=body_transformed,
         job_id=job_id,
         tiers=set(tiers),
         timeout=timeout,
     )
 
-    with contextlib.suppress(Exception):
+    with logger.catch(
+        Exception,
+        level="ERROR",
+        message="Error while attempting to contextualize telemetry to query.",
+    ):
         contextualize_query_telemetry(query, func, ctx.background_tasks is not None)
 
     query_function = {"lookup": lookup, "metakg": trapi_metakg}[func]
@@ -124,21 +136,21 @@ def contextualize_query_telemetry(query: QueryInfo, func: str, is_async: bool) -
 
     body = query.body
 
-    if (
-        submitter := body is not None
-        and body.model_extra is not None
-        and body.model_extra.get("submitter")
-    ):
+    if submitter := body is not None and body.get("submitter"):
         span_tags["submitter"] = str(submitter)
     else:
         span_tags["submitter"] = "not_provided"
 
-    if body is not None and body.message.query_graph is not None:
-        span_tags["qnodes"] = len(body.message.query_graph.nodes)
-        if isinstance(body.message.query_graph, QueryGraph):
-            span_tags["qedges"] = len(body.message.query_graph.edges)
+    if (
+        body is not None
+        and "query_graph" in body["message"]
+        and body["message"]["query_graph"]
+    ):
+        span_tags["qnodes"] = len(body["message"]["query_graph"]["nodes"])
+        if "edges" in body["message"]["query_graph"]:
+            span_tags["qedges"] = len(body["message"]["query_graph"]["edges"])
         else:
-            span_tags["qpaths"] = len(body.message.query_graph.paths)
+            span_tags["qpaths"] = len(body["message"]["query_graph"]["paths"])
 
     current_span = trace.get_current_span()
     current_span.set_attributes(span_tags)

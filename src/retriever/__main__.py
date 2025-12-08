@@ -1,3 +1,4 @@
+import math
 import multiprocessing
 import os
 
@@ -38,7 +39,9 @@ async def _main_inner() -> None:
     background_manager = BackgroundProcessManager()
     await background_manager.start_process()
 
-    n_workers = CONFIG.workers or int(multiprocessing.cpu_count() / 2)
+    n_workers = CONFIG.workers or math.ceil(
+        multiprocessing.cpu_count() * CONFIG.worker_cpu_ratio
+    )
 
     # /// RUN SERVER ///
 

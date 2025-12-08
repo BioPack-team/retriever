@@ -17,7 +17,8 @@ cors:
   - '*'
   allow_headers: # Headers allowed in cross-origin requests.
   - '*'
-workers: # Number of workers, defaults to n_cpus if unset.
+workers: # Number of workers, defaults to n_cpus * worker_cpu_ratio if unset.
+worker_cpu_ratio: 1 # Ratio of workers to n_cpus if worker count is unset (rounds to ceiling after multiplication).
 allow_profiler: true # Allow all queries to enable profiling with a query parameter.
 job:
   callback:
@@ -88,7 +89,7 @@ tier1:
     host: ''
     port: 9200
     database_name: elasticsearch
-    index_name: rtx_kg2
+    index_name: dingo
 telemetry:
   otel_enabled: false
   otel_host: jaeger-otel-collector.sri
