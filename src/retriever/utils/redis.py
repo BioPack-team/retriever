@@ -17,8 +17,8 @@ from retriever.config.general import CONFIG
 PREFIX = "{Retriever}:"
 
 # For consistency
-METAKG_KEY = f"{PREFIX}metakg"
-METAKG_UPDATE_CHANNEL = f"{METAKG_KEY}:update"
+OP_TABLE_KEY = f"{PREFIX}op_table"
+OP_TABLE_UPDATE_CHANNEL = f"{OP_TABLE_KEY}:update"
 
 # For better performance
 ZSTD_COMPRESSOR = zstandard.ZstdCompressor()

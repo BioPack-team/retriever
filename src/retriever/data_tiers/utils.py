@@ -1,7 +1,7 @@
 import itertools
 
 from retriever.types.dingo import DINGOMetadata
-from retriever.types.metakg import Operation, OperationNode
+from retriever.types.metakg import Operation, OperationNode, UnhashedOperation
 from retriever.types.trapi import (
     BiolinkEntity,
     Infores,
@@ -13,6 +13,7 @@ from retriever.types.trapi import (
 )
 from retriever.types.trapi_pydantic import TierNumber
 from retriever.utils import biolink
+from retriever.utils.trapi import hash_hex
 
 DINGO_KG_EDGE_TOPLEVEL_VALUES = {
     "binding",
@@ -50,30 +51,58 @@ def parse_dingo_metadata(
         for sbj, obj in itertools.product(
             edge["subject_category"], edge["object_category"]
         ):
-            operations.append(
-                Operation(
-                    subject=sbj,
-                    predicate=edge["predicate"],
-                    object=obj,
-                    api=infores,
-                    tier=tier,
-                    attributes=[
-                        MetaAttributeDict(attribute_type_id=attr_type)
-                        for attr_type in edge["attributes"]
-                    ],
-                    qualifiers={
-                        QualifierTypeID(biolink.ensure_prefix(qual_type)): []
-                        for qual_type in edge["qualifiers"]
-                    },
+            unhashed_op = UnhashedOperation(
+                subject=sbj,
+                predicate=edge["predicate"],
+                object=obj,
+                api=infores,
+                tier=tier,
+                attributes=[
+                    MetaAttributeDict(
+                        attribute_type_id=biolink.ensure_prefix(attr_type)
+                    )
+                    for attr_type in edge["attributes"]
+                ],
+                qualifiers={
+                    QualifierTypeID(biolink.ensure_prefix(qual_type)): []
+                    for qual_type in edge["qualifiers"]
+                },
+            )
+
+            op_hash = hash_hex(
+                hash(
+                    tuple(
+                        {
+                            **unhashed_op._asdict(),
+                            "attributes": tuple(
+                                tuple(attr.items()) for attr in unhashed_op.attributes
+                            )
+                            if unhashed_op.attributes is not None
+                            else None,
+                            "qualifiers": tuple(
+                                (qualifier_type_id, tuple(applicable_values))
+                                for qualifier_type_id, applicable_values in unhashed_op.qualifiers.items()
+                            )
+                            if unhashed_op.qualifiers is not None
+                            else None,
+                            "access_metadata": None,
+                        }.values()
+                    )
                 )
             )
+
+            operation = Operation(op_hash, **unhashed_op._asdict())
+            operations.append(operation)
+
     for node in metadata["schema"]["nodes"]:
         for category in node["category"]:
             nodes[category] = OperationNode(
                 prefixes={infores: list(node["id_prefixes"].keys())},
                 attributes={
                     infores: [
-                        MetaAttributeDict(attribute_type_id=attr_type)
+                        MetaAttributeDict(
+                            attribute_type_id=biolink.ensure_prefix(attr_type)
+                        )
                         for attr_type in node["attributes"]
                     ]
                 },
@@ -90,22 +119,45 @@ def parse_trapi_metakg(
     nodes = dict[BiolinkEntity, OperationNode]()
     for edge in metakg["edges"]:
         edge_dict = MetaEdgeDict(**edge)
-        operations.append(
-            Operation(
-                subject=edge_dict["subject"],
-                predicate=edge_dict["predicate"],
-                object=edge_dict["object"],
-                api=infores,
-                tier=tier,
-                attributes=edge_dict.get("attributes"),
-                qualifiers={
-                    qualifier["qualifier_type_id"]: qualifier.get(
-                        "applicable_values", []
-                    )
-                    for qualifier in (edge_dict.get("qualifiers", []) or [])
-                },
+
+        unhashed_op = UnhashedOperation(
+            subject=edge_dict["subject"],
+            predicate=edge_dict["predicate"],
+            object=edge_dict["object"],
+            api=infores,
+            tier=tier,
+            attributes=edge_dict.get("attributes"),
+            qualifiers={
+                qualifier["qualifier_type_id"]: qualifier.get("applicable_values", [])
+                for qualifier in (edge_dict.get("qualifiers", []) or [])
+            },
+        )
+
+        op_hash = hash_hex(
+            hash(
+                tuple(
+                    {
+                        **unhashed_op._asdict(),
+                        "attributes": tuple(
+                            tuple(attr.items()) for attr in unhashed_op.attributes
+                        )
+                        if unhashed_op.attributes is not None
+                        else None,
+                        "qualifiers": tuple(
+                            (qualifier_type_id, tuple(applicable_values))
+                            for qualifier_type_id, applicable_values in unhashed_op.qualifiers.items()
+                        )
+                        if unhashed_op.qualifiers is not None
+                        else None,
+                        "access_metadata": None,
+                    }.values()
+                )
             )
         )
+
+        operation = Operation(op_hash, **unhashed_op._asdict())
+        operations.append(operation)
+
     for category, node in metakg["nodes"].items():
         node_dict = MetaNodeDict(**node)
         nodes[category] = OperationNode(

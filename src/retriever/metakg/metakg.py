@@ -4,13 +4,21 @@ from typing import NamedTuple
 
 import ormsgpack
 from loguru import logger
+from opentelemetry import trace
 
 from retriever.config.general import CONFIG
 from retriever.data_tiers import tier_manager
 from retriever.types.dingo import DINGOMetadata
-from retriever.types.metakg import Operation, OperationNode, OperationTable
+from retriever.types.metakg import (
+    FlatOperations,
+    Operation,
+    OperationNode,
+    OperationTable,
+    SortedOperations,
+)
 from retriever.types.trapi import (
     BiolinkEntity,
+    BiolinkPredicate,
     MetaAttributeDict,
     MetaEdgeDict,
     MetaKnowledgeGraphDict,
@@ -23,11 +31,13 @@ from retriever.types.trapi import (
 )
 from retriever.types.trapi_pydantic import TierNumber
 from retriever.utils.biolink import expand
-from retriever.utils.redis import METAKG_KEY, METAKG_UPDATE_CHANNEL, REDIS_CLIENT
+from retriever.utils.redis import OP_TABLE_KEY, OP_TABLE_UPDATE_CHANNEL, REDIS_CLIENT
 from retriever.utils.trapi import (
     hash_meta_attribute,
     meta_qualifier_meets_constraints,
 )
+
+tracer = trace.get_tracer("lookup.execution.tracer")
 
 METAKG_GET_ATTEMPTS = 3
 
@@ -64,22 +74,40 @@ class MetaKGManager:
         """Update the stored MetaKG."""
         metakg_json = ormsgpack.packb(
             {
-                "operations": [op._asdict() for op in metakg.operations],
+                "operations_flat": [
+                    op._asdict() for op in metakg.operations_flat.values()
+                ],
                 "nodes": {cat: node._asdict() for cat, node in metakg.nodes.items()},
             }
         )
 
-        await REDIS_CLIENT.set(METAKG_KEY, metakg_json, compress=True)
-        await REDIS_CLIENT.publish(METAKG_UPDATE_CHANNEL, 1)
+        await REDIS_CLIENT.set(OP_TABLE_KEY, metakg_json, compress=True)
+        await REDIS_CLIENT.publish(OP_TABLE_UPDATE_CHANNEL, 1)
 
     async def retrieve_stored_operation_table(self) -> OperationTable | None:
         """Retrieve the stored MetaKG."""
-        stored = await REDIS_CLIENT.get(METAKG_KEY, compressed=True)
+        stored = await REDIS_CLIENT.get(OP_TABLE_KEY, compressed=True)
         if stored is None:
             return None
         metakg_json = ormsgpack.unpackb(stored)
+
+        operations_sorted = SortedOperations()
+        operations_flat = FlatOperations()
+
+        for op_dict in metakg_json["operations_flat"]:
+            op = Operation(**op_dict)
+            operations_flat[op.hash] = op
+            if op.subject not in operations_sorted:
+                operations_sorted[op.subject] = {}
+            if op.predicate not in operations_sorted[op.subject]:
+                operations_sorted[op.subject][op.predicate] = {}
+            if op.object not in operations_sorted[op.subject][op.predicate]:
+                operations_sorted[op.subject][op.predicate][op.object] = []
+            operations_sorted[op.subject][op.predicate][op.object].append(op)
+
         return OperationTable(
-            operations=[Operation(**op) for op in metakg_json["operations"]],
+            operations_sorted=operations_sorted,
+            operations_flat=operations_flat,
             nodes={
                 spo: OperationNode(**node) for spo, node in metakg_json["nodes"].items()
             },
@@ -90,9 +118,10 @@ class MetaKGManager:
         if CONFIG.instance_idx != 0:
             return
 
-        logger.info("Building MetaKG...")
+        logger.info("Building Operation Table...")
 
-        operations = list[Operation]()
+        operations_flat = FlatOperations()
+        operations_sorted = SortedOperations()
         nodes = dict[BiolinkEntity, OperationNode]()
 
         driver_ops = [
@@ -100,7 +129,15 @@ class MetaKGManager:
         ]
 
         for new_operations, new_nodes in driver_ops:
-            operations.extend(new_operations)
+            for op in new_operations:
+                operations_flat[op.hash] = op
+                if op.subject not in operations_sorted:
+                    operations_sorted[op.subject] = {}
+                if op.predicate not in operations_sorted[op.subject]:
+                    operations_sorted[op.subject][op.predicate] = {}
+                if op.object not in operations_sorted[op.subject][op.predicate]:
+                    operations_sorted[op.subject][op.predicate][op.object] = []
+                operations_sorted[op.subject][op.predicate][op.object].append(op)
             for entity, node in new_nodes.items():
                 if entity in nodes:  # Have to merge nodes
                     # APIs won't overlap so just pull in info from new API
@@ -110,15 +147,17 @@ class MetaKGManager:
                 nodes[entity] = node
 
         async with self.update_lock:
-            self._operation_table = OperationTable(operations, nodes)
+            self._operation_table = OperationTable(
+                operations_sorted, operations_flat, nodes
+            )
 
         await self.store_operation_table(self._operation_table)
         logger.success(
-            f"Built Operation Table containing {len(operations)} operations / {len(nodes)} nodes."
+            f"Built Operation Table containing {len(operations_flat)} operations / {len(nodes)} nodes."
         )
 
-    async def periodic_build_metakg(self) -> None:
-        """Periodically rebuild the metakg."""
+    async def periodic_build_op_table(self) -> None:
+        """Periodically rebuild the operation table."""
         while True:
             try:
                 await self.build_operation_table()
@@ -126,12 +165,12 @@ class MetaKGManager:
             except (ValueError, asyncio.CancelledError):
                 break
 
-    async def pull_metakg(self, _message: str) -> None:
-        """Start a subscriber that updates the local metakg."""
-        logger.info("Pulling MetaKG...")
+    async def pull_op_table(self, _message: str) -> None:
+        """Start a subscriber that updates the local operation table."""
+        logger.info("Pulling OpTable...")
         async with self.update_lock:
             self._operation_table = await self.retrieve_stored_operation_table()
-        logger.success("In-memory MetaKG updated.")
+        logger.success("In-memory OpTable updated.")
 
     async def initialize(self) -> None:
         """Start the appropriate tasks for a given process."""
@@ -139,29 +178,29 @@ class MetaKGManager:
             await self.build_operation_table()
             if CONFIG.job.metakg.build_time > -1:
                 self.task = asyncio.create_task(
-                    self.periodic_build_metakg(), name="build_metakg_task"
+                    self.periodic_build_op_table(), name="build_op_table_task"
                 )
         else:
-            await self.pull_metakg("")
-            await REDIS_CLIENT.subscribe(METAKG_UPDATE_CHANNEL, self.pull_metakg)
+            await self.pull_op_table("")
+            await REDIS_CLIENT.subscribe(OP_TABLE_UPDATE_CHANNEL, self.pull_op_table)
 
-    async def get_metakg(self, retries: int = 0) -> OperationTable:
-        """Return the currently-stored MetaKG."""
+    async def get_op_table(self, retries: int = 0) -> OperationTable:
+        """Return the currently-stored Operation Table."""
         async with self.update_lock:
-            metakg = self._operation_table
-        if metakg is None:
+            op_table = self._operation_table
+        if op_table is None:
             if retries >= 3:  # noqa: PLR2004
-                raise ValueError("Failed to retrieve a built metakg!")
-            await self.pull_metakg("")
-            return await self.get_metakg(retries + 1)
-        return metakg
+                raise ValueError("Failed to retrieve a built OpTable!")
+            await self.pull_op_table("")
+            return await self.get_op_table(retries + 1)
+        return op_table
 
     async def wrapup(self) -> None:
         """Cancel running tasks so connections can close."""
         try:
-            await REDIS_CLIENT.unsubscribe(METAKG_UPDATE_CHANNEL, self.pull_metakg)
+            await REDIS_CLIENT.unsubscribe(OP_TABLE_UPDATE_CHANNEL, self.pull_op_table)
         except Exception:
-            logger.exception("Exception occurred stopping MetaKG task.")
+            logger.exception("Exception occurred stopping OpTable task.")
 
     async def find_operations(
         self, edge: QEdgeDict, qgraph: QueryGraphDict, tiers: set[TierNumber]
@@ -184,24 +223,37 @@ class MetaKGManager:
         )
         predicates = expand(set(edge.get("predicates") or ["biolink:related_to"]))
 
+        op_table = await self.get_op_table()
+
+        predicate_tables = [
+            op_table.operations_sorted[BiolinkEntity(sbj_cat)]
+            for sbj_cat in input_categories
+            if BiolinkEntity(sbj_cat) in op_table.operations_sorted
+        ]
+        object_tables: list[dict[BiolinkEntity, list[Operation]]] = []
+        for predicate in predicates:
+            object_tables.extend(
+                table[BiolinkPredicate(predicate)]
+                for table in predicate_tables
+                if BiolinkPredicate(predicate) in table
+            )
         operations = list[Operation]()
-
-        metakg = await self.get_metakg()
-
-        for operation in metakg.operations:
-            if (
-                operation.tier in tiers
-                and operation.subject in input_categories
-                and operation.predicate in predicates
-                and operation.object in output_categories
-                and meta_qualifier_meets_constraints(
-                    operation.qualifiers, edge.get("qualifier_constraints", [])
-                )
-            ):
-                operations.append(operation)
+        for obj_cat in output_categories:
+            for table in object_tables:
+                if op_list := table.get(BiolinkEntity(obj_cat)):
+                    # TODO: filtering by attribute constraints?
+                    operations.extend(
+                        op
+                        for op in op_list
+                        if op.tier in tiers
+                        and meta_qualifier_meets_constraints(
+                            op.qualifiers, edge.get("qualifier_constraints", [])
+                        )
+                    )
 
         return operations
 
+    @tracer.start_as_current_span("operation_plan")
     async def create_operation_plan(
         self, qgraph: QueryGraphDict, tiers: set[TierNumber]
     ) -> OperationPlan | list[QEdgeID]:
@@ -239,7 +291,7 @@ async def build_edges(
     edge_qualifiers = dict[str, dict[str, set[str]]]()
     edge_attributes = dict[str, dict[int, MetaAttributeDict]]()
     mentioned_nodes = set[BiolinkEntity]()
-    for op in op_table.operations:
+    for op in op_table.operations_flat.values():
         if op.tier not in tiers:
             continue
 
@@ -252,7 +304,9 @@ async def build_edges(
             qualifiers = edge_qualifiers[spo]
             attributes = edge_attributes[spo]
         else:
-            meta_edge = MetaEdgeDict(subject=sbj, predicate=pred, object=obj)
+            meta_edge = MetaEdgeDict(
+                subject=sbj, predicate=pred, object=obj, knowledge_types=["lookup"]
+            )
             qualifiers = dict[str, set[str]]()
             attributes = dict[int, MetaAttributeDict]()
 
@@ -283,7 +337,7 @@ async def get_trapi_metakg(tiers: tuple[TierNumber, ...]) -> MetaKnowledgeGraphD
     Because it depends on METAKG_MANAGER, it can't be used with the lead manager.
     This shouldn't be a problem because the lead manager isn't used to answer API calls.
     """
-    op_table = await METAKG_MANAGER.get_metakg()
+    op_table = await METAKG_MANAGER.get_op_table()
     edges, edge_qualifiers, edge_attributes, mentioned_nodes = await build_edges(
         op_table, tiers
     )
