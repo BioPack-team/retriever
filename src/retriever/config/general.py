@@ -223,7 +223,7 @@ class Tier1Settings(BaseModel):
     """Settings concern Tier 1 abstraction layers."""
 
     backend: str = "elasticsearch"
-    metakg_url: str = "https://stars.renci.org/var/translator/releases/translator_kg/latest/graph-metadata.json"
+    metadata_url: str = "https://stars.renci.org/var/translator/releases/translator_kg/latest/graph-metadata.json"
     backend_infores: str = "infores:dogpark-tier1"
     elasticsearch: ElasticSearchSettings = ElasticSearchSettings()
 
@@ -294,7 +294,6 @@ class Tier0Settings(BaseModel):
     """Settings concern Tier 0 abstraction layers."""
 
     backend: str = "dgraph"
-    metakg_url: str = "https://stars.renci.org/var/translator/releases/translator_kg/latest/graph-metadata.json"
     backend_infores: str = "infores:dogpark-tier0"
     neo4j: Neo4jSettings = Neo4jSettings()
     dgraph: DgraphSettings = DgraphSettings()

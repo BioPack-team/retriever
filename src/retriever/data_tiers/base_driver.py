@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
+from retriever.types.metakg import Operation, OperationNode
+from retriever.types.trapi import BiolinkEntity
 from retriever.utils.general import Singleton
 
 
@@ -35,3 +37,13 @@ class DatabaseDriver(ABC, metaclass=Singleton):
 
         This method should be called in server.py lifespan.
         """
+
+    @abstractmethod
+    async def get_metadata(self) -> dict[str, Any] | None:
+        """Return metadata that can be used to obtain operations."""
+
+    @abstractmethod
+    async def get_operations(
+        self,
+    ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
+        """Return Operations and Nodes exposed by this driver."""

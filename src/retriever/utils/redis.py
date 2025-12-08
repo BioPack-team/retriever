@@ -2,7 +2,6 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
-import ormsgpack
 import redis.asyncio as redis
 import zstandard
 from loguru import logger
@@ -12,7 +11,6 @@ from redis.backoff import ExponentialBackoff
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 from retriever.config.general import CONFIG
-from retriever.types.metakg import Operation, OperationNode, OperationTable
 
 # Required to avoid CROSSSLOT errors: https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/#hash-tags
 # Technically not needed as cluster is not supported, but worth keeping in case we need to re-add cluster support
@@ -66,36 +64,6 @@ class RedisClient:
         for task in self.tasks:
             task.cancel()
         await self.client.aclose()
-
-    async def update_metakg(self, metakg: OperationTable) -> None:
-        """Update the stored MetaKG."""
-        metakg_json = ZSTD_COMPRESSOR.compress(
-            ormsgpack.packb(
-                {
-                    "operations": [op._asdict() for op in metakg.operations],
-                    "nodes": {
-                        cat: node._asdict() for cat, node in metakg.nodes.items()
-                    },
-                }
-            )
-        )
-
-        await self.client.set(METAKG_KEY, metakg_json)
-
-        await self.publish(METAKG_UPDATE_CHANNEL, 1)
-
-    async def get_metakg(self) -> OperationTable | None:
-        """Retrieve the stored MetaKG."""
-        stored = await self.client.get(METAKG_KEY)
-        if stored is None:
-            return None
-        metakg_json = ormsgpack.unpackb(ZSTD_DECOMPRESSOR.decompress(stored))
-        return OperationTable(
-            operations=[Operation(**op) for op in metakg_json["operations"]],
-            nodes={
-                spo: OperationNode(**node) for spo, node in metakg_json["nodes"].items()
-            },
-        )
 
     async def publish(self, channel: str, message: Any) -> None:
         """Publish a message to a given channel."""

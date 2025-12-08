@@ -2,6 +2,7 @@ import asyncio
 from typing import Any, cast, override
 
 import orjson
+import ormsgpack
 from elasticsearch import AsyncElasticsearch
 from elasticsearch import exceptions as es_exceptions
 from loguru import logger as log
@@ -14,6 +15,13 @@ from retriever.data_tiers.tier_1.elasticsearch.aggregating_querier import (
     run_single_query,
 )
 from retriever.data_tiers.tier_1.elasticsearch.types import ESHit, ESPayload
+from retriever.data_tiers.utils import parse_dingo_metadata
+from retriever.types.dingo import DINGO_ADAPTER, DINGOMetadata
+from retriever.types.metakg import Operation, OperationNode
+from retriever.types.trapi import BiolinkEntity, Infores
+from retriever.utils.calls import get_metadata_client
+from retriever.utils.redis import REDIS_CLIENT
+from retriever.utils.trapi import hash_hex
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 
@@ -170,3 +178,54 @@ class ElasticSearchDriver(DatabaseDriver):
             otel_span.add_event("elasticsearch_query_end")
 
         return query_result
+
+    async def _pull_metadata(self, url: str) -> None:
+        """Update metadata for a given DINGO ingest."""
+        log.info(f"Pulling DINGO Metadata from {url}...")
+
+        client = get_metadata_client()
+        response = await client.get(url)
+        response.raise_for_status()
+
+        raw_data = response.json()
+        metadata = DINGO_ADAPTER.validate_python(raw_data)
+
+        await REDIS_CLIENT.set(
+            hash_hex(hash(url)),
+            ormsgpack.packb(metadata),
+            compress=True,
+            ttl=CONFIG.job.metakg.build_time,
+        )
+        log.success("DINGO Metadata retrieved!")
+
+    async def _get_metadata(self, url: str, retries: int = 0) -> dict[str, Any] | None:
+        """Obtain metadata for a given DINGO ingest."""
+        metadata_pack = await REDIS_CLIENT.get(hash_hex(hash(url)), compressed=True)
+
+        if metadata_pack is None:
+            await self._pull_metadata(url)
+            if retries >= 3:  # noqa: PLR2004
+                return None
+            return await self._get_metadata(url, retries + 1)
+
+        # Don't validate because if we've gotten it at this stage, it's already been validated
+        metadata = ormsgpack.unpackb(metadata_pack)
+        return metadata
+
+    @override
+    async def get_metadata(self) -> dict[str, Any] | None:
+        return await self._get_metadata(CONFIG.tier1.metadata_url)
+
+    @override
+    async def get_operations(
+        self,
+    ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
+        metadata = await self.get_metadata()
+        if metadata is None:
+            raise ValueError(
+                "Unable to obtain metadata from backend, cannot parse operations."
+            )
+        infores = Infores(CONFIG.tier1.backend_infores)
+        operations, nodes = parse_dingo_metadata(DINGOMetadata(**metadata), 1, infores)
+        log.success(f"Parsed {infores} as a Tier 1 resource.")
+        return operations, nodes
