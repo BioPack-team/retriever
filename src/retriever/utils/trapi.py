@@ -26,6 +26,7 @@ from retriever.types.trapi import (
     QualifierTypeID,
     ResultDict,
     RetrievalSourceDict,
+    SetInterpretationEnum,
 )
 from retriever.utils import biolink
 from retriever.utils.logs import TRAPILogger
@@ -369,3 +370,124 @@ def meta_qualifier_meets_constraints(
         if qualifiers_met:
             return True
     return False
+
+
+def evaluate_set_interpretation(
+    qgraph: QueryGraph,
+    results: list[ResultDict],
+    kgraph: KnowledgeGraphDict,
+    aux_graphs: AuxiliaryGraphDict,
+    job_log: TRAPILogger,
+) -> list[ResultDict]:
+    """Handles set interpretation logic from the TRAPI specification.
+
+    We have three cases we have to handle based off the specification:
+
+    1. BATCH
+    This is the default case if not specified. We perform no pruning on
+    the results graph
+
+    2. ALL
+    This case forces the set logic to ensure that every CURIE within the
+    specified identifiers exists as a set in the results. We therefore have
+    to enforce this in the results to prune any results that don't contain
+    every instance within the results
+
+    3. MANY
+    This cases requires that the member CURIEs form one or more sets in the
+    results graph. Sets with more members are higher rated than those sets
+    with fewer members
+
+    If multple values are found for `set_interpretation` across multiple
+    qgraph.nodes, then we default to `set_interpretation` : BATCH to avoid
+    potentially undesired pruning
+    """
+    default_set_interpretation_setting = "BATCH"
+    set_interpretation_setting = {
+        node.get("set_interpretation", default_set_interpretation_setting)
+        for node in qgraph.message.query_graph.nodes.dict().values()
+    }
+    if len(set_interpretation_setting) > 1:
+        job_log.warning(
+            f"Multiple values specified for `set_interpretation`: [{set_interpretation_setting}]. "
+            f"Default to using {default_set_interpretation_setting}"
+        )
+        set_interpretation_setting = default_set_interpretation_setting
+    else:
+        set_interpretation_setting = set_interpretation_setting.pop()
+        job_log.debug(f"Discovered `set_interpretation`: {set_interpretation_setting}")
+
+    match set_interpretation_setting:
+        case SetInterpretationEnum.ALL:
+            results = _evaluate_set_interpretation_all(qgraph, results)
+        case SetInterpretationEnum.MANY:
+            results = _evaluate_set_interpretation_many(qgraph, results)
+        case SetInterpretationEnum.BATCH:
+            job_log.debug(
+                f"Set Interpretation: {set_interpretation_setting}. No additional operation required."
+            )
+    return results
+
+
+def _evaluate_set_interpretation_all(
+    qgraph: QueryGraph, results: list[ResultDict], job_log: TRAPILogger
+) -> list[ResultDict]:
+    """Handles the results graph pruning for `set_interpretation` : ALL.
+
+    In this case the qgraph.nodes.ids value should be a normalization hash
+    provided by NodeNorm, and qgraph.nodes.member_ids should provide the
+    CURIE identifiers we're interested in. We first check for the existence
+    of the `member_ids` field across all nodes in the qgraph. If this isn't
+    provided we provided a warning and perform no results pruning
+
+    Then we ensure that it's consistent across all qgraph.nodes. If the
+    `member_ids` isn't consistent, we cannot be sure what we want the defining
+    set to be for pruning, so this emits a warning and skips no results pruning
+
+    Otherwise, if both of the above checks pass, we extract the identifiers
+    from each node via the `node_bindings` field and check if that node's
+    identifiers form a subset with the `member_ids` set. If it doesn't it gets
+    added to the prune list and we prune the results after processing every
+    node in the results graph
+    """
+    all_member_identifiers = None
+    try:
+        all_member_identifiers = [
+            node["member_ids"] for node in qgraph.message.query_graph.nodes.dict().values()
+        ]
+    except KeyError:
+        job_log.warning(
+            "Unable to process set_interpretation ALL. `member_ids` isn't provided "
+            "across all nodes within the query graph. Skipping results pruning ..."
+        )
+
+    if all_member_identifiers is not None and len(all_member_identifiers) > 0:
+        consistent_member_identifiers = all(
+            all_member_identifiers[0] == mid for mid in all_member_identifiers
+        )
+        if consistent_member_identifiers:
+            member_identifiers = set(all_member_identifiers[0])
+            prune_index = []
+            for result in results:
+                result_identifiers = set()
+                for node in result["node_bindings"].values():
+                    result_identifiers.update({nprop["id"] for nprop in node})
+
+                if result_identifiers.issubset(member_identifiers):
+                    prune_index.append(True)
+                else:
+                    prune_index.append(False)
+            results = list(itertools.compress(results, prune_index))
+        else:
+            job_log.warning(
+                "Unable to process set_interpretation ALL. `member_ids` isn't consistent "
+                "across all nodes within the query graph. Skipping results pruning ..."
+            )
+    return results
+
+
+def _evaluate_set_interpretation_many(
+    qgraph: QueryGraph, results: list[ResultDict]
+) -> None:
+    """Handles the results graph pruning for `set_interpretation` : MANY."""
+    pass
