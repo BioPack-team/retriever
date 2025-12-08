@@ -417,7 +417,7 @@ def evaluate_set_interpretation(
     default_set_interpretation_setting = "BATCH"
     set_interpretation_setting = {
         node.get("set_interpretation", default_set_interpretation_setting)
-        for node in qgraph.message.query_graph.nodes.dict().values()
+        for node in qgraph.message.query_graph.nodes.model_dump().values()
     }
     if len(set_interpretation_setting) > 1:
         job_log.warning(
@@ -431,9 +431,9 @@ def evaluate_set_interpretation(
 
     match set_interpretation_setting:
         case SetInterpretationEnum.ALL:
-            results = _evaluate_set_interpretation_all(qgraph, results)
+            results = _evaluate_set_interpretation_all(qgraph, results, job_log)
         case SetInterpretationEnum.MANY:
-            results = _evaluate_set_interpretation_many(qgraph, results)
+            results = _evaluate_set_interpretation_many(qgraph, results, job_log)
         case SetInterpretationEnum.BATCH:
             job_log.debug(
                 f"Set Interpretation: {set_interpretation_setting}. No additional operation required."
@@ -465,7 +465,7 @@ def _evaluate_set_interpretation_all(
     all_member_identifiers = None
     try:
         all_member_identifiers = [
-            node["member_ids"] for node in qgraph.message.query_graph.nodes.dict().values()
+            node["member_ids"] for node in qgraph.message.query_graph.nodes.model_dump().values()
         ]
     except KeyError:
         job_log.warning(
