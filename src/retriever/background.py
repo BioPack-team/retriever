@@ -9,6 +9,7 @@ from loguru import logger
 from uvicorn.supervisors.multiprocess import SIGNALS
 
 from retriever.config.logger import configure_logging
+from retriever.data_tiers import tier_manager
 from retriever.metakg.metakg import MetaKGManager
 from retriever.utils.logs import add_mongo_sink
 from retriever.utils.mongo import MONGO_CLIENT, MONGO_QUEUE
@@ -26,6 +27,7 @@ async def _background_async() -> None:
     await MONGO_QUEUE.start_process_task()
     add_mongo_sink()
     await REDIS_CLIENT.initialize()
+    await tier_manager.connect_drivers()
     metakg_manager = MetaKGManager(leader=True)
     await metakg_manager.initialize()
 

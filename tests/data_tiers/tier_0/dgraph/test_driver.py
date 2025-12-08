@@ -250,7 +250,7 @@ async def test_get_schema_metadata_mapping_success_grpc_live():
     await driver.connect()
 
     # Should return the mapping from the live Dgraph instance
-    mapping = await driver.get_schema_metadata_mapping()
+    mapping = await driver.get_metadata()
     assert mapping is not None, "Mapping should not be None"
 
     # Verify top-level schema metadata structure
@@ -284,7 +284,7 @@ async def test_get_schema_metadata_mapping_success_http_live():
     await driver.connect()
 
     # Should return the mapping from the live Dgraph instance
-    mapping = await driver.get_schema_metadata_mapping()
+    mapping = await driver.get_metadata()
     assert mapping is not None, "Mapping should not be None"
 
     # Verify top-level schema metadata structure
@@ -377,7 +377,7 @@ async def test_get_schema_metadata_mapping_caching(
             await driver.connect()
 
             # First call - should query DB
-            mapping1 = await driver.get_schema_metadata_mapping()
+            mapping1 = await driver.get_metadata()
             assert mapping1 is not None
             assert mapping1["name"] == "test_kg"
             assert mapping1["version"] == "vTest"
@@ -389,7 +389,7 @@ async def test_get_schema_metadata_mapping_caching(
                 call_count_1 = mock_class.return_value.post.call_count
 
             # Second call - should use cache (same version)
-            mapping2 = await driver.get_schema_metadata_mapping()
+            mapping2 = await driver.get_metadata()
             assert mapping2 is not None
             assert mapping2["name"] == "test_kg"
 
@@ -408,7 +408,7 @@ async def test_get_schema_metadata_mapping_caching(
             # Clear cache and fetch again
             driver.clear_mapping_cache()
 
-            mapping3 = await driver.get_schema_metadata_mapping()
+            mapping3 = await driver.get_metadata()
             assert mapping3 is not None
             assert mapping3["name"] == "test_kg"
 

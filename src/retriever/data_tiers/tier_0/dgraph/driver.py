@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 from enum import Enum
 from http import HTTPStatus
@@ -17,6 +18,10 @@ from opentelemetry import trace
 from retriever.config.general import CONFIG, DgraphSettings
 from retriever.data_tiers.base_driver import DatabaseDriver
 from retriever.data_tiers.tier_0.dgraph import result_models as dg_models
+from retriever.data_tiers.utils import parse_dingo_metadata
+from retriever.types.dingo import DINGOMetadata
+from retriever.types.metakg import Operation, OperationNode
+from retriever.types.trapi import BiolinkEntity, Infores
 
 
 class DgraphProtocol(str, Enum):
@@ -290,7 +295,6 @@ class DgraphDriver(DatabaseDriver):
             mapping_bytes: bytes
             if isinstance(mapping_blob, str):
                 # If it's a string, it might be base64-encoded
-                import base64
 
                 try:
                     mapping_bytes = base64.b64decode(mapping_blob)
@@ -316,7 +320,8 @@ class DgraphDriver(DatabaseDriver):
             if self.protocol == DgraphProtocol.GRPC and txn:
                 await asyncio.to_thread(txn.discard)
 
-    async def get_schema_metadata_mapping(self) -> dict[str, Any] | None:
+    @override
+    async def get_metadata(self) -> dict[str, Any] | None:
         """Queries Dgraph for the active schema's metadata mapping.
 
         The mapping is stored as a msgpack-serialized JSON blob in the
@@ -355,6 +360,20 @@ class DgraphDriver(DatabaseDriver):
         # Cache the result (whether successful or None)
         self._mapping_cache[cache_key] = mapping
         return mapping
+
+    @override
+    async def get_operations(
+        self,
+    ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
+        metadata = await self.get_metadata()
+        if metadata is None:
+            raise ValueError(
+                "Unable to obtain metadata from backend, cannot parse operations."
+            )
+        infores = Infores(CONFIG.tier0.backend_infores)
+        operations, nodes = parse_dingo_metadata(DINGOMetadata(**metadata), 0, infores)
+        log.success(f"Parsed {infores} as a Tier 0 resource.")
+        return operations, nodes
 
     @override
     async def connect(self, retries: int = 0) -> None:
