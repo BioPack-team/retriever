@@ -694,26 +694,24 @@ class DgraphTranspiler(Tier0Transpiler):
     ) -> str:
         """Build a @cascade(...) clause for a node block.
 
-        Always require id, and require reverse predicates (~subject, ~object)
-        only if there are corresponding traversals from this node to not-yet-visited nodes.
+        Always require id. Require edge aliases (out_edges_*, in_edges_*)
+        if there are corresponding traversals from this node to not-yet-visited nodes.
         """
         cascade_fields: list[str] = [self._v("id")]
 
         # If this node has any outgoing edges (node as subject) to unvisited objects,
-        # require ~subject in cascade to ensure at least one such edge exists.
-        if any(
-            e["subject"] == node_id and e["object"] not in visited
-            for e in edges.values()
-        ):
-            cascade_fields.append(f"~{self._v('subject')}")
+        # include their alias names so the block cascades only when such edges exist.
+        for eid, e in edges.items():
+            if e["subject"] == node_id and e["object"] not in visited:
+                normalized_eid = self._get_normalized_edge_id(eid)
+                cascade_fields.append(f"out_edges_{normalized_eid}")
 
         # If this node has any incoming edges (node as object) to unvisited subjects,
-        # require ~object in cascade to ensure at least one such edge exists.
-        if any(
-            e["object"] == node_id and e["subject"] not in visited
-            for e in edges.values()
-        ):
-            cascade_fields.append(f"~{self._v('object')}")
+        # include their alias names similarly.
+        for eid, e in edges.items():
+            if e["object"] == node_id and e["subject"] not in visited:
+                normalized_eid = self._get_normalized_edge_id(eid)
+                cascade_fields.append(f"in_edges_{normalized_eid}")
 
         # Always emit a cascade; at minimum it will include the id
         return f" @cascade({', '.join(cascade_fields)})"
