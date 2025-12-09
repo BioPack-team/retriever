@@ -1362,20 +1362,31 @@ BATCH_CASES: list[BatchCase] = [
 def transpiler() -> _TestDgraphTranspiler:
     return _TestDgraphTranspiler()
 
+@pytest.fixture
+def transpiler_no_subclassing() -> _TestDgraphTranspiler:
+    return _TestDgraphTranspiler(subclassing_enabled=False)
+
+@pytest.fixture
+def transpiler_with_subclassing() -> _TestDgraphTranspiler:
+    return _TestDgraphTranspiler(subclassing_enabled=True)
+
+@pytest.fixture
+def transpiler_no_subclassing_versioned() -> _TestDgraphTranspiler:
+    return _TestDgraphTranspiler(version="v1", subclassing_enabled=False)
+
 @pytest.mark.parametrize("case", CASES, ids=[c.name for c in CASES])
-def test_convert_multihop_pairs(transpiler: _TestDgraphTranspiler, case: QueryCase) -> None:
-    actual = transpiler.convert_multihop_public(case.qgraph)
+def test_convert_multihop_pairs(transpiler_no_subclassing: _TestDgraphTranspiler, case: QueryCase) -> None:
+    actual = transpiler_no_subclassing.convert_multihop_public(case.qgraph)
     assert_query_equals(actual, case.expected)
 
 @pytest.mark.parametrize("case", CASES_VERSIONED, ids=[c.name for c in CASES_VERSIONED])
-def test_convert_multihop_pairs_with_version(transpiler: _TestDgraphTranspiler, case: QueryCase) -> None:
-    transpiler = _TestDgraphTranspiler(version="v1")
-    actual = transpiler.convert_multihop_public(case.qgraph)
+def test_convert_multihop_pairs_with_version(transpiler_no_subclassing_versioned: _TestDgraphTranspiler, case: QueryCase) -> None:
+    actual = transpiler_no_subclassing_versioned.convert_multihop_public(case.qgraph)
     assert_query_equals(actual, case.expected)
 
 @pytest.mark.parametrize("case", BATCH_CASES, ids=[c.name for c in BATCH_CASES])
-def test_convert_batch_multihop_pairs(transpiler: _TestDgraphTranspiler, case: BatchCase) -> None:
-    actual = transpiler.convert_batch_multihop_public(case.qgraphs)
+def test_convert_batch_multihop_pairs(transpiler_no_subclassing: _TestDgraphTranspiler, case: BatchCase) -> None:
+    actual = transpiler_no_subclassing.convert_batch_multihop_public(case.qgraphs)
     assert_query_equals(actual, case.expected)
 
 
@@ -1415,7 +1426,7 @@ DGRAPH_RESULT_WITH_SOURCES = {
 }
 
 
-def test_convert_results_with_full_source_info(transpiler: _TestDgraphTranspiler) -> None:
+def test_convert_results_with_full_source_info(transpiler_no_subclassing: _TestDgraphTranspiler) -> None:
     """
     Test that convert_results correctly populates all source fields,
     including upstream_resource_ids and source_record_urls.
@@ -1435,7 +1446,7 @@ def test_convert_results_with_full_source_info(transpiler: _TestDgraphTranspiler
     parsed_nodes = dg.DgraphResponse.parse(DGRAPH_RESULT_WITH_SOURCES, prefix="q0").data["q0"]
 
     # 3. Run the conversion
-    backend_result = transpiler.convert_results(qgraph, parsed_nodes)
+    backend_result = transpiler_no_subclassing.convert_results(qgraph, parsed_nodes)
 
     # 4. Assertions
     assert len(backend_result["knowledge_graph"]["edges"]) == 1
@@ -1461,8 +1472,9 @@ def test_convert_results_with_full_source_info(transpiler: _TestDgraphTranspiler
 # Symmetric predicate tests
 # -----------------------
 
-def test_symmetric_predicate_generates_bidirectional_queries(transpiler: _TestDgraphTranspiler) -> None:
+def test_symmetric_predicate_generates_bidirectional_queries(transpiler_no_subclassing: _TestDgraphTranspiler) -> None:
     """Test that symmetric predicates generate queries checking both directions."""
+
     # 1. Arrange
     qgraph = qg({
         "nodes": {
@@ -1479,7 +1491,7 @@ def test_symmetric_predicate_generates_bidirectional_queries(transpiler: _TestDg
     })
 
     # 2. Act
-    actual = transpiler.convert_multihop_public(qgraph)
+    actual = transpiler_no_subclassing.convert_multihop_public(qgraph)
     expected = dedent("""
     {
         q0_node_n0(func: eq(id, "MONDO:0005148")) @cascade(id, out_edges_e0) {
@@ -1550,8 +1562,9 @@ def test_symmetric_predicate_incoming_edge(transpiler: _TestDgraphTranspiler) ->
     assert "out_edges-symmetric_e0:" in actual
 
 
-def test_symmetric_predicate_multi_hop(transpiler: _TestDgraphTranspiler) -> None:
+def test_symmetric_predicate_multi_hop(transpiler_no_subclassing: _TestDgraphTranspiler) -> None:
     """Test symmetric predicates in a multi-hop query."""
+
     # 1. Arrange
     qgraph = qg({
         "nodes": {
@@ -1574,7 +1587,7 @@ def test_symmetric_predicate_multi_hop(transpiler: _TestDgraphTranspiler) -> Non
     })
 
     # 2. Act
-    actual = transpiler.convert_multihop_public(qgraph)
+    actual = transpiler_no_subclassing.convert_multihop_public(qgraph)
     expected = dedent("""
     {
         q0_node_n0(func: eq(id, "MONDO:0005148")) @cascade(id, out_edges_e0) {
@@ -1617,8 +1630,9 @@ def test_symmetric_predicate_multi_hop(transpiler: _TestDgraphTranspiler) -> Non
     assert "in_edges_e1:" not in actual
 
 
-def test_multiple_symmetric_predicates_on_edge(transpiler: _TestDgraphTranspiler) -> None:
+def test_multiple_symmetric_predicates_on_edge(transpiler_no_subclassing: _TestDgraphTranspiler) -> None:
     """Test edge with multiple predicates where all are symmetric."""
+
     # 1. Arrange
     qgraph = qg({
         "nodes": {
@@ -1638,7 +1652,7 @@ def test_multiple_symmetric_predicates_on_edge(transpiler: _TestDgraphTranspiler
     })
 
     # 2. Act
-    actual = transpiler.convert_multihop_public(qgraph)
+    actual = transpiler_no_subclassing.convert_multihop_public(qgraph)
     expected = dedent("""
     {
         q0_node_n0(func: eq(id, "MONDO:0005148")) @cascade(id, out_edges_e0) {
@@ -1666,8 +1680,9 @@ def test_multiple_symmetric_predicates_on_edge(transpiler: _TestDgraphTranspiler
     assert "in_edges-symmetric_e0:" in actual
 
 
-def test_mixed_predicates_treats_as_symmetric(transpiler: _TestDgraphTranspiler) -> None:
+def test_mixed_predicates_treats_as_symmetric(transpiler_no_subclassing: _TestDgraphTranspiler) -> None:
     """Test edge with mixed symmetric and non-symmetric predicates."""
+
     # 1. Arrange
     qgraph = qg({
         "nodes": {
@@ -1687,7 +1702,7 @@ def test_mixed_predicates_treats_as_symmetric(transpiler: _TestDgraphTranspiler)
     })
 
     # 2. Act
-    actual = transpiler.convert_multihop_public(qgraph)
+    actual = transpiler_no_subclassing.convert_multihop_public(qgraph)
     expected = dedent("""
     {
         q0_node_n0(func: eq(id, "MONDO:0005148")) @cascade(id, out_edges_e0) {
@@ -1719,8 +1734,9 @@ def test_mixed_predicates_treats_as_symmetric(transpiler: _TestDgraphTranspiler)
 # Normalization tests
 # -----------------------
 
-def test_normalization_with_underscores_in_ids(transpiler: _TestDgraphTranspiler) -> None:
+def test_normalization_with_underscores_in_ids(transpiler_no_subclassing: _TestDgraphTranspiler) -> None:
     """Test that node and edge IDs with underscores are normalized to prevent injection."""
+
     # 1. Arrange - Query with underscores in IDs
     qgraph = qg({
         "nodes": {
@@ -1737,7 +1753,7 @@ def test_normalization_with_underscores_in_ids(transpiler: _TestDgraphTranspiler
     })
 
     # 2. Act
-    actual = transpiler.convert_multihop_public(qgraph)
+    actual = transpiler_no_subclassing.convert_multihop_public(qgraph)
 
     # 3. Expected - Should use normalized IDs (n0, n1, e0) not original ones
     expected = dedent("""
@@ -1768,8 +1784,9 @@ def test_normalization_with_underscores_in_ids(transpiler: _TestDgraphTranspiler
     assert "out_edges_e0_test:" not in actual, "Original edge ID should not appear in query"
 
 
-def test_normalization_with_special_characters(transpiler: _TestDgraphTranspiler) -> None:
+def test_normalization_with_special_characters(transpiler_no_subclassing: _TestDgraphTranspiler) -> None:
     """Test that IDs with special characters are normalized to safe identifiers."""
+
     # 1. Arrange - Query with special characters that could cause injection
     qgraph = qg({
         "nodes": {
@@ -1786,7 +1803,7 @@ def test_normalization_with_special_characters(transpiler: _TestDgraphTranspiler
     })
 
     # 2. Act
-    actual = transpiler.convert_multihop_public(qgraph)
+    actual = transpiler_no_subclassing.convert_multihop_public(qgraph)
 
     # 3. Expected - Should use normalized IDs
     expected = dedent("""
@@ -1817,8 +1834,9 @@ def test_normalization_with_special_characters(transpiler: _TestDgraphTranspiler
     assert "e0@special" not in actual
 
 
-def test_normalization_alphabetical_ordering(transpiler: _TestDgraphTranspiler) -> None:
+def test_normalization_alphabetical_ordering(transpiler_no_subclassing: _TestDgraphTranspiler) -> None:
     """Test that normalization uses alphabetical ordering for consistent ID assignment."""
+
     # 1. Arrange - Query with non-sequential node/edge names
     qgraph = qg({
         "nodes": {
@@ -1841,7 +1859,7 @@ def test_normalization_alphabetical_ordering(transpiler: _TestDgraphTranspiler) 
     })
 
     # 2. Act
-    actual = transpiler.convert_multihop_public(qgraph)
+    actual = transpiler_no_subclassing.convert_multihop_public(qgraph)
 
     # 3. Assert - Check alphabetical assignment
     # Nodes: a_first -> n0, m_middle -> n1, z_last -> n2 (alphabetical)
@@ -1857,8 +1875,9 @@ def test_normalization_alphabetical_ordering(transpiler: _TestDgraphTranspiler) 
     assert "_e1:" in actual, "e_zulu should map to e1"
 
 
-def test_normalization_batch_queries_independent(transpiler: _TestDgraphTranspiler) -> None:
+def test_normalization_batch_queries_independent(transpiler_no_subclassing: _TestDgraphTranspiler) -> None:
     """Test that each query in a batch gets independent normalization."""
+
     # 1. Arrange - Batch with different edge/node names
     qgraphs = [
         qg({
@@ -1890,7 +1909,7 @@ def test_normalization_batch_queries_independent(transpiler: _TestDgraphTranspil
     ]
 
     # 2. Act
-    actual = transpiler.convert_batch_multihop_public(qgraphs)
+    actual = transpiler_no_subclassing.convert_batch_multihop_public(qgraphs)
 
     # 3. Assert - Both queries should use normalized IDs independently
     # Query 0 should have q0_node_n0 or q0_node_n1
@@ -1910,8 +1929,9 @@ def test_normalization_batch_queries_independent(transpiler: _TestDgraphTranspil
     assert "different_e0" not in actual
 
 
-def test_normalization_symmetric_predicate(transpiler: _TestDgraphTranspiler) -> None:
+def test_normalization_symmetric_predicate(transpiler_no_subclassing: _TestDgraphTranspiler) -> None:
     """Test that normalization works correctly with symmetric predicates."""
+
     # 1. Arrange
     qgraph = qg({
         "nodes": {
@@ -1928,7 +1948,7 @@ def test_normalization_symmetric_predicate(transpiler: _TestDgraphTranspiler) ->
     })
 
     # 2. Act
-    actual = transpiler.convert_multihop_public(qgraph)
+    actual = transpiler_no_subclassing.convert_multihop_public(qgraph)
 
     # 3. Expected - Should use normalized IDs with symmetric edges
     expected = dedent("""
@@ -1966,8 +1986,9 @@ def test_normalization_symmetric_predicate(transpiler: _TestDgraphTranspiler) ->
     assert "node_beta" not in actual
 
 
-def test_normalization_multihop_query(transpiler: _TestDgraphTranspiler) -> None:
+def test_normalization_multihop_query(transpiler_no_subclassing: _TestDgraphTranspiler) -> None:
     """Test normalization in a multi-hop query with various ID formats."""
+
     # 1. Arrange
     qgraph = qg({
         "nodes": {
@@ -1990,7 +2011,7 @@ def test_normalization_multihop_query(transpiler: _TestDgraphTranspiler) -> None
     })
 
     # 2. Act
-    actual = transpiler.convert_multihop_public(qgraph)
+    actual = transpiler_no_subclassing.convert_multihop_public(qgraph)
 
     # 3. Assert - Should use n0, n1, n2 and e0, e1 (alphabetically sorted)
     # Nodes: end_node->n0, middle_node->n1, start_node->n2
@@ -2014,9 +2035,9 @@ def test_normalization_multihop_query(transpiler: _TestDgraphTranspiler) -> None
 # Subclassing tests
 # -----------------------
 
-def test_subclassing_case1_id_to_id_generates_b_c_d_forms() -> None:
+def test_subclassing_case1_id_to_id_generates_b_c_d_forms(transpiler_with_subclassing: _TestDgraphTranspiler) -> None:
     """Case 1: ID → R → ID yields subclass forms B, C, and D."""
-    transpiler = _TestDgraphTranspiler()
+
     qgraph = qg({
         "nodes": {
             "n0": {"ids": ["A"], "constraints": []},
@@ -2033,7 +2054,7 @@ def test_subclassing_case1_id_to_id_generates_b_c_d_forms() -> None:
         },
     })
 
-    actual = transpiler.convert_multihop_public(qgraph)
+    actual = transpiler_with_subclassing.convert_multihop_public(qgraph)
 
     # Expect primary edge plus three subclass forms
     assert "out_edges_e0:" in actual, "Primary traversal missing"
@@ -2049,9 +2070,9 @@ def test_subclassing_case1_id_to_id_generates_b_c_d_forms() -> None:
     assert "in_edges-subclassD-tail_e0: ~object @filter(eq(predicate_ancestors, \"subclass_of\"))" in actual
 
 
-def test_subclassing_case2_id_to_category_generates_b_only() -> None:
+def test_subclassing_case2_id_to_category_generates_b_only(transpiler_with_subclassing: _TestDgraphTranspiler) -> None:
     """Case 2: ID → R → CAT yields only subclass form B, and category filter is applied to final node."""
-    transpiler = _TestDgraphTranspiler()
+
     qgraph = qg({
         "nodes": {
             "n0": {"ids": ["A"], "constraints": []},  # source ID
@@ -2068,7 +2089,7 @@ def test_subclassing_case2_id_to_category_generates_b_only() -> None:
         },
     })
 
-    actual = transpiler.convert_multihop_public(qgraph)
+    actual = transpiler_with_subclassing.convert_multihop_public(qgraph)
 
     # Primary traversal present
     assert "out_edges_e0:" in actual
@@ -2081,9 +2102,9 @@ def test_subclassing_case2_id_to_category_generates_b_only() -> None:
     assert "@filter(eq(category, \"Disease\"))" in actual
 
 
-def test_subclassing_skips_when_predicate_is_subclass_of_case0a_0b() -> None:
+def test_subclassing_skips_when_predicate_is_subclass_of_case0a_0b(transpiler_with_subclassing: _TestDgraphTranspiler) -> None:
     """Case 0a/0b: If original edge is subclass_of, no subclass expansions should be emitted."""
-    transpiler = _TestDgraphTranspiler()
+
     # 0a: ID → subclass_of → ID
     qgraph_id_id = qg({
         "nodes": {
@@ -2098,7 +2119,7 @@ def test_subclassing_skips_when_predicate_is_subclass_of_case0a_0b() -> None:
             }
         },
     })
-    actual_id_id = transpiler.convert_multihop_public(qgraph_id_id)
+    actual_id_id = transpiler_with_subclassing.convert_multihop_public(qgraph_id_id)
     assert "in_edges_e0:" in actual_id_id
     assert "in_edges-subclassB_e0:" not in actual_id_id
     assert "in_edges-subclassC_e0:" not in actual_id_id
@@ -2118,16 +2139,16 @@ def test_subclassing_skips_when_predicate_is_subclass_of_case0a_0b() -> None:
             }
         },
     })
-    actual_id_cat = transpiler.convert_multihop_public(qgraph_id_cat)
+    actual_id_cat = transpiler_with_subclassing.convert_multihop_public(qgraph_id_cat)
     assert "out_edges_e0:" in actual_id_cat
     assert "in_edges-subclassB_e0:" not in actual_id_cat
     assert "in_edges-subclassC_e0:" not in actual_id_cat
     assert "in_edges-subclassD_e0:" not in actual_id_cat
 
 
-def test_subclassing_constraints_apply_only_to_predicate_edges_not_to_subclass_edges() -> None:
+def test_subclassing_constraints_apply_only_to_predicate_edges_not_to_subclass_edges(transpiler_with_subclassing: _TestDgraphTranspiler) -> None:
     """Constraints on original edge apply to predicate segments in subclass forms, not to subclass_of edges."""
-    transpiler = _TestDgraphTranspiler()
+
     qgraph = qg({
         "nodes": {"n0": {"ids": ["A"]}, "n1": {"ids": ["B"]}},
         "edges": {
@@ -2147,7 +2168,7 @@ def test_subclassing_constraints_apply_only_to_predicate_edges_not_to_subclass_e
         },
     })
 
-    actual = transpiler.convert_multihop_public(qgraph)
+    actual = transpiler_with_subclassing.convert_multihop_public(qgraph)
 
     # Subclass blocks should include subclass_of filter without attribute/qualifier constraints
     # Check that subclass_of traversals do NOT show the attribute filter
@@ -2164,20 +2185,15 @@ def test_subclassing_constraints_apply_only_to_predicate_edges_not_to_subclass_e
     assert "eq(frequency_qualifier, \"QX\")" in actual
 
 
-def test_subclassing_disabled_emits_no_subclass_blocks() -> None:
+def test_subclassing_disabled_emits_no_subclass_blocks(transpiler_no_subclassing: _TestDgraphTranspiler) -> None:
     """If subclassing is disabled via constructor flag, no subclass blocks should be emitted."""
-    transpiler = _TestDgraphTranspiler()
-    # Reconstruct with subclassing disabled
-    transpiler = _TestDgraphTranspiler()
-    transpiler = _TestDgraphTranspiler.__new__(_TestDgraphTranspiler)  # bypass __init__ to set flag manually in test
-    DgraphTranspiler.__init__(transpiler, subclassing_enabled=False)  # type: ignore
 
     qgraph = qg({
         "nodes": {"n0": {"ids": ["A"]}, "n1": {"ids": ["B"]}},
         "edges": {"e0": {"subject": "n0", "object": "n1", "predicates": ["biolink:related_to"]}}
     })
 
-    actual = transpiler.convert_multihop_public(qgraph)
+    actual = transpiler_no_subclassing.convert_multihop_public(qgraph)
 
     assert "in_edges_e0:" in actual
     assert "in_edges-subclassB_e0:" not in actual
@@ -2185,9 +2201,9 @@ def test_subclassing_disabled_emits_no_subclass_blocks() -> None:
     assert "in_edges-subclassD_e0:" not in actual
 
 
-def test_subclassing_case2_does_not_trigger_when_target_has_ids() -> None:
+def test_subclassing_case2_does_not_trigger_when_target_has_ids(transpiler_with_subclassing: _TestDgraphTranspiler) -> None:
     """Target has IDs, so this is Case 1 (ID→R→ID), not Case 2. Expect B/C/D forms only."""
-    transpiler = _TestDgraphTranspiler()
+
     qgraph = qg({
         "nodes": {
             "n0": {"ids": ["A"]},
@@ -2196,7 +2212,7 @@ def test_subclassing_case2_does_not_trigger_when_target_has_ids() -> None:
         "edges": {"e0": {"subject": "n0", "object": "n1", "predicates": ["biolink:related_to"]}}
     })
 
-    actual = transpiler.convert_multihop_public(qgraph)
+    actual = transpiler_with_subclassing.convert_multihop_public(qgraph)
 
     # Primary traversal present
     assert "out_edges_e0:" in actual
