@@ -765,7 +765,7 @@ async def test_simple_one_query_live_http() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vF_id, "NCBIGene:11276")) @cascade(vF_id, ~vF_subject) {
+        q0_node_n1(func: eq(vF_id, "NCBIGene:11276")) @cascade(vF_id, out_edges_e0) {
             expand(vF_Node)
             out_edges_e0: ~vF_subject @filter(eq(vF_predicate_ancestors, "located_in")) @cascade(vF_predicate, vF_object) {
                 expand(vF_Edge) { vF_sources expand(vF_Source) }
@@ -914,7 +914,7 @@ async def test_simple_one_query_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vF_id, "NCBIGene:11276")) @cascade(vF_id, ~vF_subject) {
+        q0_node_n1(func: eq(vF_id, "NCBIGene:11276")) @cascade(vF_id, out_edges_e0) {
             expand(vF_Node)
             out_edges_e0: ~vF_subject @filter(eq(vF_predicate_ancestors, "located_in")) @cascade(vF_predicate, vF_object) {
                 expand(vF_Edge) { vF_sources expand(vF_Source) }
@@ -996,7 +996,7 @@ async def test_simple_reverse_query_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vF_id, "NCBIGene:3778")) @cascade(vF_id, ~vF_subject) {
+        q0_node_n1(func: eq(vF_id, "NCBIGene:3778")) @cascade(vF_id, out_edges_e0) {
             expand(vF_Node)
             out_edges_e0: ~vF_subject @filter(eq(vF_predicate_ancestors, "has_phenotype")) @cascade(vF_predicate, vF_object) {
                 expand(vF_Edge) { vF_sources expand(vF_Source) }
@@ -1079,7 +1079,7 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vF_id, "NCBIGene:3778")) @cascade(vF_id, ~vF_subject) {
+        q0_node_n1(func: eq(vF_id, "NCBIGene:3778")) @cascade(vF_id, out_edges_e0) {
             expand(vF_Node)
 
             out_edges_e0: ~vF_subject
@@ -1258,7 +1258,7 @@ async def test_normalization_with_special_edge_id_live_grpc() -> None:
     # Expected query should use normalized edge ID 'e0', not 'e0_bad$%^'
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vF_id, "NCBIGene:3778")) @cascade(vF_id, ~vF_subject) {
+        q0_node_n1(func: eq(vF_id, "NCBIGene:3778")) @cascade(vF_id, out_edges_e0) {
             expand(vF_Node)
 
             out_edges_e0: ~vF_subject
