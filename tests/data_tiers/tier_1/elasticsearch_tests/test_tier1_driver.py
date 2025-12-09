@@ -6,7 +6,8 @@ import retriever.config.general as general_mod
 import retriever.data_tiers.tier_1.elasticsearch.driver as driver_mod
 from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
 from retriever.data_tiers.tier_1.elasticsearch.types import ESPayload, ESHit
-from payload.trapi_qgraphs import DINGO_QGRAPH
+from payload.trapi_qgraphs import DINGO_QGRAPH, VALID_REGEX_QGRAPHS
+from tests.data_tiers.tier_1.elasticsearch_tests.payload.trapi_qgraphs import INVALID_REGEX_QGRAPHS
 
 
 def esp(d: dict[str, Any]) -> ESPayload:
@@ -131,6 +132,42 @@ async def test_elasticsearch_driver(payload: ESPayload | list[ESPayload], expect
         assert_single_result(hits, expected)
 
     await driver.close()
+
+
+@pytest.mark.parametrize(
+    "qgraph",
+    INVALID_REGEX_QGRAPHS,
+    ids=[qgraph["edges"]["e0"]["attribute_constraints"][0]["value"] for qgraph in INVALID_REGEX_QGRAPHS]
+)
+def test_invalid_regex_qgraph(qgraph):
+    transpiler = ElasticsearchTranspiler()
+    with pytest.raises(ValueError):
+        transpiler.convert_triple(qgraph)
+
+
+@pytest.mark.usefixtures("mock_elasticsearch_config")
+@pytest.mark.asyncio
+async def test_valid_regex_query():
+    transpiler = ElasticsearchTranspiler()
+
+    qgraphs_with_valid_regex = transpiler.convert_batch_triple(VALID_REGEX_QGRAPHS)
+
+
+    driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
+
+    try:
+        await driver.connect()
+        assert driver.es_connection is not None
+    except Exception:
+        pytest.skip("skipping es driver connection test: cannot connect")
+
+    for payload in qgraphs_with_valid_regex:
+        hits: list[ESHit] = await driver.run_query(payload)
+        if hits is not None:
+            print(len(hits))
+
+
+
 
 
 
