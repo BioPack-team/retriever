@@ -87,8 +87,6 @@ def handle_match(
     }
     """
 
-    query_term = ESRegexQuery(
-        regexp={target_field_name: RegexTerm(value=regex_term, case_sensitive=True)}
-    )
+    query_term = ESRegexQuery(regexp={target_field_name: RegexTerm(value=regex_term)})
 
     return query_term
