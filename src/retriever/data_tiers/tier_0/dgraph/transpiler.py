@@ -912,7 +912,11 @@ class DgraphTranspiler(Tier0Transpiler):
         # First traverse original predicate1 to B'
         pred_edge_filter = self._build_edge_filter(ctx.edge)
         pred_filter_clause = f" @filter({pred_edge_filter})" if pred_edge_filter else ""
-        query = f"{alias}: ~{ctx.edge_direction == 'out' and self._v('subject') or self._v('object')}{pred_filter_clause} @cascade({self._v('predicate')}, {ctx.edge_direction == 'out' and self._v('object') or self._v('subject')}) {{ "
+        query = (
+            f"{alias}: ~{self._v('subject') if ctx.edge_direction == 'out' else self._v('object')}"
+            f"{pred_filter_clause} @cascade({self._v('predicate')}, "
+            f"{self._v('object') if ctx.edge_direction == 'out' else self._v('subject')}) {{ "
+        )
         query += self._add_standard_edge_fields()
 
         # Then from B', traverse subclass_of to B (reverse on object side)
