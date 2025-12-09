@@ -868,8 +868,12 @@ class DgraphTranspiler(Tier0Transpiler):
                 query += self._build_subclass_form_b(ctx, normalized_edge_id)  # A' -> predicate -> B
                 query += self._build_subclass_form_c(ctx, normalized_edge_id)  # A -> predicate -> B'
                 query += self._build_subclass_form_d(ctx, normalized_edge_id)  # A' -> predicate -> B'
-            # Case 2: ID -> predicate -> CAT
-            elif self._node_has_ids(source_node) and self._node_has_categories(target_node):
+            # Case 2: ID -> predicate -> CAT (only when target is filtered by categories, not IDs)
+            elif (
+                self._node_has_ids(source_node)
+                and self._node_has_categories(target_node)
+                and not self._node_has_ids(target_node)  # ensure target is not ID-filtered
+            ):
                 query += self._build_subclass_form_b(ctx, normalized_edge_id)
 
         return query
