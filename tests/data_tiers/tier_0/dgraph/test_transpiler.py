@@ -1940,3 +1940,200 @@ def test_normalization_multihop_query(transpiler: _TestDgraphTranspiler) -> None
     assert "end_node" not in actual
     assert "first_edge" not in actual
     assert "second_edge" not in actual
+
+
+# -----------------------
+# Subclassing tests
+# -----------------------
+
+def test_subclassing_case1_id_to_id_generates_b_c_d_forms() -> None:
+    """Case 1: ID → R → ID yields subclass forms B, C, and D."""
+    transpiler = _TestDgraphTranspiler()
+    qgraph = qg({
+        "nodes": {
+            "n0": {"ids": ["A"], "constraints": []},
+            "n1": {"ids": ["B"], "constraints": []},
+        },
+        "edges": {
+            "e0": {
+                "subject": "n0",
+                "object": "n1",
+                "predicates": ["biolink:related_to"],  # non-subclass_of
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            }
+        },
+    })
+
+    actual = transpiler.convert_multihop_public(qgraph)
+
+    # Expect primary edge plus three subclass forms
+    assert "out_edges_e0:" in actual, "Primary traversal missing"
+    assert "in_edges-subclassB_e0:" in actual, "Subclass Form B missing"
+    assert "in_edges-subclassC_e0:" in actual, "Subclass Form C missing"
+    assert "in_edges-subclassD_e0:" in actual, "Subclass Form D missing"
+
+    # Subclass edges should filter only on subclass_of predicate (no attribute/qualifier constraints)
+    # Check that subclass blocks include subclass_of filter
+    assert "in_edges-subclassB_e0: ~object @filter(eq(predicate_ancestors, \"subclass_of\"))" in actual
+    assert "in_edges-subclassC-tail_e0: ~object @filter(eq(predicate_ancestors, \"subclass_of\"))" in actual
+    assert "in_edges-subclassD_tail_e0" not in actual  # use exact names defined in transpiler
+    assert "in_edges-subclassD-tail_e0: ~object @filter(eq(predicate_ancestors, \"subclass_of\"))" in actual
+
+
+def test_subclassing_case2_id_to_category_generates_b_only() -> None:
+    """Case 2: ID → R → CAT yields only subclass form B, and category filter is applied to final node."""
+    transpiler = _TestDgraphTranspiler()
+    qgraph = qg({
+        "nodes": {
+            "n0": {"ids": ["A"], "constraints": []},  # source ID
+            "n1": {"categories": ["biolink:Disease"], "constraints": []},  # target category only
+        },
+        "edges": {
+            "e0": {
+                "subject": "n0",
+                "object": "n1",
+                "predicates": ["biolink:related_to"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            }
+        },
+    })
+
+    actual = transpiler.convert_multihop_public(qgraph)
+
+    # Primary traversal present
+    assert "out_edges_e0:" in actual
+    # Only Form B should be added
+    assert "in_edges-subclassB_e0:" in actual
+    assert "in_edges-subclassC_e0:" not in actual
+    assert "in_edges-subclassD_e0:" not in actual
+
+    # Final node should retain category filter
+    assert "@filter(eq(category, \"Disease\"))" in actual
+
+
+def test_subclassing_skips_when_predicate_is_subclass_of_case0a_0b() -> None:
+    """Case 0a/0b: If original edge is subclass_of, no subclass expansions should be emitted."""
+    transpiler = _TestDgraphTranspiler()
+    # 0a: ID → subclass_of → ID
+    qgraph_id_id = qg({
+        "nodes": {
+            "n0": {"ids": ["A"], "constraints": []},
+            "n1": {"ids": ["B"], "constraints": []},
+        },
+        "edges": {
+            "e0": {
+                "subject": "n0",
+                "object": "n1",
+                "predicates": ["biolink:subclass_of"],
+            }
+        },
+    })
+    actual_id_id = transpiler.convert_multihop_public(qgraph_id_id)
+    assert "in_edges_e0:" in actual_id_id
+    assert "in_edges-subclassB_e0:" not in actual_id_id
+    assert "in_edges-subclassC_e0:" not in actual_id_id
+    assert "in_edges-subclassD_e0:" not in actual_id_id
+
+    # 0b: ID → subclass_of → CAT
+    qgraph_id_cat = qg({
+        "nodes": {
+            "n0": {"ids": ["A"], "constraints": []},
+            "n1": {"categories": ["biolink:Disease"], "constraints": []},
+        },
+        "edges": {
+            "e0": {
+                "subject": "n0",
+                "object": "n1",
+                "predicates": ["biolink:subclass_of"],
+            }
+        },
+    })
+    actual_id_cat = transpiler.convert_multihop_public(qgraph_id_cat)
+    assert "out_edges_e0:" in actual_id_cat
+    assert "in_edges-subclassB_e0:" not in actual_id_cat
+    assert "in_edges-subclassC_e0:" not in actual_id_cat
+    assert "in_edges-subclassD_e0:" not in actual_id_cat
+
+
+def test_subclassing_constraints_apply_only_to_predicate_edges_not_to_subclass_edges() -> None:
+    """Constraints on original edge apply to predicate segments in subclass forms, not to subclass_of edges."""
+    transpiler = _TestDgraphTranspiler()
+    qgraph = qg({
+        "nodes": {"n0": {"ids": ["A"]}, "n1": {"ids": ["B"]}},
+        "edges": {
+            "e0": {
+                "subject": "n0",
+                "object": "n1",
+                "predicates": ["biolink:related_to"],
+                "attribute_constraints": [
+                    {"id": "knowledge_level", "operator": "==", "value": "prediction"},
+                ],
+                "qualifier_constraints": [
+                    {"qualifier_set": [
+                        {"qualifier_type_id": "biolink:frequency_qualifier", "qualifier_value": "QX"},
+                    ]},
+                ],
+            }
+        },
+    })
+
+    actual = transpiler.convert_multihop_public(qgraph)
+
+    # Subclass blocks should include subclass_of filter without attribute/qualifier constraints
+    # Check that subclass_of traversals do NOT show the attribute filter
+    assert "in_edges-subclassB_e0: ~object @filter(eq(predicate_ancestors, \"subclass_of\"))" in actual
+    assert "eq(knowledge_level, \"prediction\")" not in \
+           actual.split("in_edges-subclassB_e0:")[1].split("}")[0], "Subclass edge should not carry attributes"
+    assert "frequency_qualifier" not in \
+           actual.split("in_edges-subclassB_e0:")[1].split("}")[0], "Subclass edge should not carry qualifiers"
+
+    # Predicate segments within subclass forms should carry the original edge constraints
+    # Find the nested predicate traversal under subclassB and assert filters present
+    assert "@filter(eq(predicate_ancestors, \"related_to\") AND eq(knowledge_level, \"prediction\")" in actual or \
+           "@filter(eq(predicate_ancestors, [\"related_to\"]) AND eq(knowledge_level, \"prediction\")" in actual
+    assert "eq(frequency_qualifier, \"QX\")" in actual
+
+
+def test_subclassing_disabled_emits_no_subclass_blocks() -> None:
+    """If subclassing is disabled via constructor flag, no subclass blocks should be emitted."""
+    transpiler = _TestDgraphTranspiler()
+    # Reconstruct with subclassing disabled
+    transpiler = _TestDgraphTranspiler()
+    transpiler = _TestDgraphTranspiler.__new__(_TestDgraphTranspiler)  # bypass __init__ to set flag manually in test
+    DgraphTranspiler.__init__(transpiler, subclassing_enabled=False)  # type: ignore
+
+    qgraph = qg({
+        "nodes": {"n0": {"ids": ["A"]}, "n1": {"ids": ["B"]}},
+        "edges": {"e0": {"subject": "n0", "object": "n1", "predicates": ["biolink:related_to"]}}
+    })
+
+    actual = transpiler.convert_multihop_public(qgraph)
+
+    assert "in_edges_e0:" in actual
+    assert "in_edges-subclassB_e0:" not in actual
+    assert "in_edges-subclassC_e0:" not in actual
+    assert "in_edges-subclassD_e0:" not in actual
+
+
+def test_subclassing_case2_does_not_trigger_when_target_has_ids() -> None:
+    """Target has IDs, so this is Case 1 (ID→R→ID), not Case 2. Expect B/C/D forms only."""
+    transpiler = _TestDgraphTranspiler()
+    qgraph = qg({
+        "nodes": {
+            "n0": {"ids": ["A"]},
+            "n1": {"categories": ["biolink:Disease"], "ids": ["X"]},  # has IDs → Case 1
+        },
+        "edges": {"e0": {"subject": "n0", "object": "n1", "predicates": ["biolink:related_to"]}}
+    })
+
+    actual = transpiler.convert_multihop_public(qgraph)
+
+    # Primary traversal present
+    assert "out_edges_e0:" in actual
+
+    # Because this is Case 1 (IDs on both ends), we should see B/C/D forms:
+    assert "in_edges-subclassB_e0:" in actual
+    assert "in_edges-subclassC_e0:" in actual
+    assert "in_edges-subclassD_e0:" in actual
