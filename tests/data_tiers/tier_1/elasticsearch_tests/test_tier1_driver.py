@@ -6,8 +6,7 @@ import retriever.config.general as general_mod
 import retriever.data_tiers.tier_1.elasticsearch.driver as driver_mod
 from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
 from retriever.data_tiers.tier_1.elasticsearch.types import ESPayload, ESHit
-from payload.trapi_qgraphs import DINGO_QGRAPH, VALID_REGEX_QGRAPHS
-from tests.data_tiers.tier_1.elasticsearch_tests.payload.trapi_qgraphs import INVALID_REGEX_QGRAPHS
+from payload.trapi_qgraphs import DINGO_QGRAPH, VALID_REGEX_QGRAPHS, INVALID_REGEX_QGRAPHS
 
 
 def esp(d: dict[str, Any]) -> ESPayload:
