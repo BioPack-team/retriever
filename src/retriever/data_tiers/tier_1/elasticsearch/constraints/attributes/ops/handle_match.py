@@ -46,6 +46,18 @@ def validate_regex(pattern: Any) -> str:
     if re.search(r"(?<!\\)\\([dDsSwWbB])", pattern):
         raise ValueError(r"ES regex does not support escapes like \d, \w, \s.")
 
+    # Backreferences (\1, \2)
+    if re.search(r"(?<!\\)\\[1-9]", pattern):
+        raise ValueError(r"ES does not support backreferences (e.g. \1)")
+
+    # Named Groups (?P<name>)
+    if "(?P<" in pattern:
+        raise ValueError("ES does not support named groups")
+
+    # Unescaped '{' logic mismatch
+    if re.search(r"(?<!\\)\{(?!\d+(?:,\d*)?\})", pattern):
+        raise ValueError("Unescaped '{' must be followed by a valid quantifier")
+
     try:
         re.compile(pattern)
     except re.error as err:
