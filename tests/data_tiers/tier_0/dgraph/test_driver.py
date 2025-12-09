@@ -765,12 +765,12 @@ async def test_simple_one_query_live_http() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vG_id, "NCBIGene:11276")) @cascade(vG_id, ~vG_subject) {
-            expand(vG_Node)
-            out_edges_e0: ~vG_subject @filter(eq(vG_predicate_ancestors, "located_in")) @cascade(vG_predicate, vG_object) {
-                expand(vG_Edge) { vG_sources expand(vG_Source) }
-                node_n0: vG_object @filter(eq(vG_id, "GO:0031410")) @cascade(vG_id) {
-                    expand(vG_Node)
+        q0_node_n1(func: eq(vF_id, "NCBIGene:11276")) @cascade(vF_id, out_edges_e0) {
+            expand(vF_Node)
+            out_edges_e0: ~vF_subject @filter(eq(vF_predicate_ancestors, "located_in")) @cascade(vF_predicate, vF_object) {
+                expand(vF_Edge) { vF_sources expand(vF_Source) }
+                node_n0: vF_object @filter(eq(vF_id, "GO:0031410")) @cascade(vF_id) {
+                    expand(vF_Node)
                 }
             }
         }
@@ -904,12 +904,12 @@ async def test_simple_one_query_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vG_id, "NCBIGene:11276")) @cascade(vG_id, ~vG_subject) {
-            expand(vG_Node)
-            out_edges_e0: ~vG_subject @filter(eq(vG_predicate_ancestors, "located_in")) @cascade(vG_predicate, vG_object) {
-                expand(vG_Edge) { vG_sources expand(vG_Source) }
-                node_n0: vG_object @filter(eq(vG_id, "GO:0031410")) @cascade(vG_id) {
-                    expand(vG_Node)
+        q0_node_n1(func: eq(vF_id, "NCBIGene:11276")) @cascade(vF_id, out_edges_e0) {
+            expand(vF_Node)
+            out_edges_e0: ~vF_subject @filter(eq(vF_predicate_ancestors, "located_in")) @cascade(vF_predicate, vF_object) {
+                expand(vF_Edge) { vF_sources expand(vF_Source) }
+                node_n0: vF_object @filter(eq(vF_id, "GO:0031410")) @cascade(vF_id) {
+                    expand(vF_Node)
                 }
             }
         }
@@ -986,12 +986,12 @@ async def test_simple_reverse_query_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vG_id, "NCBIGene:3778")) @cascade(vG_id, ~vG_subject) {
-            expand(vG_Node)
-            out_edges_e0: ~vG_subject @filter(eq(vG_predicate_ancestors, "has_phenotype")) @cascade(vG_predicate, vG_object) {
-                expand(vG_Edge) { vG_sources expand(vG_Source) }
-                node_n0: vG_object @filter(eq(vG_category, "NamedThing")) @cascade(vG_id) {
-                    expand(vG_Node)
+        q0_node_n1(func: eq(vF_id, "NCBIGene:3778")) @cascade(vF_id, out_edges_e0) {
+            expand(vF_Node)
+            out_edges_e0: ~vF_subject @filter(eq(vF_predicate_ancestors, "has_phenotype")) @cascade(vF_predicate, vF_object) {
+                expand(vF_Edge) { vF_sources expand(vF_Source) }
+                node_n0: vF_object @filter(eq(vF_category, "NamedThing")) @cascade(vF_id) {
+                    expand(vF_Node)
                 }
             }
         }
@@ -1069,8 +1069,8 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vG_id, "NCBIGene:3778")) @cascade(vG_id, ~vG_subject) {
-            expand(vG_Node)
+        q0_node_n1(func: eq(vF_id, "NCBIGene:3778")) @cascade(vF_id, out_edges_e0) {
+            expand(vF_Node)
 
             out_edges_e0: ~vG_subject
             @filter(eq(vG_predicate_ancestors, "related_to"))
@@ -1249,8 +1249,8 @@ async def test_normalization_with_special_edge_id_live_grpc() -> None:
     # Expected query should use normalized edge ID 'e0', not 'e0_bad$%^'
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vG_id, "NCBIGene:3778")) @cascade(vG_id, ~vG_subject) {
-            expand(vG_Node)
+        q0_node_n1(func: eq(vF_id, "NCBIGene:3778")) @cascade(vF_id, out_edges_e0) {
+            expand(vF_Node)
 
             out_edges_e0: ~vG_subject
             @filter(eq(vG_predicate_ancestors, "related_to"))
