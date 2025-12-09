@@ -2221,3 +2221,104 @@ def test_subclassing_case2_does_not_trigger_when_target_has_ids(transpiler_with_
     assert "in_edges-subclassB_e0:" in actual
     assert "in_edges-subclassC_e0:" in actual
     assert "in_edges-subclassD_e0:" in actual
+
+
+def test_subclassing_two_hop_id_to_id_on_both_hops(transpiler_with_subclassing: _TestDgraphTranspiler) -> None:
+    """Two-hop query where both hops are ID→R→ID. Expect subclassing forms B/C/D on both hops."""
+
+    qgraph = qg({
+        "nodes": {
+            "n0": {"ids": ["CHEBI:3125"], "constraints": []},        # object of e0
+            "n1": {"ids": ["UMLS:C0282090"], "constraints": []},     # subject of e0, object of e1
+            "n2": {"ids": ["UMLS:C0496995"], "constraints": []},     # subject of e1
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["biolink:has_phenotype"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+            "e1": {
+                "object": "n1",
+                "subject": "n2",
+                "predicates": ["biolink:has_phenotype"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+        },
+    })
+
+    actual = transpiler_with_subclassing.convert_multihop_public(qgraph)
+
+    # Primary traversals (same as two-hop baseline)
+    assert "out_edges_e0:" in actual
+    assert "in_edges_e1:" in actual
+
+    # Subclassing on first hop (e0): expect B/C/D
+    assert "in_edges-subclassB_e0:" in actual
+    assert "in_edges-subclassC_e0:" in actual
+    assert "in_edges-subclassD_e0:" in actual
+
+    # Subclassing on second hop (e1): expect B/C/D
+    assert "out_edges-subclassB_e1:" in actual or "in_edges-subclassB_e1:" in actual
+    assert "out_edges-subclassC_e1:" in actual or "in_edges-subclassC_e1:" in actual
+    assert "out_edges-subclassD_e1:" in actual or "in_edges-subclassD_e1:" in actual
+
+    # Subclass edges should use only subclass_of filter (no attribute/qualifier constraints)
+    assert ' @filter(eq(predicate_ancestors, "subclass_of"))' in actual
+
+    # Predicate segments inside subclass forms should carry the original predicate filter
+    assert ' @filter(eq(predicate_ancestors, "has_phenotype"))' in actual
+
+
+def test_subclassing_two_hop_id_to_category_on_second_hop_generates_b_only(transpiler_with_subclassing: _TestDgraphTranspiler) -> None:
+    qgraph = qg({
+        "nodes": {
+            "n0": {"ids": ["CHEBI:3125"], "constraints": []},       # object of e0 (ID)
+            "n1": {"ids": ["UMLS:C0282090"], "constraints": []},    # subject of e0, subject of e1 (ID)
+            "n2": {"categories": ["biolink:Pathway"], "constraints": []},  # object of e1 (CAT only)
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["biolink:has_phenotype"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+            "e1": {
+                "object": "n2",              # <- target is categories
+                "subject": "n1",             # <- source is ID
+                "predicates": ["biolink:participates_in"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+        },
+    })
+
+    actual = transpiler_with_subclassing.convert_multihop_public(qgraph)
+
+    # Primary traversals present
+    assert "out_edges_e0:" in actual
+    assert "out_edges_e1:" in actual  # direction matches subject=n1 → object=n2
+
+    # First hop (ID→R→ID) should have B/C/D
+    assert "in_edges-subclassB_e0:" in actual
+    assert "in_edges-subclassC_e0:" in actual
+    assert "in_edges-subclassD_e0:" in actual
+
+    # Second hop (ID→R→CAT) should have only Form B
+    assert "in_edges-subclassB_e1:" in actual or "out_edges-subclassB_e1:" in actual
+    assert "subclassC_e1:" not in actual
+    assert "subclassD_e1:" not in actual
+
+    # Category filter must be applied on the final node of the second hop
+    assert '@filter(eq(category, "Pathway"))' in actual
+
+    # Subclass edges must use only subclass_of filter
+    assert ' @filter(eq(predicate_ancestors, "subclass_of"))' in actual
+
+    # Predicate segment inside subclass form on second hop must carry the original predicate filter
+    assert ' @filter(eq(predicate_ancestors, "participates_in"))' in actual
