@@ -1,7 +1,15 @@
 from reasoner_pydantic.shared import KnowledgeType
 
 from retriever.config.openapi import OPENAPI_CONFIG
-from retriever.types.trapi import PathfinderQueryGraphDict, QueryGraphDict
+from retriever.types.trapi import (
+    PathfinderQueryGraphDict,
+    QEdgeDict,
+    QEdgeID,
+    QNodeDict,
+    QNodeID,
+    QueryGraphDict,
+)
+from retriever.utils import biolink
 
 
 def validate(qg: QueryGraphDict | PathfinderQueryGraphDict) -> list[str]:
@@ -13,7 +21,7 @@ def validate(qg: QueryGraphDict | PathfinderQueryGraphDict) -> list[str]:
     """
     if "paths" in qg:
         return ["Retriever does not support Pathfinder queries."]
-    problems: dict[str, bool] = {}
+    problems: dict[str, bool] = {}  # False means failing
     problems["Query graph must have at least one node"] = len(qg["nodes"].values()) > 0
     problems["Query graph must have at least one edge"] = len(qg["edges"].values()) > 0
     problems["Query graph must have at least one node with an ID"] = any(
@@ -23,41 +31,84 @@ def validate(qg: QueryGraphDict | PathfinderQueryGraphDict) -> list[str]:
     )
 
     # node_pairs = set[str]()
-    for edge_id, edge in qg["edges"].items():
-        if edge["subject"] not in qg["nodes"]:
-            problems[
-                f"Edge `{edge_id}` subject `{edge['subject']}` not defined in query graph."
-            ] = False
-        if edge["object"] not in qg["nodes"]:
-            problems[
-                f"Edge `{edge_id}` object `{edge['object']}` not defined in query graph."
-            ] = False
+    for qedge_id, qedge in qg["edges"].items():
+        problems.update(validate_qedge(qg, qedge_id, qedge))
 
-        for i, qualifier_constraint in enumerate(edge.get("qualifier_constraints", [])):
-            qualifier_types: set[str] = set()
-            for qualifier in qualifier_constraint["qualifier_set"]:
-                if qualifier["qualifier_type_id"] in qualifier_types:
-                    problems[
-                        f"Edge `{edge_id}` qualifier constraint {i} has duplicate qualifier_type_id `{qualifier['qualifier_type_id']}`"
-                    ] = False
-                qualifier_types.add(qualifier["qualifier_type_id"])
-
-        if edge.get("knowledge_type") == KnowledgeType.inferred:
-            problems["Retriever does not handle inferred-type queries."] = False
-
-        # if (
-        #     f"{edge.subject}-{edge.object}" in node_pairs
-        #     or f"{edge.object}-{edge.subject}" in node_pairs
-        # ):
-        #     problems["Duplicate edges not allowed."] = False
-        # node_pairs.add(f"{edge.subject}-{edge.object}")
-
-    for node_id, node in qg["nodes"].items():
-        if node.get("ids") is None:
-            continue
-        if len(node.get("ids", []) or []) > OPENAPI_CONFIG.x_trapi.batch_size_limit:
-            problems[
-                f"Node `{node_id}` ID count ({len(node.get('ids', []) or [])}) exceeds batch size limit of {OPENAPI_CONFIG.x_trapi.batch_size_limit}"
-            ] = False
+    for qnode_id, qnode in qg["nodes"].items():
+        problems.update(validate_qnode(qg, qnode_id, qnode))
 
     return [name for name, passed in problems.items() if not passed]
+
+
+def validate_qedge(
+    qg: QueryGraphDict, qedge_id: QEdgeID, qedge: QEdgeDict
+) -> dict[str, bool]:
+    """Find and return any problems with a given Query Edge.
+
+    Problems in the dictionary marked False are failing.
+    """
+    problems = dict[str, bool]()
+
+    if qedge["subject"] not in qg["nodes"]:
+        problems[
+            f"Edge `{qedge_id}` subject `{qedge['subject']}` not defined in query graph."
+        ] = False
+
+    if qedge["object"] not in qg["nodes"]:
+        problems[
+            f"Edge `{qedge_id}` object `{qedge['object']}` not defined in query graph."
+        ] = False
+
+    for i, qualifier_constraint in enumerate(qedge.get("qualifier_constraints", [])):
+        qualifier_types: set[str] = set()
+        for qualifier in qualifier_constraint["qualifier_set"]:
+            if qualifier["qualifier_type_id"] in qualifier_types:
+                problems[
+                    f"Edge `{qedge_id}` qualifier constraint {i} has duplicate qualifier_type_id `{qualifier['qualifier_type_id']}`"
+                ] = False
+            qualifier_types.add(qualifier["qualifier_type_id"])
+
+    if qedge.get("knowlqedge_type") == KnowledgeType.inferred:
+        problems["Retriever does not handle inferred-type queries."] = False
+
+    invalid_predicates = [
+        p for p in (qedge.get("predicates", []) or []) if not biolink.is_predicate(p)
+    ]
+    if len(invalid_predicates) > 0:
+        problems[f"Edge `{qedge_id}` has invalid predicates: {invalid_predicates}"] = (
+            False
+        )
+
+    # if (
+    #     f"{qedge.subject}-{qedge.object}" in node_pairs
+    #     or f"{qedge.object}-{qedge.subject}" in node_pairs
+    # ):
+    #     problems["Duplicate qedges not allowed."] = False
+    # node_pairs.add(f"{qedge.subject}-{qedge.object}")
+
+    return problems
+
+
+def validate_qnode(
+    _qg: QueryGraphDict, qnode_id: QNodeID, qnode: QNodeDict
+) -> dict[str, bool]:
+    """Find and return any problems with a given Query Node.
+
+    Problems in the dictionary marked False are failing.
+    """
+    problems = dict[str, bool]()
+
+    if len(qnode.get("ids", []) or []) > OPENAPI_CONFIG.x_trapi.batch_size_limit:
+        problems[
+            f"Node `{qnode_id}` ID count ({len(qnode.get('ids', []) or [])}) exceeds batch size limit of {OPENAPI_CONFIG.x_trapi.batch_size_limit}"
+        ] = False
+
+    invalid_categories = [
+        c for c in (qnode.get("categories", []) or []) if not biolink.is_category(c)
+    ]
+    if len(invalid_categories) > 0:
+        problems[f"Node `{qnode_id}` has invalid categories: {invalid_categories}"] = (
+            False
+        )
+
+    return problems
