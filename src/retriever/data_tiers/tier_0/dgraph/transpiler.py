@@ -109,7 +109,9 @@ class DgraphTranspiler(Tier0Transpiler):
     _reverse_node_map: dict[str, QNodeID]
     _reverse_edge_map: dict[str, QEdgeID]
 
-    def __init__(self, version: str | None = None, subclassing_enabled: bool = True) -> None:
+    def __init__(
+        self, version: str | None = None, subclassing_enabled: bool = True
+    ) -> None:
         """Initialize a Transpiler instance.
 
         Args:
@@ -865,14 +867,22 @@ class DgraphTranspiler(Tier0Transpiler):
 
             # Case 1: ID -> predicate -> ID
             if self._node_has_ids(source_node) and self._node_has_ids(target_node):
-                query += self._build_subclass_form_b(ctx, normalized_edge_id)  # A' -> predicate -> B
-                query += self._build_subclass_form_c(ctx, normalized_edge_id)  # A -> predicate -> B'
-                query += self._build_subclass_form_d(ctx, normalized_edge_id)  # A' -> predicate -> B'
+                query += self._build_subclass_form_b(
+                    ctx, normalized_edge_id
+                )  # A' -> predicate -> B
+                query += self._build_subclass_form_c(
+                    ctx, normalized_edge_id
+                )  # A -> predicate -> B'
+                query += self._build_subclass_form_d(
+                    ctx, normalized_edge_id
+                )  # A' -> predicate -> B'
             # Case 2: ID -> predicate -> CAT (only when target is filtered by categories, not IDs)
             elif (
                 self._node_has_ids(source_node)
                 and self._node_has_categories(target_node)
-                and not self._node_has_ids(target_node)  # ensure target is not ID-filtered
+                and not self._node_has_ids(
+                    target_node
+                )  # ensure target is not ID-filtered
             ):
                 query += self._build_subclass_form_b(ctx, normalized_edge_id)
 
@@ -902,7 +912,9 @@ class DgraphTranspiler(Tier0Transpiler):
         target_filter = self._build_node_filter(ctx.target_node)
         if target_filter:
             query += f" @filter({target_filter})"
-        query += self._build_node_cascade_clause(ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id})
+        query += self._build_node_cascade_clause(
+            ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
+        )
         query += " { " + self._add_standard_node_fields() + " } } } "
         return query
 
@@ -928,7 +940,9 @@ class DgraphTranspiler(Tier0Transpiler):
         target_filter = self._build_node_filter(ctx.target_node)
         if target_filter:
             query += f" @filter({target_filter})"
-        query += self._build_node_cascade_clause(ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id})
+        query += self._build_node_cascade_clause(
+            ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
+        )
         query += " { " + self._add_standard_node_fields() + " } } } "
         return query
 
@@ -954,7 +968,9 @@ class DgraphTranspiler(Tier0Transpiler):
         target_filter = self._build_node_filter(ctx.target_node)
         if target_filter:
             query += f" @filter({target_filter})"
-        query += self._build_node_cascade_clause(ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id})
+        query += self._build_node_cascade_clause(
+            ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
+        )
         query += " { " + self._add_standard_node_fields() + " } } } } "
         return query
 
