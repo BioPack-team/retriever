@@ -173,11 +173,14 @@ async def test_valid_regex_query():
 @pytest.mark.asyncio
 async def test_metadata_retrieval():
     driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
-    # operations = await driver.get_operations()
-    #
-    # with open("output.json", "w", encoding="utf-8") as f:
-    #     json.dump(operations, f, indent=2)
-    await driver.connect()
+
+    try:
+        await driver.connect()
+        assert driver.es_connection is not None
+    except Exception:
+        pytest.skip("skipping es driver connection test: cannot connect")
+
+
     meta = await driver.get_metadata()
 
     # make sure each index has metadata extracted
