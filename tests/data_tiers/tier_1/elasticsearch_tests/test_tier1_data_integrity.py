@@ -3,8 +3,7 @@
 import pytest
 from elasticsearch import Elasticsearch
 
-from retriever.config.general import CONFIG
-from retriever.data_tiers.tier_1.meta import TIER1_INDICES
+from retriever.data_tiers.tier_1.elasticsearch.meta import TIER1_INDICES
 
 query = {
   "size": 1,
