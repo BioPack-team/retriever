@@ -1,4 +1,5 @@
 from collections import defaultdict
+from copy import deepcopy
 from typing import Any
 
 import ormsgpack
@@ -9,7 +10,7 @@ from retriever.config.general import CONFIG
 from retriever.data_tiers.utils import parse_dingo_metadata
 from retriever.types.dingo import DINGOMetadata
 from retriever.types.metakg import Operation, OperationNode
-from retriever.types.trapi import BiolinkEntity, Infores
+from retriever.types.trapi import BiolinkEntity, Infores, MetaAttributeDict
 from retriever.utils.redis import REDIS_CLIENT
 from retriever.utils.trapi import hash_hex
 
@@ -116,6 +117,67 @@ async def get_t1_metadata(
     return meta_blob
 
 
+def hash_meta_attribute(attr: MetaAttributeDict) -> int:
+    """Method to hash MetaAttributeDict."""
+    keys = [
+        "attribute_type_id",
+        "attribute_source",
+        "original_attribute_names",
+        "constraint_use",
+        "constraint_name",
+    ]
+    values: list[Any] = []
+    for key in keys:
+        val: list[str] | None = attr.get(key)
+        if isinstance(val, list):
+            values.append(tuple(val))
+        else:
+            values.append(val)
+    return hash(tuple(values))
+
+
+def merge_nodes(
+    nodes: dict[BiolinkEntity, OperationNode],
+    curr_nodes: dict[BiolinkEntity, OperationNode],
+    infores: Infores,
+) -> dict[BiolinkEntity, OperationNode]:
+    """Merge OperationNodes generated."""
+    for category, node in curr_nodes.items():
+        # Category not seen before → initialize
+        if category not in nodes:
+            nodes[category] = deepcopy(node)
+            continue
+
+        existing = nodes[category]
+        # Merge prefixes
+        existing.prefixes[infores].extend(node.prefixes[infores])
+        # Merge attributes
+        existing.attributes[infores].extend(node.attributes[infores])
+
+    return nodes
+
+
+def dedupe_nodes(
+    nodes: dict[BiolinkEntity, OperationNode], infores: Infores
+) -> dict[BiolinkEntity, OperationNode]:
+    """De-duplicate OperationNodes generated."""
+    for current in nodes.values():
+        current.prefixes[infores] = list(set(current.prefixes[infores]))
+
+        seen_attr: set[int] = set()
+        attrs: list[MetaAttributeDict] = current.attributes[infores]
+        deduped: list[MetaAttributeDict] = []
+        for attr in attrs:
+            hash_code = hash_meta_attribute(attr)
+            if hash_code not in seen_attr:
+                deduped.append(attr)
+                seen_attr.add(hash_code)
+
+        current.attributes[infores] = deduped
+
+    return nodes
+
+
 async def generate_operations(
     meta_entries: list[T1MetaData],
 ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
@@ -130,7 +192,9 @@ async def generate_operations(
             DINGOMetadata(**meta_entry), 1, infores
         )
         operations.extend(curr_ops)
-        nodes.update(curr_nodes)
+        nodes = merge_nodes(nodes, curr_nodes, infores)
+
+    nodes = dedupe_nodes(nodes, infores)
 
     log.success(f"Parsed {infores} as a Tier 1 resource.")
     return operations, nodes
