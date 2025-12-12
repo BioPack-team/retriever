@@ -4,6 +4,7 @@ import pytest
 from elasticsearch import Elasticsearch
 
 from retriever.config.general import CONFIG
+from retriever.data_tiers.tier_1.meta import TIER1_INDICES
 
 query = {
   "size": 1,
@@ -17,15 +18,7 @@ query = {
 }
 
 
-indices = [
-    "ctd",
-    "diseases",
-    "gene2phenotype",
-    "go_cam",
-    "goa",
-    "hpoa",
-    "sider"
-]
+
 
 
 @pytest.fixture(scope="module")
@@ -44,7 +37,7 @@ def es_client():
         if 'client' in locals():
             client.close()
 
-@pytest.mark.parametrize("index_name", indices)
+@pytest.mark.parametrize("index_name", TIER1_INDICES)
 def test_required_fields(es_client, index_name):
     resp = es_client.search(index=index_name, body=query)
 
