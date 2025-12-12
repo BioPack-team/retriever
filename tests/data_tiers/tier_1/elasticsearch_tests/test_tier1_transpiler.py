@@ -10,7 +10,7 @@ from payload.trapi_qgraphs import (  # pyright:ignore[reportImplicitRelativeImpo
     BASE_QGRAPH,
 )
 
-from retriever.data_tiers.tier_1.elasticsearch.qualifier_types import (
+from retriever.data_tiers.tier_1.elasticsearch.constraints.types.qualifier_types import (
     ESQueryForSingleQualifierConstraint,
     ESTermClause,
 )

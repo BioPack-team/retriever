@@ -1,9 +1,9 @@
 from typing import Any, NotRequired, TypedDict
 
-from retriever.data_tiers.tier_1.elasticsearch.attribute_types import (
+from retriever.data_tiers.tier_1.elasticsearch.constraints.types.attribute_types import (
     AttributeFilterQuery,
 )
-from retriever.data_tiers.tier_1.elasticsearch.qualifier_types import (
+from retriever.data_tiers.tier_1.elasticsearch.constraints.types.qualifier_types import (
     ESQueryForSingleQualifierConstraint,
     ESTermClause,
 )
