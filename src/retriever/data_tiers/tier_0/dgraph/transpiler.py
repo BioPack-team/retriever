@@ -323,8 +323,10 @@ class DgraphTranspiler(Tier0Transpiler):
                 )
 
                 # Dampen adjacency term so ID selectivity dominates
-                contribution = self.PINNEDNESS_ADJ_WEIGHT * num_edges * max(
-                    neighbor_log + baseline, 0
+                contribution = (
+                    self.PINNEDNESS_ADJ_WEIGHT
+                    * num_edges
+                    * max(neighbor_log + baseline, 0)
                 )
 
                 log_expected_n += contribution
@@ -340,11 +342,7 @@ class DgraphTranspiler(Tier0Transpiler):
         adjacency_mat = self._get_adjacency_matrix(qgraph)
         num_ids = self._get_num_ids(qgraph)
         # Pinnedness is negative expected log-N so smaller expected set -> larger pinnedness
-        return -self._compute_log_expected_n(
-            adjacency_mat,
-            num_ids,
-            qnode_id
-        )
+        return -self._compute_log_expected_n(adjacency_mat, num_ids, qnode_id)
 
     # --- Nodes and Edges Methods ---
 
