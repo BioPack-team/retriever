@@ -41,12 +41,54 @@ DINGO_KG_NODE_TOPLEVEL_VALUES = {
 }
 
 
-def parse_dingo_metadata(
+def get_op_hash(unhashed_op: UnhashedOperation) -> str:
+    """Method to generate hash code for given Operation."""
+    op_hash = hash_hex(
+        hash(
+            tuple(
+                {
+                    **unhashed_op._asdict(),
+                    "attributes": tuple(
+                        tuple(attr.items()) for attr in unhashed_op.attributes
+                    )
+                    if unhashed_op.attributes is not None
+                    else None,
+                    "qualifiers": tuple(
+                        (qualifier_type_id, tuple(applicable_values))
+                        for qualifier_type_id, applicable_values in unhashed_op.qualifiers.items()
+                    )
+                    if unhashed_op.qualifiers is not None
+                    else None,
+                    "access_metadata": None,
+                }.values()
+            )
+        )
+    )
+
+    return op_hash
+
+
+def generate_operation(
+    unhashed_op: UnhashedOperation, op_hash: str | None = None
+) -> Operation:
+    """Method to generate hashed operation."""
+    # a hashcode could have been generated while checking duplicates
+    # by comparing hashcodes, hence it can be passed here to avoid re-hashing
+    if op_hash is None:
+        op_hash = get_op_hash(unhashed_op)
+
+    operation = Operation(op_hash, **unhashed_op._asdict())
+
+    return operation
+
+
+def parse_dingo_metadata_unhashed(
     metadata: DINGOMetadata, tier: TierNumber, infores: Infores
-) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
-    """Parse a DINGO Metadata object to build operations."""
-    operations = list[Operation]()
+) -> tuple[list[UnhashedOperation], dict[BiolinkEntity, OperationNode]]:
+    """Parse a DINGO Metadata object to build hashed or unhashed operations."""
+    operations_unhashed = list[UnhashedOperation]()
     nodes = dict[BiolinkEntity, OperationNode]()
+
     for edge in metadata["schema"]["edges"]:
         for sbj, obj in itertools.product(
             edge["subject_category"], edge["object_category"]
@@ -69,30 +111,7 @@ def parse_dingo_metadata(
                 },
             )
 
-            op_hash = hash_hex(
-                hash(
-                    tuple(
-                        {
-                            **unhashed_op._asdict(),
-                            "attributes": tuple(
-                                tuple(attr.items()) for attr in unhashed_op.attributes
-                            )
-                            if unhashed_op.attributes is not None
-                            else None,
-                            "qualifiers": tuple(
-                                (qualifier_type_id, tuple(applicable_values))
-                                for qualifier_type_id, applicable_values in unhashed_op.qualifiers.items()
-                            )
-                            if unhashed_op.qualifiers is not None
-                            else None,
-                            "access_metadata": None,
-                        }.values()
-                    )
-                )
-            )
-
-            operation = Operation(op_hash, **unhashed_op._asdict())
-            operations.append(operation)
+            operations_unhashed.append(unhashed_op)
 
     for node in metadata["schema"]["nodes"]:
         for category in node["category"]:
@@ -108,6 +127,15 @@ def parse_dingo_metadata(
                 },
             )
 
+    return operations_unhashed, nodes
+
+
+def parse_dingo_metadata(
+    metadata: DINGOMetadata, tier: TierNumber, infores: Infores
+) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
+    """Parse a DINGO Metadata object to build operations."""
+    ops_unhashed, nodes = parse_dingo_metadata_unhashed(metadata, tier, infores)
+    operations = [generate_operation(op) for op in ops_unhashed]
     return operations, nodes
 
 
@@ -133,29 +161,7 @@ def parse_trapi_metakg(
             },
         )
 
-        op_hash = hash_hex(
-            hash(
-                tuple(
-                    {
-                        **unhashed_op._asdict(),
-                        "attributes": tuple(
-                            tuple(attr.items()) for attr in unhashed_op.attributes
-                        )
-                        if unhashed_op.attributes is not None
-                        else None,
-                        "qualifiers": tuple(
-                            (qualifier_type_id, tuple(applicable_values))
-                            for qualifier_type_id, applicable_values in unhashed_op.qualifiers.items()
-                        )
-                        if unhashed_op.qualifiers is not None
-                        else None,
-                        "access_metadata": None,
-                    }.values()
-                )
-            )
-        )
-
-        operation = Operation(op_hash, **unhashed_op._asdict())
+        operation = generate_operation(unhashed_op)
         operations.append(operation)
 
     for category, node in metakg["nodes"].items():

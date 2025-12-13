@@ -7,9 +7,13 @@ from elasticsearch import AsyncElasticsearch
 from loguru import logger as log
 
 from retriever.config.general import CONFIG
-from retriever.data_tiers.utils import parse_dingo_metadata
+from retriever.data_tiers.utils import (
+    generate_operation,
+    get_op_hash,
+    parse_dingo_metadata_unhashed,
+)
 from retriever.types.dingo import DINGOMetadata
-from retriever.types.metakg import Operation, OperationNode
+from retriever.types.metakg import Operation, OperationNode, UnhashedOperation
 from retriever.types.trapi import BiolinkEntity, Infores, MetaAttributeDict
 from retriever.utils.redis import REDIS_CLIENT
 from retriever.utils.trapi import hash_hex
@@ -30,7 +34,7 @@ TIER1_INDICES = [
 
 T1MetaData = dict[str, Any]
 
-# probably needs some versioning info to purge redis?
+# TODO probably needs some versioning info to purge redis?
 CACHE_KEY = "TIER1_META"
 
 
@@ -178,22 +182,38 @@ def dedupe_nodes(
     return nodes
 
 
+def dedupe_operations(ops_unhashed: list[UnhashedOperation]) -> list[Operation]:
+    """De-duplicate Operations generated."""
+    seen_op = set[str]()
+    operations = list[Operation]()
+
+    for op in ops_unhashed:
+        op_hash = get_op_hash(op)
+        if op_hash not in seen_op:
+            operation = generate_operation(op, op_hash)
+            operations.append(operation)
+            seen_op.add(op_hash)
+
+    return operations
+
+
 async def generate_operations(
     meta_entries: list[T1MetaData],
 ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
     """Generate operations and associated nodes based on metadata provided."""
     infores = Infores(CONFIG.tier1.backend_infores)
 
-    operations: list[Operation] = []
+    operations_unhashed: list[UnhashedOperation] = []
     nodes: dict[BiolinkEntity, OperationNode] = {}
 
     for meta_entry in meta_entries:
-        curr_ops, curr_nodes = parse_dingo_metadata(
+        curr_ops, curr_nodes = parse_dingo_metadata_unhashed(
             DINGOMetadata(**meta_entry), 1, infores
         )
-        operations.extend(curr_ops)
+        operations_unhashed.extend(curr_ops)
         nodes = merge_nodes(nodes, curr_nodes, infores)
 
+    operations = dedupe_operations(operations_unhashed)
     nodes = dedupe_nodes(nodes, infores)
 
     log.success(f"Parsed {infores} as a Tier 1 resource.")
