@@ -1,9 +1,11 @@
 import importlib
+import json
 from typing import Iterator, cast, Any
 
 import pytest
 import retriever.config.general as general_mod
 import retriever.data_tiers.tier_1.elasticsearch.driver as driver_mod
+from retriever.data_tiers.tier_1.elasticsearch.meta import TIER1_INDICES, extract_metadata_entries_from_blob
 from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
 from retriever.data_tiers.tier_1.elasticsearch.types import ESPayload, ESHit
 from payload.trapi_qgraphs import DINGO_QGRAPH, VALID_REGEX_QGRAPHS, INVALID_REGEX_QGRAPHS
@@ -167,8 +169,31 @@ async def test_valid_regex_query():
 
 
 
+@pytest.mark.usefixtures("mock_elasticsearch_config")
+@pytest.mark.asyncio
+async def test_metadata_retrieval():
+    driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
+
+    try:
+        await driver.connect()
+        assert driver.es_connection is not None
+    except Exception:
+        pytest.skip("skipping es driver connection test: cannot connect")
 
 
+    meta = await driver.get_metadata()
+
+    # make sure each index has metadata extracted
+    assert len(extract_metadata_entries_from_blob(meta)) == len(TIER1_INDICES)
+
+    ops, nodes = await driver.get_operations()
+
+    # with open("output_new.json", "w", encoding="utf-8") as f:
+    #     json.dump(output, f, indent=2)
+
+    # _ops, _nodes = await driver.legacy_get_operations()
+
+    assert len(nodes) == 23
 
 @pytest.mark.usefixtures("mock_elasticsearch_config")
 @pytest.mark.asyncio

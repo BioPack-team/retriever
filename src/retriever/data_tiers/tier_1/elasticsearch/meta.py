@@ -1,0 +1,220 @@
+from collections import defaultdict
+from copy import deepcopy
+from typing import Any
+
+import ormsgpack
+from elasticsearch import AsyncElasticsearch
+from loguru import logger as log
+
+from retriever.config.general import CONFIG
+from retriever.data_tiers.utils import (
+    generate_operation,
+    get_op_hash,
+    parse_dingo_metadata_unhashed,
+)
+from retriever.types.dingo import DINGOMetadata
+from retriever.types.metakg import Operation, OperationNode, UnhashedOperation
+from retriever.types.trapi import BiolinkEntity, Infores, MetaAttributeDict
+from retriever.utils.redis import REDIS_CLIENT
+from retriever.utils.trapi import hash_hex
+
+TIER1_INDICES = [
+    "diseases",
+    "gene2phenotype",
+    "go_cam",
+    "goa",
+    "hpoa",
+    "sider",
+    "ctd",
+    "panther",
+    "ubergraph",
+    "ttd",
+    "alliance",
+]
+
+T1MetaData = dict[str, Any]
+
+# TODO probably needs some versioning info to purge redis?
+CACHE_KEY = "TIER1_META"
+
+
+async def save_metadata_cache(key: str, payload: T1MetaData) -> None:
+    """Wrapper for persist metadata in Redis."""
+    await REDIS_CLIENT.set(
+        hash_hex(hash(key)),
+        ormsgpack.packb(payload),
+        compress=True,
+        ttl=CONFIG.job.metakg.build_time,
+    )
+
+
+async def read_metadata_cache(key: str) -> T1MetaData | None:
+    """Wrapper for retrieving persisted metadata in Redis."""
+    metadata_pack = await REDIS_CLIENT.get(hash_hex(hash(key)), compressed=True)
+    if metadata_pack is not None:
+        return ormsgpack.unpackb(metadata_pack)
+
+    return None
+
+
+def extract_metadata_entries_from_blob(blob: T1MetaData) -> list[T1MetaData]:
+    """Extract a list of metadata entries from raw blob."""
+    meta_entries: list[T1MetaData] = list(
+        filter(
+            None,
+            [blob[index_name].get("graph") for index_name in TIER1_INDICES],
+        )
+    )
+
+    return meta_entries
+
+
+async def retrieve_metadata_from_es(
+    es_connection: AsyncElasticsearch, indices_alias: str
+) -> T1MetaData:
+    """Method to retrieve prefetched metadata from Elasticsearch."""
+    mappings = await es_connection.indices.get_mapping(index=indices_alias)
+
+    # here we pull an array of metadata, instead of 1
+
+    meta: T1MetaData = defaultdict(dict)
+    for index_name in TIER1_INDICES:
+        raw = mappings[index_name]["mappings"]["_meta"]
+        keys = ["graph", "release"]
+
+        for key in keys:
+            blob = raw.get(key)
+            if blob:
+                meta[index_name].update({key: blob})
+
+    if not meta:
+        raise ValueError("No metadata retrieved from Elasticsearch.")
+
+    return meta
+
+
+RETRY_LIMIT = 3
+
+
+async def get_t1_metadata(
+    es_connection: AsyncElasticsearch | None, indices_alias: str, retries: int = 0
+) -> T1MetaData | None:
+    """Caller to orchestrate retrieving t1 metadata."""
+    meta_blob = await read_metadata_cache(CACHE_KEY)
+    if not meta_blob:
+        try:
+            if es_connection is None:
+                raise ValueError(
+                    "Invalid Elasticsearch connection. Driver must be initialized and connected."
+                )
+            meta_blob = await retrieve_metadata_from_es(es_connection, indices_alias)
+            await save_metadata_cache(CACHE_KEY, meta_blob)
+        except ValueError as e:
+            # if exceeds retries or ES connection is invalid, return None
+            if retries == RETRY_LIMIT or str(e).startswith(
+                "Invalid Elasticsearch connection"
+            ):
+                return None
+            return await get_t1_metadata(es_connection, indices_alias, retries + 1)
+
+    log.success("DINGO Metadata retrieved!")
+    return meta_blob
+
+
+def hash_meta_attribute(attr: MetaAttributeDict) -> int:
+    """Method to hash MetaAttributeDict."""
+    keys = [
+        "attribute_type_id",
+        "attribute_source",
+        "original_attribute_names",
+        "constraint_use",
+        "constraint_name",
+    ]
+    values: list[Any] = []
+    for key in keys:
+        val: list[str] | None = attr.get(key)
+        if isinstance(val, list):
+            values.append(tuple(val))
+        else:
+            values.append(val)
+    return hash(tuple(values))
+
+
+def merge_nodes(
+    nodes: dict[BiolinkEntity, OperationNode],
+    curr_nodes: dict[BiolinkEntity, OperationNode],
+    infores: Infores,
+) -> dict[BiolinkEntity, OperationNode]:
+    """Merge OperationNodes generated."""
+    for category, node in curr_nodes.items():
+        # Category not seen before → initialize
+        if category not in nodes:
+            nodes[category] = deepcopy(node)
+            continue
+
+        existing = nodes[category]
+        # Merge prefixes
+        existing.prefixes[infores].extend(node.prefixes[infores])
+        # Merge attributes
+        existing.attributes[infores].extend(node.attributes[infores])
+
+    return nodes
+
+
+def dedupe_nodes(
+    nodes: dict[BiolinkEntity, OperationNode], infores: Infores
+) -> dict[BiolinkEntity, OperationNode]:
+    """De-duplicate OperationNodes generated."""
+    for current in nodes.values():
+        current.prefixes[infores] = list(set(current.prefixes[infores]))
+
+        seen_attr: set[int] = set()
+        attrs: list[MetaAttributeDict] = current.attributes[infores]
+        deduped: list[MetaAttributeDict] = []
+        for attr in attrs:
+            hash_code = hash_meta_attribute(attr)
+            if hash_code not in seen_attr:
+                deduped.append(attr)
+                seen_attr.add(hash_code)
+
+        current.attributes[infores] = deduped
+
+    return nodes
+
+
+def dedupe_operations(ops_unhashed: list[UnhashedOperation]) -> list[Operation]:
+    """De-duplicate Operations generated."""
+    seen_op = set[str]()
+    operations = list[Operation]()
+
+    for op in ops_unhashed:
+        op_hash = get_op_hash(op)
+        if op_hash not in seen_op:
+            operation = generate_operation(op, op_hash)
+            operations.append(operation)
+            seen_op.add(op_hash)
+
+    return operations
+
+
+async def generate_operations(
+    meta_entries: list[T1MetaData],
+) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
+    """Generate operations and associated nodes based on metadata provided."""
+    infores = Infores(CONFIG.tier1.backend_infores)
+
+    operations_unhashed: list[UnhashedOperation] = []
+    nodes: dict[BiolinkEntity, OperationNode] = {}
+
+    for meta_entry in meta_entries:
+        curr_ops, curr_nodes = parse_dingo_metadata_unhashed(
+            DINGOMetadata(**meta_entry), 1, infores
+        )
+        operations_unhashed.extend(curr_ops)
+        nodes = merge_nodes(nodes, curr_nodes, infores)
+
+    operations = dedupe_operations(operations_unhashed)
+    nodes = dedupe_nodes(nodes, infores)
+
+    log.success(f"Parsed {infores} as a Tier 1 resource.")
+    return operations, nodes
