@@ -41,26 +41,53 @@ DINGO_KG_NODE_TOPLEVEL_VALUES = {
 }
 
 
+def get_simple_op_hash(unhashed_op: UnhashedOperation) -> str:
+    """Method to generate hash code for given Operation using only selectied fields."""
+    op_hash = hash_hex(
+        hash(
+            tuple(
+                sorted(
+                    {
+                        **unhashed_op._asdict(),
+                        "attributes": None,
+                        "qualifiers": None,
+                        "access_metadata": None,
+                    }.items()
+                )
+            )
+        )
+    )
+
+    return op_hash
+
+
 def get_op_hash(unhashed_op: UnhashedOperation) -> str:
     """Method to generate hash code for given Operation."""
     op_hash = hash_hex(
         hash(
             tuple(
-                {
-                    **unhashed_op._asdict(),
-                    "attributes": tuple(
-                        tuple(attr.items()) for attr in unhashed_op.attributes
-                    )
-                    if unhashed_op.attributes is not None
-                    else None,
-                    "qualifiers": tuple(
-                        (qualifier_type_id, tuple(applicable_values))
-                        for qualifier_type_id, applicable_values in unhashed_op.qualifiers.items()
-                    )
-                    if unhashed_op.qualifiers is not None
-                    else None,
-                    "access_metadata": None,
-                }.values()
+                sorted(
+                    {
+                        **unhashed_op._asdict(),
+                        "attributes": tuple(
+                            sorted(
+                                tuple(sorted(attr.items()))
+                                for attr in unhashed_op.attributes
+                            )
+                        )
+                        if unhashed_op.attributes is not None
+                        else None,
+                        "qualifiers": tuple(
+                            (qualifier_type_id, tuple(sorted(applicable_values)))
+                            for qualifier_type_id, applicable_values in sorted(
+                                unhashed_op.qualifiers.items()
+                            )
+                        )
+                        if unhashed_op.qualifiers is not None
+                        else None,
+                        "access_metadata": None,
+                    }.items()
+                )
             )
         )
     )
