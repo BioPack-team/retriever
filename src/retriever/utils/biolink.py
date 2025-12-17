@@ -112,3 +112,5 @@ def reverse_qualifier_constraints(
 
 is_qualifier = biolink.is_qualifier
 is_symmetric = biolink.is_symmetric
+is_predicate = biolink.is_predicate
+is_category = biolink.is_category

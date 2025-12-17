@@ -34,6 +34,7 @@ class RegexTerm(TypedDict):
     """ES Regex clause.."""
 
     value: str
+    # case-sensitive by default
     case_sensitive: NotRequired[bool]
 
 

@@ -55,6 +55,13 @@ def expand_qgraph(qg: QueryGraphDict, job_log: TRAPILogger) -> QueryGraphDict:
             job_log.info(
                 f"QEdge {qedge_id}: Inferred related_to from empty predicate list."
             )
+        elif BiolinkPredicate("biolink:treats") in predicates:
+            predicates.add(
+                BiolinkPredicate("biolink:treats_or_applied_or_studied_to_treat")
+            )
+            job_log.info(
+                f"QEdge {qedge_id} has 'treats'. In accordance with Translator, this is expanded to 'treats_or_applied_or_studied_to_treat'."
+            )
         # Not necessary because backends check against descendants
         # new_predicates = biolink.expand(predicates) - predicates
 

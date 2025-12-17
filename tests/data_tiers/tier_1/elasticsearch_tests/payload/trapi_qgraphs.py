@@ -1,9 +1,9 @@
 import copy
 from typing import cast, Any
 
-from retriever.types.trapi import QueryGraphDict, QEdgeID, QualifierConstraintDict
+from retriever.types.trapi import QueryGraphDict, QEdgeID, QualifierConstraintDict, AttributeConstraintDict
 from .trapi_attributes import ATTRIBUTE_CONSTRAINTS, base_constraint, \
-    base_negation_constraint
+    base_negation_constraint, VALID_REGEX_CONSTRAINTS, INVALID_REGEX_CONSTRAINTS
 from .trapi_qualifiers import multiple_qualifier_constraints, \
     single_qualifier_constraint, single_qualifier_constraint_with_single_qualifier_entry, sex_qualifier_constraint, \
     frequency_qualifier_constraint
@@ -98,3 +98,46 @@ Q_GRAPHS_WITH_QUALIFIER_CONSTRAINTS: list[QueryGraphDict] = [
 
 COMPREHENSIVE_QGRAPH = copy.deepcopy(Q_GRAPHS_WITH_QUALIFIER_CONSTRAINTS[0])
 COMPREHENSIVE_QGRAPH["edges"][E0]["attribute_constraints"] = ATTRIBUTE_CONSTRAINTS
+
+
+ALT_BASE_GRAPH = qg({
+            "nodes": {
+                "n0": {
+                    "categories": [
+                        "biolink:NamedThing"
+                    ]
+                },
+                "n1": {
+                    "ids": [
+                        "NCBIGene:3778"
+                    ]
+                }
+            },
+            "edges": {
+                E0: {
+                    "object": "n1",
+                    "subject": "n0",
+                    "predicates": [
+                        "biolink:related_to"
+                    ]
+                }
+            }
+        })
+
+
+def generate_qgraph_with_attribute_constraints(constraints: list[AttributeConstraintDict]):
+    """Generate a QGraph with attribute constraints."""
+    _q_graph = copy.deepcopy(ALT_BASE_GRAPH)
+    _q_graph["edges"][E0]["attribute_constraints"] = constraints
+
+    return _q_graph
+
+VALID_REGEX_QGRAPHS: list[QueryGraphDict] = [
+    generate_qgraph_with_attribute_constraints([constraint])
+    for constraint in VALID_REGEX_CONSTRAINTS
+]
+
+INVALID_REGEX_QGRAPHS: list[QueryGraphDict] = [
+    generate_qgraph_with_attribute_constraints([constraint])
+    for constraint in INVALID_REGEX_CONSTRAINTS
+]

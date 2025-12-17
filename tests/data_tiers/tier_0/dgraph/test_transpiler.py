@@ -748,18 +748,24 @@ EXP_SIMPLE_MULTIPLE_IDS = dedent("""
 
 EXP_TWO_HOP = dedent("""
 {
-    q0_node_n1(func: eq(id, "UMLS:C0282090")) @cascade(id, out_edges_e0, in_edges_e1) {
+    q0_node_n2(func: eq(id, "UMLS:C0496995")) @cascade(id, out_edges_e1) {
         expand(Node)
-        out_edges_e0: ~subject @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, object) {
-            expand(Edge) { sources expand(Source) }
-            node_n0: object @filter(eq(id, "CHEBI:3125")) @cascade(id) {
-                expand(Node)
+        out_edges_e1: ~subject @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, object) {
+            expand(Edge) {
+                sources
+                expand(Source)
             }
-        }
-        in_edges_e1: ~object @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, subject) {
-            expand(Edge) { sources expand(Source) }
-            node_n2: subject @filter(eq(id, "UMLS:C0496995")) @cascade(id) {
+            node_n1: object @filter(eq(id, "UMLS:C0282090")) @cascade(id, out_edges_e0) {
                 expand(Node)
+                out_edges_e0: ~subject @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, object) {
+                    expand(Edge) {
+                        sources
+                        expand(Source)
+                    }
+                    node_n0: object @filter(eq(id, "CHEBI:3125")) @cascade(id) {
+                        expand(Node)
+                    }
+                }
             }
         }
     }
@@ -768,18 +774,18 @@ EXP_TWO_HOP = dedent("""
 
 EXP_TWO_HOP_WITH_VERSION = dedent("""
 {
-    q0_node_n1(func: eq(v1_id, "UMLS:C0282090")) @cascade(v1_id, out_edges_e0, in_edges_e1) {
+    q0_node_n2(func: eq(v1_id, "UMLS:C0496995")) @cascade(v1_id, out_edges_e1) {
         expand(v1_Node)
-        out_edges_e0: ~v1_subject @filter(eq(v1_predicate_ancestors, "has_phenotype")) @cascade(v1_predicate, v1_object) {
+        out_edges_e1: ~v1_subject @filter(eq(v1_predicate_ancestors, "has_phenotype")) @cascade(v1_predicate, v1_object) {
             expand(v1_Edge) { v1_sources expand(v1_Source) }
-            node_n0: v1_object @filter(eq(v1_id, "CHEBI:3125")) @cascade(v1_id) {
+            node_n1: v1_object @filter(eq(v1_id, "UMLS:C0282090")) @cascade(v1_id, out_edges_e0) {
                 expand(v1_Node)
-            }
-        }
-        in_edges_e1: ~v1_object @filter(eq(v1_predicate_ancestors, "has_phenotype")) @cascade(v1_predicate, v1_subject) {
-            expand(v1_Edge) { v1_sources expand(v1_Source) }
-            node_n2: v1_subject @filter(eq(v1_id, "UMLS:C0496995")) @cascade(v1_id) {
-                expand(v1_Node)
+                out_edges_e0: ~v1_subject @filter(eq(v1_predicate_ancestors, "has_phenotype")) @cascade(v1_predicate, v1_object) {
+                    expand(v1_Edge) { v1_sources expand(v1_Source) }
+                    node_n0: v1_object @filter(eq(v1_id, "CHEBI:3125")) @cascade(v1_id) {
+                        expand(v1_Node)
+                    }
+                }
             }
         }
     }
@@ -788,33 +794,7 @@ EXP_TWO_HOP_WITH_VERSION = dedent("""
 
 EXP_THREE_HOP = dedent("""
 {
-    q0_node_n2(func: eq(id, "UMLS:C0496995")) @cascade(id, out_edges_e1, in_edges_e2) {
-        expand(Node)
-        out_edges_e1: ~subject @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, object) {
-            expand(Edge) { sources expand(Source) }
-            node_n1: object @filter(eq(id, "UMLS:C0282090")) @cascade(id, out_edges_e0) {
-                expand(Node)
-                out_edges_e0: ~subject @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, object) {
-                    expand(Edge) { sources expand(Source) }
-                    node_n0: object @filter(eq(id, "CHEBI:3125")) @cascade(id) {
-                        expand(Node)
-                    }
-                }
-            }
-        }
-        in_edges_e2: ~object @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, subject) {
-            expand(Edge) { sources expand(Source) }
-            node_n3: subject @filter(eq(id, "UMLS:C0149720")) @cascade(id) {
-                expand(Node)
-            }
-        }
-    }
-}
-""").strip().replace("knowledge level", "knowledge_level")
-
-EXP_FOUR_HOP = dedent("""
-{
-    q0_node_n3(func: eq(id, "UMLS:C0149720")) @cascade(id, out_edges_e2, in_edges_e3) {
+    q0_node_n3(func: eq(id, "UMLS:C0149720")) @cascade(id, out_edges_e2) {
         expand(Node)
         out_edges_e2: ~subject @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, object) {
             expand(Edge) { sources expand(Source) }
@@ -834,19 +814,13 @@ EXP_FOUR_HOP = dedent("""
                 }
             }
         }
-        in_edges_e3: ~object @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, subject) {
-            expand(Edge) { sources expand(Source) }
-            node_n4: subject @filter(eq(id, "UMLS:C0496994")) @cascade(id) {
-                expand(Node)
-            }
-        }
     }
 }
-""").strip()
+""").strip().replace("knowledge level", "knowledge_level")
 
-EXP_FIVE_HOP = dedent("""
+EXP_FOUR_HOP = dedent("""
 {
-    q0_node_n4(func: eq(id, "UMLS:C0496994")) @cascade(id, out_edges_e3, in_edges_e4) {
+    q0_node_n4(func: eq(id, "UMLS:C0496994")) @cascade(id, out_edges_e3) {
         expand(Node)
         out_edges_e3: ~subject @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, object) {
             expand(Edge) { sources expand(Source) }
@@ -872,10 +846,42 @@ EXP_FIVE_HOP = dedent("""
                 }
             }
         }
-        in_edges_e4: ~object @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, subject) {
+    }
+}
+""").strip()
+
+EXP_FIVE_HOP = dedent("""
+{
+    q0_node_n5(func: eq(id, "UMLS:C2879715")) @cascade(id, out_edges_e4) {
+        expand(Node)
+        out_edges_e4: ~subject @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, object) {
             expand(Edge) { sources expand(Source) }
-            node_n5: subject @filter(eq(id, "UMLS:C2879715")) @cascade(id) {
+            node_n4: object @filter(eq(id, "UMLS:C0496994")) @cascade(id, out_edges_e3) {
                 expand(Node)
+                out_edges_e3: ~subject @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, object) {
+                    expand(Edge) { sources expand(Source) }
+                    node_n3: object @filter(eq(id, "UMLS:C0149720")) @cascade(id, out_edges_e2) {
+                        expand(Node)
+                        out_edges_e2: ~subject @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, object) {
+                            expand(Edge) { sources expand(Source) }
+                            node_n2: object @filter(eq(id, "UMLS:C0496995")) @cascade(id, out_edges_e1) {
+                                expand(Node)
+                                out_edges_e1: ~subject @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, object) {
+                                    expand(Edge) { sources expand(Source) }
+                                    node_n1: object @filter(eq(id, "UMLS:C0282090")) @cascade(id, out_edges_e0) {
+                                        expand(Node)
+                                        out_edges_e0: ~subject @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, object) {
+                                            expand(Edge) { sources expand(Source) }
+                                            node_n0: object @filter(eq(id, "CHEBI:3125")) @cascade(id) {
+                                                expand(Node)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -884,34 +890,34 @@ EXP_FIVE_HOP = dedent("""
 
 EXP_FIVE_HOP_MULTIPLE_IDS = dedent("""
 {
-    q0_node_n3(func: eq(id, ["Q6", "Q7"])) @cascade(id, out_edges_e2, in_edges_e3) {
+    q0_node_n5(func: eq(id, ["Q10", "Q11"])) @cascade(id, out_edges_e4) {
         expand(Node)
-        out_edges_e2: ~subject @filter(eq(predicate_ancestors, "P2")) @cascade(predicate, object) {
+        out_edges_e4: ~subject @filter(eq(predicate_ancestors, "P4")) @cascade(predicate, object) {
             expand(Edge) { sources expand(Source) }
-            node_n2: object @filter(eq(id, ["Q4", "Q5"])) @cascade(id, out_edges_e1) {
+            node_n4: object @filter(eq(id, ["Q8", "Q9"])) @cascade(id, out_edges_e3) {
                 expand(Node)
-                out_edges_e1: ~subject @filter(eq(predicate_ancestors, "P1")) @cascade(predicate, object) {
+                out_edges_e3: ~subject @filter(eq(predicate_ancestors, "P3")) @cascade(predicate, object) {
                     expand(Edge) { sources expand(Source) }
-                    node_n1: object @filter(eq(id, ["Q2", "Q3"])) @cascade(id, out_edges_e0) {
+                    node_n3: object @filter(eq(id, ["Q6", "Q7"])) @cascade(id, out_edges_e2) {
                         expand(Node)
-                        out_edges_e0: ~subject @filter(eq(predicate_ancestors, "P0")) @cascade(predicate, object) {
+                        out_edges_e2: ~subject @filter(eq(predicate_ancestors, "P2")) @cascade(predicate, object) {
                             expand(Edge) { sources expand(Source) }
-                            node_n0: object @filter(eq(id, ["Q0", "Q1"])) @cascade(id) {
+                            node_n2: object @filter(eq(id, ["Q4", "Q5"])) @cascade(id, out_edges_e1) {
                                 expand(Node)
+                                out_edges_e1: ~subject @filter(eq(predicate_ancestors, "P1")) @cascade(predicate, object) {
+                                    expand(Edge) { sources expand(Source) }
+                                    node_n1: object @filter(eq(id, ["Q2", "Q3"])) @cascade(id, out_edges_e0) {
+                                        expand(Node)
+                                        out_edges_e0: ~subject @filter(eq(predicate_ancestors, "P0")) @cascade(predicate, object) {
+                                            expand(Edge) { sources expand(Source) }
+                                            node_n0: object @filter(eq(id, ["Q0", "Q1"])) @cascade(id) {
+                                                expand(Node)
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
-                    }
-                }
-            }
-        }
-        in_edges_e3: ~object @filter(eq(predicate_ancestors, "P3")) @cascade(predicate, subject) {
-            expand(Edge) { sources expand(Source) }
-            node_n4: subject @filter(eq(id, ["Q8", "Q9"])) @cascade(id, in_edges_e4) {
-                expand(Node)
-                in_edges_e4: ~object @filter(eq(predicate_ancestors, "P4")) @cascade(predicate, subject) {
-                    expand(Edge) { sources expand(Source) }
-                    node_n5: subject @filter(eq(id, ["Q10", "Q11"])) @cascade(id) {
-                        expand(Node)
                     }
                 }
             }
@@ -1092,50 +1098,50 @@ EXP_BATCH_QGRAPHS_MULTI_HOP = dedent("""
         }
     }
 
-    q2_node_n1(func: eq(id, "UMLS:C0282090")) @cascade(id, out_edges_e0, in_edges_e1) {
+    q2_node_n2(func: eq(id, "UMLS:C0496995")) @cascade(id, out_edges_e1) {
         expand(Node)
-        out_edges_e0: ~subject @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, object) {
+        out_edges_e1: ~subject @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, object) {
             expand(Edge) { sources expand(Source) }
-            node_n0: object @filter(eq(id, "CHEBI:3125")) @cascade(id) {
+            node_n1: object @filter(eq(id, "UMLS:C0282090")) @cascade(id, out_edges_e0) {
                 expand(Node)
-            }
-        }
-        in_edges_e1: ~object @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, subject) {
-            expand(Edge) { sources expand(Source) }
-            node_n2: subject @filter(eq(id, "UMLS:C0496995")) @cascade(id) {
-                expand(Node)
-            }
-        }
-    }
-
-    q3_node_n3(func: eq(id, ["Q6", "Q7"])) @cascade(id, out_edges_e2, in_edges_e3) {
-        expand(Node)
-        out_edges_e2: ~subject @filter(eq(predicate_ancestors, "P2")) @cascade(predicate, object) {
-            expand(Edge) { sources expand(Source) }
-            node_n2: object @filter(eq(id, ["Q4", "Q5"])) @cascade(id, out_edges_e1) {
-                expand(Node)
-                out_edges_e1: ~subject @filter(eq(predicate_ancestors, "P1")) @cascade(predicate, object) {
+                out_edges_e0: ~subject @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, object) {
                     expand(Edge) { sources expand(Source) }
-                    node_n1: object @filter(eq(id, ["Q2", "Q3"])) @cascade(id, out_edges_e0) {
+                    node_n0: object @filter(eq(id, "CHEBI:3125")) @cascade(id) {
                         expand(Node)
-                        out_edges_e0: ~subject @filter(eq(predicate_ancestors, "P0")) @cascade(predicate, object) {
-                            expand(Edge) { sources expand(Source) }
-                            node_n0: object @filter(eq(id, ["Q0", "Q1"])) @cascade(id) {
-                                expand(Node)
-                            }
-                        }
                     }
                 }
             }
         }
-        in_edges_e3: ~object @filter(eq(predicate_ancestors, "P3")) @cascade(predicate, subject) {
+    }
+
+    q3_node_n5(func: eq(id, ["Q10", "Q11"])) @cascade(id, out_edges_e4) {
+        expand(Node)
+        out_edges_e4: ~subject @filter(eq(predicate_ancestors, "P4")) @cascade(predicate, object) {
             expand(Edge) { sources expand(Source) }
-            node_n4: subject @filter(eq(id, ["Q8", "Q9"])) @cascade(id, in_edges_e4) {
+            node_n4: object @filter(eq(id, ["Q8", "Q9"])) @cascade(id, out_edges_e3) {
                 expand(Node)
-                in_edges_e4: ~object @filter(eq(predicate_ancestors, "P4")) @cascade(predicate, subject) {
+                out_edges_e3: ~subject @filter(eq(predicate_ancestors, "P3")) @cascade(predicate, object) {
                     expand(Edge) { sources expand(Source) }
-                    node_n5: subject @filter(eq(id, ["Q10", "Q11"])) @cascade(id) {
+                    node_n3: object @filter(eq(id, ["Q6", "Q7"])) @cascade(id, out_edges_e2) {
                         expand(Node)
+                        out_edges_e2: ~subject @filter(eq(predicate_ancestors, "P2")) @cascade(predicate, object) {
+                            expand(Edge) { sources expand(Source) }
+                            node_n2: object @filter(eq(id, ["Q4", "Q5"])) @cascade(id, out_edges_e1) {
+                                expand(Node)
+                                out_edges_e1: ~subject @filter(eq(predicate_ancestors, "P1")) @cascade(predicate, object) {
+                                    expand(Edge) { sources expand(Source) }
+                                    node_n1: object @filter(eq(id, ["Q2", "Q3"])) @cascade(id, out_edges_e0) {
+                                        expand(Node)
+                                        out_edges_e0: ~subject @filter(eq(predicate_ancestors, "P0")) @cascade(predicate, object) {
+                                            expand(Edge) { sources expand(Source) }
+                                            node_n0: object @filter(eq(id, ["Q0", "Q1"])) @cascade(id) {
+                                                expand(Node)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -2185,8 +2191,8 @@ def test_subclassing_two_hop_id_to_id_on_both_hops(transpiler_with_subclassing: 
     actual = transpiler_with_subclassing.convert_multihop_public(qgraph)
 
     # Primary traversals (same as two-hop baseline)
+    assert "out_edges_e1:" in actual
     assert "out_edges_e0:" in actual
-    assert "in_edges_e1:" in actual
 
     # Subclassing on first hop (e0): expect B/C/D
     assert "in_edges-subclassB_e0:" in actual
@@ -2254,3 +2260,185 @@ def test_subclassing_two_hop_id_to_category_on_second_hop_generates_b_only(trans
 
     # Predicate segment inside subclass form on second hop must carry the original predicate filter
     assert ' @filter(eq(predicate_ancestors, "participates_in"))' in actual
+
+
+# -----------------------
+# Pinnedness Algorithm Tests
+# -----------------------
+
+def test_pinnedness_empty_graph_raises(transpiler: _TestDgraphTranspiler) -> None:
+    qgraph = qg({"nodes": {}, "edges": {}})
+    with pytest.raises(ValueError):
+        transpiler.convert_multihop_public(qgraph)
+
+
+def test_pinnedness_single_node_no_edges(transpiler: _TestDgraphTranspiler) -> None:
+    qgraph = qg({"nodes": {"n0": {"ids": ["X"]}}, "edges": {}})
+    # convert_multihop still works and selects n0
+    actual = transpiler.convert_multihop_public(qgraph)
+    assert "q0_node_n0" in actual
+
+
+def test_pinnedness_two_nodes_one_edge_prefers_node_with_ids(transpiler: _TestDgraphTranspiler) -> None:
+    qgraph = qg({
+        "nodes": {
+            "n0": {"ids": ["A"]},            # constrained
+            "n1": {"categories": ["biolink:Gene"]},  # less constrained than IDs
+        },
+        "edges": {"e0": {"subject": "n0", "object": "n1", "predicates": ["biolink:related_to"]}},
+    })
+    actual = transpiler.convert_multihop_public(qgraph)
+    # Should start at the most constrained node, n0
+    assert "q0_node_n0" in actual
+    assert "out_edges_e0:" in actual
+
+    # And should not use category at root
+    assert "func: eq(category" not in actual
+
+
+def test_pinnedness_multiple_parallel_edges_increase_weight(transpiler: _TestDgraphTranspiler) -> None:
+    # Same two nodes but with two parallel edges; pinnedness should still pick the ID node now
+    qgraph = qg({
+        "nodes": {"n0": {"ids": ["A"]}, "n1": {"categories": ["biolink:Gene"]}},
+        "edges": {
+            "e0": {"subject": "n0", "object": "n1", "predicates": ["biolink:related_to"]},
+            "e1": {"subject": "n0", "object": "n1", "predicates": ["biolink:related_to"]},
+        },
+    })
+    actual = transpiler.convert_multihop_public(qgraph)
+    assert "q0_node_n0" in actual
+    assert "out_edges_e0:" in actual and "out_edges_e1:" in actual
+    # Root filter should be ID-based
+    assert 'q0_node_n0(func: eq(id, "A"))' in actual or 'q0_node_n0(func: eq(id, ["A"]))' in actual
+    assert "func: eq(category" not in actual
+
+
+def test_pinnedness_prefers_more_ids_over_fewer(transpiler: _TestDgraphTranspiler) -> None:
+    # Fewer IDs (n0 has 1) should be preferred over more IDs (n1 has 3)
+    qgraph = qg({
+        "nodes": {
+            "n0": {"ids": ["A"]},
+            "n1": {"ids": ["B1", "B2", "B3"]},
+        },
+        "edges": {"e0": {"subject": "n1", "object": "n0", "predicates": ["biolink:related_to"]}},
+    })
+    actual = transpiler.convert_multihop_public(qgraph)
+    assert "q0_node_n0" in actual
+    assert 'q0_node_n0(func: eq(id, "A"))' in actual or 'q0_node_n0(func: eq(id, ["A"]))' in actual
+
+
+def test_pinnedness_tie_breaker_uses_node_id(transpiler: _TestDgraphTranspiler) -> None:
+    # Both nodes unconstrained (no IDs); tie-breaker should pick max by (score, node_id)
+    # With alphabetical normalization, node IDs sorted: a_first -> n0, z_last -> n1
+    qgraph = qg({
+        "nodes": {
+            "a_first": {"categories": ["biolink:Gene"]},
+            "z_last": {"categories": ["biolink:Gene"]},
+        },
+        "edges": {
+            "e0": {"subject": "a_first", "object": "z_last", "predicates": ["biolink:related_to"]},
+        },
+    })
+    actual = transpiler.convert_multihop_public(qgraph)
+
+    # With equal category-only nodes, tie-breaker picks lexicographically larger id ("z_last"), normalized to n1.
+    assert "q0_node_n1" in actual
+    # Root should NOT use ID filter since neither node has IDs; it should use category
+    assert "func: eq(id," not in actual
+    assert 'func: eq(category, "Gene")' in actual
+
+
+def test_pinnedness_issue(transpiler: _TestDgraphTranspiler) -> None:
+    """Test Pinnedness algorithm issue."""
+    # 1. Arrange
+    qgraph = qg({
+      "nodes": {
+        "SN": {
+          "categories": ["biolink:ChemicalEntity"],
+          "set_interpretation": "BATCH",
+          "constraints": [],
+          "member_ids": []
+        },
+        "ON": {
+          "ids": ["MONDO:0011705"],
+          "categories": ["biolink:DiseaseOrPhenotypicFeature"],
+          "set_interpretation": "BATCH",
+          "constraints": [],
+          "member_ids": []
+        },
+        "f": {
+          "categories": ["biolink:Disease"],
+          "set_interpretation": "BATCH",
+          "constraints": [],
+          "member_ids": []
+        }
+      },
+      "edges": {
+        "edge_0": {
+          "subject": "SN",
+          "object": "f",
+          "predicates": ["biolink:treats_or_applied_or_studied_to_treat"],
+          "attribute_constraints": [],
+          "qualifier_constraints": []
+        },
+        "edge_1": {
+          "subject": "f",
+          "object": "ON",
+          "predicates": ["biolink:has_phenotype"],
+          "attribute_constraints": [],
+          "qualifier_constraints": []
+        },
+        "edge_2": {
+          "subject": "ON",
+          "object": "f",
+          "predicates": ["biolink:has_phenotype"],
+          "attribute_constraints": [],
+          "qualifier_constraints": []
+        }
+      }
+    })
+
+    # 2. Act
+    actual = transpiler.convert_multihop_public(qgraph)
+    expected = dedent("""
+    {
+        q0_node_n0(func: eq(id, "MONDO:0011705")) @cascade(id, out_edges_e2, in_edges_e1) {
+            expand(Node)
+            out_edges_e2: ~subject @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, object) {
+                expand(Edge) { sources expand(Source) }
+                node_n2: object @filter(eq(category, "Disease")) @cascade(id, in_edges_e0) {
+                    expand(Node)
+                    in_edges_e0: ~object @filter(eq(predicate_ancestors, "treats_or_applied_or_studied_to_treat")) @cascade(predicate, subject) {
+                        expand(Edge) { sources expand(Source) }
+                        node_n1: subject @filter(eq(category, "ChemicalEntity")) @cascade(id) {
+                            expand(Node)
+                        }
+                    }
+                }
+            }
+            in_edges-subclassB_e2: ~object @filter(eq(predicate_ancestors, "subclass_of")) {
+                expand(Edge) { sources expand(Source) }
+                out_edges_e2: ~subject @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, object) {
+                    expand(Edge) { sources expand(Source) }
+                    node_n2: object @filter(eq(category, "Disease")) @cascade(id, in_edges_e0) {
+                        expand(Node)
+                    }
+                }
+            }
+            in_edges_e1: ~object @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, subject) {
+                expand(Edge) { sources expand(Source) }
+                node_n2: subject @filter(eq(category, "Disease")) @cascade(id, in_edges_e0) {
+                    expand(Node)
+                    in_edges_e0: ~object @filter(eq(predicate_ancestors, "treats_or_applied_or_studied_to_treat")) @cascade(predicate, subject) {
+                        expand(Edge) { sources expand(Source) }
+                        node_n1: subject @filter(eq(category, "ChemicalEntity")) @cascade(id) {
+                            expand(Node)
+                        }
+                    }
+                }
+            }
+        }
+    }""").strip()
+
+    # 3. Assert
+    assert normalize(actual) == normalize(expected)
