@@ -18,9 +18,12 @@ from retriever.data_tiers.tier_1.elasticsearch.meta import (
     extract_metadata_entries_from_blob,
     generate_operations,
     get_t1_metadata,
+    merge_operations,
 )
 from retriever.data_tiers.tier_1.elasticsearch.types import ESHit, ESPayload
-from retriever.data_tiers.utils import parse_dingo_metadata
+from retriever.data_tiers.utils import (
+    parse_dingo_metadata_unhashed,
+)
 from retriever.types.dingo import DINGO_ADAPTER, DINGOMetadata
 from retriever.types.metakg import Operation, OperationNode
 from retriever.types.trapi import BiolinkEntity, Infores
@@ -231,8 +234,13 @@ class ElasticSearchDriver(DatabaseDriver):
                 "Unable to obtain metadata from backend, cannot parse operations."
             )
         infores = Infores(CONFIG.tier1.backend_infores)
-        operations, nodes = parse_dingo_metadata(DINGOMetadata(**metadata), 1, infores)
+        # operations, nodes = parse_dingo_metadata(DINGOMetadata(**metadata), 1, infores)
+        operations, nodes = parse_dingo_metadata_unhashed(
+            DINGOMetadata(**metadata), 1, infores
+        )
+        operations = merge_operations(operations)
         log.success(f"Parsed {infores} as a Tier 1 resource.")
+
         return operations, nodes
 
     @override

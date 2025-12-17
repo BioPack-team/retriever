@@ -9,7 +9,7 @@ from loguru import logger as log
 from retriever.config.general import CONFIG
 from retriever.data_tiers.utils import (
     generate_operation,
-    get_op_hash,
+    get_simple_op_hash,
     parse_dingo_metadata_unhashed,
 )
 from retriever.types.dingo import DINGOMetadata
@@ -182,17 +182,26 @@ def dedupe_nodes(
     return nodes
 
 
-def dedupe_operations(ops_unhashed: list[UnhashedOperation]) -> list[Operation]:
-    """De-duplicate Operations generated."""
-    seen_op = set[str]()
+def merge_operations(ops_unhashed: list[UnhashedOperation]) -> list[Operation]:
+    """Merge duplicate operations."""
+    seen_op = dict[str, Operation]()
     operations = list[Operation]()
 
     for op in ops_unhashed:
-        op_hash = get_op_hash(op)
+        op_hash = get_simple_op_hash(op)
         if op_hash not in seen_op:
             operation = generate_operation(op, op_hash)
             operations.append(operation)
-            seen_op.add(op_hash)
+            seen_op[op_hash] = operation
+        # needs merging if seen
+        else:
+            hashed_op = seen_op[op_hash]
+            if hashed_op.attributes is not None and op.attributes is not None:
+                hashed_op.attributes.extend(op.attributes)
+            if hashed_op.qualifiers is not None and op.qualifiers is not None:
+                hashed_op.qualifiers.update(op.qualifiers)
+
+            # ignoring access_metadata for now
 
     return operations
 
@@ -213,7 +222,7 @@ async def generate_operations(
         operations_unhashed.extend(curr_ops)
         nodes = merge_nodes(nodes, curr_nodes, infores)
 
-    operations = dedupe_operations(operations_unhashed)
+    operations = merge_operations(operations_unhashed)
     nodes = dedupe_nodes(nodes, infores)
 
     log.success(f"Parsed {infores} as a Tier 1 resource.")
