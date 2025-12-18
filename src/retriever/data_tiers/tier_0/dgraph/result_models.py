@@ -61,7 +61,7 @@ class Source:
     resource_role: str
     upstream_resource_ids: list[str] = field(default_factory=list)
     source_record_urls: list[str] = field(default_factory=list)
-    source_id: str
+    source_id: str = ""
     source_category: list[str] = field(default_factory=list)
 
     @classmethod
