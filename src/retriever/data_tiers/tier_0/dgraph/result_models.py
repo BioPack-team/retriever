@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import re
 import base64
-import msgpack
+import re
 from collections.abc import Mapping
 from contextlib import suppress
 from dataclasses import dataclass, field, fields
 from typing import Any, Literal, Self, TypeGuard, cast
 
+import msgpack
 import orjson
 
 from retriever.data_tiers.utils import (
@@ -32,7 +32,7 @@ def _decode_msgpack_base64(value: Any) -> Any | None:
 
     Returns None if value is missing or decoding fails.
     """
-    if not isinstance(value, (str, bytes, bytearray)):
+    if not isinstance(value, str | bytes | bytearray):
         return None
     try:
         raw_bytes = base64.b64decode(value)
