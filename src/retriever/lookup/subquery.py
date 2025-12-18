@@ -141,7 +141,11 @@ async def run_queries(
     results = list[BackendResult]()
     for i, record in enumerate(response_records):
         if isinstance(record, Exception):
-            continue  # Exception will come from driver, which should have logged.
+            print(record)
+            job_log.with_exception(
+                "An unhandled error occurred in the query driver.", exception=record
+            )
+            continue
         result = transpilers[i].convert_results(qgraphs[i], record)
 
         # Add Retriever to the provenance chain
