@@ -182,7 +182,10 @@ async def subquery(
         qgraphs, transpilers, query_payloads = make_payloads(branch, qg, job_log)
         results = await run_queries(qgraphs, transpilers, query_payloads, job_log)
 
-        kg = results[0]["knowledge_graph"]
+        if len(results) == 0:
+            kg = KnowledgeGraphDict(nodes={}, edges={})
+        else:
+            kg = results[0]["knowledge_graph"]
         if len(results) > 1:
             for result in results[1:]:
                 # We can only do this because we can guarantee both graphs are disjoint,
