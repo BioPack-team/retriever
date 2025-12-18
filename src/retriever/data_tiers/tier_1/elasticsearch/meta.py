@@ -34,7 +34,6 @@ TIER1_INDICES = [
 
 T1MetaData = dict[str, Any]
 
-# TODO probably needs some versioning info to purge redis?
 CACHE_KEY = "TIER1_META"
 
 
@@ -44,7 +43,6 @@ async def save_metadata_cache(key: str, payload: T1MetaData) -> None:
         hash_hex(hash(key)),
         ormsgpack.packb(payload),
         compress=True,
-        ttl=CONFIG.job.metakg.build_time,
     )
 
 
