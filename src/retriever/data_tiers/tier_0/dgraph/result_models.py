@@ -296,9 +296,7 @@ class Edge:
             if "subject_direction_qualifier" in norm
             else None,
             qualifiers=_to_str_list(norm.get("qualifiers")),
-            FDA_regulatory_approvals=_to_str_list(
-                norm.get("FDA_regulatory_approvals")
-            ),
+            FDA_regulatory_approvals=_to_str_list(norm.get("FDA_regulatory_approvals")),
             clinical_approval_status=str(norm["clinical_approval_status"])
             if "clinical_approval_status" in norm
             else None,
