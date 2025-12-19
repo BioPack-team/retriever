@@ -151,7 +151,7 @@ class Edge:
         qualifiers = dict[str, str]()
         attributes = dict[str, Any]()
         for key, value in norm.items():
-            if key in DINGO_KG_EDGE_TOPLEVEL_VALUES:
+            if key in DINGO_KG_EDGE_TOPLEVEL_VALUES or key.startswith("node_"):
                 continue
             if biolink.is_qualifier(key) and value is not None:
                 if not isinstance(value, str):
@@ -161,7 +161,10 @@ class Edge:
             elif key in msgpack_encoded_keys:
                 attributes[key] = _decode_msgpack_base64(value)
             elif value is not None:
-                attributes[key] = value
+                new_key = key
+                if key == "ecategory":
+                    new_key = "category"
+                attributes[new_key] = value
 
         return cls(
             binding=binding,

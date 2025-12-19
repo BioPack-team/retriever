@@ -68,7 +68,7 @@ def _sample_versioned_raw_response(supporting_b64: str) -> dict[str, Any]:
                                 "vA_resource_role": "primary_knowledge_source",
                             },
                         ],
-                        "vA_category": ["Association"],
+                        "vA_ecategory": ["Association"],
                         "vA_predicate": "located_in",
                         "vA_source_inforeses": ["infores:biolink", "infores:goa"],
                         "vA_predicate_ancestors": [
