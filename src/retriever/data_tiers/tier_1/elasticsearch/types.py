@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Any, NotRequired, Self, TypedDict
 
+import orjson
+
 from retriever.data_tiers.tier_1.elasticsearch.attribute_types import (
     AttributeFilterQuery,
 )
@@ -117,7 +119,10 @@ class ESEdge:
             if key in DINGO_KG_EDGE_TOPLEVEL_VALUES:
                 continue
             if biolink.is_qualifier(key):
-                qualifiers[key] = str(value)
+                if not isinstance(value, str):
+                    qualifiers[key] = orjson.dumps(value).decode()
+                else:
+                    qualifiers[key] = str(value)
             else:
                 attributes[key] = value
 
