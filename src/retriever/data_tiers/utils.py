@@ -29,6 +29,7 @@ DINGO_KG_EDGE_TOPLEVEL_VALUES = {
     "_index",
     "seq_",
     "negated",  # Should only ever show up as false, field to be removed in future
+    "eid",
 }
 
 
