@@ -14,7 +14,6 @@ from retriever.data_tiers.tier_1.elasticsearch.aggregating_querier import (
     run_batch_query,
     run_single_query,
 )
-
 from retriever.data_tiers.tier_1.elasticsearch.meta import (
     extract_metadata_entries_from_blob,
     generate_operations,
@@ -22,14 +21,10 @@ from retriever.data_tiers.tier_1.elasticsearch.meta import (
     get_t1_metadata,
     merge_operations,
 )
-
+from retriever.data_tiers.tier_1.elasticsearch.types import ESEdge, ESPayload
 from retriever.data_tiers.utils import (
     parse_dingo_metadata_unhashed,
 )
-
-from retriever.data_tiers.tier_1.elasticsearch.types import ESEdge, ESPayload
-from retriever.data_tiers.utils import parse_dingo_metadata
-
 from retriever.types.dingo import DINGO_ADAPTER, DINGOMetadata
 from retriever.types.metakg import Operation, OperationNode
 from retriever.types.trapi import BiolinkEntity, Infores
