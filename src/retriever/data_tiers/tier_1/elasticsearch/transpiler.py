@@ -5,7 +5,7 @@ from retriever.data_tiers.base_transpiler import Tier1Transpiler
 from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.attribute import (
     process_attribute_constraints,
 )
-from retriever.data_tiers.tier_1.elasticsearch.constraints.qualifier import (
+from retriever.data_tiers.tier_1.elasticsearch.constraints.qualifiers.qualifier import (
     process_qualifier_constraints,
 )
 from retriever.data_tiers.tier_1.elasticsearch.types import (

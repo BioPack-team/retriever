@@ -14,8 +14,17 @@ from retriever.data_tiers.tier_1.elasticsearch.aggregating_querier import (
     run_batch_query,
     run_single_query,
 )
+from retriever.data_tiers.tier_1.elasticsearch.meta import (
+    extract_metadata_entries_from_blob,
+    generate_operations,
+    get_t1_indices,
+    get_t1_metadata,
+    merge_operations,
+)
 from retriever.data_tiers.tier_1.elasticsearch.types import ESEdge, ESPayload
-from retriever.data_tiers.utils import parse_dingo_metadata
+from retriever.data_tiers.utils import (
+    parse_dingo_metadata_unhashed,
+)
 from retriever.types.dingo import DINGO_ADAPTER, DINGOMetadata
 from retriever.types.metakg import Operation, OperationNode
 from retriever.types.trapi import BiolinkEntity, Infores
@@ -212,20 +221,61 @@ class ElasticSearchDriver(DatabaseDriver):
         metadata = ormsgpack.unpackb(metadata_pack)
         return metadata
 
-    @override
-    async def get_metadata(self) -> dict[str, Any] | None:
+    async def legacy_get_metadata(self) -> dict[str, Any] | None:
+        """Legacy method for loading metadata remotely."""
         return await self._get_metadata(CONFIG.tier1.metadata_url)
 
-    @override
-    async def get_operations(
+    async def legacy_get_operations(
         self,
     ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
-        metadata = await self.get_metadata()
+        """Legacy method for getting operations based on unified metadata."""
+        metadata = await self.legacy_get_metadata()
         if metadata is None:
             raise ValueError(
                 "Unable to obtain metadata from backend, cannot parse operations."
             )
         infores = Infores(CONFIG.tier1.backend_infores)
-        operations, nodes = parse_dingo_metadata(DINGOMetadata(**metadata), 1, infores)
+        # operations, nodes = parse_dingo_metadata(DINGOMetadata(**metadata), 1, infores)
+        operations, nodes = parse_dingo_metadata_unhashed(
+            DINGOMetadata(**metadata), 1, infores
+        )
+        operations = merge_operations(operations)
         log.success(f"Parsed {infores} as a Tier 1 resource.")
+
+        return operations, nodes
+
+    @override
+    async def get_metadata(self) -> dict[str, Any] | None:
+        return await get_t1_metadata(
+            es_connection=self.es_connection,
+            indices_alias=CONFIG.tier1.elasticsearch.index_name,
+        )
+
+    @override
+    async def get_operations(
+        self,
+    ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
+        # return await self.legacy_get_metadata()
+        return await self.get_t1_operations()
+
+    async def get_t1_operations(
+        self,
+    ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
+        """Get tier1 operations based on metadata."""
+        metadata_blob = await self.get_metadata()
+
+        if metadata_blob is None:
+            raise ValueError(
+                "Unable to obtain metadata from backend, cannot parse operations."
+            )
+
+        if self.es_connection is None:
+            raise ValueError("Elasticsearch connection not configured.")
+
+        indices = await get_t1_indices(self.es_connection)
+
+        metadata_list = extract_metadata_entries_from_blob(metadata_blob, indices)
+
+        operations, nodes = await generate_operations(metadata_list)
+
         return operations, nodes
