@@ -18,23 +18,29 @@ from retriever.types.trapi import BiolinkEntity, Infores, MetaAttributeDict
 from retriever.utils.redis import REDIS_CLIENT
 from retriever.utils.trapi import hash_hex
 
-TIER1_INDICES = [
-    "diseases",
-    "gene2phenotype",
-    "go_cam",
-    "goa",
-    "hpoa",
-    "sider",
-    "ctd",
-    "panther",
-    "ubergraph",
-    "ttd",
-    "alliance",
-]
-
 T1MetaData = dict[str, Any]
 
 CACHE_KEY = "TIER1_META"
+
+
+async def get_t1_indices(
+    client: AsyncElasticsearch,
+) -> list[str]:
+    """For fetch a list of indices from ES."""
+    resp = await client.indices.resolve_index(
+        name=CONFIG.tier1.elasticsearch.index_name
+    )
+    if "aliases" not in resp:
+        raise Exception(
+            f"Failed to get indices from ES: {CONFIG.tier1.elasticsearch.index_name}"
+        )
+
+    backing_indices: list[str] = []
+    for a in resp.get("aliases", []):
+        if a["name"] == "dingo":
+            backing_indices.extend(a["indices"])
+
+    return backing_indices
 
 
 async def save_metadata_cache(key: str, payload: T1MetaData) -> None:
@@ -55,12 +61,14 @@ async def read_metadata_cache(key: str) -> T1MetaData | None:
     return None
 
 
-def extract_metadata_entries_from_blob(blob: T1MetaData) -> list[T1MetaData]:
+def extract_metadata_entries_from_blob(
+    blob: T1MetaData, indices: list[str]
+) -> list[T1MetaData]:
     """Extract a list of metadata entries from raw blob."""
     meta_entries: list[T1MetaData] = list(
         filter(
             None,
-            [blob[index_name].get("graph") for index_name in TIER1_INDICES],
+            [blob[index_name].get("graph") for index_name in indices],
         )
     )
 
@@ -72,11 +80,12 @@ async def retrieve_metadata_from_es(
 ) -> T1MetaData:
     """Method to retrieve prefetched metadata from Elasticsearch."""
     mappings = await es_connection.indices.get_mapping(index=indices_alias)
+    tier1_indices = await get_t1_indices(es_connection)
 
     # here we pull an array of metadata, instead of 1
 
     meta: T1MetaData = defaultdict(dict)
-    for index_name in TIER1_INDICES:
+    for index_name in tier1_indices:
         raw = mappings[index_name]["mappings"]["_meta"]
         keys = ["graph", "release"]
 

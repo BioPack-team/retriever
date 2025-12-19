@@ -5,8 +5,8 @@ from typing import Iterator, cast, Any
 import pytest
 import retriever.config.general as general_mod
 import retriever.data_tiers.tier_1.elasticsearch.driver as driver_mod
-from retriever.data_tiers.tier_1.elasticsearch.meta import TIER1_INDICES, extract_metadata_entries_from_blob, \
-    merge_operations
+from retriever.data_tiers.tier_1.elasticsearch.meta import extract_metadata_entries_from_blob, \
+    merge_operations, get_t1_indices
 from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
 from retriever.data_tiers.tier_1.elasticsearch.types import ESPayload, ESHit
 from payload.trapi_qgraphs import DINGO_QGRAPH, VALID_REGEX_QGRAPHS, INVALID_REGEX_QGRAPHS
@@ -182,7 +182,8 @@ async def test_metadata_retrieval():
     meta = await driver.get_metadata()
 
     # make sure each index has metadata extracted
-    assert len(extract_metadata_entries_from_blob(meta)) == len(TIER1_INDICES)
+    indices = await get_t1_indices(driver.es_connection)
+    assert len(extract_metadata_entries_from_blob(meta, indices)) == len(indices)
 
     ops, nodes = await driver.get_operations()
 

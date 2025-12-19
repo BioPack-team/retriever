@@ -17,6 +17,7 @@ from retriever.data_tiers.tier_1.elasticsearch.aggregating_querier import (
 from retriever.data_tiers.tier_1.elasticsearch.meta import (
     extract_metadata_entries_from_blob,
     generate_operations,
+    get_t1_indices,
     get_t1_metadata,
     merge_operations,
 )
@@ -268,7 +269,12 @@ class ElasticSearchDriver(DatabaseDriver):
                 "Unable to obtain metadata from backend, cannot parse operations."
             )
 
-        metadata_list = extract_metadata_entries_from_blob(metadata_blob)
+        if self.es_connection is None:
+            raise ValueError("Elasticsearch connection not configured.")
+
+        indices = await get_t1_indices(self.es_connection)
+
+        metadata_list = extract_metadata_entries_from_blob(metadata_blob, indices)
 
         operations, nodes = await generate_operations(metadata_list)
 
