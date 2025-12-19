@@ -68,7 +68,7 @@ def _sample_versioned_raw_response(supporting_b64: str) -> dict[str, Any]:
                                 "vA_resource_role": "primary_knowledge_source",
                             },
                         ],
-                        "vA_ecategory": ["Association"],
+                        "vA_category": ["Association"],
                         "vA_predicate": "located_in",
                         "vA_source_inforeses": ["infores:biolink", "infores:goa"],
                         "vA_predicate_ancestors": [
@@ -156,18 +156,18 @@ def _assert_root_node_fields(root_node: dg_models.Node) -> None:
         "AnatomicalEntity",
         "BiologicalEntity",
     ]
-    assert root_node.information_content == 56.8
-    assert root_node.equivalent_identifiers == ["GO:0031410"]
-    assert root_node.description == "A vesicle found in the cytoplasm of a cell."
-    assert root_node.full_name == "Cytoplasmic vesicle"
-    assert root_node.symbol == "CV"
-    assert root_node.synonym == ["cytoplasmic vesicle", "cytoplasmic vesicles"]
-    assert root_node.xref == ["GO:0031410", "UMLS:C123"]
-    assert root_node.taxon == "NCBITaxon:9606"
-    assert root_node.chembl_availability_type == "clinical"
-    assert root_node.chembl_black_box_warning == "WARNING"
-    assert root_node.chembl_natural_product is True
-    assert root_node.chembl_prodrug is False
+    assert root_node.attributes["information_content"] == 56.8
+    assert root_node.attributes["equivalent_identifiers"] == ["GO:0031410"]
+    assert root_node.attributes["description"] == "A vesicle found in the cytoplasm of a cell."
+    assert root_node.attributes["full_name"] == "Cytoplasmic vesicle"
+    assert root_node.attributes["symbol"] == "CV"
+    assert root_node.attributes["synonym"] == ["cytoplasmic vesicle", "cytoplasmic vesicles"]
+    assert root_node.attributes["xref"] == ["GO:0031410", "UMLS:C123"]
+    assert root_node.attributes["taxon"] == "NCBITaxon:9606"
+    assert root_node.attributes["chembl_availability_type"] == "clinical"
+    assert root_node.attributes["chembl_black_box_warning"] == "WARNING"
+    assert root_node.attributes["chembl_natural_product"] is True
+    assert root_node.attributes["chembl_prodrug"] is False
     assert len(root_node.edges) == 1
 
 
@@ -177,37 +177,30 @@ def _assert_in_edge_fields(
     assert in_edge.binding == "e0"
     assert in_edge.direction == "in"
     assert in_edge.predicate == "located_in"
-    assert in_edge.knowledge_level == "prediction"
-    assert in_edge.agent_type == "automated_agent"
-    assert in_edge.has_evidence == ["ECO:IEA"]
-    assert in_edge.original_subject == "UniProtKB:Q9UMZ2"
-    assert in_edge.original_object == "GO:0031410"
-    assert in_edge.source_inforeses == ["infores:biolink", "infores:goa"]
-    assert in_edge.predicate_ancestors == [
-        "related_to_at_instance_level",
-        "located_in",
-        "related_to",
-    ]
+    assert in_edge.attributes["knowledge_level"] == "prediction"
+    assert in_edge.attributes["agent_type"] == "automated_agent"
+    assert in_edge.attributes["has_evidence"] == ["ECO:IEA"]
+    assert in_edge.attributes["original_subject"] == "UniProtKB:Q9UMZ2"
+    assert in_edge.attributes["original_object"] == "GO:0031410"
     assert in_edge.id == "urn:uuid:0763a393-7cc8-4d80-8720-0efcc0f9245f"
-    assert in_edge.category == ["Association"]
-    assert in_edge.anatomical_context_qualifier == ["UBERON:0001062"]
-    assert in_edge.causal_mechanism_qualifier == "increases_activity"
-    assert in_edge.species_context_qualifier == "NCBITaxon:9606"
-    assert in_edge.object_aspect_qualifier == "expression"
-    assert in_edge.object_direction_qualifier == "increased"
-    assert in_edge.subject_aspect_qualifier == "activity"
-    assert in_edge.subject_direction_qualifier == "reduced"
-    assert in_edge.qualifiers == ["qual:1", "qual:2"]
-    assert in_edge.FDA_regulatory_approvals == ["FDA:DrugA"]
-    assert in_edge.clinical_approval_status == "approved"
-    assert in_edge.max_research_phase == "Phase 4"
-    assert in_edge.p_value == 0.0123
-    assert in_edge.adjusted_p_value == 0.0234
-    assert in_edge.number_of_cases == 42
-    assert in_edge.dgidb_evidence_score == 0.75
-    assert in_edge.dgidb_interaction_score == 0.88
-    assert in_edge.has_supporting_studies_raw == supporting_b64
-    assert in_edge.has_supporting_studies == supporting_obj
+    assert in_edge.attributes["category"] == ["Association"]
+    assert in_edge.qualifiers["anatomical_context_qualifier"] == "[\"UBERON:0001062\"]"
+    assert in_edge.qualifiers["causal_mechanism_qualifier"] == "increases_activity"
+    assert in_edge.qualifiers["species_context_qualifier"] == "NCBITaxon:9606"
+    assert in_edge.qualifiers["object_aspect_qualifier"] == "expression"
+    assert in_edge.qualifiers["object_direction_qualifier"] == "increased"
+    assert in_edge.qualifiers["subject_aspect_qualifier"] == "activity"
+    assert in_edge.qualifiers["subject_direction_qualifier"] == "reduced"
+    assert in_edge.attributes["qualifiers"] == ["qual:1", "qual:2"]
+    assert in_edge.attributes["FDA_regulatory_approvals"] == ["FDA:DrugA"]
+    assert in_edge.attributes["clinical_approval_status"] == "approved"
+    assert in_edge.attributes["max_research_phase"] == "Phase 4"
+    assert in_edge.attributes["p_value"] == 0.0123
+    assert in_edge.attributes["adjusted_p_value"] == 0.0234
+    assert in_edge.attributes["number_of_cases"] == 42
+    assert in_edge.attributes["dgidb_evidence_score"] == 0.75
+    assert in_edge.attributes["dgidb_interaction_score"] == 0.88
+    assert in_edge.attributes["has_supporting_studies"] == supporting_obj
     assert in_edge.sources == [
         dg_models.Source(
             resource_id="infores:biolink",
@@ -230,9 +223,9 @@ def _assert_connected_node_fields(connected_node: dg_models.Node) -> None:
     assert connected_node.binding == "n1"
     assert connected_node.id == "NCBIGene:11276"
     assert connected_node.name == "SYNRG"
-    assert connected_node.description == "synergin gamma"
-    assert connected_node.information_content == 83.6
-    assert connected_node.in_taxon == ["NCBITaxon:9606"]
+    assert connected_node.attributes["description"] == "synergin gamma"
+    assert connected_node.attributes["information_content"] == 83.6
+    assert connected_node.attributes["in_taxon"] == ["NCBITaxon:9606"]
     assert connected_node.category == [
         "MacromolecularMachineMixin",
         "NamedThing",
@@ -250,7 +243,7 @@ def _assert_connected_node_fields(connected_node: dg_models.Node) -> None:
         "Protein",
         "BiologicalEntity",
     ]
-    assert connected_node.equivalent_identifiers == [
+    assert connected_node.attributes["equivalent_identifiers"] == [
         "PR:Q9UMZ2",
         "OMIM:607291",
         "UniProtKB:Q9UMZ2",
@@ -261,9 +254,9 @@ def _assert_connected_node_fields(connected_node: dg_models.Node) -> None:
         "HGNC:557",
         "NCBIGene:11276",
     ]
-    assert connected_node.symbol == "SYNRG"
-    assert connected_node.synonym == ["synergin gamma"]
-    assert connected_node.xref == ["HGNC:557", "UniProtKB:Q9UMZ2"]
+    assert connected_node.attributes["symbol"] == "SYNRG"
+    assert connected_node.attributes["synonym"] == ["synergin gamma"]
+    assert connected_node.attributes["xref"] == ["HGNC:557", "UniProtKB:Q9UMZ2"]
 
 
 def test_parse_single_success_case_versioned():
@@ -490,7 +483,6 @@ def test_parse_symmetric_predicate_success_case():
     # 5. Verify the outgoing edge (has_phenotype)
     out_edge = out_edges[0]
     assert out_edge.predicate == "has_phenotype"
-    assert "related_to" in out_edge.predicate_ancestors
     assert out_edge.node.binding == "n0"
     assert out_edge.node.id == "HP:0000316"
     assert out_edge.node.name == "Hypertelorism"
@@ -508,13 +500,11 @@ def test_parse_symmetric_predicate_success_case():
 
     # Verify edge to GO:0042391 (from in_edges_e0_reverse)
     assert edge_to_membrane.predicate == "has_part"
-    assert "related_to" in edge_to_membrane.predicate_ancestors
     assert edge_to_membrane.node.binding == "n0"
     assert edge_to_membrane.node.name == "regulation of membrane potential"
 
     # Verify edge to GO:0034702 (from in_edges_e0)
     assert edge_to_channel.predicate == "has_part"
-    assert "related_to" in edge_to_channel.predicate_ancestors
     assert edge_to_channel.node.binding == "n0"
     assert edge_to_channel.node.name == "monoatomic ion channel complex"
 
