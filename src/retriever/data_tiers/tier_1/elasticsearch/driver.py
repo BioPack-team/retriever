@@ -14,6 +14,7 @@ from retriever.data_tiers.tier_1.elasticsearch.aggregating_querier import (
     run_batch_query,
     run_single_query,
 )
+
 from retriever.data_tiers.tier_1.elasticsearch.meta import (
     extract_metadata_entries_from_blob,
     generate_operations,
@@ -21,10 +22,14 @@ from retriever.data_tiers.tier_1.elasticsearch.meta import (
     get_t1_metadata,
     merge_operations,
 )
-from retriever.data_tiers.tier_1.elasticsearch.types import ESHit, ESPayload
+
 from retriever.data_tiers.utils import (
     parse_dingo_metadata_unhashed,
 )
+
+from retriever.data_tiers.tier_1.elasticsearch.types import ESEdge, ESPayload
+from retriever.data_tiers.utils import parse_dingo_metadata
+
 from retriever.types.dingo import DINGO_ADAPTER, DINGOMetadata
 from retriever.types.metakg import Operation, OperationNode
 from retriever.types.trapi import BiolinkEntity, Infores
@@ -121,7 +126,7 @@ class ElasticSearchDriver(DatabaseDriver):
 
     async def run(
         self, query: ESPayload | list[ESPayload]
-    ) -> list[ESHit] | list[list[ESHit]] | None:
+    ) -> list[ESEdge] | list[list[ESEdge]] | None:
         """Execute query logic."""
         # Check ES connection instance
         if self.es_connection is None:
@@ -171,7 +176,7 @@ class ElasticSearchDriver(DatabaseDriver):
     @tracer.start_as_current_span("elasticsearch_query")
     async def run_query(
         self, query: ESPayload | list[ESPayload], *args: Any, **kwargs: Any
-    ) -> list[ESHit] | list[list[ESHit]] | None:
+    ) -> list[ESEdge] | list[list[ESEdge]] | None:
         """Use ES async client to execute query via the `_search/_msearch` endpoints."""
         otel_span = trace.get_current_span()
         if not otel_span or not otel_span.is_recording():

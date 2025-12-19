@@ -10,14 +10,11 @@ from retriever.data_tiers.tier_1.elasticsearch.constraints.qualifiers.qualifier 
 )
 from retriever.data_tiers.tier_1.elasticsearch.types import (
     ESBooleanQuery,
+    ESEdge,
     ESFilterClause,
-    ESHit,
+    ESNode,
     ESPayload,
     ESQueryContext,
-)
-from retriever.data_tiers.utils import (
-    DINGO_KG_EDGE_TOPLEVEL_VALUES,
-    DINGO_KG_NODE_TOPLEVEL_VALUES,
 )
 from retriever.types.general import BackendResult
 from retriever.types.trapi import (
@@ -181,15 +178,15 @@ class ElasticsearchTranspiler(Tier1Transpiler):
     def convert_batch_triple(self, qgraphs: list[QueryGraphDict]) -> list[ESPayload]:
         return [self.convert_triple(qgraph) for qgraph in qgraphs]
 
-    def build_nodes(self, hits: list[ESHit]) -> dict[CURIE, NodeDict]:
+    def build_nodes(self, edges: list[ESEdge]) -> dict[CURIE, NodeDict]:
         """Build TRAPI nodes from backend representation."""
         nodes = dict[CURIE, NodeDict]()
-        for hit in hits:
+        for edge in edges:
             node_ids = dict[str, CURIE]()
-            for argument in ("subject", "object"):
-                node = hit[argument]
-                node_id = node["id"]
-                node_ids[argument] = node_id
+            for node_pos in ("subject", "object"):
+                node: ESNode = getattr(edge, node_pos)
+                node_id = CURIE(node.id)
+                node_ids[node_pos] = node_id
                 if node_id in nodes:
                     continue
                 attributes: list[AttributeDict] = []
@@ -198,13 +195,14 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                 special_cases: dict[str, tuple[str, Any]] = {
                     "equivalent_identifiers": (
                         "biolink:xref",
-                        [CURIE(i) for i in node["equivalent_identifiers"]],
+                        [
+                            CURIE(i)
+                            for i in node.attributes.get("equivalent_identifiers", [])
+                        ],
                     )
                 }
 
-                for field, value in node.items():
-                    if field in DINGO_KG_NODE_TOPLEVEL_VALUES:
-                        continue
+                for field, value in node.attributes.items():
                     if field in special_cases:
                         continue
                     if value is not None and value not in ([], ""):
@@ -222,10 +220,10 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                         )
 
                 trapi_node = NodeDict(
-                    name=node["name"],
+                    name=node.name,
                     categories=[
                         BiolinkEntity(biolink.ensure_prefix(cat))
-                        for cat in node["category"]
+                        for cat in node.category
                     ],
                     attributes=attributes,
                 )
@@ -233,10 +231,10 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                 nodes[node_id] = trapi_node
         return nodes
 
-    def build_edges(self, hits: list[ESHit]) -> dict[EdgeIdentifier, EdgeDict]:
+    def build_edges(self, edges: list[ESEdge]) -> dict[EdgeIdentifier, EdgeDict]:
         """Build TRAPI edges from backend representation."""
-        edges = dict[EdgeIdentifier, EdgeDict]()
-        for hit in hits:
+        trapi_edges = dict[EdgeIdentifier, EdgeDict]()
+        for edge in edges:
             attributes: list[AttributeDict] = []
             qualifiers: list[QualifierDict] = []
             sources: list[RetrievalSourceDict] = []
@@ -247,25 +245,15 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                     "biolink:category",
                     [
                         BiolinkEntity(biolink.ensure_prefix(cat))
-                        for cat in hit.get("category", [])
+                        for cat in edge.attributes.get("category", [])
                     ],
                 ),
             }
 
             # Build Attributes and Qualifiers
-            for field, value in hit.items():
-                if field in DINGO_KG_EDGE_TOPLEVEL_VALUES or field in special_cases:
+            for field, value in edge.attributes.items():
+                if field in special_cases:
                     continue
-                if biolink.is_qualifier(field):
-                    qualifiers.append(
-                        QualifierDict(
-                            qualifier_type_id=QualifierTypeID(
-                                biolink.ensure_prefix(field)
-                            ),
-                            qualifier_value=str(value),
-                        )
-                    )
-                    pass
                 elif value is not None and value not in ([], ""):
                     attributes.append(
                         AttributeDict(
@@ -273,6 +261,15 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                             value=value,
                         )
                     )
+
+            # Build Qualifiers
+            for qtype, qval in edge.qualifiers.items():
+                qualifiers.append(
+                    QualifierDict(
+                        qualifier_type_id=QualifierTypeID(biolink.ensure_prefix(qtype)),
+                        qualifier_value=qval,
+                    )
+                )
 
             # Special case attributes
             for name, value in special_cases.values():
@@ -282,7 +279,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                     )
 
             # Build Sources
-            for source in hit["sources"]:
+            for source in edge.sources:
                 retrieval_source = RetrievalSourceDict(
                     resource_id=Infores(source["resource_id"]),
                     resource_role=source["resource_role"],
@@ -297,9 +294,9 @@ class ElasticsearchTranspiler(Tier1Transpiler):
 
             # Build Edge
             trapi_edge = EdgeDict(
-                predicate=BiolinkPredicate(biolink.ensure_prefix(hit["predicate"])),
-                subject=CURIE(hit["subject"]["id"]),
-                object=CURIE(hit["object"]["id"]),
+                predicate=BiolinkPredicate(biolink.ensure_prefix(edge.predicate)),
+                subject=CURIE(edge.subject.id),
+                object=CURIE(edge.object.id),
                 sources=sources,
             )
             if len(attributes) > 0:
@@ -310,12 +307,13 @@ class ElasticsearchTranspiler(Tier1Transpiler):
             append_aggregator_source(trapi_edge, Infores(CONFIG.tier1.backend_infores))
 
             edge_hash = hash_hex(hash_edge(trapi_edge))
-            edges[edge_hash] = trapi_edge
-        return edges
+            trapi_edges[edge_hash] = trapi_edge
+
+        return trapi_edges
 
     @override
     def convert_results(
-        self, qgraph: QueryGraphDict, results: list[ESHit] | None
+        self, qgraph: QueryGraphDict, results: list[ESEdge] | None
     ) -> BackendResult:
         nodes = self.build_nodes(results) if results is not None else {}
         edges = self.build_edges(results) if results is not None else {}
@@ -327,7 +325,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
         )
 
     def convert_batch_results(
-        self, qgraph_list: list[QueryGraphDict], results: list[list[ESHit]]
+        self, qgraph_list: list[QueryGraphDict], results: list[list[ESEdge]]
     ) -> list[BackendResult]:
         """Wrapper for converting results for a batch query."""
         return [

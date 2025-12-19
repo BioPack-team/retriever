@@ -8,7 +8,7 @@ import retriever.data_tiers.tier_1.elasticsearch.driver as driver_mod
 from retriever.data_tiers.tier_1.elasticsearch.meta import extract_metadata_entries_from_blob, \
     merge_operations, get_t1_indices
 from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
-from retriever.data_tiers.tier_1.elasticsearch.types import ESPayload, ESHit
+from retriever.data_tiers.tier_1.elasticsearch.types import ESPayload, ESEdge
 from payload.trapi_qgraphs import DINGO_QGRAPH, VALID_REGEX_QGRAPHS, INVALID_REGEX_QGRAPHS
 
 
@@ -115,7 +115,7 @@ async def test_elasticsearch_driver(payload: ESPayload | list[ESPayload], expect
     except Exception:
         pytest.skip("skipping es driver connection test: cannot connect")
 
-    hits: list[ESHit] | list[ESHit] = await driver.run_query(payload)
+    hits: list[ESEdge] | list[ESEdge] = await driver.run_query(payload)
 
     def assert_single_result(res, expected_result_num: int):
         if not isinstance(res, list):
@@ -128,7 +128,7 @@ async def test_elasticsearch_driver(payload: ESPayload | list[ESPayload], expect
         assert len(hits) == len(payload)
         assert isinstance(hits[0], list)
 
-        for index, result in enumerate(cast(list[list[ESHit]], hits)):
+        for index, result in enumerate(cast(list[list[ESEdge]], hits)):
             assert_single_result(result, expected[index])
     else:
         assert_single_result(hits, expected)
@@ -163,7 +163,7 @@ async def test_valid_regex_query():
         pytest.skip("skipping es driver connection test: cannot connect")
 
     for payload in qgraphs_with_valid_regex:
-        hits: list[ESHit] = await driver.run_query(payload)
+        hits: list[ESEdge] = await driver.run_query(payload)
         if hits is not None:
             print(len(hits))
 
@@ -212,6 +212,6 @@ async def test_end_to_end():
     except Exception:
         pytest.skip("skipping es driver connection test: cannot connect")
 
-    hits: list[ESHit] = await driver.run_query(payload)
+    hits: list[ESEdge] = await driver.run_query(payload)
 
     assert len(hits) == 8
