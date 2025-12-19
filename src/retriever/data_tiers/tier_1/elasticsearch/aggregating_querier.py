@@ -5,7 +5,7 @@ from elasticsearch import AsyncElasticsearch
 
 from retriever.data_tiers.tier_1.elasticsearch.types import (
     ESDocument,
-    ESHit,
+    ESEdge,
     ESPayload,
     ESResponse,
 )
@@ -26,7 +26,7 @@ class QueryBody(QueryInfo):
 
 async def parse_response(
     response: ObjectApiResponse[ESResponse], page_size: int
-) -> tuple[list[ESHit], list[Any] | None]:
+) -> tuple[list[ESEdge], list[Any] | None]:
     """Parse an ES response and for 0) list of hits, and 1) search_after i.e. the pagination anchor for next query."""
     if "hits" not in response:
         raise RuntimeError(f"Invalid ES response: no hits in response body: {response}")
@@ -39,12 +39,7 @@ async def parse_response(
     if len(fetched_documents) == page_size:
         search_after = fetched_documents[-1]["sort"]
 
-    hits: list[ESHit] = [
-        hit["_source"]
-        if "_index" not in hit
-        else {**hit["_source"], "_index": hit["_index"]}
-        for hit in fetched_documents
-    ]
+    hits = [ESEdge.from_dict(hit) for hit in fetched_documents]
 
     return hits, search_after
 
@@ -71,13 +66,13 @@ async def run_single_query(
     index_name: str,
     query: ESPayload,
     page_size: int = 1000,
-) -> list[ESHit]:
+) -> list[ESEdge]:
     """Adapter for running single query through _search and aggregating all hits."""
     query_info: QueryInfo = {
         "query": query["query"],
     }
 
-    results: list[ESHit] = []
+    results = list[ESEdge]()
 
     while True:
         query_body = generate_query_body(query_info, page_size)
@@ -99,7 +94,7 @@ async def run_batch_query(
     index_name: str,
     queries: list[ESPayload],
     page_size: int = 1000,
-) -> list[list[ESHit]]:
+) -> list[list[ESEdge]]:
     """Adapter for running batch queries through _msearch and aggregating all hits."""
     query_collection: list[QueryInfo] = [
         {
@@ -108,7 +103,7 @@ async def run_batch_query(
         for query in queries
     ]
 
-    results: list[list[ESHit]] = [[] for _ in query_collection]
+    results: list[list[ESEdge]] = [[] for _ in query_collection]
 
     current_query_indices = range(0, len(query_collection))
 
