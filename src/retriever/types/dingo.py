@@ -1,4 +1,4 @@
-from typing import NotRequired, TypedDict
+from typing import Any, TypedDict
 
 from pydantic import TypeAdapter
 
@@ -22,22 +22,14 @@ DistributionInfo = TypedDict(
 """Information expressing how to obtain the KGX files."""
 
 
-class LicenseInfo(TypedDict):
-    """Information expressing usage license."""
-
-    terms_of_use_url: NotRequired[str]
-    license_name: NotRequired[str]
-    license_url: NotRequired[str]
-
-
 class SourceInfo(TypedDict):
     """Information about a knowledge source."""
 
     id: str
     name: str
     description: str
-    license: LicenseInfo | str
-    url: list[str]
+    license: Any
+    url: Any
     version: str
 
 

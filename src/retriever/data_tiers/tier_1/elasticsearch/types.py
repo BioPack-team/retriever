@@ -1,13 +1,23 @@
-from typing import Any, NotRequired, TypedDict
+from dataclasses import dataclass
+from typing import Any, NotRequired, Self, TypedDict
 
-from retriever.data_tiers.tier_1.elasticsearch.attribute_types import (
+import orjson
+
+from retriever.data_tiers.tier_1.elasticsearch.constraints.types.attribute_types import (
     AttributeFilterQuery,
 )
-from retriever.data_tiers.tier_1.elasticsearch.qualifier_types import (
+from retriever.data_tiers.tier_1.elasticsearch.constraints.types.qualifier_types import (
     ESQueryForSingleQualifierConstraint,
     ESTermClause,
 )
-from retriever.types.trapi import CURIE
+from retriever.data_tiers.utils import (
+    DINGO_KG_EDGE_TOPLEVEL_VALUES,
+    DINGO_KG_NODE_TOPLEVEL_VALUES,
+)
+from retriever.types.trapi import (
+    RetrievalSourceDict,
+)
+from retriever.utils import biolink
 
 
 class ESFilterClause(TypedDict):
@@ -38,80 +48,10 @@ class ESPayload(TypedDict):
     query: ESQueryContext
 
 
-class ESPublicationsInfo(TypedDict):
-    """Information regarding publications."""
-
-    pmid: str
-    publication_date: NotRequired[str]
-    sentence: NotRequired[str]
-    subject_score: NotRequired[str]
-    object_score: NotRequired[str]
-
-
-class ESSourceInfo(TypedDict):
-    """Information regarding sources."""
-
-    resource_id: str
-    resource_role: str
-    upstream_resource_ids: NotRequired[list[str]]
-    source_record_urls: NotRequired[list[str]]
-
-
-class ESNode(TypedDict):
-    """A knowledge node as represented in Elasticsearch."""
-
-    id: CURIE
-    name: str
-    category: str
-    description: str
-    equivalent_identifiers: list[str]
-    in_taxon: NotRequired[list[str]]
-    information_content: NotRequired[float]
-    inheritance: NotRequired[str]
-    provided_by: NotRequired[list[str]]
-
-
-class ESHit(TypedDict):
-    """The main data of an Elasticsearch hit."""
-
-    _index: NotRequired[str]
-    subject: ESNode
-    object: ESNode
-    predicate: str
-    sources: list[ESSourceInfo]
-    id: NotRequired[str]
-    agent_type: NotRequired[str]
-    knowledge_level: NotRequired[str]
-    publications: list[str]
-    qualified_predicate: NotRequired[str]
-    predicate_ancestors: list[str]
-    source_inforeses: list[str]
-    subject_form_or_variant_qualifier: NotRequired[str]
-    disease_context_qualifier: NotRequired[str]
-    frequency_qualifier: NotRequired[str]
-    onset_qualifier: NotRequired[str]
-    sex_qualifier: NotRequired[str]
-    original_subject: NotRequired[str]
-    original_predicate: NotRequired[str]
-    original_object: NotRequired[str]
-    allelic_requirement: NotRequired[str]
-    update_date: NotRequired[str]
-    z_score: NotRequired[float]
-    has_evidence: list[str]
-    has_confidence_score: NotRequired[float]
-    has_count: NotRequired[float]
-    has_total: NotRequired[float]
-    has_percentage: NotRequired[float]
-    has_quotient: NotRequired[float]
-    category: list[str]
-    seq_: NotRequired[int]
-    negated: NotRequired[bool]
-
-
 class ESDocument(TypedDict):
     """A source document returned from Elasticsearch."""
 
-    _source: ESHit
+    _source: dict[str, Any]
     _index: NotRequired[str]
     sort: list[Any]
 
@@ -126,3 +66,80 @@ class ESResponse(TypedDict):
     """An Elasticsearch query response."""
 
     hits: ESHits
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class ESNode:
+    """A knowledge node as represented by ES, with some convenience features."""
+
+    id: str
+    name: str
+    category: list[str]
+    attributes: dict[str, Any]
+
+    @classmethod
+    def from_dict(cls, doc: dict[str, Any]) -> Self:
+        """Parse part of an ES document as an Edge."""
+        attributes = dict[str, Any]()
+        for key, value in doc.items():
+            if key in DINGO_KG_NODE_TOPLEVEL_VALUES:
+                continue
+            else:
+                attributes[key] = value
+
+        return cls(
+            id=doc.get("id", "NOT_PROVIDED"),
+            name=doc.get("name", "NOT_PROVIDED"),
+            category=doc.get("category", "NOT_PROVIDED"),
+            attributes=attributes,
+        )
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class ESEdge:
+    """Edge information as represented by ES, with some convenience features."""
+
+    _index: str | None
+    id: str
+    subject: ESNode
+    object: ESNode
+    predicate: str
+    predicate_ancestors: list[str]
+    sources: list[RetrievalSourceDict]
+    source_inforeses: list[str]
+    qualifiers: dict[str, str]
+    attributes: dict[str, Any]
+
+    @classmethod
+    def from_dict(cls, doc: ESDocument) -> Self:
+        """Parse an ES document as an Edge."""
+        qualifiers = dict[str, str]()
+        attributes = dict[str, Any]()
+        for key, value in doc["_source"].items():
+            if key in DINGO_KG_EDGE_TOPLEVEL_VALUES:
+                continue
+            if biolink.is_qualifier(key):
+                if not isinstance(value, str):
+                    qualifiers[key] = orjson.dumps(value).decode()
+                else:
+                    qualifiers[key] = str(value)
+            else:
+                attributes[key] = value
+
+        sbj_node = ESNode.from_dict(doc["_source"]["subject"])
+        obj_node = ESNode.from_dict(doc["_source"]["object"])
+
+        return cls(
+            _index=doc.get("_index"),
+            id=doc["_source"].get("id", "NOT_PROVIDED"),
+            subject=sbj_node,
+            object=obj_node,
+            predicate=doc["_source"].get("predicate", "related_to"),
+            predicate_ancestors=doc["_source"].get(
+                "predicate_ancestors", ["related_to"]
+            ),
+            sources=doc["_source"].get("sources", []),
+            source_inforeses=doc["_source"].get("source_inforeses", []),
+            qualifiers=qualifiers,
+            attributes=attributes,
+        )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 import traceback
 from collections import deque
 from collections.abc import AsyncGenerator
@@ -95,17 +96,27 @@ class TRAPILogger:
         self.log_deque: deque[LogEntryDict] = deque()
         self.job_id: str = job_id
 
-    def _log(self, level: LogLevel, message: str, **kwargs: Any) -> None:
+    def _log(
+        self,
+        level: LogLevel,
+        message: str,
+        exception: BaseException | None = None,
+        **kwargs: Any,
+    ) -> None:
         """Shared log handling before log is sent to loguru."""
         kwargs["job_id"] = self.job_id
 
         with logger.contextualize(**kwargs):
             # depth 2 to ignore TRAPILogger wrappers
-            logger.opt(depth=2).log(level, message)
+            logger.opt(depth=2, exception=exception).log(level, message)
         # Implicitly drop TRACE logs from TRAPI logs.
         # These should only be used in extensive debugging on a local instance.
         if level.lower() != "trace":
-            self.log_deque.append(format_trapi_log(level, message))
+            trapi_msg = message
+            if exception is not None:
+                trapi_msg = f"{message}\n{traceback.format_exception(exception)}"
+
+            self.log_deque.append(format_trapi_log(level, trapi_msg))
 
     def trace(self, message: str, **kwargs: Any) -> None:
         """Log at trace level."""
@@ -136,13 +147,18 @@ class TRAPILogger:
         self._log("CRITICAL", message, **kwargs)
 
     def exception(self, message: str, **kwargs: Any) -> None:
-        """Capture an exception as an ERROR-level log."""
-        trapi_msg = f"{message}\n{traceback.format_exc()}"
-        self.log_deque.append(format_trapi_log("ERROR", trapi_msg))
+        """Capture the most recent exception as an ERROR-level log."""
+        _, exception, _ = sys.exc_info()
+        if exception:
+            self.with_exception(message, exception, **kwargs)
+        else:
+            self.error(message, **kwargs)
 
-        kwargs["job_id"] = self.job_id
-        with logger.contextualize(**kwargs):
-            logger.exception(message)
+    def with_exception(
+        self, message: str, exception: BaseException, **kwargs: Any
+    ) -> None:
+        """Log with a given exception as an ERROR-level log."""
+        self._log("ERROR", message, exception, **kwargs)
 
     def get_logs(self) -> list[LogEntryDict]:
         """Get a generator of stored TRAPI logs."""

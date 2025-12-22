@@ -1,21 +1,32 @@
-import pytest
+import base64
 from typing import Any
+
+import msgpack
+import pytest
 
 from retriever.data_tiers.tier_0.dgraph import result_models as dg_models
 
 
-def test_parse_single_success_case_versioned():
-    """Test parsing of a well-formed, multi-hop Dgraph response."""
-    # The raw response must match the actual Dgraph output format.
-    # A well-formed response with data for all node and edge properties.
-    raw_response = {
+def _build_supporting_studies_payload() -> tuple[dict[str, Any], str]:
+    supporting_obj = {
+        "studies": [
+            {"pmid": "PMID:42", "score": 0.95, "label": "supporting evidence"},
+            {"pmid": "PMID:43", "score": 0.75, "label": "additional evidence"},
+        ]
+    }
+    supporting_b64 = base64.b64encode(
+        msgpack.packb(supporting_obj, use_bin_type=True)
+    ).decode("ascii")
+    return supporting_obj, supporting_b64
+
+
+def _sample_versioned_raw_response(supporting_b64: str) -> dict[str, Any]:
+    return {
         "q1_node_n0": [
             {
                 "vA_name": "cytoplasmic vesicle",
                 "vA_information_content": 56.8,
-                "vA_equivalent_identifiers": [
-                    "GO:0031410"
-                ],
+                "vA_equivalent_identifiers": ["GO:0031410"],
                 "vA_id": "GO:0031410",
                 "vA_category": [
                     "NamedThing",
@@ -26,44 +37,65 @@ def test_parse_single_success_case_versioned():
                     "ThingWithTaxon",
                     "SubjectOfInvestigation",
                     "AnatomicalEntity",
-                    "BiologicalEntity"
+                    "BiologicalEntity",
                 ],
                 "vA_description": "A vesicle found in the cytoplasm of a cell.",
+                "vA_full_name": "Cytoplasmic vesicle",
+                "vA_symbol": "CV",
+                "vA_synonym": ["cytoplasmic vesicle", "cytoplasmic vesicles"],
+                "vA_xref": ["GO:0031410", "UMLS:C123"],
+                "vA_taxon": "NCBITaxon:9606",
+                "vA_chembl_availability_type": "clinical",
+                "vA_chembl_black_box_warning": "WARNING",
+                "vA_chembl_natural_product": True,
+                "vA_chembl_prodrug": False,
                 "in_edges_e0": [
                     {
                         "vA_knowledge_level": "prediction",
-                        "vA_has_evidence": [
-                            "ECO:IEA"
-                        ],
+                        "vA_has_evidence": ["ECO:IEA"],
                         "vA_original_subject": "UniProtKB:Q9UMZ2",
                         "vA_sources": [
                             {
                                 "vA_resource_id": "infores:biolink",
                                 "vA_resource_role": "aggregator_knowledge_source",
                                 "vA_upstream_resource_ids": ["infores:goa"],
-                                "vA_source_record_urls": ["https://example.com/record/123"]
+                                "vA_source_record_urls": ["https://example.com/record/123"],
+                                "vA_source_id": "123",
+                                "vA_source_category": ["category1", "category2"],
                             },
                             {
                                 "vA_resource_id": "infores:goa",
-                                "vA_resource_role": "primary_knowledge_source"
-                            }
+                                "vA_resource_role": "primary_knowledge_source",
+                            },
                         ],
-                        "vA_ecategory": [
-                            "Association"
-                        ],
+                        "vA_ecategory": ["Association"],
                         "vA_predicate": "located_in",
-                        "vA_source_inforeses": [
-                            "infores:biolink",
-                            "infores:goa"
-                        ],
+                        "vA_source_inforeses": ["infores:biolink", "infores:goa"],
                         "vA_predicate_ancestors": [
                             "related_to_at_instance_level",
                             "located_in",
-                            "related_to"
+                            "related_to",
                         ],
                         "vA_agent_type": "automated_agent",
                         "vA_original_object": "GO:0031410",
                         "vA_eid": "urn:uuid:0763a393-7cc8-4d80-8720-0efcc0f9245f",
+                        "vA_anatomical_context_qualifier": ["UBERON:0001062"],
+                        "vA_causal_mechanism_qualifier": "increases_activity",
+                        "vA_species_context_qualifier": "NCBITaxon:9606",
+                        "vA_object_aspect_qualifier": "expression",
+                        "vA_object_direction_qualifier": "increased",
+                        "vA_subject_aspect_qualifier": "activity",
+                        "vA_subject_direction_qualifier": "reduced",
+                        "vA_qualifiers": ["qual:1", "qual:2"],
+                        "vA_FDA_regulatory_approvals": ["FDA:DrugA"],
+                        "vA_clinical_approval_status": "approved",
+                        "vA_max_research_phase": "Phase 4",
+                        "vA_p_value": 0.0123,
+                        "vA_adjusted_p_value": 0.0234,
+                        "vA_number_of_cases": 42,
+                        "vA_dgidb_evidence_score": 0.75,
+                        "vA_dgidb_interaction_score": 0.88,
+                        "vA_has_supporting_studies": supporting_b64,
                         "node_n1": {
                             "vA_information_content": 83.6,
                             "vA_category": [
@@ -81,7 +113,7 @@ def test_parse_single_success_case_versioned():
                                 "GenomicEntity",
                                 "GeneProductMixin",
                                 "Protein",
-                                "BiologicalEntity"
+                                "BiologicalEntity",
                             ],
                             "vA_equivalent_identifiers": [
                                 "PR:Q9UMZ2",
@@ -92,28 +124,24 @@ def test_parse_single_success_case_versioned():
                                 "UMLS:C0893518",
                                 "MESH:C121510",
                                 "HGNC:557",
-                                "NCBIGene:11276"
+                                "NCBIGene:11276",
                             ],
                             "vA_id": "NCBIGene:11276",
                             "vA_name": "SYNRG",
                             "vA_description": "synergin gamma",
-                            "vA_in_taxon": [
-                                "NCBITaxon:9606"
-                            ]
-                        }
+                            "vA_in_taxon": ["NCBITaxon:9606"],
+                            "vA_symbol": "SYNRG",
+                            "vA_synonym": ["synergin gamma"],
+                            "vA_xref": ["HGNC:557", "UniProtKB:Q9UMZ2"],
+                        },
                     }
-                ]
+                ],
             }
         ]
     }
 
-    # 1. Parse the response
-    parsed = dg_models.DgraphResponse.parse(raw_response, prefix="vA_")
-    assert "q1" in parsed.data
-    assert len(parsed.data["q1"]) == 1
 
-    # 2. Assertions for the root node (n0)
-    root_node = parsed.data["q1"][0]
+def _assert_root_node_fields(root_node: dg_models.Node) -> None:
     assert root_node.binding == "n0"
     assert root_node.id == "GO:0031410"
     assert root_node.name == "cytoplasmic vesicle"
@@ -128,42 +156,76 @@ def test_parse_single_success_case_versioned():
         "AnatomicalEntity",
         "BiologicalEntity",
     ]
-    assert root_node.information_content == 56.8
-    assert root_node.equivalent_identifiers == ["GO:0031410"]
-    assert root_node.description == "A vesicle found in the cytoplasm of a cell."
+    assert root_node.attributes["information_content"] == 56.8
+    assert root_node.attributes["equivalent_identifiers"] == ["GO:0031410"]
+    assert root_node.attributes["description"] == "A vesicle found in the cytoplasm of a cell."
+    assert root_node.attributes["full_name"] == "Cytoplasmic vesicle"
+    assert root_node.attributes["symbol"] == "CV"
+    assert root_node.attributes["synonym"] == ["cytoplasmic vesicle", "cytoplasmic vesicles"]
+    assert root_node.attributes["xref"] == ["GO:0031410", "UMLS:C123"]
+    assert root_node.attributes["taxon"] == "NCBITaxon:9606"
+    assert root_node.attributes["chembl_availability_type"] == "clinical"
+    assert root_node.attributes["chembl_black_box_warning"] == "WARNING"
+    assert root_node.attributes["chembl_natural_product"] is True
+    assert root_node.attributes["chembl_prodrug"] is False
     assert len(root_node.edges) == 1
 
-    # 3. Assertions for the incoming edge (e0)
-    in_edge = root_node.edges[0]
+
+def _assert_in_edge_fields(
+    in_edge: dg_models.Edge, supporting_b64: str, supporting_obj: dict[str, Any]
+) -> None:
     assert in_edge.binding == "e0"
     assert in_edge.direction == "in"
     assert in_edge.predicate == "located_in"
-    assert in_edge.knowledge_level == "prediction"
-    assert in_edge.agent_type == "automated_agent"
-    assert in_edge.has_evidence == ["ECO:IEA"]
-    assert in_edge.original_subject == "UniProtKB:Q9UMZ2"
-    assert in_edge.original_object == "GO:0031410"
-    assert in_edge.source_inforeses == ["infores:biolink", "infores:goa"]
-    assert in_edge.predicate_ancestors == [
-        "related_to_at_instance_level",
-        "located_in",
-        "related_to",
-    ]
+    assert in_edge.attributes["knowledge_level"] == "prediction"
+    assert in_edge.attributes["agent_type"] == "automated_agent"
+    assert in_edge.attributes["has_evidence"] == ["ECO:IEA"]
+    assert in_edge.attributes["original_subject"] == "UniProtKB:Q9UMZ2"
+    assert in_edge.attributes["original_object"] == "GO:0031410"
     assert in_edge.id == "urn:uuid:0763a393-7cc8-4d80-8720-0efcc0f9245f"
-    assert in_edge.category == ["Association"]
+    assert in_edge.attributes["category"] == ["Association"]
+    assert in_edge.qualifiers["anatomical_context_qualifier"] == "[\"UBERON:0001062\"]"
+    assert in_edge.qualifiers["causal_mechanism_qualifier"] == "increases_activity"
+    assert in_edge.qualifiers["species_context_qualifier"] == "NCBITaxon:9606"
+    assert in_edge.qualifiers["object_aspect_qualifier"] == "expression"
+    assert in_edge.qualifiers["object_direction_qualifier"] == "increased"
+    assert in_edge.qualifiers["subject_aspect_qualifier"] == "activity"
+    assert in_edge.qualifiers["subject_direction_qualifier"] == "reduced"
+    assert in_edge.attributes["qualifiers"] == ["qual:1", "qual:2"]
+    assert in_edge.attributes["FDA_regulatory_approvals"] == ["FDA:DrugA"]
+    assert in_edge.attributes["clinical_approval_status"] == "approved"
+    assert in_edge.attributes["max_research_phase"] == "Phase 4"
+    assert in_edge.attributes["p_value"] == 0.0123
+    assert in_edge.attributes["adjusted_p_value"] == 0.0234
+    assert in_edge.attributes["number_of_cases"] == 42
+    assert in_edge.attributes["dgidb_evidence_score"] == 0.75
+    assert in_edge.attributes["dgidb_interaction_score"] == 0.88
+    assert in_edge.attributes["has_supporting_studies"] == supporting_obj
     assert in_edge.sources == [
-        dg_models.Source(resource_id="infores:biolink", resource_role="aggregator_knowledge_source", upstream_resource_ids=["infores:goa"], source_record_urls=["https://example.com/record/123"]),
-        dg_models.Source(resource_id="infores:goa", resource_role="primary_knowledge_source", upstream_resource_ids=[], source_record_urls=[]),
+        dg_models.Source(
+            resource_id="infores:biolink",
+            resource_role="aggregator_knowledge_source",
+            upstream_resource_ids=["infores:goa"],
+            source_record_urls=["https://example.com/record/123"],
+            source_id="123",
+            source_category=["category1", "category2"],
+        ),
+        dg_models.Source(
+            resource_id="infores:goa",
+            resource_role="primary_knowledge_source",
+            upstream_resource_ids=[],
+            source_record_urls=[],
+        ),
     ]
 
-    # 4. Assertions for the connected node (n1)
-    connected_node = in_edge.node
+
+def _assert_connected_node_fields(connected_node: dg_models.Node) -> None:
     assert connected_node.binding == "n1"
     assert connected_node.id == "NCBIGene:11276"
     assert connected_node.name == "SYNRG"
-    assert connected_node.description == "synergin gamma"
-    assert connected_node.information_content == 83.6
-    assert connected_node.in_taxon == ["NCBITaxon:9606"]
+    assert connected_node.attributes["description"] == "synergin gamma"
+    assert connected_node.attributes["information_content"] == 83.6
+    assert connected_node.attributes["in_taxon"] == ["NCBITaxon:9606"]
     assert connected_node.category == [
         "MacromolecularMachineMixin",
         "NamedThing",
@@ -181,7 +243,7 @@ def test_parse_single_success_case_versioned():
         "Protein",
         "BiologicalEntity",
     ]
-    assert connected_node.equivalent_identifiers == [
+    assert connected_node.attributes["equivalent_identifiers"] == [
         "PR:Q9UMZ2",
         "OMIM:607291",
         "UniProtKB:Q9UMZ2",
@@ -192,6 +254,27 @@ def test_parse_single_success_case_versioned():
         "HGNC:557",
         "NCBIGene:11276",
     ]
+    assert connected_node.attributes["symbol"] == "SYNRG"
+    assert connected_node.attributes["synonym"] == ["synergin gamma"]
+    assert connected_node.attributes["xref"] == ["HGNC:557", "UniProtKB:Q9UMZ2"]
+
+
+def test_parse_single_success_case_versioned():
+    """Test parsing of a well-formed, multi-hop Dgraph response."""
+    supporting_obj, supporting_b64 = _build_supporting_studies_payload()
+    raw_response = _sample_versioned_raw_response(supporting_b64)
+
+    parsed = dg_models.DgraphResponse.parse(raw_response, prefix="vA_")
+    assert "q1" in parsed.data
+    assert len(parsed.data["q1"]) == 1
+
+    root_node = parsed.data["q1"][0]
+    _assert_root_node_fields(root_node)
+
+    in_edge = root_node.edges[0]
+    _assert_in_edge_fields(in_edge, supporting_b64, supporting_obj)
+
+    _assert_connected_node_fields(in_edge.node)
 
 
 def test_parse_batch_success_case():
@@ -366,7 +449,7 @@ def test_parse_symmetric_predicate_success_case():
                         "vC_name": "monoatomic ion channel complex",
                     }
                 }
-            ]            
+            ]
         }]
     }
 
@@ -381,7 +464,7 @@ def test_parse_symmetric_predicate_success_case():
     assert root_node.id == "NCBIGene:3778"
     assert root_node.name == "KCNMA1"
 
-    # 3. Assert symmetric predicates: both in_edges_e0 and in_edges_e0_reverse 
+    # 3. Assert symmetric predicates: both in_edges_e0 and in_edges_e0_reverse
     #    are merged under binding "e0" (due to split("_", 3))
     # Total: 1 out_edge + 2 in_edges (one from in_edges_e0, one from in_edges_e0_reverse)
     assert len(root_node.edges) == 3, "Should have 3 edges total: 1 out + 2 in (merged)"
@@ -400,7 +483,6 @@ def test_parse_symmetric_predicate_success_case():
     # 5. Verify the outgoing edge (has_phenotype)
     out_edge = out_edges[0]
     assert out_edge.predicate == "has_phenotype"
-    assert "related_to" in out_edge.predicate_ancestors
     assert out_edge.node.binding == "n0"
     assert out_edge.node.id == "HP:0000316"
     assert out_edge.node.name == "Hypertelorism"
@@ -418,13 +500,11 @@ def test_parse_symmetric_predicate_success_case():
 
     # Verify edge to GO:0042391 (from in_edges_e0_reverse)
     assert edge_to_membrane.predicate == "has_part"
-    assert "related_to" in edge_to_membrane.predicate_ancestors
     assert edge_to_membrane.node.binding == "n0"
     assert edge_to_membrane.node.name == "regulation of membrane potential"
 
     # Verify edge to GO:0034702 (from in_edges_e0)
     assert edge_to_channel.predicate == "has_part"
-    assert "related_to" in edge_to_channel.predicate_ancestors
     assert edge_to_channel.node.binding == "n0"
     assert edge_to_channel.node.name == "monoatomic ion channel complex"
 

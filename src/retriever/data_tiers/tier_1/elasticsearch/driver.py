@@ -2,6 +2,7 @@ import asyncio
 from typing import Any, cast, override
 
 import orjson
+import ormsgpack
 from elasticsearch import AsyncElasticsearch
 from elasticsearch import exceptions as es_exceptions
 from loguru import logger as log
@@ -13,7 +14,23 @@ from retriever.data_tiers.tier_1.elasticsearch.aggregating_querier import (
     run_batch_query,
     run_single_query,
 )
-from retriever.data_tiers.tier_1.elasticsearch.types import ESHit, ESPayload
+from retriever.data_tiers.tier_1.elasticsearch.meta import (
+    extract_metadata_entries_from_blob,
+    generate_operations,
+    get_t1_indices,
+    get_t1_metadata,
+    merge_operations,
+)
+from retriever.data_tiers.tier_1.elasticsearch.types import ESEdge, ESPayload
+from retriever.data_tiers.utils import (
+    parse_dingo_metadata_unhashed,
+)
+from retriever.types.dingo import DINGO_ADAPTER, DINGOMetadata
+from retriever.types.metakg import Operation, OperationNode
+from retriever.types.trapi import BiolinkEntity, Infores
+from retriever.utils.calls import get_metadata_client
+from retriever.utils.redis import REDIS_CLIENT
+from retriever.utils.trapi import hash_hex
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 
@@ -104,7 +121,7 @@ class ElasticSearchDriver(DatabaseDriver):
 
     async def run(
         self, query: ESPayload | list[ESPayload]
-    ) -> list[ESHit] | list[list[ESHit]] | None:
+    ) -> list[ESEdge] | list[list[ESEdge]] | None:
         """Execute query logic."""
         # Check ES connection instance
         if self.es_connection is None:
@@ -154,7 +171,7 @@ class ElasticSearchDriver(DatabaseDriver):
     @tracer.start_as_current_span("elasticsearch_query")
     async def run_query(
         self, query: ESPayload | list[ESPayload], *args: Any, **kwargs: Any
-    ) -> list[ESHit] | list[list[ESHit]] | None:
+    ) -> list[ESEdge] | list[list[ESEdge]] | None:
         """Use ES async client to execute query via the `_search/_msearch` endpoints."""
         otel_span = trace.get_current_span()
         if not otel_span or not otel_span.is_recording():
@@ -170,3 +187,95 @@ class ElasticSearchDriver(DatabaseDriver):
             otel_span.add_event("elasticsearch_query_end")
 
         return query_result
+
+    async def _pull_metadata(self, url: str) -> None:
+        """Update metadata for a given DINGO ingest."""
+        log.info(f"Pulling DINGO Metadata from {url}...")
+
+        client = get_metadata_client()
+        response = await client.get(url)
+        response.raise_for_status()
+
+        raw_data = response.json()
+        metadata = DINGO_ADAPTER.validate_python(raw_data)
+
+        await REDIS_CLIENT.set(
+            hash_hex(hash(url)),
+            ormsgpack.packb(metadata),
+            compress=True,
+            ttl=CONFIG.job.metakg.build_time,
+        )
+        log.success("DINGO Metadata retrieved!")
+
+    async def _get_metadata(self, url: str, retries: int = 0) -> dict[str, Any] | None:
+        """Obtain metadata for a given DINGO ingest."""
+        metadata_pack = await REDIS_CLIENT.get(hash_hex(hash(url)), compressed=True)
+
+        if metadata_pack is None:
+            await self._pull_metadata(url)
+            if retries >= 3:  # noqa: PLR2004
+                return None
+            return await self._get_metadata(url, retries + 1)
+
+        # Don't validate because if we've gotten it at this stage, it's already been validated
+        metadata = ormsgpack.unpackb(metadata_pack)
+        return metadata
+
+    async def legacy_get_metadata(self) -> dict[str, Any] | None:
+        """Legacy method for loading metadata remotely."""
+        return await self._get_metadata(CONFIG.tier1.metadata_url)
+
+    async def legacy_get_operations(
+        self,
+    ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
+        """Legacy method for getting operations based on unified metadata."""
+        metadata = await self.legacy_get_metadata()
+        if metadata is None:
+            raise ValueError(
+                "Unable to obtain metadata from backend, cannot parse operations."
+            )
+        infores = Infores(CONFIG.tier1.backend_infores)
+        # operations, nodes = parse_dingo_metadata(DINGOMetadata(**metadata), 1, infores)
+        operations, nodes = parse_dingo_metadata_unhashed(
+            DINGOMetadata(**metadata), 1, infores
+        )
+        operations = merge_operations(operations)
+        log.success(f"Parsed {infores} as a Tier 1 resource.")
+
+        return operations, nodes
+
+    @override
+    async def get_metadata(self) -> dict[str, Any] | None:
+        return await get_t1_metadata(
+            es_connection=self.es_connection,
+            indices_alias=CONFIG.tier1.elasticsearch.index_name,
+        )
+
+    @override
+    async def get_operations(
+        self,
+    ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
+        # return await self.legacy_get_metadata()
+        return await self.get_t1_operations()
+
+    async def get_t1_operations(
+        self,
+    ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
+        """Get tier1 operations based on metadata."""
+        metadata_blob = await self.get_metadata()
+
+        if metadata_blob is None:
+            raise ValueError(
+                "Unable to obtain metadata from backend, cannot parse operations."
+            )
+
+        if self.es_connection is None:
+            raise ValueError("Elasticsearch connection not configured.")
+
+        indices = await get_t1_indices(self.es_connection)
+
+        metadata_list = extract_metadata_entries_from_blob(metadata_blob, indices)
+
+        operations, nodes = await generate_operations(metadata_list)
+
+        return operations, nodes

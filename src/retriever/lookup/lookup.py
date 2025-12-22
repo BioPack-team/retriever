@@ -216,7 +216,7 @@ def passes_validation(
     validation_problems = validate(qgraph)
     if validation_problems:
         job_log.error(
-            f"Query validation encountered {len(validation_problems)} errors. Error logs to follow:"
+            f"Query validation encountered {len(validation_problems)} error{'s' if len(validation_problems) > 1 else ''}. Error logs to follow:"
         )
         for problem in validation_problems:
             job_log.error(f"Validation Error: {problem}")

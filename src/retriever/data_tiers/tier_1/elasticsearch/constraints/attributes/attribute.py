@@ -44,13 +44,6 @@
 from datetime import datetime
 from typing import Any
 
-# from functools import partial
-from retriever.data_tiers.tier_1.elasticsearch.attribute_types import (
-    AttrFieldMeta,
-    AttributeFilterQuery,
-    AttrValType,
-    SingleAttributeFilterQueryPayload,
-)
 from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.meta_info import (
     ATTR_META,
 )
@@ -60,6 +53,14 @@ from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.ops.handle
 )
 from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.ops.handle_match import (
     handle_match,
+)
+
+# from functools import partial
+from retriever.data_tiers.tier_1.elasticsearch.constraints.types.attribute_types import (
+    AttrFieldMeta,
+    AttributeFilterQuery,
+    AttrValType,
+    SingleAttributeFilterQueryPayload,
 )
 from retriever.types.trapi import AttributeConstraintDict
 from retriever.utils import biolink
@@ -84,7 +85,7 @@ def validate_constraint(constraint: AttributeConstraintDict) -> None:
 
 def validate_operator(operator: Any) -> None:
     """Validate allowed operator in attribute constraints."""
-    allowed_ops = {"match", "===", "==", ">", "<", ">=", "<="}
+    allowed_ops = {"matches", "===", "==", ">", "<", ">=", "<="}
 
     if not isinstance(operator, str) or operator not in allowed_ops:
         raise AttributeError(f"Operator must be one of {allowed_ops}")
@@ -144,7 +145,7 @@ def process_single_constraint(
         # todo consider not met?
         return None
 
-    if raw_operator == "match":
+    if raw_operator == "matches":
         # regex is not easily reversed
 
         return SingleAttributeFilterQueryPayload(

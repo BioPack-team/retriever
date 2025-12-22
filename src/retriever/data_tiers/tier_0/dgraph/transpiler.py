@@ -86,7 +86,10 @@ class DgraphTranspiler(Tier0Transpiler):
         25  # Default assumption for average edges per node
     )
     PINNEDNESS_RECURSION_DEPTH: int = (
-        10  # Max recursion depth for pinnedness calculation
+        2  # Max recursion depth for pinnedness calculation
+    )
+    PINNEDNESS_ADJ_WEIGHT: float = (
+        0.1  # dampen adjacency contribution relative to the base ID selectivity
     )
 
     FilterScalar: TypeAlias = str | int | float | bool  # noqa: UP040
@@ -292,40 +295,54 @@ class DgraphTranspiler(Tier0Transpiler):
         last: str | None = None,
         level: int = 0,
     ) -> float:
-        """Compute the log of the expected number of unique knodes bound to the specified qnode."""
+        """Compute the log of the expected number of unique knodes bound to the specified qnode.
+
+        The base term is log(ids_count). Neighbor contributions are heavily dampened by
+        PINNEDNESS_ADJ_WEIGHT and limited by PINNEDNESS_RECURSION_DEPTH to ensure
+        'fewer IDs always preferred' dominates adjacency effects.
+        """
         log_expected_n = math.log(num_ids[qnode_id])
+
         if level < self.PINNEDNESS_RECURSION_DEPTH:
             for neighbor, num_edges in adjacency_mat[qnode_id].items():
                 if neighbor == last:
                     continue
-                log_expected_n += num_edges * min(
-                    max(
-                        self._compute_log_expected_n(
-                            adjacency_mat,
-                            num_ids,
-                            neighbor,
-                            qnode_id,
-                            level + 1,
-                        ),
-                        0,
-                    )
-                    + math.log(
-                        self.PINNEDNESS_DEFAULT_EDGES_PER_NODE
-                        / self.PINNEDNESS_DEFAULT_TOTAL_NODES
+
+                # Neighbor expectation (non-negative)
+                neighbor_log = max(
+                    self._compute_log_expected_n(
+                        adjacency_mat, num_ids, neighbor, qnode_id, level + 1
                     ),
                     0,
                 )
+
+                # Baseline per-edge connectivity factor
+                baseline = math.log(
+                    self.PINNEDNESS_DEFAULT_EDGES_PER_NODE
+                    / self.PINNEDNESS_DEFAULT_TOTAL_NODES
+                )
+
+                # Dampen adjacency term so ID selectivity dominates
+                contribution = (
+                    self.PINNEDNESS_ADJ_WEIGHT
+                    * num_edges
+                    * max(neighbor_log + baseline, 0)
+                )
+
+                log_expected_n += contribution
+
         return log_expected_n
 
     def _get_pinnedness(self, qgraph: QueryGraphDict, qnode_id: str) -> float:
-        """Get pinnedness of a single node."""
+        """Get pinnedness of a single node.
+
+        Higher pinnedness is better. With dampened adjacency, fewer IDs (more selective)
+        produce higher pinnedness (since -log(ids) is closer to 0 than a larger -log).
+        """
         adjacency_mat = self._get_adjacency_matrix(qgraph)
         num_ids = self._get_num_ids(qgraph)
-        return -self._compute_log_expected_n(
-            adjacency_mat,
-            num_ids,
-            qnode_id,
-        )
+        # Pinnedness is negative expected log-N so smaller expected set -> larger pinnedness
+        return -self._compute_log_expected_n(adjacency_mat, num_ids, qnode_id)
 
     # --- Nodes and Edges Methods ---
 
@@ -940,11 +957,11 @@ class DgraphTranspiler(Tier0Transpiler):
         special_cases: dict[str, tuple[str, Any]] = {
             "equivalent_identifiers": (
                 "biolink:xref",
-                [CURIE(i) for i in node.equivalent_identifiers],
+                [CURIE(i) for i in node.attributes.get("equivalent_identifiers", [])],
             )
         }
 
-        for attr_id, value in node.get_attributes().items():
+        for attr_id, value in node.attributes.items():
             if attr_id in special_cases:
                 continue
             if value is not None and value not in ([], ""):
@@ -978,10 +995,13 @@ class DgraphTranspiler(Tier0Transpiler):
         special_cases: dict[str, tuple[str, Any]] = {
             "category": (
                 "biolink:category",
-                [BiolinkEntity(biolink.ensure_prefix(cat)) for cat in edge.category],
+                [
+                    BiolinkEntity(biolink.ensure_prefix(cat))
+                    for cat in edge.attributes.get("category", [])
+                ],
             ),
         }
-        for attr_id, value in edge.get_attributes().items():
+        for attr_id, value in edge.attributes.items():
             if attr_id in special_cases:
                 continue
             if value is not None and value not in ([], ""):
@@ -996,9 +1016,7 @@ class DgraphTranspiler(Tier0Transpiler):
                 attributes.append(AttributeDict(attribute_type_id=name, value=value))
 
         # Build qualifiers
-        for qualifier_id, value in edge.get_qualifiers().items():
-            if value is None:
-                continue
+        for qualifier_id, value in edge.qualifiers.items():
             qualifiers.append(
                 QualifierDict(
                     qualifier_type_id=QualifierTypeID(

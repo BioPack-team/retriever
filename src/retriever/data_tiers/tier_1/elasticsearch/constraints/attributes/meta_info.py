@@ -1,4 +1,6 @@
-from retriever.data_tiers.tier_1.elasticsearch.attribute_types import AttrFieldMeta
+from retriever.data_tiers.tier_1.elasticsearch.constraints.types.attribute_types import (
+    AttrFieldMeta,
+)
 
 keyword_field = AttrFieldMeta(container="scalar", value_type="keyword", curie=False)
 

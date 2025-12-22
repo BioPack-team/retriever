@@ -1,16 +1,69 @@
+import re
 from typing import Any
 
-from retriever.data_tiers.tier_1.elasticsearch.attribute_types import (
+from retriever.data_tiers.tier_1.elasticsearch.constraints.types.attribute_types import (
     AttrFieldMeta,
     ESRegexQuery,
     RegexTerm,
 )
 
 
-def validate_regex(regex: str) -> str:
+def validate_regex(pattern: Any) -> str:
     """Validate regex for `match` query."""
-    # todo
-    return regex
+    # filter empty regex
+    if not isinstance(pattern, str) or pattern.strip() == "":
+        raise ValueError("Regex term cannot be empty")
+
+    # filter long regex
+    max_allowed_regex_length = 50
+    if len(pattern) > max_allowed_regex_length:
+        raise ValueError(
+            f"Regex term cannot exceed {max_allowed_regex_length} characters"
+        )
+
+    pattern = pattern.strip()
+
+    # filter leading wildcard
+    if re.match(r"^\(*(?:(?<!\\)\.|(?<!\\)\[[^]]+]|\([^)]+\))(?<!\\)[*+?{]", pattern):
+        raise ValueError("Regex with leading wildcard (.* or .+) is not supported")
+
+    # filter nested quantifier
+    if re.search(r"\([^)]+(?<!\\)[*+?{]\)(?<!\\)[*+?{]", pattern):
+        raise ValueError("Regex with nested quantifiers is not supported")
+
+    # filter lazy quantifier
+    if re.search(r"(?<!\\)([*+?])\?|(?<!\\)}\?", pattern):
+        raise ValueError("Regex with lazy quantifier is not supported")
+
+    # unsupported types in ES
+    # 0. anchor
+    if re.search(r"(?<!\\)[\^$]", pattern):
+        raise ValueError("ES does not support anchor operators")
+    # 1. lookaround
+    if re.search(r"\(\?(?<!\\)[=!<]", pattern):
+        raise ValueError("ES does not support lookaround")
+    # 2. escapes
+    if re.search(r"(?<!\\)\\([dDsSwWbB])", pattern):
+        raise ValueError(r"ES regex does not support escapes like \d, \w, \s.")
+
+    # Backreferences (\1, \2)
+    if re.search(r"(?<!\\)\\[1-9]", pattern):
+        raise ValueError(r"ES does not support backreferences (e.g. \1)")
+
+    # Named Groups (?P<name>)
+    if "(?P<" in pattern:
+        raise ValueError("ES does not support named groups")
+
+    # Unescaped '{' logic mismatch
+    if re.search(r"(?<!\\)\{(?!\d+(?:,\d*)?\})", pattern):
+        raise ValueError("Unescaped '{' must be followed by a valid quantifier")
+
+    try:
+        re.compile(pattern)
+    except re.error as err:
+        raise ValueError("Not a valid regular expression") from err
+
+    return pattern
 
 
 def handle_match(
@@ -46,8 +99,6 @@ def handle_match(
     }
     """
 
-    query_term = ESRegexQuery(
-        regexp={target_field_name: RegexTerm(value=regex_term, case_sensitive=True)}
-    )
+    query_term = ESRegexQuery(regexp={target_field_name: RegexTerm(value=regex_term)})
 
     return query_term

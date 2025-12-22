@@ -1,6 +1,6 @@
 from typing import cast
 
-from retriever.data_tiers.tier_1.elasticsearch.attribute_types import (
+from retriever.data_tiers.tier_1.elasticsearch.constraints.types.attribute_types import (
     ComparisonOperator,
     ESTermComparisonClause,
     ESValueComparisonQuery,
