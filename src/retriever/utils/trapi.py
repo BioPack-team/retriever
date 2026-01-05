@@ -541,7 +541,7 @@ def evaluate_set_interpretation(
 
 def _aggregate_node_groupings(
     qgraph: QueryGraphDict, job_log: TRAPILogger
-) -> tuple[collections.defaultdict(set), collections.defaultdict(set)]:
+) -> tuple[collections.defaultdict[set], collections.defaultdict[set]]:
     """Determines whether any set_interpretation : ALL or MANY groups exist.
 
     Iterates over the query graph nodes to extract the set_interpretation values
@@ -558,10 +558,9 @@ def _aggregate_node_groupings(
         match node_set_interpretation:
             case SetInterpretationEnum.ALL:
                 member_identifiers = node.get("member_ids", [])
-                if len(member_identifiers) == 0:
+                if member_identifiers is not None and len(member_identifiers) == 0:
                     job_log.error(
                         f"No `member_ids` specified for `set_interpretation`: ALL for node {node}. "
-                        "Result pruning requires the `member_ids` field to be set"
                     )
                 else:
                     for node_id in member_identifiers:
@@ -569,23 +568,26 @@ def _aggregate_node_groupings(
 
             case SetInterpretationEnum.MANY:
                 member_identifiers = node.get("member_ids", [])
-                if len(member_identifiers) == 0:
+                if member_identifiers is not None and len(member_identifiers) == 0:
                     job_log.error(
                         f"No `member_ids` specified for `set_interpretation`: MANY for node {node}. "
-                        "Result pruning requires the `member_ids` field to be set"
                     )
                 else:
                     for node_id in member_identifiers:
                         node_group_many[node_name].add(node_id)
+            case _:
+                job_log.error(
+                    f"Unknown value provided for set_interpretation within qgraph: {node_set_interpretation}"
+                )
     return node_group_all, node_group_many
 
 
 def _evaluate_set_interpretation_all(
     qgraph: QueryGraphDict,
     results: list[ResultDict],
-    node_group: collections.defaultdict(set),
-    identifier_identifier_lookup_table: collections.defaultdict(set),
-    identifier_result_index: collections.defaultdict(list),
+    node_group: collections.defaultdict[set],
+    identifier_identifier_lookup_table: collections.defaultdict[set],
+    identifier_result_index: collections.defaultdict[list],
     job_log: TRAPILogger,
 ) -> list[ResultDict]:
     """Handles the results graph pruning for `set_interpretation` : ALL."""
@@ -632,9 +634,9 @@ def _evaluate_set_interpretation_all(
 def _evaluate_set_interpretation_many(
     qgraph: QueryGraphDict,
     results: list[ResultDict],
-    node_group: collections.defaultdict(set),
-    identifier_identifier_lookup_table: dict,
-    identifier_result_index: collections.defaultdict(list),
+    node_group: collections.defaultdict[set],
+    identifier_identifier_lookup_table: collections.defaultdict[set],
+    identifier_result_index: collections.defaultdict[list],
     job_log: TRAPILogger,
 ) -> list[ResultDict]:
     """Handles the results graph pruning for `set_interpretation` : MANY.
@@ -682,8 +684,8 @@ def _evaluate_set_interpretation_many(
 
 def _evaluate_node_connectivity(
     qgraph: QueryGraphDict,
-    node_group: collections.defaultdict(set),
-    identifier_identifier_lookup_table: dict,
+    node_group: collections.defaultdict[set],
+    identifier_identifier_lookup_table: collections.defaultdict[set],
 ) -> tuple[dict, dict, dict]:
     """Evaluates how fully connected a node is to other nodes."""
     node_identifier_lookup_map: dict[QNodeID, list[CURIE]] = {}
@@ -740,7 +742,7 @@ def _evaluate_node_connectivity(
 
 def _build_identifier_lookup_tables(
     qgraph: QueryGraphDict, results: list[ResultDict], job_log: TRAPILogger
-) -> tuple[collections.defaultdict(set), collections.defaultdict(list)]:
+) -> tuple[collections.defaultdict[set], collections.defaultdict[list]]:
     """Builds an identifier-identifier lookup table."""
     identifier_identifier_lookup_table = collections.defaultdict(set)
     identifier_result_index = collections.defaultdict(list)
@@ -765,7 +767,7 @@ def _build_collapsed_result_entry(
     results: list[ResultDict],
     identifier: str,
     identifier_edge_mapping: dict[str, str],
-    identifier_result_index: collections.defaultdict(list),
+    identifier_result_index: collections.defaultdict[list],
 ) -> ResultDict:
     """Builds the collapsed entries for fully connected identifiers.
 
@@ -787,7 +789,7 @@ def _build_collapsed_result_entry(
                 NodeBindingDict(id=set_identifier, attributes=[])
             ],
         },
-        analyses= [
+        analyses=[
             AnalysisDict(
                 resource_id=Infores("infores:retriever"),
                 edge_bindings={
@@ -797,6 +799,5 @@ def _build_collapsed_result_entry(
                     ]
                 },
             )
-        ]
+        ],
     )
-
