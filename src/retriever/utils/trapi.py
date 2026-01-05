@@ -1,6 +1,6 @@
-import collections
 import hashlib
 import itertools
+from collections import defaultdict
 from collections.abc import Sequence
 from typing import cast
 
@@ -508,8 +508,8 @@ def evaluate_set_interpretation(
     node_group_all, node_group_many = _aggregate_node_groupings(qgraph, job_log)
 
     # Determine if any nodes have a set_interpretation value of ALL or MANY
-    group_all = any(len(node_group) > 0 for node_group in node_group_all.values())
-    group_many = any(len(node_group) > 0 for node_group in node_group_many.values())
+    group_all: bool = any(len(node_group) > 0 for node_group in node_group_all.values())
+    group_many: bool = any(len(node_group) > 0 for node_group in node_group_many.values())
 
     if group_all or group_many:
         identifier_identifier_lookup_table, identifier_result_index = (
@@ -541,15 +541,15 @@ def evaluate_set_interpretation(
 
 def _aggregate_node_groupings(
     qgraph: QueryGraphDict, job_log: TRAPILogger
-) -> tuple[collections.defaultdict[set], collections.defaultdict[set]]:
+) -> tuple[defaultdict[QNodeID, set[CURIE]], defaultdict[QNodeID, set[CURIE]]]:
     """Determines whether any set_interpretation : ALL or MANY groups exist.
 
     Iterates over the query graph nodes to extract the set_interpretation values
     for each node. If the node has either ALL or MANY, we store the node identifiers
     in a dictionary to track the identifiers we require as a set for full connectivity
     """
-    node_group_all = collections.defaultdict(set)
-    node_group_many = collections.defaultdict(set)
+    node_group_all: defaultdict[QNodeID, set[CURIE]] = defaultdict(set)
+    node_group_many: defaultdict[QNodeID, set[CURIE]] = defaultdict(set)
 
     for node_name, node in qgraph.get("nodes", {}).items():
         node_set_interpretation = node.get(
@@ -585,9 +585,9 @@ def _aggregate_node_groupings(
 def _evaluate_set_interpretation_all(
     qgraph: QueryGraphDict,
     results: list[ResultDict],
-    node_group: collections.defaultdict[set],
-    identifier_identifier_lookup_table: collections.defaultdict[set],
-    identifier_result_index: collections.defaultdict[list],
+    node_group: defaultdict[QNodeID, set[CURIE]],
+    identifier_identifier_lookup_table: defaultdict[CURIE, set[CURIE]],
+    identifier_result_index: defaultdict[CURIE, list[int]],
     job_log: TRAPILogger,
 ) -> list[ResultDict]:
     """Handles the results graph pruning for `set_interpretation` : ALL."""
@@ -634,9 +634,9 @@ def _evaluate_set_interpretation_all(
 def _evaluate_set_interpretation_many(
     qgraph: QueryGraphDict,
     results: list[ResultDict],
-    node_group: collections.defaultdict[set],
-    identifier_identifier_lookup_table: collections.defaultdict[set],
-    identifier_result_index: collections.defaultdict[list],
+    node_group: defaultdict[QNodeID, set[CURIE]],
+    identifier_identifier_lookup_table: defaultdict[CURIE, set[CURIE]],
+    identifier_result_index: defaultdict[CURIE, list[int]],
     job_log: TRAPILogger,
 ) -> list[ResultDict]:
     """Handles the results graph pruning for `set_interpretation` : MANY.
@@ -684,8 +684,8 @@ def _evaluate_set_interpretation_many(
 
 def _evaluate_node_connectivity(
     qgraph: QueryGraphDict,
-    node_group: collections.defaultdict[set],
-    identifier_identifier_lookup_table: collections.defaultdict[set],
+    node_group: defaultdict[set],
+    identifier_identifier_lookup_table: defaultdict[set],
 ) -> tuple[dict, dict, dict]:
     """Evaluates how fully connected a node is to other nodes."""
     node_identifier_lookup_map: dict[QNodeID, list[CURIE]] = {}
@@ -742,10 +742,10 @@ def _evaluate_node_connectivity(
 
 def _build_identifier_lookup_tables(
     qgraph: QueryGraphDict, results: list[ResultDict], job_log: TRAPILogger
-) -> tuple[collections.defaultdict[set], collections.defaultdict[list]]:
+) -> tuple[defaultdict[CURIE, set[CURIE]], defaultdict[CURIE, list[int]]]:
     """Builds an identifier-identifier lookup table."""
-    identifier_identifier_lookup_table = collections.defaultdict(set)
-    identifier_result_index = collections.defaultdict(list)
+    identifier_identifier_lookup_table: defaultdict[CURIE, set[CURIE]] = defaultdict(set)
+    identifier_result_index: defaultdict[CURIE, list[int]] = defaultdict(list)
 
     for index, result in enumerate(results):
         node_entries = tuple(result["node_bindings"].values())
@@ -766,8 +766,8 @@ def _build_collapsed_result_entry(
     qgraph: QueryGraphDict,
     results: list[ResultDict],
     identifier: str,
-    identifier_edge_mapping: dict[str, str],
-    identifier_result_index: collections.defaultdict[list],
+    identifier_edge_mapping: dict[QNodeID, dict[str, QNodeID]],
+    identifier_result_index: defaultdict[CURIE, list[int]],
 ) -> ResultDict:
     """Builds the collapsed entries for fully connected identifiers.
 
