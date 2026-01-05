@@ -23,6 +23,7 @@ from retriever.utils.telemetry import configure_telemetry
 async def _background_async() -> None:
     # /// SETUP ///
 
+    logger.info("Initializing background process...")
     await MONGO_CLIENT.initialize()
     await MONGO_QUEUE.start_process_task()
     add_mongo_sink()
@@ -30,6 +31,7 @@ async def _background_async() -> None:
     await tier_manager.connect_drivers()
     metakg_manager = MetaKGManager(leader=True)
     await metakg_manager.initialize()
+    logger.success("Background process setup complete!")
 
     # /// MAIN LOOP ///
 
