@@ -16,7 +16,7 @@ from retriever.lookup.branch import (
 from retriever.lookup.partial import Partial
 from retriever.lookup.subquery import subquery
 from retriever.lookup.utils import get_subgraph, make_mappings
-from retriever.metakg.metakg import METAKG_MANAGER
+from retriever.metadata.optable import OP_TABLE_MANAGER
 from retriever.types.general import (
     AdjacencyGraph,
     KAdjacencyGraph,
@@ -115,7 +115,7 @@ class QueryGraphExecutor:
             self.job_log.info(
                 f"Starting lookup against Tier {', '.join(str(t) for t in self.ctx.tiers if t > 0)}..."
             )
-            operation_plan = await METAKG_MANAGER.create_operation_plan(
+            operation_plan = await OP_TABLE_MANAGER.create_operation_plan(
                 self.qgraph, {t for t in self.ctx.tiers if t > 0}
             )
             if isinstance(operation_plan, list):

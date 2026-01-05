@@ -127,7 +127,12 @@ class RedisClient:
                     break
 
     async def set(
-        self, key: str, value: bytes, compress: bool = False, ttl: int = 0
+        self,
+        key: str,
+        value: bytes,
+        *,
+        compress: bool = False,
+        ttl: int = 0,
     ) -> None:
         """Generically set a key-value pair."""
         value_to_set = value
@@ -139,7 +144,7 @@ class RedisClient:
             ex=ttl if ttl > 0 else None,
         )
 
-    async def get(self, key: str, compressed: bool = False) -> bytes | None:
+    async def get(self, key: str, *, compressed: bool = False) -> bytes | None:
         """Generically get a key-value pair."""
         data = await self.client.get(f"{PREFIX}{key}")
         if data is None:
@@ -148,6 +153,11 @@ class RedisClient:
         if compressed:
             data = ZSTD_DECOMPRESSOR.decompress(data)
         return data
+
+    async def delete(self, key: str) -> bool:
+        """Generically delete a key-value pair."""
+        response = await self.client.delete(f"{PREFIX}{key}")
+        return response > 0
 
 
 REDIS_CLIENT = RedisClient()

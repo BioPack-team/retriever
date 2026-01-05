@@ -60,7 +60,7 @@ class TRAPIMetaKGInfo(NamedTuple):
     infores: str
 
 
-class MetaKGManager:
+class OPTableManager:
     """Utility class that keeps an up-to-date metakg."""
 
     def __init__(self, leader: bool = False) -> None:
@@ -274,7 +274,7 @@ class MetaKGManager:
         return plan
 
 
-METAKG_MANAGER = MetaKGManager()
+OP_TABLE_MANAGER = OPTableManager()
 
 
 async def build_edges(
@@ -337,7 +337,7 @@ async def get_trapi_metakg(tiers: tuple[TierNumber, ...]) -> MetaKnowledgeGraphD
     Because it depends on METAKG_MANAGER, it can't be used with the lead manager.
     This shouldn't be a problem because the lead manager isn't used to answer API calls.
     """
-    op_table = await METAKG_MANAGER.get_op_table()
+    op_table = await OP_TABLE_MANAGER.get_op_table()
     edges, edge_qualifiers, edge_attributes, mentioned_nodes = await build_edges(
         op_table, tiers
     )
