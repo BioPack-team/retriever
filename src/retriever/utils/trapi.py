@@ -518,7 +518,6 @@ def evaluate_set_interpretation(
     )
 
     if group_all or group_many:
-
         if group_all:
             results = _evaluate_set_interpretation_all(
                 qgraph,
@@ -608,16 +607,22 @@ def _evaluate_set_interpretation_all(
     for identifier, fully_connected in identifier_full_connectivity_mapping.items():
         if fully_connected:
             job_log.debug(f"Collapsing fully connected node identifier: {identifier}")
-            collapse_result: ResultDict | None = _build_collapsed_result_entry(
+            node_bindings = _build_collapsed_result_node_bindings(
                 qgraph,
-                results,
                 identifier,
                 identifier_edge_mapping,
-                identifier_result_index,
                 job_log,
             )
+            if node_bindings is not None:
+                analysis_bindings = _build_collapsed_result_analysis(
+                    results,
+                    identifier,
+                    identifier_result_index,
+                )
+                collapse_result = ResultDict(
+                    node_bindings=node_bindings, analyses=analysis_bindings
+                )
 
-            if collapse_result is not None:
                 collapse_entries.append(collapse_result)
                 for collapse_index in identifier_result_index[identifier]:
                     results_prune_mask[collapse_index] = 0
@@ -664,16 +669,22 @@ def _evaluate_set_interpretation_many(
     for identifier, fully_connected in identifier_full_connectivity_mapping.items():
         if fully_connected:
             job_log.debug(f"Collapsing fully connected node identifier: {identifier}")
-            collapse_result: ResultDict | None = _build_collapsed_result_entry(
+            node_bindings = _build_collapsed_result_node_bindings(
                 qgraph,
-                results,
                 identifier,
                 identifier_edge_mapping,
-                identifier_result_index,
                 job_log,
             )
+            if node_bindings is not None:
+                analysis_bindings = _build_collapsed_result_analysis(
+                    results,
+                    identifier,
+                    identifier_result_index,
+                )
+                collapse_result = ResultDict(
+                    node_bindings=node_bindings, analyses=analysis_bindings
+                )
 
-            if collapse_result is not None:
                 collapse_entries.append(collapse_result)
                 for collapse_index in identifier_result_index[identifier]:
                     results_prune_mask[collapse_index] = 0
@@ -779,36 +790,21 @@ def _build_identifier_lookup_tables(
     return identifier_identifier_lookup_table, identifier_result_index
 
 
-def _build_collapsed_result_entry(
+def _build_collapsed_result_node_bindings(
     qgraph: QueryGraphDict,
-    results: list[ResultDict],
     identifier: CURIE,
     identifier_edge_mapping: dict[CURIE, dict[str, QNodeID]],
-    identifier_result_index: defaultdict[CURIE, list[int]],
     job_log: TRAPILogger,
-) -> ResultDict | None:
-    """Builds the collapsed entries for fully connected identifiers.
+) -> dict[QNodeID, list[NodeBindingDict]] | None:
+    """Generates the node bindings for the collapsed result entry.
 
-    Extracts the information from the nodes and edges bindings to build
-    a new result that represents a merged entry
+    Extracts the relevant information from the query graph nodes
+    and from our provided edge mapping to ensure we're collapsing
+    the correct edge
+
+    Also verifies that the set identifier provided is correct and is
+    a valid UUID before generating the node bindings
     """
-    edge_identifiers: list[EdgeIdentifier] = []
-    for location in identifier_result_index[identifier]:
-        try:
-            identifier_result: ResultDict = results[location]
-        except IndexError:
-            pass
-        else:
-            result_analysis: list[AnalysisDict | PathfinderAnalysisDict] = (
-                identifier_result["analyses"]
-            )
-            for analysis in cast(list[AnalysisDict], result_analysis):
-                edge_bindings: dict[QEdgeID, list[EdgeBindingDict]] = analysis[
-                    "edge_bindings"
-                ]
-                for edge_binding in edge_bindings.values():
-                    edge_identifiers.extend(edge["id"] for edge in edge_binding)
-
     edge_ordering: dict[str, QNodeID] = identifier_edge_mapping[identifier]
     graph_nodes: dict[QNodeID, QNodeDict] = qgraph["nodes"]
     set_identifier: list[CURIE] | None = graph_nodes[edge_ordering["connection"]].get(
@@ -829,6 +825,7 @@ def _build_collapsed_result_entry(
             job_log.error(
                 "Unable to access the set identifier to build the collapsed result"
             )
+
             return None
 
         try:
@@ -845,17 +842,47 @@ def _build_collapsed_result_entry(
                 NodeBindingDict(id=uuid_set_identifier, attributes=[])
             ],
         }
+        return node_bindings
 
-        collapsed_edge_id: QEdgeID = QEdgeID("e0")
-        analyses: list[AnalysisDict | PathfinderAnalysisDict] = [
-            AnalysisDict(
-                resource_id=Infores("infores:retriever"),
-                edge_bindings={
-                    collapsed_edge_id: [
-                        EdgeBindingDict(id=kedge_id, attributes=[])
-                        for kedge_id in edge_identifiers
-                    ]
-                },
+
+def _build_collapsed_result_analysis(
+    results: list[ResultDict],
+    identifier: CURIE,
+    identifier_result_index: defaultdict[CURIE, list[int]],
+) -> list[AnalysisDict | PathfinderAnalysisDict]:
+    """Generates the analysis bindings for the collapsed result entry.
+
+    Leverages the result index to determine where we should extract
+    the result entries from and builds the edge bindings for
+    the analyses entry
+    """
+    edge_identifiers: list[EdgeIdentifier] = []
+    for location in identifier_result_index[identifier]:
+        try:
+            identifier_result: ResultDict = results[location]
+        except IndexError:
+            pass
+        else:
+            result_analysis: list[AnalysisDict | PathfinderAnalysisDict] = (
+                identifier_result["analyses"]
             )
-        ]
-        return ResultDict(node_bindings=node_bindings, analyses=analyses)
+            for analysis in cast(list[AnalysisDict], result_analysis):
+                edge_bindings: dict[QEdgeID, list[EdgeBindingDict]] = analysis[
+                    "edge_bindings"
+                ]
+                for edge_binding in edge_bindings.values():
+                    edge_identifiers.extend(edge["id"] for edge in edge_binding)
+
+    collapsed_edge_id: QEdgeID = QEdgeID("e0")
+    analyses: list[AnalysisDict | PathfinderAnalysisDict] = [
+        AnalysisDict(
+            resource_id=Infores("infores:retriever"),
+            edge_bindings={
+                collapsed_edge_id: [
+                    EdgeBindingDict(id=kedge_id, attributes=[])
+                    for kedge_id in edge_identifiers
+                ]
+            },
+        )
+    ]
+    return analyses
