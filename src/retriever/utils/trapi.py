@@ -703,7 +703,7 @@ def _evaluate_node_connectivity(
 
         node_identifier_lookup_map[node_name] = node_identifiers
 
-    identifier_full_connectivity_mapping: dict[QNodeID, bool] = {}
+    identifier_full_connectivity_mapping: dict[CURIE, bool] = {}
     missing_identifier_mapping: dict[QNodeID, list[CURIE]] = {}
     identifier_edge_mapping: dict[QNodeID, dict[str, QNodeID]] = {}
     for edge in qgraph["edges"].values():
