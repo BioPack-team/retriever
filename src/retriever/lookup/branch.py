@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from functools import cached_property
 from typing import override
 
-from retriever.metakg.metakg import OperationPlan
+from retriever.metadata.optable import OperationPlan
 from retriever.types.general import AdjacencyGraph, QEdgeIDMap
 from retriever.types.metakg import Operation
 from retriever.types.trapi import CURIE, QEdgeDict, QEdgeID, QNodeID, QueryGraphDict

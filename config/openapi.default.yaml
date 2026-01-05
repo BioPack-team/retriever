@@ -63,6 +63,8 @@ response_descriptions:
   meta_knowledge_graph:
     '200': Returns meta knowledge graph representation of this TRAPI web
       service.
+  metadata:
+    '200': Returns metadata for currently-served data in the backends.
   query:
     '200': OK. There may or may not be results. Note that some of the provided
       identifiers may not have been recognized.
