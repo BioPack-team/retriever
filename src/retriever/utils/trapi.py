@@ -558,7 +558,7 @@ def _aggregate_node_groupings(
         match node_set_interpretation:
             case SetInterpretationEnum.ALL:
                 member_identifiers = node.get("member_ids", [])
-                if member_identifiers is not None and len(member_identifiers) == 0:
+                if member_identifiers is None or len(member_identifiers) == 0:
                     job_log.error(
                         f"No `member_ids` specified for `set_interpretation`: ALL for node {node}. "
                     )
@@ -568,7 +568,7 @@ def _aggregate_node_groupings(
 
             case SetInterpretationEnum.MANY:
                 member_identifiers = node.get("member_ids", [])
-                if member_identifiers is not None and len(member_identifiers) == 0:
+                if member_identifiers is None or len(member_identifiers) == 0:
                     job_log.error(
                         f"No `member_ids` specified for `set_interpretation`: MANY for node {node}. "
                     )
@@ -684,19 +684,26 @@ def _evaluate_set_interpretation_many(
 
 def _evaluate_node_connectivity(
     qgraph: QueryGraphDict,
-    node_group: defaultdict[set],
-    identifier_identifier_lookup_table: defaultdict[set],
+    node_group: defaultdict[QNodeID, set[CURIE]],
+    identifier_identifier_lookup_table: defaultdict[CURIE, set[CURIE]],
 ) -> tuple[dict, dict, dict]:
     """Evaluates how fully connected a node is to other nodes."""
-    node_identifier_lookup_map: dict[QNodeID, list[CURIE]] = {}
+    node_identifier_lookup_map: dict[QNodeID, list[CURIE | None]] = {}
     for node_name, node in qgraph["nodes"].items():
         match node.get("set_interpretation", SetInterpretationEnum.BATCH):
             case SetInterpretationEnum.BATCH:
-                node_identifier_lookup_map[node_name] = node["ids"]
+                node_identifiers = node.get("ids", None)
             case SetInterpretationEnum.ALL:
-                node_identifier_lookup_map[node_name] = node.get("member_ids", [])
+                node_identifiers = node.get("member_ids", None)
             case SetInterpretationEnum.MANY:
-                node_identifier_lookup_map[node_name] = node.get("member_ids", [])
+                node_identifiers = node.get("member_ids", None)
+            case _:
+                node_identifiers = None
+
+        if node_identifiers is None:
+            node_identifiers = []
+
+        node_identifier_lookup_map[node_name] = node_identifiers
 
     identifier_full_connectivity_mapping: dict[QNodeID, bool] = {}
     missing_identifier_mapping: dict[QNodeID, list[CURIE]] = {}
