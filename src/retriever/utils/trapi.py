@@ -507,7 +507,11 @@ def evaluate_set_interpretation(
     identify what node is connected to what and return a set representing
     all connected nodes
 
-    So we first aggregate all nodes in
+    So we first aggregate all nodes that have either ALL or MANY for their
+    set interpretation value
+
+    We evaluate all nodes with set interpreation ALL first and then apply any
+    additional collapsing to the set interpretation MANY nodes
     """
     node_group_all, node_group_many = _aggregate_node_groupings(qgraph, job_log)
 
@@ -542,9 +546,10 @@ def _aggregate_node_groupings(
 ) -> tuple[defaultdict[QNodeID, set[CURIE]], defaultdict[QNodeID, set[CURIE]]]:
     """Determines whether any set_interpretation : ALL or MANY groups exist.
 
-    Iterates over the query graph nodes to extract the set_interpretation values
-    for each node. If the node has either ALL or MANY, we store the node identifiers
-    in a dictionary to track the identifiers we require as a set for full connectivity
+    Iterates over the query graph nodes to extract the set_interpretation
+    values for each node. If the node has either ALL or MANY, we store the
+    node identifiers in a dictionary to track the identifiers we require as
+    a set for full connectivity
     """
     node_group_all: defaultdict[QNodeID, set[CURIE]] = defaultdict(set)
     node_group_many: defaultdict[QNodeID, set[CURIE]] = defaultdict(set)
@@ -586,7 +591,68 @@ def _evaluate_set_interpretation_all(
     node_group: defaultdict[QNodeID, set[CURIE]],
     job_log: TRAPILogger,
 ) -> list[ResultDict]:
-    """Handles the results graph pruning for `set_interpretation` : ALL."""
+    """Handles the results graph pruning for `set_interpretation` : ALL.
+
+    We first build two different lookup tables
+
+    1) identifier-identifier lookup table
+    Extracted from the results, we create a lookup table where we provide the CURIE as a key
+    to return the set of CURIE's that are connected to that key CURIE
+
+    Example:
+    defaultdict(
+       <class 'set'>,
+       {
+          'MONDO:0000001': {'MONDO:0000532', 'MONDO:0020644', 'UMLS:C2983716'},
+          'MONDO:0000532': {'MONDO:0000001', 'MONDO:0004993', 'MONDO:0008903'},
+          'MONDO:0004993': {'MONDO:0000532', 'UMLS:C2983716'},
+          'MONDO:0008903': {'MONDO:0000532', 'MONDO:0020644', 'UMLS:C2983716'},
+          'MONDO:0020644': {'MONDO:0000001', 'MONDO:0008903'},
+          'UMLS:C2983716': {'MONDO:0000001', 'MONDO:0004993', 'MONDO:0008903'}
+       }
+    )
+
+    In this case, we found 6 entries
+    >>> 4 of those entries had 3 connections
+    >>> 2 of those entries had 2 connections
+
+    2) identifier-result index
+    This is a basic index to tell use where a CURIE is found in the results
+    via the integer index within the list
+
+    Example:
+    defaultdict(
+        <class 'list'>,
+      {
+         'MONDO:0000001': [5, 6, 7],
+         'MONDO:0000532': [0, 4, 5],
+         'MONDO:0004993': [3, 4],
+         'MONDO:0008903': [0, 1, 2],
+         'MONDO:0020644': [1, 6],
+         'UMLS:C2983716': [2, 3, 7]
+      }
+    )
+
+    We build the index at the same time as the identifier-identifier
+    lookup table to avoid iterating over the results more than once.
+    For smaller result collections this won't matter, but if we have a large
+    number of results, we'd prefer to minimize iterating over it needlessly
+
+    After this we evaluate the node connectivity to determine which CURIE
+    identifiers have full connectivity with the specified nodes.
+
+    If we find full connectivity for an identifier we collapse it into a single
+    entry
+
+    If we find only partial to no connectivity then we prune all instances of
+    the CURIE from the results
+
+    We do the pruning in one step via the pruning mask to manipulate the
+    results as little as possible
+
+    After collapsing all results and pruning the entries, we add the new
+    collapsed entries to results collection and return them
+    """
     identifier_identifier_lookup_table, identifier_result_index = (
         _build_identifier_lookup_tables(results)
     )
@@ -646,8 +712,16 @@ def _evaluate_set_interpretation_many(
 ) -> list[ResultDict]:
     """Handles the results graph pruning for `set_interpretation` : MANY.
 
+    See the _evaluate_set_interpretation_all docstring for more involved
+    details
+
     The main difference here is we won't perform pruning, only collapse any nodes
-    that meet the full connectivity requirement
+    that meet the full connectivity requirement. Otherwise this method
+    is pretty much identical to _evaluate_set_interpretation_all. Because we
+    only have two methods, I think trying to create an abstraction between
+    the two would make the logic more complicated than needed for minimal
+    code reducation. If more set interpretation values are added in the future,
+    this assumption may no longer hold
     """
     identifier_identifier_lookup_table, identifier_result_index = (
         _build_identifier_lookup_tables(results)
@@ -705,7 +779,43 @@ def _evaluate_node_connectivity(
 ) -> tuple[
     dict[CURIE, bool], dict[CURIE, list[CURIE]], dict[CURIE, dict[str, QNodeID]]
 ]:
-    """Evaluates how fully connected a node is to other nodes."""
+    """Evaluates how fully connected a CURIE identifier is to other nodes.
+
+    We first build a node-identifier lookup table so that we can provide
+    the node name and get all the identifiers associated with the node
+    from the query graph
+
+    We then iterate over all edges in the query graph looking to
+    see if either the subject or objeect node exist in the provided
+    node_group
+
+    If we find the set in the node_group, we then have to look at the
+    paired nodes identifiers to see if they're connected
+
+    If the subject node has set interpretation : ALL/MANY -> look at object
+    If the object node has set interpretation : ALL/MANY -> look at subject
+
+    We iterate over the paired nodes identifiers and get the identifiers
+    connectivity set from the lookup table we created prior to this method
+
+    If it's a subset then we can collapse that node identifiers connections,
+    otherwise we prune all instances
+
+    However, for now we just return the data structures we generated that
+    represent the connectivity of the identifiers
+
+    Examples:
+    >>> identifier_full_connectivity_mapping
+        {'MONDO:0008903': True, 'MONDO:0000001': True, 'MONDO:0004993': False}
+    >>> missing_identifier_mapping
+        {'MONDO:0008903': [], 'MONDO:0000001': [], 'MONDO:0004993': ['MONDO:0020644']}
+    >>> identifier_edge_mapping
+        {
+           'MONDO:0008903': {'origin': 'n0', 'connection': 'n1'},
+           'MONDO:0000001': {'origin': 'n0', 'connection': 'n1'},
+           'MONDO:0004993': {'origin': 'n0', 'connection': 'n1'}
+        }
+    """
     node_identifier_lookup_map: dict[QNodeID, list[CURIE]] = {}
     for node_name, node in qgraph["nodes"].items():
         match node.get("set_interpretation", SetInterpretationEnum.BATCH):
@@ -769,7 +879,14 @@ def _evaluate_node_connectivity(
 def _build_identifier_lookup_tables(
     results: list[ResultDict],
 ) -> tuple[defaultdict[CURIE, set[CURIE]], defaultdict[CURIE, list[int]]]:
-    """Builds an identifier-identifier lookup table."""
+    """Builds an identifier metadata tables for evaluating node connectivity.
+
+    We build the identifier-identifier lookup table to see
+    how connected the identifiers are in the results
+
+    We build the identifier-result index to avoid iterating over
+    the results
+    """
     identifier_identifier_lookup_table: defaultdict[CURIE, set[CURIE]] = defaultdict(
         set
     )
