@@ -15,7 +15,7 @@ from retriever.data_tiers import tier_manager
 from retriever.lookup.qgx import QueryGraphExecutor
 from retriever.lookup.utils import expand_qgraph
 from retriever.lookup.validate import validate
-from retriever.metakg.metakg import METAKG_MANAGER
+from retriever.metadata.optable import OP_TABLE_MANAGER
 from retriever.types.general import LookupArtifacts, QueryInfo
 from retriever.types.trapi import (
     AuxGraphID,
@@ -235,7 +235,7 @@ async def qgraph_supported(
 
     Prepares response with appropriate messages if not.
     """
-    operation_plan = await METAKG_MANAGER.create_operation_plan(qgraph, tiers)
+    operation_plan = await OP_TABLE_MANAGER.create_operation_plan(qgraph, tiers)
     if isinstance(operation_plan, list):
         job_log.warning(
             f"MetaEdges could not be found for the following QEdge(s): {operation_plan}"

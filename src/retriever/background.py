@@ -10,7 +10,7 @@ from uvicorn.supervisors.multiprocess import SIGNALS
 
 from retriever.config.logger import configure_logging
 from retriever.data_tiers import tier_manager
-from retriever.metakg.metakg import MetaKGManager
+from retriever.metadata.optable import OPTableManager
 from retriever.utils.logs import add_mongo_sink
 from retriever.utils.mongo import MONGO_CLIENT, MONGO_QUEUE
 from retriever.utils.redis import REDIS_CLIENT
@@ -29,7 +29,7 @@ async def _background_async() -> None:
     add_mongo_sink()
     await REDIS_CLIENT.initialize()
     await tier_manager.connect_drivers()
-    metakg_manager = MetaKGManager(leader=True)
+    metakg_manager = OPTableManager(leader=True)
     await metakg_manager.initialize()
     logger.success("Background process setup complete!")
 
