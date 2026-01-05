@@ -23,6 +23,7 @@ from retriever.types.trapi import (
     MetaAttributeDict,
     NodeBindingDict,
     NodeDict,
+    QNodeID,
     QualifierConstraintDict,
     QualifierTypeID,
     QueryGraphDict,
@@ -598,8 +599,8 @@ def _evaluate_set_interpretation_all(
         identifier_identifier_lookup_table,
     )
 
-    results_prune_mask = [1] * len(results)
-    collapse_entries = []
+    results_prune_mask: list[int] = [1] * len(results)
+    collapse_entries: list[ResultDict] = []
 
     for identifier, fully_connected in identifier_full_connectivity_mapping.items():
         if fully_connected:
@@ -683,9 +684,9 @@ def _evaluate_node_connectivity(
     qgraph: QueryGraphDict,
     node_group: collections.defaultdict(set),
     identifier_identifier_lookup_table: dict,
-) -> tuple[dict[str, set[str]], dict[str, list[str]], dict[str, str]]:
+) -> tuple[dict, dict, dict]:
     """Evaluates how fully connected a node is to other nodes."""
-    node_identifier_lookup_map: dict[str, list[str]] = {}
+    node_identifier_lookup_map: dict[QNodeID, list[CURIE]] = {}
     for node_name, node in qgraph["nodes"].items():
         match node.get("set_interpretation", SetInterpretationEnum.BATCH):
             case SetInterpretationEnum.BATCH:
@@ -695,15 +696,15 @@ def _evaluate_node_connectivity(
             case SetInterpretationEnum.MANY:
                 node_identifier_lookup_map[node_name] = node.get("member_ids", [])
 
-    identifier_full_connectivity_mapping: dict[str, set[str]] = {}
-    missing_identifier_mapping: dict[str, list[str]] = {}
-    identifier_edge_mapping: dict[str, str] = {}
+    identifier_full_connectivity_mapping: dict[QNodeID, bool] = {}
+    missing_identifier_mapping: dict[QNodeID, list[CURIE]] = {}
+    identifier_edge_mapping: dict[QNodeID, dict[str, QNodeID]] = {}
     for edge in qgraph["edges"].values():
-        subject_node = edge["subject"]
-        subject_set: set = node_group.get(subject_node, set())
+        subject_node: QNodeID = edge["subject"]
+        subject_set: set[CURIE] = node_group.get(subject_node, set())
 
-        object_node = edge["object"]
-        object_set: set = node_group.get(object_node, set())
+        object_node: QNodeID = edge["object"]
+        object_set: set[CURIE] = node_group.get(object_node, set())
 
         if len(subject_set) > 0:
             for node_id in node_identifier_lookup_map[object_node]:
@@ -776,26 +777,26 @@ def _build_collapsed_result_entry(
         for edge_data in results[location]["analyses"][0]["edge_bindings"].values():
             edge_identifiers.extend(edge["id"] for edge in edge_data)
 
-    analyses = [
-        AnalysisDict(
-            resource_id=Infores("infores:retriever"),
-            edge_bindings={
-                "e0": [
-                    EdgeBindingDict(id=kedge_id, attributes=[])
-                    for kedge_id in edge_identifiers
-                ]
-            },
-        )
-    ]
-
     edge_ordering = identifier_edge_mapping[identifier]
     set_identifier = qgraph["nodes"][edge_ordering["connection"]]["ids"]
-    node_bindings = {
-        edge_ordering["origin"]: [NodeBindingDict(id=identifier, attributes=[])],
-        edge_ordering["connection"]: [
-            NodeBindingDict(id=set_identifier, attributes=[])
-        ],
-    }
 
-    collapsed_entry = ResultDict(node_bindings=node_bindings, analyses=analyses)
-    return collapsed_entry
+    return ResultDict(
+        node_bindings={
+            edge_ordering["origin"]: [NodeBindingDict(id=identifier, attributes=[])],
+            edge_ordering["connection"]: [
+                NodeBindingDict(id=set_identifier, attributes=[])
+            ],
+        },
+        analyses= [
+            AnalysisDict(
+                resource_id=Infores("infores:retriever"),
+                edge_bindings={
+                    "e0": [
+                        EdgeBindingDict(id=kedge_id, attributes=[])
+                        for kedge_id in edge_identifiers
+                    ]
+                },
+            )
+        ]
+    )
+
