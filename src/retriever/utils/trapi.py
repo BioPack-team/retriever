@@ -512,9 +512,7 @@ def evaluate_set_interpretation(
     group_many: bool = any(len(node_group) > 0 for node_group in node_group_many.values())
 
     if group_all or group_many:
-        identifier_identifier_lookup_table, identifier_result_index = (
-            _build_identifier_lookup_tables(qgraph, results, job_log)
-        )
+        identifier_identifier_lookup_table, identifier_result_index = _build_identifier_lookup_tables(results)
 
         if group_all:
             results = _evaluate_set_interpretation_all(
@@ -686,7 +684,7 @@ def _evaluate_node_connectivity(
     qgraph: QueryGraphDict,
     node_group: defaultdict[QNodeID, set[CURIE]],
     identifier_identifier_lookup_table: defaultdict[CURIE, set[CURIE]],
-) -> tuple[dict, dict, dict]:
+) -> tuple[dict[QNodeID, bool], dict[QNodeID, list[CURIE]], dict[QNodeID, dict[str, QNodeID]]]:
     """Evaluates how fully connected a node is to other nodes."""
     node_identifier_lookup_map: dict[QNodeID, list[CURIE | None]] = {}
     for node_name, node in qgraph["nodes"].items():
@@ -747,9 +745,7 @@ def _evaluate_node_connectivity(
     )
 
 
-def _build_identifier_lookup_tables(
-    qgraph: QueryGraphDict, results: list[ResultDict], job_log: TRAPILogger
-) -> tuple[defaultdict[CURIE, set[CURIE]], defaultdict[CURIE, list[int]]]:
+def _build_identifier_lookup_tables(results: list[ResultDict]) -> tuple[defaultdict[CURIE, set[CURIE]], defaultdict[CURIE, list[int]]]:
     """Builds an identifier-identifier lookup table."""
     identifier_identifier_lookup_table: defaultdict[CURIE, set[CURIE]] = defaultdict(set)
     identifier_result_index: defaultdict[CURIE, list[int]] = defaultdict(list)
@@ -772,7 +768,7 @@ def _build_identifier_lookup_tables(
 def _build_collapsed_result_entry(
     qgraph: QueryGraphDict,
     results: list[ResultDict],
-    identifier: str,
+    identifier: CURIE,
     identifier_edge_mapping: dict[QNodeID, dict[str, QNodeID]],
     identifier_result_index: defaultdict[CURIE, list[int]],
 ) -> ResultDict:
