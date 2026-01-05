@@ -35,10 +35,10 @@ from retriever.utils.calls import get_callback_client
 from retriever.utils.logs import TRAPILogger, trapi_level_to_int
 from retriever.utils.mongo import MONGO_QUEUE
 from retriever.utils.trapi import (
+    evaluate_set_interpretation,
     merge_results,
     prune_kg,
     update_kgraph,
-    evaluate_set_interpretation,
 )
 
 tracer = trace.get_tracer("lookup.execution.tracer")

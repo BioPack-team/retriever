@@ -9,12 +9,12 @@ from reasoner_pydantic import QueryGraph
 from reasoner_pydantic.utils import make_hashable
 
 from retriever.types.trapi import (
+    CURIE,
     AnalysisDict,
     AttributeDict,
     AuxGraphID,
     AuxiliaryGraphDict,
     BiolinkEntity,
-    CURIE,
     EdgeBindingDict,
     EdgeDict,
     EdgeIdentifier,
@@ -540,18 +540,15 @@ def evaluate_set_interpretation(
 
 def _aggregate_node_groupings(
     qgraph: QueryGraphDict, job_log: TRAPILogger
-) -> tuple[dict, dict]:
+) -> tuple[collections.defaultdict(set), collections.defaultdict(set)]:
     """Determines whether any set_interpretation : ALL or MANY groups exist.
 
     Iterates over the query graph nodes to extract the set_interpretation values
     for each node. If the node has either ALL or MANY, we store the node identifiers
     in a dictionary to track the identifiers we require as a set for full connectivity
     """
-    node_group_all = {}
-    node_group_many = {}
-    for node_name in qgraph.get("nodes", {}):
-        node_group_all[node_name] = set()
-        node_group_many[node_name] = set()
+    node_group_all = collections.defaultdict(set)
+    node_group_many = collections.defaultdict(set)
 
     for node_name, node in qgraph.get("nodes", {}).items():
         node_set_interpretation = node.get(
@@ -585,13 +582,12 @@ def _aggregate_node_groupings(
 def _evaluate_set_interpretation_all(
     qgraph: QueryGraphDict,
     results: list[ResultDict],
-    node_group: dict,
-    identifier_identifier_lookup_table: dict,
+    node_group: collections.defaultdict(set),
+    identifier_identifier_lookup_table: collections.defaultdict(set),
     identifier_result_index: collections.defaultdict(list),
     job_log: TRAPILogger,
 ) -> list[ResultDict]:
     """Handles the results graph pruning for `set_interpretation` : ALL."""
-
     (
         identifier_full_connectivity_mapping,
         missing_identifier_mapping,
@@ -635,7 +631,7 @@ def _evaluate_set_interpretation_all(
 def _evaluate_set_interpretation_many(
     qgraph: QueryGraphDict,
     results: list[ResultDict],
-    node_group: dict,
+    node_group: collections.defaultdict(set),
     identifier_identifier_lookup_table: dict,
     identifier_result_index: collections.defaultdict(list),
     job_log: TRAPILogger,
@@ -685,29 +681,29 @@ def _evaluate_set_interpretation_many(
 
 def _evaluate_node_connectivity(
     qgraph: QueryGraphDict,
-    node_group: dict,
+    node_group: collections.defaultdict(set),
     identifier_identifier_lookup_table: dict,
-) -> tuple[dict, dict, dict]:
+) -> tuple[dict[str, set[str]], dict[str, list[str]], dict[str, str]]:
     """Evaluates how fully connected a node is to other nodes."""
-    node_identifier_lookup_map = {}
+    node_identifier_lookup_map: dict[str, list[str]] = {}
     for node_name, node in qgraph["nodes"].items():
         match node.get("set_interpretation", SetInterpretationEnum.BATCH):
             case SetInterpretationEnum.BATCH:
                 node_identifier_lookup_map[node_name] = node["ids"]
             case SetInterpretationEnum.ALL:
-                node_identifier_lookup_map[node_name] = node["member_ids"]
+                node_identifier_lookup_map[node_name] = node.get("member_ids", [])
             case SetInterpretationEnum.MANY:
-                node_identifier_lookup_map[node_name] = node["member_ids"]
+                node_identifier_lookup_map[node_name] = node.get("member_ids", [])
 
-    identifier_full_connectivity_mapping = {}
-    missing_identifier_mapping = {}
-    identifier_edge_mapping = {}
+    identifier_full_connectivity_mapping: dict[str, set[str]] = {}
+    missing_identifier_mapping: dict[str, list[str]] = {}
+    identifier_edge_mapping: dict[str, str] = {}
     for edge in qgraph["edges"].values():
         subject_node = edge["subject"]
-        subject_set = node_group.get(subject_node, set())
+        subject_set: set = node_group.get(subject_node, set())
 
         object_node = edge["object"]
-        object_set = node_group.get(object_node, set())
+        object_set: set = node_group.get(object_node, set())
 
         if len(subject_set) > 0:
             for node_id in node_identifier_lookup_map[object_node]:
@@ -767,8 +763,8 @@ def _build_collapsed_result_entry(
     qgraph: QueryGraphDict,
     results: list[ResultDict],
     identifier: str,
-    identifier_edge_mapping: dict,
-    identifier_result_index: dict,
+    identifier_edge_mapping: dict[str, str],
+    identifier_result_index: collections.defaultdict(list),
 ) -> ResultDict:
     """Builds the collapsed entries for fully connected identifiers.
 
