@@ -1,5 +1,6 @@
 import hashlib
 import itertools
+import uuid
 from collections import defaultdict
 from collections.abc import Sequence
 from typing import cast
@@ -23,6 +24,9 @@ from retriever.types.trapi import (
     MetaAttributeDict,
     NodeBindingDict,
     NodeDict,
+    PathfinderAnalysisDict,
+    QEdgeID,
+    QNodeDict,
     QNodeID,
     QualifierConstraintDict,
     QualifierTypeID,
@@ -509,18 +513,17 @@ def evaluate_set_interpretation(
 
     # Determine if any nodes have a set_interpretation value of ALL or MANY
     group_all: bool = any(len(node_group) > 0 for node_group in node_group_all.values())
-    group_many: bool = any(len(node_group) > 0 for node_group in node_group_many.values())
+    group_many: bool = any(
+        len(node_group) > 0 for node_group in node_group_many.values()
+    )
 
     if group_all or group_many:
-        identifier_identifier_lookup_table, identifier_result_index = _build_identifier_lookup_tables(results)
 
         if group_all:
             results = _evaluate_set_interpretation_all(
                 qgraph,
                 results,
                 node_group_all,
-                identifier_identifier_lookup_table,
-                identifier_result_index,
                 job_log,
             )
 
@@ -529,8 +532,6 @@ def evaluate_set_interpretation(
                 qgraph,
                 results,
                 node_group_many,
-                identifier_identifier_lookup_table,
-                identifier_result_index,
                 job_log,
             )
 
@@ -584,11 +585,13 @@ def _evaluate_set_interpretation_all(
     qgraph: QueryGraphDict,
     results: list[ResultDict],
     node_group: defaultdict[QNodeID, set[CURIE]],
-    identifier_identifier_lookup_table: defaultdict[CURIE, set[CURIE]],
-    identifier_result_index: defaultdict[CURIE, list[int]],
     job_log: TRAPILogger,
 ) -> list[ResultDict]:
     """Handles the results graph pruning for `set_interpretation` : ALL."""
+    identifier_identifier_lookup_table, identifier_result_index = (
+        _build_identifier_lookup_tables(results)
+    )
+
     (
         identifier_full_connectivity_mapping,
         missing_identifier_mapping,
@@ -605,21 +608,22 @@ def _evaluate_set_interpretation_all(
     for identifier, fully_connected in identifier_full_connectivity_mapping.items():
         if fully_connected:
             job_log.debug(f"Collapsing fully connected node identifier: {identifier}")
-            collapse_entries.append(
-                _build_collapsed_result_entry(
-                    qgraph,
-                    results,
-                    identifier,
-                    identifier_edge_mapping,
-                    identifier_result_index,
-                )
+            collapse_result: ResultDict | None = _build_collapsed_result_entry(
+                qgraph,
+                results,
+                identifier,
+                identifier_edge_mapping,
+                identifier_result_index,
+                job_log,
             )
-            for collapse_index in identifier_result_index[identifier]:
-                results_prune_mask[collapse_index] = 0
+
+            if collapse_result is not None:
+                collapse_entries.append(collapse_result)
+                for collapse_index in identifier_result_index[identifier]:
+                    results_prune_mask[collapse_index] = 0
         else:
             job_log.debug(
-                f"[set interpretation: ALL] Pruning partially connected identifier: {identifier}. "
-                f"Missing identifiers from full connection: {missing_identifier_mapping[identifier]}"
+                f"[set interpretation: ALL] Pruning partially connected identifier: {identifier}. Missing identifiers from full connection: {missing_identifier_mapping[identifier]}"
             )
             for prune_index in identifier_result_index[identifier]:
                 results_prune_mask[prune_index] = 0
@@ -633,8 +637,6 @@ def _evaluate_set_interpretation_many(
     qgraph: QueryGraphDict,
     results: list[ResultDict],
     node_group: defaultdict[QNodeID, set[CURIE]],
-    identifier_identifier_lookup_table: defaultdict[CURIE, set[CURIE]],
-    identifier_result_index: defaultdict[CURIE, list[int]],
     job_log: TRAPILogger,
 ) -> list[ResultDict]:
     """Handles the results graph pruning for `set_interpretation` : MANY.
@@ -642,6 +644,10 @@ def _evaluate_set_interpretation_many(
     The main difference here is we won't perform pruning, only collapse any nodes
     that meet the full connectivity requirement
     """
+    identifier_identifier_lookup_table, identifier_result_index = (
+        _build_identifier_lookup_tables(results)
+    )
+
     (
         identifier_full_connectivity_mapping,
         missing_identifier_mapping,
@@ -652,27 +658,28 @@ def _evaluate_set_interpretation_many(
         identifier_identifier_lookup_table,
     )
 
-    results_prune_mask = [1] * len(results)
-    collapse_entries = []
+    results_prune_mask: list[int] = [1] * len(results)
+    collapse_entries: list[ResultDict] = []
 
     for identifier, fully_connected in identifier_full_connectivity_mapping.items():
         if fully_connected:
             job_log.debug(f"Collapsing fully connected node identifier: {identifier}")
-            collapse_entries.append(
-                _build_collapsed_result_entry(
-                    qgraph,
-                    results,
-                    identifier,
-                    identifier_edge_mapping,
-                    identifier_result_index,
-                )
+            collapse_result: ResultDict | None = _build_collapsed_result_entry(
+                qgraph,
+                results,
+                identifier,
+                identifier_edge_mapping,
+                identifier_result_index,
+                job_log,
             )
-            for collapse_index in identifier_result_index[identifier]:
-                results_prune_mask[collapse_index] = 0
+
+            if collapse_result is not None:
+                collapse_entries.append(collapse_result)
+                for collapse_index in identifier_result_index[identifier]:
+                    results_prune_mask[collapse_index] = 0
         else:
             job_log.debug(
-                f"[set interpretation: MANY] No pruning of partially connected identifier: {identifier}. "
-                f"Missing identifiers from full connection: {missing_identifier_mapping[identifier]}"
+                f"[set interpretation: MANY] No pruning of partially connected identifier: {identifier}. Missing identifiers from full connection: {missing_identifier_mapping[identifier]}"
             )
 
     results = list(itertools.compress(results, results_prune_mask))
@@ -684,9 +691,11 @@ def _evaluate_node_connectivity(
     qgraph: QueryGraphDict,
     node_group: defaultdict[QNodeID, set[CURIE]],
     identifier_identifier_lookup_table: defaultdict[CURIE, set[CURIE]],
-) -> tuple[dict[QNodeID, bool], dict[QNodeID, list[CURIE]], dict[QNodeID, dict[str, QNodeID]]]:
+) -> tuple[
+    dict[CURIE, bool], dict[CURIE, list[CURIE]], dict[CURIE, dict[str, QNodeID]]
+]:
     """Evaluates how fully connected a node is to other nodes."""
-    node_identifier_lookup_map: dict[QNodeID, list[CURIE | None]] = {}
+    node_identifier_lookup_map: dict[QNodeID, list[CURIE]] = {}
     for node_name, node in qgraph["nodes"].items():
         match node.get("set_interpretation", SetInterpretationEnum.BATCH):
             case SetInterpretationEnum.BATCH:
@@ -704,8 +713,8 @@ def _evaluate_node_connectivity(
         node_identifier_lookup_map[node_name] = node_identifiers
 
     identifier_full_connectivity_mapping: dict[CURIE, bool] = {}
-    missing_identifier_mapping: dict[QNodeID, list[CURIE]] = {}
-    identifier_edge_mapping: dict[QNodeID, dict[str, QNodeID]] = {}
+    missing_identifier_mapping: dict[CURIE, list[CURIE]] = {}
+    identifier_edge_mapping: dict[CURIE, dict[str, QNodeID]] = {}
     for edge in qgraph["edges"].values():
         subject_node: QNodeID = edge["subject"]
         subject_set: set[CURIE] = node_group.get(subject_node, set())
@@ -738,6 +747,7 @@ def _evaluate_node_connectivity(
                     "origin": subject_node,
                     "connection": object_node,
                 }
+
     return (
         identifier_full_connectivity_mapping,
         missing_identifier_mapping,
@@ -745,9 +755,13 @@ def _evaluate_node_connectivity(
     )
 
 
-def _build_identifier_lookup_tables(results: list[ResultDict]) -> tuple[defaultdict[CURIE, set[CURIE]], defaultdict[CURIE, list[int]]]:
+def _build_identifier_lookup_tables(
+    results: list[ResultDict],
+) -> tuple[defaultdict[CURIE, set[CURIE]], defaultdict[CURIE, list[int]]]:
     """Builds an identifier-identifier lookup table."""
-    identifier_identifier_lookup_table: defaultdict[CURIE, set[CURIE]] = defaultdict(set)
+    identifier_identifier_lookup_table: defaultdict[CURIE, set[CURIE]] = defaultdict(
+        set
+    )
     identifier_result_index: defaultdict[CURIE, list[int]] = defaultdict(list)
 
     for index, result in enumerate(results):
@@ -769,38 +783,79 @@ def _build_collapsed_result_entry(
     qgraph: QueryGraphDict,
     results: list[ResultDict],
     identifier: CURIE,
-    identifier_edge_mapping: dict[QNodeID, dict[str, QNodeID]],
+    identifier_edge_mapping: dict[CURIE, dict[str, QNodeID]],
     identifier_result_index: defaultdict[CURIE, list[int]],
-) -> ResultDict:
+    job_log: TRAPILogger,
+) -> ResultDict | None:
     """Builds the collapsed entries for fully connected identifiers.
 
     Extracts the information from the nodes and edges bindings to build
     a new result that represents a merged entry
     """
-    edge_identifiers = []
+    edge_identifiers: list[EdgeIdentifier] = []
     for location in identifier_result_index[identifier]:
-        for edge_data in results[location]["analyses"][0]["edge_bindings"].values():
-            edge_identifiers.extend(edge["id"] for edge in edge_data)
+        try:
+            identifier_result: ResultDict = results[location]
+        except IndexError:
+            pass
+        else:
+            result_analysis: list[AnalysisDict | PathfinderAnalysisDict] = (
+                identifier_result["analyses"]
+            )
+            for analysis in cast(list[AnalysisDict], result_analysis):
+                edge_bindings: dict[QEdgeID, list[EdgeBindingDict]] = analysis[
+                    "edge_bindings"
+                ]
+                for edge_binding in edge_bindings.values():
+                    edge_identifiers.extend(edge["id"] for edge in edge_binding)
 
-    edge_ordering = identifier_edge_mapping[identifier]
-    set_identifier = qgraph["nodes"][edge_ordering["connection"]]["ids"]
+    edge_ordering: dict[str, QNodeID] = identifier_edge_mapping[identifier]
+    graph_nodes: dict[QNodeID, QNodeDict] = qgraph["nodes"]
+    set_identifier: list[CURIE] | None = graph_nodes[edge_ordering["connection"]].get(
+        "ids", None
+    )
 
-    return ResultDict(
-        node_bindings={
+    if set_identifier is None:
+        job_log.error(
+            "Set identifier not specified in the query graph. Unable to build collapsed result"
+        )
+        return None
+    else:
+        # Unsure how typing works in this case because it's overloaded
+        # This normally would be a CURIE, but it's actually a uuid
+        try:
+            uuid_set_identifier = set_identifier[0]
+        except IndexError:
+            job_log.error(
+                "Unable to access the set identifier to build the collapsed result"
+            )
+            return None
+
+        try:
+            uuid.UUID(uuid_set_identifier, version=4)
+        except ValueError:
+            job_log.error(
+                f"Invalid UUID provided for the set identifier {uuid_set_identifier}"
+            )
+            return None
+
+        node_bindings = {
             edge_ordering["origin"]: [NodeBindingDict(id=identifier, attributes=[])],
             edge_ordering["connection"]: [
-                NodeBindingDict(id=set_identifier, attributes=[])
+                NodeBindingDict(id=uuid_set_identifier, attributes=[])
             ],
-        },
-        analyses=[
+        }
+
+        collapsed_edge_id: QEdgeID = QEdgeID("e0")
+        analyses: list[AnalysisDict | PathfinderAnalysisDict] = [
             AnalysisDict(
                 resource_id=Infores("infores:retriever"),
                 edge_bindings={
-                    "e0": [
+                    collapsed_edge_id: [
                         EdgeBindingDict(id=kedge_id, attributes=[])
                         for kedge_id in edge_identifiers
                     ]
                 },
             )
-        ],
-    )
+        ]
+        return ResultDict(node_bindings=node_bindings, analyses=analyses)
