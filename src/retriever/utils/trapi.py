@@ -1,3 +1,4 @@
+import collections
 import hashlib
 import itertools
 from collections.abc import Sequence
@@ -8,11 +9,13 @@ from reasoner_pydantic import QueryGraph
 from reasoner_pydantic.utils import make_hashable
 
 from retriever.types.trapi import (
-    CURIE,
+    AnalysisDict,
     AttributeDict,
     AuxGraphID,
     AuxiliaryGraphDict,
     BiolinkEntity,
+    CURIE,
+    EdgeBindingDict,
     EdgeDict,
     EdgeIdentifier,
     Infores,
@@ -385,121 +388,418 @@ def meta_qualifier_meets_constraints(
 
 
 def evaluate_set_interpretation(
-    qgraph: QueryGraph,
+    qgraph: QueryGraphDict,
     results: list[ResultDict],
-    kgraph: KnowledgeGraphDict,
-    aux_graphs: AuxiliaryGraphDict,
     job_log: TRAPILogger,
 ) -> list[ResultDict]:
     """Handles set interpretation logic from the TRAPI specification.
 
-    We have three cases we have to handle based off the specification:
+    Each node in the graph can have 3 different values for set_interpretation
 
     1. BATCH
-    This is the default case if not specified. We perform no pruning on
-    the results graph
+    This is the default case if not specified. We can have any pair-wise relationship
+    with nodes that have the BATCH value. We will not prune or consolidate the
+    results due BATCH nodes
 
     2. ALL
-    This case forces the set logic to ensure that every CURIE within the
-    specified identifiers exists as a set in the results. We therefore have
-    to enforce this in the results to prune any results that don't contain
-    every instance within the results
+    With set_interpretation : ALL, we force all edges connected to an ALL node
+    to include every possible node connection
+
+    Example 1:
+    Node N {
+        ids: 000, 001, 002,
+        set_interpretation: BATCH
+    }
+    Node M {
+        ids: uuid.uuid4("woodworking"),
+        set_interpretation: ALL,
+        member_ids: AAA, BBB, CCC
+    }
+    Edge P { object: Node N, subject: Node M }
+
+    Here we have two nodes and one edge specified in the query graph.
+    Node N is a BATCH node so we don't have care about it's connectivity.
+    Node M is an ALL node, so every edge connected to M has to have a full
+    connectivity
+
+    This can be represented as the cartesian prouct of the ids between the two
+    nodes:
+
+    >>> import itertools
+    >>> node_n = ["000", "001", "002"]
+    >>> node_m = ["AAA", "BBB", "CCC"]
+    >>> full_connectivity = tuple(itertools.product(node_n, node_m, repeat=1))
+    (
+        ('000', 'AAA'), ('000', 'BBB'), ('000', 'CCC'),
+        ('001', 'AAA'), ('001', 'BBB'), ('001', 'CCC'),
+        ('002', 'AAA'), ('002', 'BBB'), ('002', 'CCC')
+    )
+
+    In the case of full connectivity we can consolidate the results graph so
+    that each identifier in node N that is fully connected to node M can be one
+    result entry that points from node N <-> node M using the uuid provided in
+    the ids attribute
+
+    So our final results would be the following:
+
+    Node N(000) -> Node M(uuid.uuid4("woodworking")
+    Node N(001) -> Node M(uuid.uuid4("woodworking")
+    Node N(002) -> Node M(uuid.uuid4("woodworking")
+
+    In the case of non-full connectivity, we prune these results from the
+    results collection
+
+    Example 2:
+    Imagine we have the following results
+    (
+        ('000', 'AAA'), ('000', 'CCC'),
+        ('001', 'AAA'), ('001', 'BBB'), ('001', 'CCC'),
+        ('002', 'BBB'), ('002', 'CCC')
+    )
+
+    We'd prune the results from Node N(000) and Node N(002) as they don't form
+    a complete set.
+
+    So the final results would be the following:
+
+    Node N(001) -> Node M(uuid.uuid4("woodworking")
 
     3. MANY
-    This cases requires that the member CURIEs form one or more sets in the
-    results graph. Sets with more members are higher rated than those sets
-    with fewer members
+    This is a less strict version of case 2 with ALL. We still evaluate the
+    connectivity, but perform no pruning if we don't have full connectivity.
 
-    If multple values are found for `set_interpretation` across multiple
-    qgraph.nodes, then we default to `set_interpretation` : BATCH to avoid
-    potentially undesired pruning
-    """
-    default_set_interpretation_setting = "BATCH"
-    set_interpretation_setting = {
-        node.get("set_interpretation", default_set_interpretation_setting)
-        for node in qgraph.message.query_graph.nodes.model_dump().values()
+    Example 3:
+
+    Node N {
+        ids: 000, 001, 002,
+        set_interpretation: BATCH
     }
-    if len(set_interpretation_setting) > 1:
-        job_log.warning(
-            f"Multiple values specified for `set_interpretation`: [{set_interpretation_setting}]. "
-            f"Default to using {default_set_interpretation_setting}"
-        )
-        set_interpretation_setting = default_set_interpretation_setting
-    else:
-        set_interpretation_setting = set_interpretation_setting.pop()
-        job_log.debug(f"Discovered `set_interpretation`: {set_interpretation_setting}")
+    Node M {
+        ids: uuid.uuid4("woodworking"),
+        set_interpretation: MANY,
+        member_ids: AAA, BBB, CCC
+    }
+    Edge P { object: Node N, subject: Node M }
 
-    match set_interpretation_setting:
-        case SetInterpretationEnum.ALL:
-            results = _evaluate_set_interpretation_all(qgraph, results, job_log)
-        case SetInterpretationEnum.MANY:
-            results = _evaluate_set_interpretation_many(qgraph, results, job_log)
-        case SetInterpretationEnum.BATCH:
-            job_log.debug(
-                f"Set Interpretation: {set_interpretation_setting}. No additional operation required."
+    Imagine we have the following results:
+    (
+        ('000', 'AAA'),
+        ('001', 'AAA'), ('001', 'BBB')
+        ('002', 'AAA'), ('002', 'BBB'), ('002', 'CCC')
+    )
+
+    Our final results would be the following:
+
+    Node N(000) -> Node M("AAA")
+    Node N(001) -> Node M("AAA")
+    Node N(001) -> Node M("BBB")
+    Node N(002) -> Node M(uuid.uuid4("woodworking")
+
+    Control Flow:
+
+    We have both nodes and edges we have to consider when analyzing the
+    connections. We want to build a bi-directional map that allows use
+    identify what node is connected to what and return a set representing
+    all connected nodes
+
+    So we first aggregate all nodes in
+    """
+    node_group_all, node_group_many = _aggregate_node_groupings(qgraph, job_log)
+
+    # Determine if any nodes have a set_interpretation value of ALL or MANY
+    group_all = any(len(node_group) > 0 for node_group in node_group_all.values())
+    group_many = any(len(node_group) > 0 for node_group in node_group_many.values())
+
+    if group_all or group_many:
+        identifier_identifier_lookup_table, identifier_result_index = (
+            _build_identifier_lookup_tables(qgraph, results, job_log)
+        )
+
+        if group_all:
+            results = _evaluate_set_interpretation_all(
+                qgraph,
+                results,
+                node_group_all,
+                identifier_identifier_lookup_table,
+                identifier_result_index,
+                job_log,
             )
+
+        if group_many:
+            results = _evaluate_set_interpretation_many(
+                qgraph,
+                results,
+                node_group_many,
+                identifier_identifier_lookup_table,
+                identifier_result_index,
+                job_log,
+            )
+
     return results
 
 
-def _evaluate_set_interpretation_all(
-    qgraph: QueryGraph, results: list[ResultDict], job_log: TRAPILogger
-) -> list[ResultDict]:
-    """Handles the results graph pruning for `set_interpretation` : ALL.
+def _aggregate_node_groupings(
+    qgraph: QueryGraphDict, job_log: TRAPILogger
+) -> tuple[dict, dict]:
+    """Determines whether any set_interpretation : ALL or MANY groups exist.
 
-    In this case the qgraph.nodes.ids value should be a normalization hash
-    provided by NodeNorm, and qgraph.nodes.member_ids should provide the
-    CURIE identifiers we're interested in. We first check for the existence
-    of the `member_ids` field across all nodes in the qgraph. If this isn't
-    provided we provided a warning and perform no results pruning
-
-    Then we ensure that it's consistent across all qgraph.nodes. If the
-    `member_ids` isn't consistent, we cannot be sure what we want the defining
-    set to be for pruning, so this emits a warning and skips no results pruning
-
-    Otherwise, if both of the above checks pass, we extract the identifiers
-    from each node via the `node_bindings` field and check if that node's
-    identifiers form a subset with the `member_ids` set. If it doesn't it gets
-    added to the prune list and we prune the results after processing every
-    node in the results graph
+    Iterates over the query graph nodes to extract the set_interpretation values
+    for each node. If the node has either ALL or MANY, we store the node identifiers
+    in a dictionary to track the identifiers we require as a set for full connectivity
     """
-    all_member_identifiers = None
-    try:
-        all_member_identifiers = [
-            node["member_ids"] for node in qgraph.message.query_graph.nodes.model_dump().values()
-        ]
-    except KeyError:
-        job_log.warning(
-            "Unable to process set_interpretation ALL. `member_ids` isn't provided "
-            "across all nodes within the query graph. Skipping results pruning ..."
-        )
+    node_group_all = {}
+    node_group_many = {}
+    for node_name in qgraph.get("nodes", {}):
+        node_group_all[node_name] = set()
+        node_group_many[node_name] = set()
 
-    if all_member_identifiers is not None and len(all_member_identifiers) > 0:
-        consistent_member_identifiers = all(
-            all_member_identifiers[0] == mid for mid in all_member_identifiers
+    for node_name, node in qgraph.get("nodes", {}).items():
+        node_set_interpretation = node.get(
+            "set_interpretation", SetInterpretationEnum.BATCH
         )
-        if consistent_member_identifiers:
-            member_identifiers = set(all_member_identifiers[0])
-            prune_index = []
-            for result in results:
-                result_identifiers = set()
-                for node in result["node_bindings"].values():
-                    result_identifiers.update({nprop["id"] for nprop in node})
-
-                if result_identifiers.issubset(member_identifiers):
-                    prune_index.append(True)
+        match node_set_interpretation:
+            case SetInterpretationEnum.ALL:
+                member_identifiers = node.get("member_ids", [])
+                if len(member_identifiers) == 0:
+                    job_log.error(
+                        f"No `member_ids` specified for `set_interpretation`: ALL for node {node}. "
+                        "Result pruning requires the `member_ids` field to be set"
+                    )
                 else:
-                    prune_index.append(False)
-            results = list(itertools.compress(results, prune_index))
-        else:
-            job_log.warning(
-                "Unable to process set_interpretation ALL. `member_ids` isn't consistent "
-                "across all nodes within the query graph. Skipping results pruning ..."
+                    for node_id in member_identifiers:
+                        node_group_all[node_name].add(node_id)
+
+            case SetInterpretationEnum.MANY:
+                member_identifiers = node.get("member_ids", [])
+                if len(member_identifiers) == 0:
+                    job_log.error(
+                        f"No `member_ids` specified for `set_interpretation`: MANY for node {node}. "
+                        "Result pruning requires the `member_ids` field to be set"
+                    )
+                else:
+                    for node_id in member_identifiers:
+                        node_group_many[node_name].add(node_id)
+    return node_group_all, node_group_many
+
+
+def _evaluate_set_interpretation_all(
+    qgraph: QueryGraphDict,
+    results: list[ResultDict],
+    node_group: dict,
+    identifier_identifier_lookup_table: dict,
+    identifier_result_index: collections.defaultdict(list),
+    job_log: TRAPILogger,
+) -> list[ResultDict]:
+    """Handles the results graph pruning for `set_interpretation` : ALL."""
+
+    (
+        identifier_full_connectivity_mapping,
+        missing_identifier_mapping,
+        identifier_edge_mapping,
+    ) = _evaluate_node_connectivity(
+        qgraph,
+        node_group,
+        identifier_identifier_lookup_table,
+    )
+
+    results_prune_mask = [1] * len(results)
+    collapse_entries = []
+
+    for identifier, fully_connected in identifier_full_connectivity_mapping.items():
+        if fully_connected:
+            job_log.debug(f"Collapsing fully connected node identifier: {identifier}")
+            collapse_entries.append(
+                _build_collapsed_result_entry(
+                    qgraph,
+                    results,
+                    identifier,
+                    identifier_edge_mapping,
+                    identifier_result_index,
+                )
             )
+            for collapse_index in identifier_result_index[identifier]:
+                results_prune_mask[collapse_index] = 0
+        else:
+            job_log.debug(
+                f"[set interpretation: ALL] Pruning partially connected identifier: {identifier}. "
+                f"Missing identifiers from full connection: {missing_identifier_mapping[identifier]}"
+            )
+            for prune_index in identifier_result_index[identifier]:
+                results_prune_mask[prune_index] = 0
+
+    results = list(itertools.compress(results, results_prune_mask))
+    results.extend(collapse_entries)
     return results
 
 
 def _evaluate_set_interpretation_many(
-    qgraph: QueryGraph, results: list[ResultDict]
-) -> None:
-    """Handles the results graph pruning for `set_interpretation` : MANY."""
-    pass
+    qgraph: QueryGraphDict,
+    results: list[ResultDict],
+    node_group: dict,
+    identifier_identifier_lookup_table: dict,
+    identifier_result_index: collections.defaultdict(list),
+    job_log: TRAPILogger,
+) -> list[ResultDict]:
+    """Handles the results graph pruning for `set_interpretation` : MANY.
+
+    The main difference here is we won't perform pruning, only collapse any nodes
+    that meet the full connectivity requirement
+    """
+    (
+        identifier_full_connectivity_mapping,
+        missing_identifier_mapping,
+        identifier_edge_mapping,
+    ) = _evaluate_node_connectivity(
+        qgraph,
+        node_group,
+        identifier_identifier_lookup_table,
+    )
+
+    results_prune_mask = [1] * len(results)
+    collapse_entries = []
+
+    for identifier, fully_connected in identifier_full_connectivity_mapping.items():
+        if fully_connected:
+            job_log.debug(f"Collapsing fully connected node identifier: {identifier}")
+            collapse_entries.append(
+                _build_collapsed_result_entry(
+                    qgraph,
+                    results,
+                    identifier,
+                    identifier_edge_mapping,
+                    identifier_result_index,
+                )
+            )
+            for collapse_index in identifier_result_index[identifier]:
+                results_prune_mask[collapse_index] = 0
+        else:
+            job_log.debug(
+                f"[set interpretation: MANY] No pruning of partially connected identifier: {identifier}. "
+                f"Missing identifiers from full connection: {missing_identifier_mapping[identifier]}"
+            )
+
+    results = list(itertools.compress(results, results_prune_mask))
+    results.extend(collapse_entries)
+    return results
+
+
+def _evaluate_node_connectivity(
+    qgraph: QueryGraphDict,
+    node_group: dict,
+    identifier_identifier_lookup_table: dict,
+) -> tuple[dict, dict, dict]:
+    """Evaluates how fully connected a node is to other nodes."""
+    node_identifier_lookup_map = {}
+    for node_name, node in qgraph["nodes"].items():
+        match node.get("set_interpretation", SetInterpretationEnum.BATCH):
+            case SetInterpretationEnum.BATCH:
+                node_identifier_lookup_map[node_name] = node["ids"]
+            case SetInterpretationEnum.ALL:
+                node_identifier_lookup_map[node_name] = node["member_ids"]
+            case SetInterpretationEnum.MANY:
+                node_identifier_lookup_map[node_name] = node["member_ids"]
+
+    identifier_full_connectivity_mapping = {}
+    missing_identifier_mapping = {}
+    identifier_edge_mapping = {}
+    for edge in qgraph["edges"].values():
+        subject_node = edge["subject"]
+        subject_set = node_group.get(subject_node, set())
+
+        object_node = edge["object"]
+        object_set = node_group.get(object_node, set())
+
+        if len(subject_set) > 0:
+            for node_id in node_identifier_lookup_map[object_node]:
+                identifier_full_connectivity_mapping[node_id] = object_set.issubset(
+                    identifier_identifier_lookup_table[node_id]
+                )
+                missing_identifier_mapping[node_id] = list(
+                    object_set.difference(identifier_identifier_lookup_table[node_id])
+                )
+                identifier_edge_mapping[node_id] = {
+                    "connection": subject_node,
+                    "origin": object_node,
+                }
+
+        if len(object_set) > 0:
+            for node_id in node_identifier_lookup_map[subject_node]:
+                identifier_full_connectivity_mapping[node_id] = object_set.issubset(
+                    identifier_identifier_lookup_table[node_id]
+                )
+                missing_identifier_mapping[node_id] = list(
+                    object_set.difference(identifier_identifier_lookup_table[node_id])
+                )
+                identifier_edge_mapping[node_id] = {
+                    "origin": subject_node,
+                    "connection": object_node,
+                }
+    return (
+        identifier_full_connectivity_mapping,
+        missing_identifier_mapping,
+        identifier_edge_mapping,
+    )
+
+
+def _build_identifier_lookup_tables(
+    qgraph: QueryGraphDict, results: list[ResultDict], job_log: TRAPILogger
+) -> tuple[collections.defaultdict(set), collections.defaultdict(list)]:
+    """Builds an identifier-identifier lookup table."""
+    identifier_identifier_lookup_table = collections.defaultdict(set)
+    identifier_result_index = collections.defaultdict(list)
+
+    for index, result in enumerate(results):
+        node_entries = tuple(result["node_bindings"].values())
+
+        # Making assumption that there's only one entry here
+        first_identifier = node_entries[0][0]["id"]
+        second_identifier = node_entries[1][0]["id"]
+
+        identifier_identifier_lookup_table[first_identifier].add(second_identifier)
+        identifier_identifier_lookup_table[second_identifier].add(first_identifier)
+        identifier_result_index[first_identifier].append(index)
+        identifier_result_index[second_identifier].append(index)
+
+    return identifier_identifier_lookup_table, identifier_result_index
+
+
+def _build_collapsed_result_entry(
+    qgraph: QueryGraphDict,
+    results: list[ResultDict],
+    identifier: str,
+    identifier_edge_mapping: dict,
+    identifier_result_index: dict,
+) -> ResultDict:
+    """Builds the collapsed entries for fully connected identifiers.
+
+    Extracts the information from the nodes and edges bindings to build
+    a new result that represents a merged entry
+    """
+    edge_identifiers = []
+    for location in identifier_result_index[identifier]:
+        for edge_data in results[location]["analyses"][0]["edge_bindings"].values():
+            edge_identifiers.extend(edge["id"] for edge in edge_data)
+
+    analyses = [
+        AnalysisDict(
+            resource_id=Infores("infores:retriever"),
+            edge_bindings={
+                "e0": [
+                    EdgeBindingDict(id=kedge_id, attributes=[])
+                    for kedge_id in edge_identifiers
+                ]
+            },
+        )
+    ]
+
+    edge_ordering = identifier_edge_mapping[identifier]
+    set_identifier = qgraph["nodes"][edge_ordering["connection"]]["ids"]
+    node_bindings = {
+        edge_ordering["origin"]: [NodeBindingDict(id=identifier, attributes=[])],
+        edge_ordering["connection"]: [
+            NodeBindingDict(id=set_identifier, attributes=[])
+        ],
+    }
+
+    collapsed_entry = ResultDict(node_bindings=node_bindings, analyses=analyses)
+    return collapsed_entry
