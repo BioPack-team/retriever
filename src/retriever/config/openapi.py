@@ -110,6 +110,9 @@ class ResponseDescriptions(BaseModel):
     meta_knowledge_graph: dict[str, str] = {
         "200": "Returns meta knowledge graph representation of this TRAPI web service.",
     }
+    metadata: dict[str, str] = {
+        "200": "Returns metadata for currently-served data in the backends."
+    }
     query: dict[str, str] = {
         "200": "OK. There may or may not be results. Note that some of the provided identifiers may not have been recognized.",
         "400": "Bad request. The request is invalid according to this OpenAPI schema OR a specific identifier is believed to be invalid somehow (not just unrecognized).",

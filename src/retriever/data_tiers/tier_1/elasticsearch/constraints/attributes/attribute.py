@@ -44,13 +44,6 @@
 from datetime import datetime
 from typing import Any
 
-# from functools import partial
-from retriever.data_tiers.tier_1.elasticsearch.attribute_types import (
-    AttrFieldMeta,
-    AttributeFilterQuery,
-    AttrValType,
-    SingleAttributeFilterQueryPayload,
-)
 from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.meta_info import (
     ATTR_META,
 )
@@ -60,6 +53,14 @@ from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.ops.handle
 )
 from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.ops.handle_match import (
     handle_match,
+)
+
+# from functools import partial
+from retriever.data_tiers.tier_1.elasticsearch.constraints.types.attribute_types import (
+    AttrFieldMeta,
+    AttributeFilterQuery,
+    AttrValType,
+    SingleAttributeFilterQueryPayload,
 )
 from retriever.types.trapi import AttributeConstraintDict
 from retriever.utils import biolink

@@ -9,7 +9,9 @@ from opentelemetry import trace
 
 from retriever.config.general import CONFIG
 from retriever.lookup.lookup import async_lookup, lookup
-from retriever.metakg.trapi_metakg import trapi_metakg
+from retriever.metadata.metadata import get_metadata
+from retriever.metadata.trapi_metakg import trapi_metakg
+from retriever.types.dingo import DINGOMetadata
 from retriever.types.general import APIInfo, ErrorDetail, QueryInfo
 from retriever.types.trapi import (
     AsyncQueryDict,
@@ -55,13 +57,28 @@ async def make_query(
 ) -> MetaKnowledgeGraphDict: ...
 
 
+@overload
 async def make_query(
-    func: Literal["lookup", "metakg"],
+    func: Literal["metadata"],
+    ctx: APIInfo,
+    *,
+    tiers: list[TierNumber],
+) -> DINGOMetadata: ...
+
+
+async def make_query(
+    func: Literal["lookup", "metakg", "metadata"],
     ctx: APIInfo,
     *,
     body: TRAPIQuery | TRAPIAsyncQuery | None = None,
     tiers: list[TierNumber] | None = None,  # Guaranteed to be 0 <= x <= 2
-) -> ResponseDict | AsyncQueryResponseDict | MetaKnowledgeGraphDict | ErrorDetail:
+) -> (
+    ResponseDict
+    | AsyncQueryResponseDict
+    | MetaKnowledgeGraphDict
+    | DINGOMetadata
+    | ErrorDetail
+):
     """Process a request and await its response before returning.
 
     Unhandled errors are handled by middleware.
@@ -73,10 +90,17 @@ async def make_query(
     )
     timeout: dict[int, float] = {
         -1: CONFIG.job.metakg.timeout,
-        0: custom_timeout or CONFIG.job.lookup.tier0_timeout,
-        1: custom_timeout or CONFIG.job.lookup.tier1_timeout,
-        2: custom_timeout or CONFIG.job.lookup.tier2_timeout,
+        0: custom_timeout
+        if custom_timeout is not None
+        else CONFIG.job.lookup.tier0_timeout,
+        1: custom_timeout
+        if custom_timeout is not None
+        else CONFIG.job.lookup.tier1_timeout,
+        2: custom_timeout
+        if custom_timeout is not None
+        else CONFIG.job.lookup.tier2_timeout,
     }
+    print(timeout)
     if tiers is None:
         tiers = [0]
     if custom_tiers := body and body.parameters and body.parameters.tiers:
@@ -105,7 +129,11 @@ async def make_query(
     ):
         contextualize_query_telemetry(query, func, ctx.background_tasks is not None)
 
-    query_function = {"lookup": lookup, "metakg": trapi_metakg}[func]
+    query_function = {
+        "lookup": lookup,
+        "metakg": trapi_metakg,
+        "metadata": get_metadata,
+    }[func]
     if func == "lookup":
         MONGO_QUEUE.put("job_state", {"job_id": job_id, "status": "Running"})
 

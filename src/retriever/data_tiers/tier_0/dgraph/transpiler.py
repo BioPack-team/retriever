@@ -1090,11 +1090,11 @@ class DgraphTranspiler(Tier0Transpiler):
         special_cases: dict[str, tuple[str, Any]] = {
             "equivalent_identifiers": (
                 "biolink:xref",
-                [CURIE(i) for i in node.equivalent_identifiers],
+                [CURIE(i) for i in node.attributes.get("equivalent_identifiers", [])],
             )
         }
 
-        for attr_id, value in node.get_attributes().items():
+        for attr_id, value in node.attributes.items():
             if attr_id in special_cases:
                 continue
             if value is not None and value not in ([], ""):
@@ -1128,10 +1128,13 @@ class DgraphTranspiler(Tier0Transpiler):
         special_cases: dict[str, tuple[str, Any]] = {
             "category": (
                 "biolink:category",
-                [BiolinkEntity(biolink.ensure_prefix(cat)) for cat in edge.category],
+                [
+                    BiolinkEntity(biolink.ensure_prefix(cat))
+                    for cat in edge.attributes.get("category", [])
+                ],
             ),
         }
-        for attr_id, value in edge.get_attributes().items():
+        for attr_id, value in edge.attributes.items():
             if attr_id in special_cases:
                 continue
             if value is not None and value not in ([], ""):
@@ -1146,9 +1149,7 @@ class DgraphTranspiler(Tier0Transpiler):
                 attributes.append(AttributeDict(attribute_type_id=name, value=value))
 
         # Build qualifiers
-        for qualifier_id, value in edge.get_qualifiers().items():
-            if value is None:
-                continue
+        for qualifier_id, value in edge.qualifiers.items():
             qualifiers.append(
                 QualifierDict(
                     qualifier_type_id=QualifierTypeID(

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated, Literal, NamedTuple, TypedDict
 
 from fastapi import BackgroundTasks, Request, Response
-from pydantic import BaseModel, BeforeValidator
+from pydantic import BeforeValidator
 
 from retriever.types.trapi import (
     CURIE,
@@ -22,7 +22,7 @@ from retriever.types.trapi import (
 from retriever.types.trapi_pydantic import TierNumber
 
 
-class ErrorDetail(BaseModel):
+class ErrorDetail(TypedDict):
     """Basic FastAPI error response body."""
 
     detail: str

@@ -16,7 +16,7 @@ from retriever.config.general import CONFIG
 from retriever.config.logger import configure_logging
 from retriever.config.openapi import OPENAPI_CONFIG, TRAPI
 from retriever.data_tiers import tier_manager
-from retriever.metakg.metakg import METAKG_MANAGER
+from retriever.metadata.optable import OP_TABLE_MANAGER
 from retriever.query import get_job_state, make_query
 from retriever.types.general import APIInfo, ErrorDetail, LogLevel
 from retriever.types.trapi_pydantic import AsyncQuery as TRAPIAsyncQuery
@@ -48,14 +48,14 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     await MONGO_QUEUE.start_process_task()
     add_mongo_sink()
     await REDIS_CLIENT.initialize()
-    await METAKG_MANAGER.initialize()
+    await OP_TABLE_MANAGER.initialize()
     await tier_manager.connect_drivers()
 
     yield  # Separates startup/shutdown phase
 
     # Shutdown
     await tier_manager.close_drivers()
-    await METAKG_MANAGER.wrapup()
+    await OP_TABLE_MANAGER.wrapup()
     await REDIS_CLIENT.close()
     await MONGO_QUEUE.stop_process_task()
     await MONGO_CLIENT.close()
@@ -137,6 +137,21 @@ async def meta_knowledge_graph(
     response_dict = await make_query("metakg", APIInfo(request, response), tiers=tier)
     return ORJSONResponse(response_dict)
     # return {"logs": list(logs)}
+
+
+@app.get(
+    "/metadata/tier_{tier}",
+    tags=["metadata"],
+    response_description=OPENAPI_CONFIG.response_descriptions.metadata.get("200", ""),
+)
+async def metadata(
+    request: Request, response: Response, tier: TierNumber
+) -> ORJSONResponse:
+    """Retrieve the metadata associated with a given Data Tier."""
+    response_dict = await make_query(
+        func="metadata", ctx=APIInfo(request, response), tiers=[tier]
+    )
+    return ORJSONResponse(response_dict)
 
 
 @app.post(

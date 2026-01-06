@@ -141,7 +141,11 @@ async def run_queries(
     results = list[BackendResult]()
     for i, record in enumerate(response_records):
         if isinstance(record, Exception):
-            continue  # Exception will come from driver, which should have logged.
+            print(record)
+            job_log.with_exception(
+                "An unhandled error occurred in the query driver.", exception=record
+            )
+            continue
         result = transpilers[i].convert_results(qgraphs[i], record)
 
         # Add Retriever to the provenance chain
@@ -182,7 +186,10 @@ async def subquery(
         qgraphs, transpilers, query_payloads = make_payloads(branch, qg, job_log)
         results = await run_queries(qgraphs, transpilers, query_payloads, job_log)
 
-        kg = results[0]["knowledge_graph"]
+        if len(results) == 0:
+            kg = KnowledgeGraphDict(nodes={}, edges={})
+        else:
+            kg = results[0]["knowledge_graph"]
         if len(results) > 1:
             for result in results[1:]:
                 # We can only do this because we can guarantee both graphs are disjoint,
