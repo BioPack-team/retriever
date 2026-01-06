@@ -86,7 +86,7 @@ def mock_dgraph_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setenv("TIER0__DGRAPH__GRPC_PORT", "9080")
     monkeypatch.setenv("TIER0__DGRAPH__PREFERRED_VERSION", "vG")
     monkeypatch.setenv("TIER0__DGRAPH__USE_TLS", "false")
-    monkeypatch.setenv("TIER0__DGRAPH__QUERY_TIMEOUT", "5")
+    monkeypatch.setenv("TIER0__DGRAPH__QUERY_TIMEOUT", "10")
     monkeypatch.setenv("TIER0__DGRAPH__CONNECT_RETRIES", "0")
 
     # Rebuild CONFIG from env and reload driver so classes bind to the new CONFIG
@@ -765,7 +765,7 @@ async def test_simple_one_query_live_http() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vG_id, "NCBIGene:11276")) @cascade(vG_id, ~vG_subject) {
+        q0_node_n1(func: eq(vG_id, "NCBIGene:11276")) @cascade(vG_id, out_edges_e0) {
             expand(vG_Node)
             out_edges_e0: ~vG_subject @filter(eq(vG_predicate_ancestors, "located_in")) @cascade(vG_predicate, vG_object) {
                 expand(vG_Edge) { vG_sources expand(vG_Source) }
@@ -784,7 +784,7 @@ async def test_simple_one_query_live_http() -> None:
     dgraph_schema_version = await driver.get_active_version()
 
     # Initialize the transpiler with the detected version
-    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version, subclassing_enabled=False)
     assert transpiler.version == "vG"
     assert transpiler.prefix == "vG_"
 
@@ -904,7 +904,7 @@ async def test_simple_one_query_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vG_id, "NCBIGene:11276")) @cascade(vG_id, ~vG_subject) {
+        q0_node_n1(func: eq(vG_id, "NCBIGene:11276")) @cascade(vG_id, out_edges_e0) {
             expand(vG_Node)
             out_edges_e0: ~vG_subject @filter(eq(vG_predicate_ancestors, "located_in")) @cascade(vG_predicate, vG_object) {
                 expand(vG_Edge) { vG_sources expand(vG_Source) }
@@ -923,7 +923,7 @@ async def test_simple_one_query_live_grpc() -> None:
     dgraph_schema_version = await driver.get_active_version()
 
     # Initialize the transpiler with the detected version
-    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version, subclassing_enabled=False)
     assert transpiler.version == "vG"
     assert transpiler.prefix == "vG_"
 
@@ -986,7 +986,7 @@ async def test_simple_reverse_query_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vG_id, "NCBIGene:3778")) @cascade(vG_id, ~vG_subject) {
+        q0_node_n1(func: eq(vG_id, "NCBIGene:3778")) @cascade(vG_id, out_edges_e0) {
             expand(vG_Node)
             out_edges_e0: ~vG_subject @filter(eq(vG_predicate_ancestors, "has_phenotype")) @cascade(vG_predicate, vG_object) {
                 expand(vG_Edge) { vG_sources expand(vG_Source) }
@@ -1005,7 +1005,7 @@ async def test_simple_reverse_query_live_grpc() -> None:
     dgraph_schema_version = await driver.get_active_version()
 
     # Initialize the transpiler with the detected version
-    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version, subclassing_enabled=False)
     assert transpiler.version == "vG"
     assert transpiler.prefix == "vG_"
 
@@ -1069,7 +1069,7 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vG_id, "NCBIGene:3778")) @cascade(vG_id, ~vG_subject) {
+        q0_node_n1(func: eq(vG_id, "NCBIGene:3778")) @cascade(vG_id, out_edges_e0) {
             expand(vG_Node)
 
             out_edges_e0: ~vG_subject
@@ -1106,7 +1106,7 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
     dgraph_schema_version = await driver.get_active_version()
 
     # Initialize the transpiler with the detected version
-    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version, subclassing_enabled=False)
     assert transpiler.version == "vG"
     assert transpiler.prefix == "vG_"
 
@@ -1249,7 +1249,7 @@ async def test_normalization_with_special_edge_id_live_grpc() -> None:
     # Expected query should use normalized edge ID 'e0', not 'e0_bad$%^'
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vG_id, "NCBIGene:3778")) @cascade(vG_id, ~vG_subject) {
+        q0_node_n1(func: eq(vG_id, "NCBIGene:3778")) @cascade(vG_id, out_edges_e0) {
             expand(vG_Node)
 
             out_edges_e0: ~vG_subject
@@ -1286,7 +1286,7 @@ async def test_normalization_with_special_edge_id_live_grpc() -> None:
     dgraph_schema_version = await driver.get_active_version()
 
     # Initialize the transpiler with the detected version
-    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version, subclassing_enabled=False)
     assert transpiler.version == "vG"
     assert transpiler.prefix == "vG_"
 
@@ -1502,5 +1502,95 @@ async def test_run_grpc_query_name_error_workaround(
     # 2. Act & Assert
     with pytest.raises(ConnectionError, match="Dgraph gRPC query failed: while running ToJson"):
         await driver.run_query("any query", transpiler=mock_transpiler)
+
+    await driver.close()
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_subclassing_live_id_to_id_case1_http() -> None:
+    """Live test: Case 1 (ID→R→ID) should emit subclassing forms B/C/D."""
+    driver = new_http_driver()
+    await driver.connect()
+
+    # Discover version and construct transpiler (subclassing enabled by default)
+    dgraph_schema_version = await driver.get_active_version()
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+
+    # ID → related_to → ID
+    qgraph_query: QueryGraphDict = qg({
+        "nodes": {
+            "n0": {"ids": ["NCBIGene:7157"], "constraints": []},
+            "n1": {"ids": ["NCBIGene:1956"], "constraints": []},
+        },
+        "edges": {
+            "e0": {
+                "subject": "n0",
+                "object": "n1",
+                "predicates": ["biolink:related_to"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            }
+        },
+    })
+
+    dgraph_query = transpiler.convert_multihop_public(qgraph_query)
+
+    # Subclassing aliases should be present for Case 1
+    assert "in_edges-subclassB_e0:" in dgraph_query
+    assert "in_edges-subclassC_e0:" in dgraph_query
+    assert "in_edges-subclassD_e0:" in dgraph_query
+
+    # Run query and verify response type
+    result: dg_models.DgraphResponse = await driver.run_query(dgraph_query, transpiler=transpiler)
+    assert isinstance(result, dg_models.DgraphResponse)
+    assert "q0" in result.data
+
+    await driver.close()
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_subclassing_live_id_to_category_case2_http() -> None:
+    """Live test: Case 2 (ID→R→CAT-only) should emit subclassing Form B only."""
+    driver = new_http_driver()
+    await driver.connect()
+
+    dgraph_schema_version = await driver.get_active_version()
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+
+    # ID → participates_in → CAT-only (ensure target has no IDs)
+    qgraph_query: QueryGraphDict = qg({
+        "nodes": {
+            "n0": {"ids": ["NCBIGene:3778"], "constraints": []},              # source ID
+            "n1": {"categories": ["biolink:Pathway"], "constraints": []},     # target categories only
+        },
+        "edges": {
+            "e0": {
+                "subject": "n0",
+                "object": "n1",
+                "predicates": ["biolink:participates_in"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            }
+        },
+    })
+
+    dgraph_query = transpiler.convert_multihop_public(qgraph_query)
+
+    # Case 2: only Form B should be present, C/D should not
+    assert ("in_edges-subclassB_e0:" in dgraph_query) or ("out_edges-subclassB_e0:" in dgraph_query)
+    assert "subclassC_e0:" not in dgraph_query
+    assert "subclassD_e0:" not in dgraph_query
+
+    # Category filter should be applied on final node
+    assert '@filter(eq(' in dgraph_query and 'category' in dgraph_query
+
+    # Run query and verify response type
+    result: dg_models.DgraphResponse = await driver.run_query(dgraph_query, transpiler=transpiler)
+    assert isinstance(result, dg_models.DgraphResponse)
+    assert "q0" in result.data
 
     await driver.close()
