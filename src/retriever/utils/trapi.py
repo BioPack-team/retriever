@@ -559,6 +559,8 @@ def _aggregate_node_groupings(
             "set_interpretation", SetInterpretationEnum.BATCH
         )
         match node_set_interpretation:
+            case SetInterpretationEnum.BATCH:
+                pass  # no-opt, but valid value
             case SetInterpretationEnum.ALL:
                 member_identifiers = node.get("member_ids", [])
                 if member_identifiers is None or len(member_identifiers) == 0:
@@ -845,7 +847,7 @@ def _evaluate_node_connectivity(
 
         if len(subject_set) > 0:
             for node_id in node_identifier_lookup_map[object_node]:
-                identifier_full_connectivity_mapping[node_id] = object_set.issubset(
+                identifier_full_connectivity_mapping[node_id] = subject_set.issubset(
                     identifier_identifier_lookup_table[node_id]
                 )
                 missing_identifier_mapping[node_id] = list(
@@ -865,8 +867,8 @@ def _evaluate_node_connectivity(
                     object_set.difference(identifier_identifier_lookup_table[node_id])
                 )
                 identifier_edge_mapping[node_id] = {
-                    "origin": subject_node,
                     "connection": object_node,
+                    "origin": subject_node,
                 }
 
     return (

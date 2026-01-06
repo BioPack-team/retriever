@@ -35,7 +35,15 @@ async def test_set_interpretation_batch_handling(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "mock_query", ["mock_mixed_query0", "mock_mixed_query1", "mock_mixed_query2"]
+    "mock_query",
+    [
+        "mock_mixed_query0",
+        "mock_mixed_query1",
+        "mock_mixed_query2",
+        "mock_mixed_query3",
+        "mock_mixed_query4",
+        "mock_mixed_query5",
+    ],
 )
 async def test_mixed_set_interpretation_values(
     mock_query: str, request: _pytest.fixtures.TopRequest
