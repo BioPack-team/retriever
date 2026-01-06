@@ -25,12 +25,23 @@ async def test_set_interpretation_batch_handling(
 
     job_log = TRAPILogger(job_id=random.randint(0, 10000))
 
-    response = evaluate_set_interpretation(
+    empirical_results = evaluate_set_interpretation(
         qgraph=mock_batch_query.query,
         results=mock_batch_query.prefilter_results,
         job_log=job_log,
     )
-    assert response == mock_batch_query.postfilter_results
+    assert empirical_results == mock_batch_query.postfilter_results
+
+    for expected_result in mock_batch_query.postfilter_results:
+        discovered_result_match = False
+        for empirical_result in empirical_results:
+            if (
+                empirical_result["node_bindings"]["n0"][0]["id"]
+                == expected_result["node_bindings"]["n0"][0]["id"]
+                and empirical_result["node_bindings"]["n1"][0]["id"]
+                == expected_result["node_bindings"]["n1"][0]["id"]
+            ):
+                assert empirical_result == expected_result
 
 
 @pytest.mark.asyncio
@@ -58,9 +69,20 @@ async def test_mixed_set_interpretation_values(
     # Ensure that the nodes have two different values for set_interpretation
     job_log = TRAPILogger(job_id=random.randint(0, 10000))
 
-    response = evaluate_set_interpretation(
+    empirical_results = evaluate_set_interpretation(
         qgraph=mock_mixed_query.query,
         results=mock_mixed_query.prefilter_results,
         job_log=job_log,
     )
-    assert len(response) == len(mock_mixed_query.postfilter_results)
+    assert len(empirical_results) == len(mock_mixed_query.postfilter_results)
+
+    for expected_result in mock_mixed_query.postfilter_results:
+        discovered_result_match = False
+        for empirical_result in empirical_results:
+            if (
+                empirical_result["node_bindings"]["n0"][0]["id"]
+                == expected_result["node_bindings"]["n0"][0]["id"]
+                and empirical_result["node_bindings"]["n1"][0]["id"]
+                == expected_result["node_bindings"]["n1"][0]["id"]
+            ):
+                assert empirical_result == expected_result
