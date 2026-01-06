@@ -126,6 +126,17 @@ async def test_malformed_set_identifier(
 
     assert len(empirical_results1) != len(mock_malformed_query.postfilter_results)
 
+    # Set the ids field for node n1 to None
+    mock_malformed_query.query["nodes"]["n1"]["ids"] = None
+
+    empirical_results1 = evaluate_set_interpretation(
+        qgraph=mock_malformed_query.query,
+        results=mock_malformed_query.prefilter_results,
+        job_log=job_log,
+    )
+
+    assert len(empirical_results1) != len(mock_malformed_query.postfilter_results)
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
