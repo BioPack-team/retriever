@@ -266,7 +266,8 @@ class ElasticSearchDriver(DatabaseDriver):
 
         if metadata_blob is None:
             raise ValueError(
-                "Unable to obtain metadata from backend, cannot parse operations."
+                "Unable to obtain metadata from backend, cannot parse operations.",
+                f"Elasticsearch config: {CONFIG.tier1.elasticsearch}",
             )
 
         if self.es_connection is None:
