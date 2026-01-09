@@ -251,6 +251,9 @@ class DgraphSettings(BaseModel):
     host: str = "localhost"
     http_port: int = 8080
     grpc_port: int = 9080
+    username: str | None = None
+    password: SecretStr | None = None
+    namespace: int | None = None
     preferred_version: str | None = None
     use_tls: bool = False
     query_timeout: Annotated[

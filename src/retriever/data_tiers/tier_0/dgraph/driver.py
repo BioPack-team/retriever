@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from http import HTTPStatus
 from typing import Any, Protocol, TypedDict, cast, override
@@ -108,6 +109,12 @@ class DgraphClientProtocol(Protocol):
         """Check the version of the Dgraph server."""
         ...
 
+    def login_into_namespace(
+        self, userid: str, password: str, namespace: int | None
+    ) -> None:
+        """Logs into a Dgraph namespace."""
+        ...
+
 
 class DgraphDriver(DatabaseDriver):
     """Driver for Dgraph supporting both gRPC and HTTP protocols."""
@@ -121,6 +128,8 @@ class DgraphDriver(DatabaseDriver):
     _client_stub: DgraphClientStubProtocol | None = None
     _client: DgraphClientProtocol | None = None
     _http_session: aiohttp.ClientSession | None = None
+    _access_token: str | None = None
+    _token_expiry: datetime | None = None
     _failed: bool = False
     _version_cache: TTLCache[str, str | None] = TTLCache(maxsize=1, ttl=60)
     _mapping_cache: TTLCache[str, dict[str, Any] | None] = TTLCache(maxsize=1, ttl=300)
@@ -428,6 +437,27 @@ class DgraphDriver(DatabaseDriver):
 
         try:
             assert self._client is not None
+
+            # If username and password are provided, attempt to log in.
+            if self.settings.username and self.settings.password:
+                username = self.settings.username
+                password = self.settings.password.get_secret_value()
+                namespace = self.settings.namespace
+
+                log.info(
+                    f"Attempting Dgraph login for user '{username}' "
+                    + (f"in namespace {namespace}" if namespace is not None else "")
+                )
+
+                # pydgraph login is synchronous, so run it in a separate thread.
+                await asyncio.to_thread(
+                    self._client.login_into_namespace,
+                    username,
+                    password,
+                    namespace,
+                )
+                log.success(f"Dgraph login successful for user '{username}'.")
+
             # The pydgraph client is synchronous, so `check_version()` is a blocking
             # network call. We use `asyncio.to_thread()` to run it in a separate
             # thread, which prevents it from freezing the main application's event
@@ -443,15 +473,86 @@ class DgraphDriver(DatabaseDriver):
                 f"Failed to verify gRPC connection to {self.endpoint}"
             ) from e
 
+    async def _http_login(self) -> None:
+        """Logs into Dgraph over HTTP and stores the access token."""
+        if not (self.settings.username and self.settings.password):
+            return
+
+        assert self._http_session is not None, "HTTP session not initialized for login"
+
+        username = self.settings.username
+        password = self.settings.password.get_secret_value()
+        namespace = self.settings.namespace
+
+        log.info(
+            f"Attempting Dgraph HTTP login for user '{username}'"
+            + (f" in namespace {namespace}" if namespace is not None else "")
+        )
+
+        login_mutation = {
+            "query": f"""
+                mutation Login {{
+                    login(userId: "{username}", password: "{password}"{f", namespace: {namespace}" if namespace else ""}) {{
+                        response {{
+                            accessJWT
+                        }}
+                    }}
+                }}
+            """
+        }
+
+        try:
+            async with self._http_session.post(
+                urljoin(self.endpoint, "/admin"),
+                json=login_mutation,
+                timeout=ClientTimeout(total=self.query_timeout),
+            ) as response:
+                response.raise_for_status()
+                data = await response.json()
+
+                if "errors" in data:
+                    raise RuntimeError(f"Dgraph login failed: {data['errors']}")
+
+                self._access_token = data["data"]["login"]["response"]["accessJWT"]
+
+                # Decode JWT payload to get expiration time
+                # A JWT is three parts: header.payload.signature
+                payload_b64 = self._access_token.split(".")[1]
+                # Add padding for correct base64 decoding
+                payload_b64 += "=" * (-len(payload_b64) % 4)
+                payload = json.loads(base64.b64decode(payload_b64))
+
+                # Set expiry with a 60-second buffer to be safe
+                self._token_expiry = datetime.fromtimestamp(
+                    payload["exp"], tz=timezone.utc
+                ) - timedelta(seconds=60)
+
+                # Update the session headers for subsequent requests
+                self._http_session.headers[
+                    "X-Dgraph-AccessToken"
+                ] = self._access_token
+                log.success(f"Dgraph HTTP login successful for user '{username}'.")
+
+        except Exception as e:
+            self._access_token = None
+            self._token_expiry = None
+            raise ConnectionError("Dgraph HTTP login failed.") from e
+
     async def _connect_http(self) -> None:
         """Establish HTTP connection to Dgraph."""
         self._http_session = aiohttp.ClientSession()
+
+        # If auth is configured, perform login
+        if self.settings.username and self.settings.password:
+            await self._http_login()
+
         # Test connection with a simple query
         query = "{ health { status } }"
         async with self._http_session.post(
             urljoin(self.endpoint, "/graphql"),
             json={"query": query},
             timeout=ClientTimeout(total=self.query_timeout),
+
         ) as response:
             if response.status != HTTPStatus.OK:
                 text = await response.text()
@@ -623,6 +724,16 @@ class DgraphDriver(DatabaseDriver):
             Parsed response with original bindings restored
         """
         assert self._http_session is not None, "HTTP session not initialized"
+
+        # If a token exists and is expired, refresh it before making the query.
+        if self._access_token and self._token_expiry and datetime.now(timezone.utc) >= self._token_expiry:
+            log.info("Dgraph HTTP access token expired. Refreshing...")
+            try:
+                await self._http_login()
+            except Exception as e:
+                log.error(f"Failed to refresh Dgraph HTTP token: {e}")
+                # Propagate the error as the query will likely fail anyway
+                raise
 
         clean_query = query.strip()
 
