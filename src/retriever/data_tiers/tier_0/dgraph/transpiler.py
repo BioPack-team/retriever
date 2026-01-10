@@ -270,7 +270,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
         # Return the node_id with the maximum pinnedness score
         # Use node_id as tiebreaker for deterministic ordering
-        return max(pinnedness_scores, key=lambda nid: (pinnedness_scores[nid], nid))
+        return max(pinnedness_scores, key=lambda nid: (pinnedness_scores[nid], -ord(nid[-1])))
 
     # --- Pinnedness Algorithm Methods ---
 
@@ -494,7 +494,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
     def _create_filter_expression(self, constraint: AttributeConstraintDict) -> str:
         """Create a filter expression for a single constraint."""
-        field_name = self._v(constraint["id"].replace("biolink:", ""))
+        field_name = self._v(constraint["name"].replace("biolink:", ""))
         value = constraint["value"]
         operator = constraint["operator"]
         is_negated = constraint.get("not", False)
@@ -898,15 +898,17 @@ class DgraphTranspiler(Tier0Transpiler):
         alias = f"in_edges-subclassB_{norm_eid}"
         # No constraints on subclass edge; use only subclass_of filter
         subclass_filter_clause = f" @filter({self._subclass_edge_filter()})"
-        query = f"{alias}: ~{self._v('object')}{subclass_filter_clause} {{ "  # A' -> subclass_of -> A (reverse)
+        # A' -> subclass_of -> A (reverse)
+        query = f"{alias}: ~{self._v('object')}{subclass_filter_clause} {{ "
         query += self._add_standard_edge_fields()
-
         # Now from A', traverse the original predicate1 to B with original edge filters
         # Emit child node with original constraints preserved for target B
+        query += f"node_intermediate: {self._v('subject')} @filter(has({self._v('id')})) @cascade({self._v('id')}) {{ "
+        query += self._add_standard_node_fields()
         pred_edge_filter = self._build_edge_filter(ctx.edge)
         pred_filter_clause = f" @filter({pred_edge_filter})" if pred_edge_filter else ""
         normalized_target_id = self._get_normalized_node_id(ctx.target_id)
-        query += f"out_edges_{norm_eid}: ~{self._v('subject')}{pred_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
+        query += f"out_edges-subclassB-mid_{norm_eid}: ~{self._v('subject')}{pred_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
         query += self._add_standard_edge_fields()
         query += f"node_{normalized_target_id}: {self._v('object')}"
         target_filter = self._build_node_filter(ctx.target_node)
@@ -915,54 +917,23 @@ class DgraphTranspiler(Tier0Transpiler):
         query += self._build_node_cascade_clause(
             ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
         )
-        query += " { " + self._add_standard_node_fields() + " } } } "
+        query += " { " + self._add_standard_node_fields() + " } } } } "
         return query
 
     def _build_subclass_form_c(self, ctx: EdgeTraversalContext, norm_eid: str) -> str:
-        """Form C: A → predicate1 → B'; B' subclass_of→ B. Alias: in_edges-subclassC_eX."""
-        alias = f"in_edges-subclassC_{norm_eid}"
+        """Form C: A → predicate1 → B'; B' subclass_of→ B. Alias: out_edges-subclassC_eX."""
         # First traverse original predicate1 to B'
+        alias = f"out_edges-subclassC_{norm_eid}"
         pred_edge_filter = self._build_edge_filter(ctx.edge)
         pred_filter_clause = f" @filter({pred_edge_filter})" if pred_edge_filter else ""
-        query = (
-            f"{alias}: ~{self._v('subject') if ctx.edge_direction == 'out' else self._v('object')}"
-            f"{pred_filter_clause} @cascade({self._v('predicate')}, "
-            f"{self._v('object') if ctx.edge_direction == 'out' else self._v('subject')}) {{ "
-        )
+        query = f"{alias}: ~{self._v('subject')}{pred_filter_clause} {{ "
         query += self._add_standard_edge_fields()
-
         # Then from B', traverse subclass_of to B (reverse on object side)
+        query += f"node_intermediate: {self._v('object')} @filter(has({self._v('id')})) @cascade({self._v('id')}) {{ "
+        query += self._add_standard_node_fields()
         subclass_filter_clause = f" @filter({self._subclass_edge_filter()})"
         normalized_target_id = self._get_normalized_node_id(ctx.target_id)
-        query += f"in_edges-subclassC-tail_{norm_eid}: ~{self._v('object')}{subclass_filter_clause} {{ "
-        query += self._add_standard_edge_fields()
-        query += f"node_{normalized_target_id}: {self._v('object')} "
-        target_filter = self._build_node_filter(ctx.target_node)
-        if target_filter:
-            query += f" @filter({target_filter})"
-        query += self._build_node_cascade_clause(
-            ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
-        )
-        query += " { " + self._add_standard_node_fields() + " } } } "
-        return query
-
-    def _build_subclass_form_d(self, ctx: EdgeTraversalContext, norm_eid: str) -> str:
-        """Form D: A' subclass_of→ A; A' → predicate1 → B'; B' subclass_of→ B. Alias: in_edges-subclassD_eX."""
-        alias = f"in_edges-subclassD_{norm_eid}"
-        # A' -> subclass_of -> A
-        subclass_filter_clause = f" @filter({self._subclass_edge_filter()})"
-        query = f"{alias}: ~{self._v('object')}{subclass_filter_clause} {{ "
-        query += self._add_standard_edge_fields()
-
-        # A' -> predicate1 -> B'
-        pred_edge_filter = self._build_edge_filter(ctx.edge)
-        pred_filter_clause = f" @filter({pred_edge_filter})" if pred_edge_filter else ""
-        query += f"out_edges-subclassD-mid_{norm_eid}: ~{self._v('subject')}{pred_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
-        query += self._add_standard_edge_fields()
-
-        # B' -> subclass_of -> B
-        normalized_target_id = self._get_normalized_node_id(ctx.target_id)
-        query += f"in_edges-subclassD-tail_{norm_eid}: ~{self._v('object')}{subclass_filter_clause} {{ "
+        query += f"out_edges-subclassC-tail_{norm_eid}: ~{self._v('subject')}{subclass_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
         query += self._add_standard_edge_fields()
         query += f"node_{normalized_target_id}: {self._v('object')} "
         target_filter = self._build_node_filter(ctx.target_node)
@@ -972,6 +943,36 @@ class DgraphTranspiler(Tier0Transpiler):
             ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
         )
         query += " { " + self._add_standard_node_fields() + " } } } } "
+        return query
+
+    def _build_subclass_form_d(self, ctx: EdgeTraversalContext, norm_eid: str) -> str:
+        """Form D: A' subclass_of→ A; A' → predicate1 → B'; B' subclass_of→ B. Alias: in_edges-subclassD_eX."""
+        alias = f"in_edges-subclassD_{norm_eid}"
+        # A' -> subclass_of -> A
+        subclass_filter_clause = f" @filter({self._subclass_edge_filter()})"
+        query = f"{alias}: ~{self._v('object')}{subclass_filter_clause} {{ "
+        query += self._add_standard_edge_fields()
+        # A' -> predicate1 -> B'
+        query += f"node_intermediate_A: {self._v('subject')} @filter(has({self._v('id')})) @cascade({self._v('id')}) {{ "
+        query += self._add_standard_node_fields()
+        pred_edge_filter = self._build_edge_filter(ctx.edge)
+        pred_filter_clause = f" @filter({pred_edge_filter})" if pred_edge_filter else ""
+        query += f"out_edges-subclassD-mid_{norm_eid}: ~{self._v('subject')}{pred_filter_clause} {{ "
+        query += self._add_standard_edge_fields()
+        # B' -> subclass_of -> B
+        query += f"node_intermediate_B: {self._v('object')} @filter(has({self._v('id')})) @cascade({self._v('id')}) {{ "
+        query += self._add_standard_node_fields()
+        normalized_target_id = self._get_normalized_node_id(ctx.target_id)
+        query += f"out_edges-subclassD-tail_{norm_eid}: ~{self._v('subject')}{subclass_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
+        query += self._add_standard_edge_fields()
+        query += f"node_{normalized_target_id}: {self._v('object')} "
+        target_filter = self._build_node_filter(ctx.target_node)
+        if target_filter:
+            query += f" @filter({target_filter})"
+        query += self._build_node_cascade_clause(
+            ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
+        )
+        query += " { " + self._add_standard_node_fields() + " } } } } } } "
         return query
 
     def _build_single_direction_traversal(self, ctx: DirectionTraversalContext) -> str:
