@@ -6,7 +6,7 @@ from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 from typing import Any, cast, final, override
 from textwrap import dedent
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import asyncio
 import aiohttp
@@ -763,6 +763,134 @@ async def test_fetch_mapping_from_db_mocked(
 
         mapping = await driver.fetch_mapping_from_db("vTest")
         assert mapping is None, "Mapping should be None when msgpack deserialization fails"
+
+        await driver.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config", "mock_dgraph_auth_config")
+async def test_http_login_fails_on_bad_status() -> None:
+    """Test that _http_login raises ConnectionError on a non-200 status."""
+    driver = new_http_driver()
+
+    # 1. Create a mock session INSTANCE.
+    mock_session_instance = AsyncMock()
+
+    # 2. Configure the 'post' method. It's a regular method that returns
+    #    an async context manager.
+    mock_session_instance.post = MagicMock()
+
+    # 3. Create the async context manager that post() will return.
+    #    This is for the login call, which we expect to fail.
+    login_cm = AsyncMock()
+    login_response = AsyncMock()
+    # The key part of this test: the response will raise an error on raise_for_status()
+    login_response.raise_for_status.side_effect = aiohttp.ClientResponseError(
+        MagicMock(), ()
+    )
+    login_cm.__aenter__.return_value = login_response
+    mock_session_instance.post.return_value = login_cm
+
+    # 4. Patch the ClientSession CLASS to return our configured INSTANCE.
+    with patch("aiohttp.ClientSession", return_value=mock_session_instance):
+        # The driver must be connected *inside* the patch block to use the mock.
+        # The connect() method will call _http_login, which will use our mock.
+        with pytest.raises(ConnectionError, match="Dgraph HTTP login failed"):
+            await driver.connect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_http_query_fails_on_bad_status() -> None:
+    """Test that _run_http_query raises RuntimeError on a non-200 status."""
+    driver = new_http_driver()
+    await driver.connect()
+
+    # Mock the session to return a bad status on the /query endpoint
+    mock_response = MagicMock()
+    mock_response.status = 503
+    mock_response.text = AsyncMock(return_value="Service Unavailable")
+    mock_post = MagicMock()
+    mock_post.__aenter__.return_value = mock_response
+    mock_post.__aexit__ = AsyncMock(return_value=None)
+
+    assert driver.http_session is not None
+    driver.http_session.post = MagicMock(return_value=mock_post)
+
+    mock_transpiler = _TestDgraphTranspiler()
+    with pytest.raises(RuntimeError, match="HTTP query failed with status 503"):
+        await driver.run_query("any query", transpiler=mock_transpiler)
+
+    await driver.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_http_query_fails_on_graphql_error() -> None:
+    """Test that _run_http_query raises RuntimeError on a GraphQL error."""
+    driver = new_http_driver()
+    await driver.connect()
+
+    # Mock the session to return a 200 OK but with a GraphQL error payload
+    mock_response = MagicMock()
+    mock_response.status = 200
+    mock_response.json = AsyncMock(return_value={"errors": [{"message": "Invalid query"}]})
+    mock_post = MagicMock()
+    mock_post.__aenter__.return_value = mock_response
+    mock_post.__aexit__ = AsyncMock(return_value=None)
+
+    assert driver.http_session is not None
+    driver.http_session.post = MagicMock(return_value=mock_post)
+
+    mock_transpiler = _TestDgraphTranspiler()
+    with pytest.raises(RuntimeError, match="Dgraph query returned errors"):
+        await driver.run_query("any query", transpiler=mock_transpiler)
+
+    await driver.close()
+
+
+@pytest.mark.asyncio
+async def test_fetch_mapping_from_db_invalid_base64() -> None:
+    """Test fetch_mapping_from_db returns None for invalid base64 data."""
+    driver = new_http_driver()
+
+    # 1. Create a mock session INSTANCE.
+    mock_session_instance = AsyncMock()
+
+    # 2. Configure the 'post' method. It's a regular method that returns
+    #    an async context manager.
+    mock_session_instance.post = MagicMock()
+
+    # 3. Create the async context manager that post() will return.
+    #    This will be used for the connect() call.
+    connect_cm = AsyncMock()
+    connect_response = AsyncMock()
+    type(connect_response).status = PropertyMock(return_value=200)
+    connect_response.json.return_value = {"data": {"health": [{"status": "healthy"}]}}
+    connect_cm.__aenter__.return_value = connect_response
+    mock_session_instance.post.return_value = connect_cm
+
+    # 4. Patch the ClientSession CLASS to return our configured INSTANCE.
+    with patch("aiohttp.ClientSession", return_value=mock_session_instance):
+        # The driver must be connected *inside* the patch block to use the mock.
+        await driver.connect()
+
+        # The driver's internal session should now be our mock instance.
+        assert driver.http_session is mock_session_instance
+
+        # 5. Now, re-configure the 'post' mock for the actual test call.
+        #    This response will be used by fetch_mapping_from_db.
+        fetch_cm = AsyncMock()
+        fetch_response = AsyncMock()
+        type(fetch_response).status = PropertyMock(return_value=200)
+        fetch_response.json.return_value = {
+            "data": {"metadata": [{"schema_metadata_mapping": "this-is-not-base64"}]}
+        }
+        fetch_cm.__aenter__.return_value = fetch_response
+        mock_session_instance.post.return_value = fetch_cm
+
+        mapping = await driver.fetch_mapping_from_db("vTest")
+        assert mapping is None, "Mapping should be None for invalid base64"
 
         await driver.close()
 
