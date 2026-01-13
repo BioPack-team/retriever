@@ -514,6 +514,7 @@ class DgraphDriver(DatabaseDriver):
                     raise RuntimeError(f"Dgraph login failed: {data['errors']}")
 
                 self._access_token = data["data"]["login"]["response"]["accessJWT"]
+                assert self._access_token is not None, "Access token should not be None after successful login"
 
                 # Decode JWT payload to get expiration time
                 # A JWT is three parts: header.payload.signature
