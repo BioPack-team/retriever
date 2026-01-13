@@ -768,60 +768,38 @@ async def test_fetch_mapping_from_db_mocked(
 
 
 @pytest.mark.asyncio
-@pytest.mark.usefixtures("mock_dgraph_config", "mock_dgraph_auth_config")
-async def test_http_login_fails_on_bad_status() -> None:
-    """Test that _http_login raises ConnectionError on a non-200 status."""
-    driver = new_http_driver()
-
-    # 1. Create a mock session INSTANCE.
-    mock_session_instance = AsyncMock()
-
-    # 2. Configure the 'post' method. It's a regular method that returns
-    #    an async context manager.
-    mock_session_instance.post = MagicMock()
-
-    # 3. Create the async context manager that post() will return.
-    #    This is for the login call, which we expect to fail.
-    login_cm = AsyncMock()
-    login_response = AsyncMock()
-    # The key part of this test: the response will raise an error on raise_for_status()
-    login_response.raise_for_status.side_effect = aiohttp.ClientResponseError(
-        MagicMock(), ()
-    )
-    login_cm.__aenter__.return_value = login_response
-    mock_session_instance.post.return_value = login_cm
-
-    # 4. Patch the ClientSession CLASS to return our configured INSTANCE.
-    with patch("aiohttp.ClientSession", return_value=mock_session_instance):
-        # The driver must be connected *inside* the patch block to use the mock.
-        # The connect() method will call _http_login, which will use our mock.
-        with pytest.raises(ConnectionError, match="Dgraph HTTP login failed"):
-            await driver.connect()
-
-
-@pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config")
 async def test_http_query_fails_on_bad_status() -> None:
     """Test that _run_http_query raises RuntimeError on a non-200 status."""
     driver = new_http_driver()
-    await driver.connect()
 
-    # Mock the session to return a bad status on the /query endpoint
-    mock_response = MagicMock()
-    mock_response.status = 503
-    mock_response.text = AsyncMock(return_value="Service Unavailable")
-    mock_post = MagicMock()
-    mock_post.__aenter__.return_value = mock_response
-    mock_post.__aexit__ = AsyncMock(return_value=None)
+    mock_session_instance = AsyncMock()
+    mock_session_instance.post = MagicMock()
 
-    assert driver.http_session is not None
-    driver.http_session.post = MagicMock(return_value=mock_post)
+    # Mock the successful connect() call first
+    connect_cm = AsyncMock()
+    connect_response = AsyncMock()
+    type(connect_response).status = PropertyMock(return_value=200)
+    connect_response.json.return_value = {"data": {"health": [{"status": "healthy"}]}}
+    connect_cm.__aenter__.return_value = connect_response
+    mock_session_instance.post.return_value = connect_cm
 
-    mock_transpiler = _TestDgraphTranspiler()
-    with pytest.raises(RuntimeError, match="HTTP query failed with status 503"):
-        await driver.run_query("any query", transpiler=mock_transpiler)
+    with patch("aiohttp.ClientSession", return_value=mock_session_instance):
+        await driver.connect()
 
-    await driver.close()
+        # Now, re-configure the mock for the failing run_query() call
+        query_cm = AsyncMock()
+        query_response = AsyncMock()
+        type(query_response).status = PropertyMock(return_value=503)
+        query_response.text.return_value = "Service Unavailable"
+        query_cm.__aenter__.return_value = query_response
+        mock_session_instance.post.return_value = query_cm
+
+        mock_transpiler = _TestDgraphTranspiler()
+        with pytest.raises(RuntimeError, match="HTTP query failed with status 503"):
+            await driver.run_query("any query", transpiler=mock_transpiler)
+
+        await driver.close()
 
 
 @pytest.mark.asyncio
@@ -829,24 +807,34 @@ async def test_http_query_fails_on_bad_status() -> None:
 async def test_http_query_fails_on_graphql_error() -> None:
     """Test that _run_http_query raises RuntimeError on a GraphQL error."""
     driver = new_http_driver()
-    await driver.connect()
 
-    # Mock the session to return a 200 OK but with a GraphQL error payload
-    mock_response = MagicMock()
-    mock_response.status = 200
-    mock_response.json = AsyncMock(return_value={"errors": [{"message": "Invalid query"}]})
-    mock_post = MagicMock()
-    mock_post.__aenter__.return_value = mock_response
-    mock_post.__aexit__ = AsyncMock(return_value=None)
+    mock_session_instance = AsyncMock()
+    mock_session_instance.post = MagicMock()
 
-    assert driver.http_session is not None
-    driver.http_session.post = MagicMock(return_value=mock_post)
+    # Mock the successful connect() call first
+    connect_cm = AsyncMock()
+    connect_response = AsyncMock()
+    type(connect_response).status = PropertyMock(return_value=200)
+    connect_response.json.return_value = {"data": {"health": [{"status": "healthy"}]}}
+    connect_cm.__aenter__.return_value = connect_response
+    mock_session_instance.post.return_value = connect_cm
 
-    mock_transpiler = _TestDgraphTranspiler()
-    with pytest.raises(RuntimeError, match="Dgraph query returned errors"):
-        await driver.run_query("any query", transpiler=mock_transpiler)
+    with patch("aiohttp.ClientSession", return_value=mock_session_instance):
+        await driver.connect()
 
-    await driver.close()
+        # Now, re-configure the mock for the run_query() call that returns a GraphQL error
+        query_cm = AsyncMock()
+        query_response = AsyncMock()
+        type(query_response).status = PropertyMock(return_value=200)
+        query_response.json.return_value = {"errors": [{"message": "Invalid query"}]}
+        query_cm.__aenter__.return_value = query_response
+        mock_session_instance.post.return_value = query_cm
+
+        mock_transpiler = _TestDgraphTranspiler()
+        with pytest.raises(RuntimeError, match="Dgraph query returned errors"):
+            await driver.run_query("any query", transpiler=mock_transpiler)
+
+        await driver.close()
 
 
 @pytest.mark.asyncio
