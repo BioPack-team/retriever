@@ -1535,6 +1535,7 @@ async def test_run_grpc_query_name_error_workaround(
 
 
 @pytest.mark.live
+@pytest.mark.auth
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config", "mock_dgraph_auth_config")
 async def test_dgraph_live_grpc_auth_success() -> None:
@@ -1552,6 +1553,7 @@ async def test_dgraph_live_grpc_auth_success() -> None:
 
 
 @pytest.mark.live
+@pytest.mark.auth
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config", "mock_dgraph_auth_config")
 async def test_dgraph_live_http_auth_success() -> None:
@@ -1574,6 +1576,7 @@ async def test_dgraph_live_http_auth_success() -> None:
 
 
 @pytest.mark.live
+@pytest.mark.auth
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config", "mock_dgraph_invalid_auth_config")
 async def test_dgraph_live_grpc_auth_failure() -> None:
@@ -1584,6 +1587,7 @@ async def test_dgraph_live_grpc_auth_failure() -> None:
 
 
 @pytest.mark.live
+@pytest.mark.auth
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config", "mock_dgraph_invalid_auth_config")
 async def test_dgraph_live_http_auth_failure() -> None:
@@ -1594,6 +1598,7 @@ async def test_dgraph_live_http_auth_failure() -> None:
 
 
 @pytest.mark.live
+@pytest.mark.auth
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config", "mock_dgraph_auth_config")
 async def test_dgraph_live_http_token_auto_renewal() -> None:
