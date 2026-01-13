@@ -514,7 +514,9 @@ class DgraphDriver(DatabaseDriver):
                     raise RuntimeError(f"Dgraph login failed: {data['errors']}")
 
                 self._access_token = data["data"]["login"]["response"]["accessJWT"]
-                assert self._access_token is not None, "Access token should not be None after successful login"
+                assert (
+                    self._access_token is not None
+                ), "Access token should not be None after successful login"
 
                 # Decode JWT payload to get expiration time
                 # A JWT is three parts: header.payload.signature
@@ -529,9 +531,7 @@ class DgraphDriver(DatabaseDriver):
                 ) - timedelta(seconds=60)
 
                 # Update the session headers for subsequent requests
-                self._http_session.headers[
-                    "X-Dgraph-AccessToken"
-                ] = self._access_token
+                self._http_session.headers["X-Dgraph-AccessToken"] = self._access_token
                 log.success(f"Dgraph HTTP login successful for user '{username}'.")
 
         except Exception as e:
@@ -553,7 +553,6 @@ class DgraphDriver(DatabaseDriver):
             urljoin(self.endpoint, "/graphql"),
             json={"query": query},
             timeout=ClientTimeout(total=self.query_timeout),
-
         ) as response:
             if response.status != HTTPStatus.OK:
                 text = await response.text()
@@ -727,7 +726,11 @@ class DgraphDriver(DatabaseDriver):
         assert self._http_session is not None, "HTTP session not initialized"
 
         # If a token exists and is expired, refresh it before making the query.
-        if self._access_token and self._token_expiry and datetime.now(UTC) >= self._token_expiry:
+        if (
+            self._access_token
+            and self._token_expiry
+            and datetime.now(UTC) >= self._token_expiry
+        ):
             log.info("Dgraph HTTP access token expired. Refreshing...")
             try:
                 await self._http_login()
