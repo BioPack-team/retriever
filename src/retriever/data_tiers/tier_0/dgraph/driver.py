@@ -1,7 +1,7 @@
 import asyncio
 import base64
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from http import HTTPStatus
 from typing import Any, Protocol, TypedDict, cast, override
@@ -524,7 +524,7 @@ class DgraphDriver(DatabaseDriver):
 
                 # Set expiry with a 60-second buffer to be safe
                 self._token_expiry = datetime.fromtimestamp(
-                    payload["exp"], tz=timezone.utc
+                    payload["exp"], tz=UTC
                 ) - timedelta(seconds=60)
 
                 # Update the session headers for subsequent requests
@@ -726,7 +726,7 @@ class DgraphDriver(DatabaseDriver):
         assert self._http_session is not None, "HTTP session not initialized"
 
         # If a token exists and is expired, refresh it before making the query.
-        if self._access_token and self._token_expiry and datetime.now(timezone.utc) >= self._token_expiry:
+        if self._access_token and self._token_expiry and datetime.now(UTC) >= self._token_expiry:
             log.info("Dgraph HTTP access token expired. Refreshing...")
             try:
                 await self._http_login()
