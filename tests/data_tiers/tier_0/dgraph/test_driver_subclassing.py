@@ -1,20 +1,13 @@
 import importlib
-import json
 import re
-import time
 from collections.abc import Iterator
-from typing import Any, cast, final, override
-from textwrap import dedent
-from unittest.mock import MagicMock, patch, AsyncMock
+from typing import Any, cast
 
-import asyncio
 import aiohttp
-import grpc
 import pytest
 
 import retriever.config.general as general_mod
 import retriever.data_tiers.tier_0.dgraph.driver as driver_mod
-from retriever.data_tiers.tier_0.dgraph import result_models as dg_models
 from retriever.data_tiers.tier_0.dgraph.transpiler import DgraphTranspiler
 from retriever.types.trapi import QueryGraphDict
 
@@ -257,7 +250,7 @@ async def test_subclassing_case1_form_d_live() -> None:
     )
     assert form_d_edge is not None, "Form D path not found in results"
     assert form_d_edge.node.edges, "First intermediate node for Form D should have an outgoing edge"
-    
+
     # Traverse to the second intermediate node
     second_intermediate_edge = form_d_edge.node.edges[0]
     assert second_intermediate_edge.node.binding == "intermediate_B"
