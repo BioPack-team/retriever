@@ -2003,15 +2003,15 @@ def test_subclassing_case1_id_to_id_generates_b_c_d_forms(transpiler_with_subcla
     # Expect primary edge plus three subclass forms
     assert "out_edges_e0:" in actual, "Primary traversal missing"
     assert "in_edges-subclassB_e0:" in actual, "Subclass Form B missing"
-    assert "in_edges-subclassC_e0:" in actual, "Subclass Form C missing"
+    assert "out_edges-subclassC_e0:" in actual, "Subclass Form C missing"
     assert "in_edges-subclassD_e0:" in actual, "Subclass Form D missing"
 
     # Subclass edges should filter only on subclass_of predicate (no attribute/qualifier constraints)
     # Check that subclass blocks include subclass_of filter
     assert "in_edges-subclassB_e0: ~object @filter(eq(predicate_ancestors, \"subclass_of\"))" in actual
-    assert "in_edges-subclassC-tail_e0: ~object @filter(eq(predicate_ancestors, \"subclass_of\"))" in actual
+    assert "out_edges-subclassC-tail_e0: ~subject @filter(eq(predicate_ancestors, \"subclass_of\"))" in actual
     assert "in_edges-subclassD_tail_e0" not in actual  # use exact names defined in transpiler
-    assert "in_edges-subclassD-tail_e0: ~object @filter(eq(predicate_ancestors, \"subclass_of\"))" in actual
+    assert "out_edges-subclassD-tail_e0: ~subject @filter(eq(predicate_ancestors, \"subclass_of\"))" in actual
 
 
 def test_subclassing_case2_id_to_category_generates_b_only(transpiler_with_subclassing: _TestDgraphTranspiler) -> None:
@@ -2064,7 +2064,7 @@ def test_subclassing_skips_when_predicate_is_subclass_of_case0a_0b(transpiler_wi
         },
     })
     actual_id_id = transpiler_with_subclassing.convert_multihop_public(qgraph_id_id)
-    assert "in_edges_e0:" in actual_id_id
+    assert "out_edges_e0:" in actual_id_id
     assert "in_edges-subclassB_e0:" not in actual_id_id
     assert "in_edges-subclassC_e0:" not in actual_id_id
     assert "in_edges-subclassD_e0:" not in actual_id_id
@@ -2139,7 +2139,7 @@ def test_subclassing_disabled_emits_no_subclass_blocks(transpiler_no_subclassing
 
     actual = transpiler_no_subclassing.convert_multihop_public(qgraph)
 
-    assert "in_edges_e0:" in actual
+    assert "out_edges_e0:" in actual
     assert "in_edges-subclassB_e0:" not in actual
     assert "in_edges-subclassC_e0:" not in actual
     assert "in_edges-subclassD_e0:" not in actual
@@ -2163,7 +2163,7 @@ def test_subclassing_case2_does_not_trigger_when_target_has_ids(transpiler_with_
 
     # Because this is Case 1 (IDs on both ends), we should see B/C/D forms:
     assert "in_edges-subclassB_e0:" in actual
-    assert "in_edges-subclassC_e0:" in actual
+    assert "out_edges-subclassC_e0:" in actual
     assert "in_edges-subclassD_e0:" in actual
 
 
@@ -2197,18 +2197,18 @@ def test_subclassing_two_hop_id_to_id_on_both_hops(transpiler_with_subclassing: 
     actual = transpiler_with_subclassing.convert_multihop_public(qgraph)
 
     # Primary traversals (same as two-hop baseline)
-    assert "out_edges_e0:" in actual
+    assert "in_edges_e0:" in actual
     assert "in_edges_e1:" in actual
 
     # Subclassing on first hop (e0): expect B/C/D
     assert "in_edges-subclassB_e0:" in actual
-    assert "in_edges-subclassC_e0:" in actual
+    assert "out_edges-subclassC_e0:" in actual
     assert "in_edges-subclassD_e0:" in actual
 
     # Subclassing on second hop (e1): expect B/C/D
-    assert "out_edges-subclassB_e1:" in actual or "in_edges-subclassB_e1:" in actual
-    assert "out_edges-subclassC_e1:" in actual or "in_edges-subclassC_e1:" in actual
-    assert "out_edges-subclassD_e1:" in actual or "in_edges-subclassD_e1:" in actual
+    assert "in_edges-subclassB_e1:" in actual
+    assert "out_edges-subclassC_e1:" in actual
+    assert "in_edges-subclassD_e1:" in actual
 
     # Subclass edges should use only subclass_of filter (no attribute/qualifier constraints)
     assert ' @filter(eq(predicate_ancestors, "subclass_of"))' in actual
@@ -2245,12 +2245,12 @@ def test_subclassing_two_hop_id_to_category_on_second_hop_generates_b_only(trans
     actual = transpiler_with_subclassing.convert_multihop_public(qgraph)
 
     # Primary traversals present
-    assert "out_edges_e0:" in actual
+    assert "in_edges_e0:" in actual
     assert "out_edges_e1:" in actual  # direction matches subject=n1 → object=n2
 
     # First hop (ID→R→ID) should have B/C/D
     assert "in_edges-subclassB_e0:" in actual
-    assert "in_edges-subclassC_e0:" in actual
+    assert "out_edges-subclassC_e0:" in actual
     assert "in_edges-subclassD_e0:" in actual
 
     # Second hop (ID→R→CAT) should have only Form B
@@ -2422,9 +2422,9 @@ def test_pinnedness_issue(transpiler: _TestDgraphTranspiler) -> None:
                     }
                 }
             }
-            in_edges-subclassB_e2: ~object @filter(eq(predicate_ancestors, "subclass_of")) {
+            in_edges-subclassB_e2: ~object @filter(eq(predicate_ancestors, "subclass_of")) @cascade(predicate, subject) {
                 expand(Edge) { sources expand(Source) }
-                node_intermediate: subject @filter(has(id)) @cascade(id) {
+                node_intermediate: subject @filter(has(id)) @cascade(id, ~subject) {
                     expand(Node)
                     out_edges-subclassB-mid_e2: ~subject @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, object) {
                         expand(Edge) { sources expand(Source) }
@@ -2471,8 +2471,7 @@ def test_subclassing_preserves_constraints_on_predicate_edge(transpiler_with_sub
                 "object": "n1",
                 "predicates": ["biolink:related_to"],
                 "attribute_constraints": [{
-                    "id": "ac1",
-                    "name": "knowledge_level",
+                    "id": "knowledge_level",
                     "operator": "==",
                     "value": "prediction",
                 }],
