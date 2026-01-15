@@ -899,7 +899,7 @@ class DgraphTranspiler(Tier0Transpiler):
         # No constraints on subclass edge; use only subclass_of filter
         subclass_filter_clause = f" @filter({self._subclass_edge_filter()})"
         # A' -> subclass_of -> A (reverse)
-        query = f"{alias}: ~{self._v('object')}{subclass_filter_clause} @cascade({self._v('predicate')},{self._v('subject')} ) {{ "
+        query = f"{alias}: ~{self._v('object')}{subclass_filter_clause} @cascade({self._v('predicate')}, {self._v('subject')}) {{ "
         query += self._add_standard_edge_fields()
         # Now from A', traverse the original predicate1 to B with original edge filters
         # Emit child node with original constraints preserved for target B
