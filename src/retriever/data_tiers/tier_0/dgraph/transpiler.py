@@ -899,16 +899,17 @@ class DgraphTranspiler(Tier0Transpiler):
         # No constraints on subclass edge; use only subclass_of filter
         subclass_filter_clause = f" @filter({self._subclass_edge_filter()})"
         # A' -> subclass_of -> A (reverse)
-        query = f"{alias}: ~{self._v('object')}{subclass_filter_clause} {{ "
+        query = f"{alias}: ~{self._v('object')}{subclass_filter_clause} @cascade({self._v('predicate')},{self._v('subject')} ) {{ "
         query += self._add_standard_edge_fields()
         # Now from A', traverse the original predicate1 to B with original edge filters
         # Emit child node with original constraints preserved for target B
-        query += f"node_intermediate: {self._v('subject')} @filter(has({self._v('id')})) @cascade({self._v('id')}) {{ "
+        mid_edge_alias = f"out_edges-subclassB-mid_{norm_eid}"
+        query += f"node_intermediate: {self._v('subject')} @filter(has({self._v('id')})) @cascade({self._v('id')}, ~{self._v('subject')}) {{ "
         query += self._add_standard_node_fields()
         pred_edge_filter = self._build_edge_filter(ctx.edge)
         pred_filter_clause = f" @filter({pred_edge_filter})" if pred_edge_filter else ""
         normalized_target_id = self._get_normalized_node_id(ctx.target_id)
-        query += f"out_edges-subclassB-mid_{norm_eid}: ~{self._v('subject')}{pred_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
+        query += f"{mid_edge_alias}: ~{self._v('subject')}{pred_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
         query += self._add_standard_edge_fields()
         query += f"node_{normalized_target_id}: {self._v('object')}"
         target_filter = self._build_node_filter(ctx.target_node)
@@ -926,14 +927,15 @@ class DgraphTranspiler(Tier0Transpiler):
         alias = f"out_edges-subclassC_{norm_eid}"
         pred_edge_filter = self._build_edge_filter(ctx.edge)
         pred_filter_clause = f" @filter({pred_edge_filter})" if pred_edge_filter else ""
-        query = f"{alias}: ~{self._v('subject')}{pred_filter_clause} {{ "
+        query = f"{alias}: ~{self._v('subject')}{pred_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
         query += self._add_standard_edge_fields()
-        # Then from B', traverse subclass_of to B (reverse on object side)
-        query += f"node_intermediate: {self._v('object')} @filter(has({self._v('id')})) @cascade({self._v('id')}) {{ "
+        # Then from B', traverse subclass_of to B
+        tail_edge_alias = f"out_edges-subclassC-tail_{norm_eid}"
+        query += f"node_intermediate: {self._v('object')} @filter(has({self._v('id')})) @cascade({self._v('id')}, ~{self._v('subject')}) {{ "
         query += self._add_standard_node_fields()
         subclass_filter_clause = f" @filter({self._subclass_edge_filter()})"
         normalized_target_id = self._get_normalized_node_id(ctx.target_id)
-        query += f"out_edges-subclassC-tail_{norm_eid}: ~{self._v('subject')}{subclass_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
+        query += f"{tail_edge_alias}: ~{self._v('subject')}{subclass_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
         query += self._add_standard_edge_fields()
         query += f"node_{normalized_target_id}: {self._v('object')} "
         target_filter = self._build_node_filter(ctx.target_node)
@@ -950,20 +952,24 @@ class DgraphTranspiler(Tier0Transpiler):
         alias = f"in_edges-subclassD_{norm_eid}"
         # A' -> subclass_of -> A
         subclass_filter_clause = f" @filter({self._subclass_edge_filter()})"
-        query = f"{alias}: ~{self._v('object')}{subclass_filter_clause} {{ "
+        query = f"{alias}: ~{self._v('object')}{subclass_filter_clause} @cascade({self._v('predicate')}, {self._v('subject')}) {{ "
         query += self._add_standard_edge_fields()
+
         # A' -> predicate1 -> B'
-        query += f"node_intermediate_A: {self._v('subject')} @filter(has({self._v('id')})) @cascade({self._v('id')}) {{ "
+        mid_edge_alias = f"out_edges-subclassD-mid_{norm_eid}"
+        query += f"node_intermediate_A: {self._v('subject')} @filter(has({self._v('id')})) @cascade({self._v('id')}, ~{self._v('subject')}) {{ "
         query += self._add_standard_node_fields()
         pred_edge_filter = self._build_edge_filter(ctx.edge)
         pred_filter_clause = f" @filter({pred_edge_filter})" if pred_edge_filter else ""
-        query += f"out_edges-subclassD-mid_{norm_eid}: ~{self._v('subject')}{pred_filter_clause} {{ "
+        query += f"{mid_edge_alias}: ~{self._v('subject')}{pred_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
         query += self._add_standard_edge_fields()
+
         # B' -> subclass_of -> B
-        query += f"node_intermediate_B: {self._v('object')} @filter(has({self._v('id')})) @cascade({self._v('id')}) {{ "
+        tail_edge_alias = f"out_edges-subclassD-tail_{norm_eid}"
+        query += f"node_intermediate_B: {self._v('object')} @filter(has({self._v('id')})) @cascade({self._v('id')}, ~{self._v('subject')}) {{ "
         query += self._add_standard_node_fields()
         normalized_target_id = self._get_normalized_node_id(ctx.target_id)
-        query += f"out_edges-subclassD-tail_{norm_eid}: ~{self._v('subject')}{subclass_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
+        query += f"{tail_edge_alias}: ~{self._v('subject')}{subclass_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
         query += self._add_standard_edge_fields()
         query += f"node_{normalized_target_id}: {self._v('object')} "
         target_filter = self._build_node_filter(ctx.target_node)
