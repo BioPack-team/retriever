@@ -1,14 +1,17 @@
 import hashlib
 import itertools
+from collections import defaultdict
 from collections.abc import Sequence
-from typing import cast
+from typing import Any, cast
 
+import pcre2
 from opentelemetry import trace
 from reasoner_pydantic import QueryGraph
 from reasoner_pydantic.utils import make_hashable
 
 from retriever.types.trapi import (
     CURIE,
+    AttributeConstraintDict,
     AttributeDict,
     AuxGraphID,
     AuxiliaryGraphDict,
@@ -20,6 +23,7 @@ from retriever.types.trapi import (
     MetaAttributeDict,
     NodeBindingDict,
     NodeDict,
+    OperatorEnum,
     QualifierConstraintDict,
     QualifierTypeID,
     QueryGraphDict,
@@ -381,3 +385,79 @@ def meta_qualifier_meets_constraints(
         if qualifiers_met:
             return True
     return False
+
+
+def attribute_meets_constraint(
+    constraint: AttributeConstraintDict, attribute: AttributeDict
+) -> bool:
+    """Check whether a single attribute meets a single constraint."""
+    constraint_value = constraint["value"]
+    operator = constraint["operator"]
+    negated = constraint.get("not", False)
+
+    if operator == OperatorEnum.STRICT_EQUAL:
+        if not negated:
+            # Leveraging python's deep equality to handle this
+            return constraint_value == attribute["value"]
+        else:
+            return constraint_value != attribute["value"]
+
+    # Per attribute constraints, all other operators operate
+    # On either the value itself, or list members if the value is a list
+    # This way, we can do both at once
+    attr_values: list[Any] = (  # pyright:ignore[reportUnknownVariableType]
+        attribute["value"]
+        if isinstance(attribute["value"], list)
+        else [attribute["value"]]
+    )
+
+    success = False
+    for value in attr_values:
+        if (
+            (operator == OperatorEnum.EQUAL and (value == constraint_value))
+            or (operator == OperatorEnum.GT and (value > constraint_value))
+            or (operator == OperatorEnum.LT and (value < constraint_value))
+            or (
+                operator == OperatorEnum.MATCH
+                and (
+                    pcre2.compile(  # pyright:ignore[reportUnknownMemberType] Not hinted :(
+                        constraint_value, flags=pcre2.MULTILINE
+                    ).search(value)
+                )
+            )
+        ):
+            success = True
+            break
+
+    if negated:
+        success = not success
+
+    return success
+
+
+def attributes_meet_contraints(
+    constraints: list[AttributeConstraintDict], attributes: list[AttributeDict]
+) -> bool:
+    """Check whether a given node satisfies the attribute constraints of the given query node."""
+    if len(constraints) == 0:
+        return True  # No constraints, can't fail to satisfy them
+    if len(attributes) == 0:
+        return False  # Can't possibly satisfy constraints without attributes
+
+    # Make a dict of attributes for quicker lookup
+    attributes_by_type = defaultdict[str, list[AttributeDict]](list)
+    for attribute in attributes:
+        attributes_by_type[attribute["attribute_type_id"]].append(attribute)
+
+    for constraint in constraints:
+        applicable_attributes = attributes_by_type.get(constraint["id"], [])
+        if len(applicable_attributes) == 0:
+            return False
+
+        if not all(
+            attribute_meets_constraint(constraint, attribute)
+            for attribute in applicable_attributes
+        ):
+            return False
+
+    return True
