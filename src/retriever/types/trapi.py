@@ -26,6 +26,16 @@ class SetInterpretationEnum(str, Enum):
     MANY = "MANY"
 
 
+class OperatorEnum(str, Enum):
+    """Enumeration of possible operators for attribute constraints."""
+
+    EQUAL = "=="
+    STRICT_EQUAL = "==="
+    GT = ">"
+    LT = "<"
+    MATCH = "matches"
+
+
 class ParametersDict(TypedDict):
     """Query Parameters."""
 
@@ -324,7 +334,7 @@ AttributeConstraintDict = TypedDict(
         "id": str,
         "name": str,
         "not": NotRequired[bool],
-        "operator": str,
+        "operator": OperatorEnum,
         "value": Any,
         "unit_id": NotRequired[str | None],
         "unit_name": NotRequired[str | None],

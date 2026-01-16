@@ -69,7 +69,7 @@ from retriever.utils import biolink
 # {
 #   "id": "biolink:publications",
 #   "name": "Must have 3+ publications",
-#   "operator": ">",
+#   "operator": OperatorEnum.GT,
 #   "value": [2,3],
 # }
 
