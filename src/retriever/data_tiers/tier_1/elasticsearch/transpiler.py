@@ -35,11 +35,18 @@ from retriever.types.trapi import (
     RetrievalSourceDict,
 )
 from retriever.utils import biolink
-from retriever.utils.trapi import append_aggregator_source, hash_edge, hash_hex
+from retriever.utils.trapi import (
+    append_aggregator_source,
+    attributes_meet_contraints,
+    hash_edge,
+    hash_hex,
+)
 
 # TODO: Eventually we can roll this into the Tier2 x-bte transpiler
 # And use x-bte annotations either on the SmartAPI for each Tier1 resource
 # Or just a built-in annotation
+
+SpecialCaseDict = dict[str, tuple[str, Any]]
 
 
 NODE_FIELDS_MAPPING = {
@@ -178,7 +185,32 @@ class ElasticsearchTranspiler(Tier1Transpiler):
     def convert_batch_triple(self, qgraphs: list[QueryGraphDict]) -> list[ESPayload]:
         return [self.convert_triple(qgraph) for qgraph in qgraphs]
 
-    def build_nodes(self, edges: list[ESEdge]) -> dict[CURIE, NodeDict]:
+    def build_attributes(
+        self, knowledge: ESEdge | ESNode, special_cases: SpecialCaseDict
+    ) -> list[AttributeDict]:
+        """Build attributes from the given knowledge."""
+        attributes: list[AttributeDict] = []
+
+        for field, value in knowledge.attributes.items():
+            if field in special_cases:
+                continue
+            if value is not None and value not in ([], ""):
+                attributes.append(
+                    AttributeDict(
+                        attribute_type_id=biolink.ensure_prefix(field),
+                        value=value,
+                    )
+                )
+
+        for name, value in special_cases.values():
+            if value is not None and value not in ([], ""):
+                attributes.append(AttributeDict(attribute_type_id=name, value=value))
+
+        return attributes
+
+    def build_nodes(
+        self, edges: list[ESEdge], query_subject: QNodeDict, query_object: QNodeDict
+    ) -> dict[CURIE, NodeDict]:
         """Build TRAPI nodes from backend representation."""
         nodes = dict[CURIE, NodeDict]()
         for edge in edges:
@@ -192,7 +224,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                 attributes: list[AttributeDict] = []
 
                 # Cases that require additional formatting to be TRAPI-compliant
-                special_cases: dict[str, tuple[str, Any]] = {
+                special_cases: SpecialCaseDict = {
                     "equivalent_identifiers": (
                         "biolink:xref",
                         [
@@ -202,22 +234,13 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                     )
                 }
 
-                for field, value in node.attributes.items():
-                    if field in special_cases:
-                        continue
-                    if value is not None and value not in ([], ""):
-                        attributes.append(
-                            AttributeDict(
-                                attribute_type_id=biolink.ensure_prefix(field),
-                                value=value,
-                            )
-                        )
+                attributes = self.build_attributes(node, special_cases)
 
-                for name, value in special_cases.values():
-                    if value is not None and value not in ([], ""):
-                        attributes.append(
-                            AttributeDict(attribute_type_id=name, value=value)
-                        )
+                constraints = (
+                    query_subject if node_pos == "subject" else query_object
+                ).get("constraints", []) or []
+                if not attributes_meet_contraints(constraints, attributes):
+                    continue
 
                 trapi_node = NodeDict(
                     name=node.name,
@@ -229,9 +252,12 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                 )
 
                 nodes[node_id] = trapi_node
+
         return nodes
 
-    def build_edges(self, edges: list[ESEdge]) -> dict[EdgeIdentifier, EdgeDict]:
+    def build_edges(
+        self, edges: list[ESEdge], qedge: QEdgeDict
+    ) -> dict[EdgeIdentifier, EdgeDict]:
         """Build TRAPI edges from backend representation."""
         trapi_edges = dict[EdgeIdentifier, EdgeDict]()
         for edge in edges:
@@ -240,7 +266,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
             sources: list[RetrievalSourceDict] = []
 
             # Cases that require additional formatting to be TRAPI-compliant
-            special_cases: dict[str, tuple[str, Any]] = {
+            special_cases: SpecialCaseDict = {
                 "category": (
                     "biolink:category",
                     [
@@ -250,17 +276,11 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                 ),
             }
 
-            # Build Attributes and Qualifiers
-            for field, value in edge.attributes.items():
-                if field in special_cases:
-                    continue
-                elif value is not None and value not in ([], ""):
-                    attributes.append(
-                        AttributeDict(
-                            attribute_type_id=biolink.ensure_prefix(field),
-                            value=value,
-                        )
-                    )
+            attributes = self.build_attributes(edge, special_cases)
+
+            constraints = qedge.get("attribute_constraints", []) or []
+            if not attributes_meet_contraints(constraints, attributes):
+                continue
 
             # Build Qualifiers
             for qtype, qval in edge.qualifiers.items():
@@ -270,13 +290,6 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                         qualifier_value=qval,
                     )
                 )
-
-            # Special case attributes
-            for name, value in special_cases.values():
-                if value is not None and value not in ([], ""):
-                    attributes.append(
-                        AttributeDict(attribute_type_id=name, value=value)
-                    )
 
             # Build Sources
             for source in edge.sources:
@@ -315,8 +328,11 @@ class ElasticsearchTranspiler(Tier1Transpiler):
     def convert_results(
         self, qgraph: QueryGraphDict, results: list[ESEdge] | None
     ) -> BackendResult:
-        nodes = self.build_nodes(results) if results is not None else {}
-        edges = self.build_edges(results) if results is not None else {}
+        edge = next(iter(qgraph["edges"].values()))
+        sbj = qgraph["nodes"][edge["subject"]]
+        obj = qgraph["nodes"][edge["object"]]
+        nodes = self.build_nodes(results, sbj, obj) if results is not None else {}
+        edges = self.build_edges(results, edge) if results is not None else {}
 
         return BackendResult(
             results=[],
