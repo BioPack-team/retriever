@@ -1,12 +1,16 @@
+import base64
+import zlib
 from collections import defaultdict
 from copy import deepcopy
 from typing import Any
 
+import msgpack
 import ormsgpack
 from elasticsearch import AsyncElasticsearch
 from loguru import logger as log
 
 from retriever.config.general import CONFIG
+from retriever.data_tiers.tier_1.elasticsearch.types import UbergraphNodeInfo
 from retriever.data_tiers.utils import (
     generate_operation,
     get_simple_op_hash,
@@ -235,3 +239,20 @@ async def generate_operations(
 
     log.success(f"Parsed {infores} as a Tier 1 resource.")
     return operations, nodes
+
+
+async def get_ubergraph_info(es_connection: AsyncElasticsearch) -> UbergraphNodeInfo:
+    """Assemble ubergraph related info from ES."""
+    index_name = "ubergraph_nodes_mapping"
+
+    resp = await es_connection.search(
+        index=index_name,
+        size=10000,
+        query={"match_all": {}},
+        sort=[{"chunk_index": {"order": "asc"}}],
+    )
+
+    b64 = "".join(hit["_source"]["value"] for hit in resp["hits"]["hits"])
+
+    obj = msgpack.unpackb(zlib.decompress(base64.b64decode(b64)), raw=False)
+    return obj

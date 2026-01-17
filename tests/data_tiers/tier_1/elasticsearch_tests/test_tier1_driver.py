@@ -1,5 +1,6 @@
 import importlib
 import json
+from itertools import islice
 from typing import Iterator, cast, Any
 
 import pytest
@@ -215,3 +216,29 @@ async def test_end_to_end():
     hits: list[ESEdge] = await driver.run_query(payload)
 
     assert len(hits) == 8
+
+
+
+
+@pytest.mark.usefixtures("mock_elasticsearch_config")
+@pytest.mark.asyncio
+async def test_ubergraph_info_retrieval():
+    driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
+
+    try:
+        await driver.connect()
+        assert driver.es_connection is not None
+    except Exception:
+        pytest.skip("skipping es driver connection test: cannot connect")
+
+    info = await driver.get_ubergraph_nodes_mapping()
+
+    # print("total nodes", len(info["nodes"]))
+    # print("adj list sample:")
+    # for k, v in islice(info['mapping'].items(), 5):
+    #     print(k, v)
+
+    assert "nodes" in info
+    assert "mapping" in info
+    assert len(info["nodes"]) == 581234
+    assert len(info["mapping"]) == 581143
