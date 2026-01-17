@@ -290,17 +290,10 @@ class ElasticSearchDriver(DatabaseDriver):
         self,
     ) -> UbergraphNodeInfo:
         """Get UBERGRAPH nodes mapping/adjacency list."""
-        if self.es_connection is None:
-            raise RuntimeError(
-                "Must use ElasticSearchDriver.connect() before running queries."
-            )
-
-        result = await get_ubergraph_info(self.es_connection)
-
         # result shape:
         # {
         #   "nodes": dict[str, dict[str, Any],
         #    "mapping": dict[str, dict[str, list[str]],
         # }
 
-        return result
+        return await get_ubergraph_info(self.es_connection)

@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import zlib
 from collections import defaultdict
 from copy import deepcopy
@@ -20,7 +21,6 @@ from retriever.types.dingo import DINGOMetadata
 from retriever.types.metakg import Operation, OperationNode, UnhashedOperation
 from retriever.types.trapi import BiolinkEntity, Infores, MetaAttributeDict
 from retriever.utils.redis import REDIS_CLIENT
-from retriever.utils.trapi import hash_hex
 
 T1MetaData = dict[str, Any]
 
@@ -47,10 +47,15 @@ async def get_t1_indices(
     return backing_indices
 
 
+def get_stable_hash(key: str) -> str:
+    """Get a stable SHA-256 hash from a key."""
+    return hashlib.sha256(key.encode()).hexdigest()
+
+
 async def save_metadata_cache(key: str, payload: T1MetaData) -> None:
     """Wrapper for persist metadata in Redis."""
     await REDIS_CLIENT.set(
-        hash_hex(hash(key)),
+        get_stable_hash(key),
         ormsgpack.packb(payload),
         compress=True,
         ttl=CONFIG.job.metakg.build_time,
@@ -59,7 +64,8 @@ async def save_metadata_cache(key: str, payload: T1MetaData) -> None:
 
 async def read_metadata_cache(key: str) -> T1MetaData | None:
     """Wrapper for retrieving persisted metadata in Redis."""
-    metadata_pack = await REDIS_CLIENT.get(hash_hex(hash(key)), compressed=True)
+    redis_key = get_stable_hash(key)
+    metadata_pack = await REDIS_CLIENT.get(redis_key, compressed=True)
     if metadata_pack is not None:
         return ormsgpack.unpackb(metadata_pack)
 
@@ -241,10 +247,11 @@ async def generate_operations(
     return operations, nodes
 
 
-async def get_ubergraph_info(es_connection: AsyncElasticsearch) -> UbergraphNodeInfo:
-    """Assemble ubergraph related info from ES."""
+async def retrieve_ubergraph_info_from_es(
+    es_connection: AsyncElasticsearch,
+) -> UbergraphNodeInfo:
+    """Retrieve Ubergraph info from Elasticsearch."""
     index_name = "ubergraph_nodes_mapping"
-
     resp = await es_connection.search(
         index=index_name,
         size=10000,
@@ -256,3 +263,55 @@ async def get_ubergraph_info(es_connection: AsyncElasticsearch) -> UbergraphNode
 
     obj = msgpack.unpackb(zlib.decompress(base64.b64decode(b64)), raw=False)
     return obj
+
+
+def to_ubergraph_info(data: T1MetaData) -> UbergraphNodeInfo:
+    """Casting method to satisfy our linter overlord."""
+    return UbergraphNodeInfo(
+        nodes=data.get("nodes", {}), mapping=data.get("mapping", {})
+    )
+
+
+def from_ubergraph_info(info: UbergraphNodeInfo) -> T1MetaData:
+    """Reverse of `to_ubergraph_info`."""
+    return {
+        "nodes": info["nodes"],
+        "mapping": info["mapping"],
+    }
+
+
+async def get_ubergraph_info(
+    es_connection: AsyncElasticsearch | None, retries: int = 0
+) -> UbergraphNodeInfo:
+    """Assemble ubergraph related info from ES."""
+    ubergraph_info_cache_key = "TIER1_UBERGRAPH_INFO"
+
+    cached_info = await read_metadata_cache(ubergraph_info_cache_key)
+
+    if cached_info is not None:
+        return to_ubergraph_info(cached_info)
+
+    try:
+        if es_connection is None:
+            raise ValueError(
+                "Invalid Elasticsearch connection. Driver must be initialized and connected."
+            )
+        cached_info = await retrieve_ubergraph_info_from_es(es_connection)
+        await save_metadata_cache(
+            ubergraph_info_cache_key, from_ubergraph_info(cached_info)
+        )
+        log.success("ubergraph info saved!")
+    except ValueError as e:
+        # if exceeds retries or ES connection is invalid, return None
+        if retries == RETRY_LIMIT:
+            raise ValueError(
+                "Failed to retrieve UBERGRAPH info from Elasticsearch due to retries exceeded."
+            ) from e
+        if str(e).startswith("Invalid Elasticsearch connection"):
+            raise ValueError(
+                "Failed to retrieve UBERGRAPH info from Elasticsearch due to invalid ES connection."
+            ) from e
+        return await get_ubergraph_info(es_connection, retries + 1)
+
+    log.success("ubergraph info retrieved!")
+    return cached_info
