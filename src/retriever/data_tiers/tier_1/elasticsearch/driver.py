@@ -19,9 +19,14 @@ from retriever.data_tiers.tier_1.elasticsearch.meta import (
     generate_operations,
     get_t1_indices,
     get_t1_metadata,
+    get_ubergraph_info,
     merge_operations,
 )
-from retriever.data_tiers.tier_1.elasticsearch.types import ESEdge, ESPayload
+from retriever.data_tiers.tier_1.elasticsearch.types import (
+    ESEdge,
+    ESPayload,
+    UbergraphNodeInfo,
+)
 from retriever.data_tiers.utils import (
     parse_dingo_metadata_unhashed,
 )
@@ -280,3 +285,15 @@ class ElasticSearchDriver(DatabaseDriver):
         operations, nodes = await generate_operations(metadata_list)
 
         return operations, nodes
+
+    async def get_ubergraph_nodes_mapping(
+        self,
+    ) -> UbergraphNodeInfo:
+        """Get UBERGRAPH nodes mapping/adjacency list."""
+        # result shape:
+        # {
+        #   "nodes": dict[str, dict[str, Any],
+        #    "mapping": dict[str, dict[str, list[str]],
+        # }
+
+        return await get_ubergraph_info(self.es_connection)
