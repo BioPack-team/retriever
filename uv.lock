@@ -1410,6 +1410,21 @@ wheels = [
 ]
 
 [[package]]
+name = "pcre2"
+version = "0.6.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f2/6a/b961a431e667741e156900955ac7cb05ecafb5dfc97fb78fa87c7997cf4b/pcre2-0.6.0.tar.gz", hash = "sha256:4e21c1e8a50bab8224555fdccc2192021c2eb147b1a9024bbfffd41698b3b496", size = 4791892, upload-time = "2025-11-25T02:06:51.831Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7a/b3/749116a8f660d62eff64c4ba3e338e28a276161ca5cede81c53fc24802fd/pcre2-0.6.0-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:9d66d460fe4ace24d44504732423356277deeec62a953eddbc7a394ee7b23036", size = 7544287, upload-time = "2025-11-25T02:06:06.26Z" },
+    { url = "https://files.pythonhosted.org/packages/73/9f/e83f232c52d38ef79267885788cb52452bc72b28b4d2616b0557728059c1/pcre2-0.6.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:f488f130947029c5312ad66ed5a0d9b88d78aad8930b87cb4b1660bd31d83a1e", size = 7605070, upload-time = "2025-11-25T02:06:08.131Z" },
+    { url = "https://files.pythonhosted.org/packages/01/b1/0f8fc230dae35b1ad43cde8f09af5cb2fd1184bcc433cb6d6ecbb145822a/pcre2-0.6.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:e4f66bb9314d9408fd843974fc2d02ccc2542d16a19b926a574a0403711f8e40", size = 7579533, upload-time = "2025-11-25T02:06:09.594Z" },
+    { url = "https://files.pythonhosted.org/packages/5b/31/46736320d8f0c284ebbfb4f155c9b445fa161c8ea99675d378828fde81c2/pcre2-0.6.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7c7f17f738b7073478cdec12bee491ebd3387bd9fb3cefebb4675aed3bca431e", size = 7679907, upload-time = "2025-11-25T02:06:11.153Z" },
+    { url = "https://files.pythonhosted.org/packages/70/5c/11b856adab1f2166b4e4a8ad5d300b0005c1dbf76893d4832cf9eb1a6004/pcre2-0.6.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:feaafe932faccea416f678eb62952dad02cde9dfcf821a0aea080969b55e45d5", size = 7726038, upload-time = "2025-11-25T02:06:12.869Z" },
+    { url = "https://files.pythonhosted.org/packages/5c/90/1177692d1b79854b9fa257ad87b79b71de7054476b6c1f04d222a9d1caf5/pcre2-0.6.0-cp313-cp313-win_amd64.whl", hash = "sha256:85b202976a05f6b2185773812c70a0d10c1d9a8db7a26b5632d68e72202a0d1f", size = 7454842, upload-time = "2025-11-25T02:06:14.373Z" },
+    { url = "https://files.pythonhosted.org/packages/49/da/723133600ce8762a9c221c6cb4b8c489f65b3b09bed4c300b68b77042cb5/pcre2-0.6.0-cp313-cp313-win_arm64.whl", hash = "sha256:07f09396bd661e971b089cdb751214bedbf508539897f60f2a96501bf0c5fd47", size = 7377377, upload-time = "2025-11-25T02:06:15.763Z" },
+]
+
+[[package]]
 name = "platformdirs"
 version = "4.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2001,6 +2016,7 @@ dependencies = [
     { name = "opentelemetry-instrumentation-httpx" },
     { name = "orjson" },
     { name = "ormsgpack" },
+    { name = "pcre2" },
     { name = "pydantic", extra = ["email"] },
     { name = "pydantic-core" },
     { name = "pydantic-file-secrets" },
@@ -2055,6 +2071,7 @@ requires-dist = [
     { name = "opentelemetry-instrumentation-httpx", specifier = ">=0.51b0" },
     { name = "orjson", specifier = ">=3.11.2" },
     { name = "ormsgpack", specifier = ">=1.10.0" },
+    { name = "pcre2", specifier = ">=0.6.0" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.10.3,<3" },
     { name = "pydantic-core", specifier = ">=2.33.1" },
     { name = "pydantic-file-secrets", specifier = ">=0.4.4" },

@@ -2,13 +2,12 @@ from copy import deepcopy
 
 import pytest
 from reasoner_pydantic import QueryGraph
-from reasoner_pydantic.qgraph import QualifierConstraint
-from reasoner_pydantic.shared import Qualifier
 from utils.general import mock_inner_log  # pyright:ignore[reportImplicitRelativeImport]
 
 from retriever.types.trapi import (
     CURIE,
     AnalysisDict,
+    AttributeConstraintDict,
     AttributeDict,
     AuxGraphID,
     AuxiliaryGraphDict,
@@ -22,6 +21,7 @@ from retriever.types.trapi import (
     MetaAttributeDict,
     NodeBindingDict,
     NodeDict,
+    OperatorEnum,
     PathBindingDict,
     PathfinderAnalysisDict,
     QEdgeID,
@@ -36,6 +36,8 @@ from retriever.types.trapi import (
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.trapi import (
     append_aggregator_source,
+    attribute_meets_constraint,
+    attributes_meet_contraints,
     edge_primary_knowledge_source,
     hash_attribute,
     hash_edge,
@@ -265,6 +267,26 @@ def results() -> list[ResultDict]:
             ],
         ),
     ]
+
+
+@pytest.fixture
+def numeric_attribute() -> AttributeDict:
+    return AttributeDict(attribute_type_id="some_type", value=0)
+
+
+@pytest.fixture
+def numeric_array_attribute() -> AttributeDict:
+    return AttributeDict(attribute_type_id="some_type", value=[0, 1, 2])
+
+
+@pytest.fixture
+def string_attribute() -> AttributeDict:
+    return AttributeDict(attribute_type_id="some_type", value="abc")
+
+
+@pytest.fixture
+def string_array_attribute() -> AttributeDict:
+    return AttributeDict(attribute_type_id="some_type", value=["abc", "def", "ghi"])
 
 
 def test_initialize_kgraph() -> None:
@@ -596,3 +618,502 @@ def test_meta_qualifier_meets_constraints() -> None:
         },
         constraints,
     )
+
+
+class TestAttributeConstraints:
+    def test_shortcuts(self):
+        assert attributes_meet_contraints([], [])
+        assert not attributes_meet_contraints(
+            [
+                AttributeConstraintDict(
+                    id="some_type",
+                    value="some_value",
+                    name="some_type is some_value",
+                    operator=OperatorEnum.EQUAL,
+                )
+            ],
+            [],
+        )
+
+    def test_equals(
+        self, numeric_attribute: AttributeDict, numeric_array_attribute: AttributeDict
+    ):
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is equal to 0",
+                id="some_type",
+                value=0,
+                operator=OperatorEnum.EQUAL,
+            ),
+            numeric_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is equal to 1",
+                id="some_type",
+                value=1,
+                operator=OperatorEnum.EQUAL,
+            ),
+            numeric_attribute,
+        )
+
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is not equal to 1",
+                id="some_type",
+                value=1,
+                operator=OperatorEnum.EQUAL,
+                **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            numeric_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is not equal to 0",
+                id="some_type",
+                value=0,
+                operator=OperatorEnum.EQUAL,
+                **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            numeric_attribute,
+        )
+
+        # Test attribute with an array value
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type has 0",
+                id="some_type",
+                value=0,
+                operator=OperatorEnum.EQUAL,
+            ),
+            numeric_array_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type has 3",
+                id="some_type",
+                value=3,
+                operator=OperatorEnum.EQUAL,
+            ),
+            numeric_array_attribute,
+        )
+
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type doesn't have 3",
+                id="some_type",
+                value=3,
+                operator=OperatorEnum.EQUAL,
+                **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            numeric_array_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type doesn't have 0",
+                id="some_type",
+                value=0,
+                operator=OperatorEnum.EQUAL,
+                **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            numeric_array_attribute,
+        )
+
+    def test_strict_equals(
+        self, numeric_attribute: AttributeDict, numeric_array_attribute: AttributeDict
+    ):
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is exactly 0",
+                id="some_type",
+                value=0,
+                operator=OperatorEnum.STRICT_EQUAL,
+            ),
+            numeric_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is exactly 1",
+                id="some_type",
+                value=1,
+                operator=OperatorEnum.STRICT_EQUAL,
+            ),
+            numeric_attribute,
+        )
+
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is not exactly 1",
+                id="some_type",
+                value=1,
+                operator=OperatorEnum.STRICT_EQUAL,
+                **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            numeric_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is not exactly 0",
+                id="some_type",
+                value=0,
+                operator=OperatorEnum.STRICT_EQUAL,
+                **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            numeric_attribute,
+        )
+
+        # Test attribute with an array value
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is exactly the given list",
+                id="some_type",
+                value=[0, 1, 2],
+                operator=OperatorEnum.STRICT_EQUAL,
+            ),
+            numeric_array_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is exactly the given list",
+                id="some_type",
+                value=[0, 1, 3],
+                operator=OperatorEnum.STRICT_EQUAL,
+            ),
+            numeric_array_attribute,
+        )
+
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is not exactly the given list",
+                id="some_type",
+                value=[0, 1, 3],
+                operator=OperatorEnum.STRICT_EQUAL,
+                **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            numeric_array_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is not exactly the given list",
+                id="some_type",
+                value=[0, 1, 2],
+                operator=OperatorEnum.STRICT_EQUAL,
+                **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            numeric_array_attribute,
+        )
+
+    def test_greater_than(
+        self, numeric_attribute: AttributeDict, numeric_array_attribute: AttributeDict
+    ):
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is greater than -1",
+                id="some_type",
+                value=-1,
+                operator=OperatorEnum.GT,
+            ),
+            numeric_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is greater than 1",
+                id="some_type",
+                value=1,
+                operator=OperatorEnum.GT,
+            ),
+            numeric_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is greater than 0",
+                id="some_type",
+                value=0,
+                operator=OperatorEnum.GT,
+            ),
+            numeric_attribute,
+        )
+
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is less than or equal to 1",
+                id="some_type",
+                value=1,
+                operator=OperatorEnum.GT,
+                **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            numeric_attribute,
+        )
+
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is less than or equal to 0",
+                id="some_type",
+                value=0,
+                operator=OperatorEnum.GT,
+                **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            numeric_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is less than or equal to -1",
+                id="some_type",
+                value=-1,
+                operator=OperatorEnum.GT,
+                **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            numeric_attribute,
+        )
+
+        # Test attribute with an array value
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type has a value greater than 0",
+                id="some_type",
+                value=0,
+                operator=OperatorEnum.GT,
+            ),
+            numeric_array_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type has a value greater than 3",
+                id="some_type",
+                value=3,
+                operator=OperatorEnum.GT,
+            ),
+            numeric_array_attribute,
+        )
+
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type has no value greater than 3",
+                id="some_type",
+                value=3,
+                operator=OperatorEnum.GT,
+                **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            numeric_array_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type has no value greater than 0",
+                id="some_type",
+                value=0,
+                operator=OperatorEnum.GT,
+                **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            numeric_array_attribute,
+        )
+
+    def test_less_than(
+        self, numeric_attribute: AttributeDict, numeric_array_attribute: AttributeDict
+    ):
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is less than 1",
+                id="some_type",
+                value=1,
+                operator=OperatorEnum.LT,
+            ),
+            numeric_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is less than -1",
+                id="some_type",
+                value=-1,
+                operator=OperatorEnum.LT,
+            ),
+            numeric_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is less than 0",
+                id="some_type",
+                value=0,
+                operator=OperatorEnum.LT,
+            ),
+            numeric_attribute,
+        )
+
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is greater than or equal to -1",
+                id="some_type",
+                value=-1,
+                operator=OperatorEnum.LT,
+                **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            numeric_attribute,
+        )
+
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is greater than or equal to 0",
+                id="some_type",
+                value=0,
+                operator=OperatorEnum.LT,
+                **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            numeric_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type is greater than or equal to 1",
+                id="some_type",
+                value=1,
+                operator=OperatorEnum.LT,
+                **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            numeric_attribute,
+        )
+
+        # Test attribute with an array value
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type has a value less than 1",
+                id="some_type",
+                value=1,
+                operator=OperatorEnum.LT,
+            ),
+            numeric_array_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type has a value less than 0",
+                id="some_type",
+                value=0,
+                operator=OperatorEnum.LT,
+            ),
+            numeric_array_attribute,
+        )
+
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type has no value less than 0",
+                id="some_type",
+                value=0,
+                operator=OperatorEnum.LT,
+                **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            numeric_array_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type has no value less than 3",
+                id="some_type",
+                value=3,
+                operator=OperatorEnum.LT,
+                **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            numeric_array_attribute,
+        )
+
+    def test_matches(
+        self, string_attribute: AttributeDict, string_array_attribute: AttributeDict
+    ):
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type ends in 'bc'",
+                id="some_type",
+                value=r"bc$",
+                operator=OperatorEnum.MATCH,
+            ),
+            string_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type ends in 'ef'",
+                id="some_type",
+                value=r"ef$",
+                operator=OperatorEnum.MATCH,
+            ),
+            string_attribute,
+        )
+
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type doesn't end in 'ef'",
+                id="some_type",
+                value=r"ef$",
+                operator=OperatorEnum.MATCH,
+                **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            string_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type doesn't end in 'bc'",
+                id="some_type",
+                value=r"bc$",
+                operator=OperatorEnum.MATCH,
+                **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            string_attribute,
+        )
+
+        # Test attribute with an array value
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type has a value which ends in 'bc'",
+                id="some_type",
+                value=r"bc$",
+                operator=OperatorEnum.MATCH,
+            ),
+            string_array_attribute,
+        )
+
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type has a value which ends in 'yz'",
+                id="some_type",
+                value=r"yz$",
+                operator=OperatorEnum.MATCH,
+            ),
+            string_array_attribute,
+        )
+
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type has no value which ends in 'yz'",
+                id="some_type",
+                value=r"yz$",
+                operator=OperatorEnum.MATCH,
+                **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            string_array_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type has no value which ends in 'bc'",
+                id="some_type",
+                value=r"bc$",
+                operator=OperatorEnum.MATCH,
+                **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            string_array_attribute,
+        )

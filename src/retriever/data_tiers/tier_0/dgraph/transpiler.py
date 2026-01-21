@@ -36,7 +36,12 @@ from retriever.types.trapi import (
     RetrievalSourceDict,
 )
 from retriever.utils import biolink
-from retriever.utils.trapi import append_aggregator_source, hash_edge, hash_hex
+from retriever.utils.trapi import (
+    append_aggregator_source,
+    attributes_meet_contraints,
+    hash_edge,
+    hash_hex,
+)
 
 
 @dataclass(frozen=True)
@@ -1056,11 +1061,37 @@ class DgraphTranspiler(Tier0Transpiler):
 
         return trapi_edge
 
-    def _build_results(self, node: dg.Node) -> list[Partial]:
+    def _update_graphs(
+        self,
+        qedge_id: QEdgeID,
+        trapi_edge: EdgeDict,
+    ) -> None:
+        """Update the knowledge graph and adjacency graph with the given edge.
+
+        Args:
+            qedge_id: The original query edge ID that the edge fulfills.
+            trapi_edge: The TRAPI representation of the edge fulfilling the QEdge.
+        """
+        subject_id = trapi_edge["subject"]
+        object_id = trapi_edge["object"]
+        edge_hash = EdgeIdentifier(hash_hex(hash_edge(trapi_edge)))
+        # Update kgraph
+        if edge_hash not in self.kgraph["edges"]:
+            self.kgraph["edges"][edge_hash] = trapi_edge
+
+        # Update k_agraph
+        if subject_id not in self.k_agraph[qedge_id]:
+            self.k_agraph[qedge_id][subject_id] = dict[CURIE, list[EdgeIdentifier]]()
+        if object_id not in self.k_agraph[qedge_id][subject_id]:
+            self.k_agraph[qedge_id][subject_id][object_id] = list[EdgeIdentifier]()
+        self.k_agraph[qedge_id][subject_id][object_id].append(edge_hash)
+
+    def _build_results(self, node: dg.Node, qg: QueryGraphDict) -> list[Partial]:
         """Recursively build results from dgraph response.
 
         Args:
             node: Parsed node from Dgraph response (with bindings already restored to original IDs)
+            qg: The TRAPI query graph used in getting the response.
 
         Returns:
             List of partial results with original node/edge IDs
@@ -1068,7 +1099,14 @@ class DgraphTranspiler(Tier0Transpiler):
         original_node_id = QNodeID(node.binding)
 
         if node.id not in self.kgraph["nodes"]:
-            self.kgraph["nodes"][CURIE(node.id)] = self._build_trapi_node(node)
+            trapi_node = self._build_trapi_node(node)
+            constraints = qg["nodes"][original_node_id].get("constraints", []) or []
+            attributes = trapi_node.get("attributes", []) or []
+
+            if not attributes_meet_contraints(constraints, attributes):
+                return []
+
+            self.kgraph["nodes"][CURIE(node.id)] = trapi_node
 
         # If we hit a stop condition, return partial for the node
         if not len(node.edges):
@@ -1077,33 +1115,23 @@ class DgraphTranspiler(Tier0Transpiler):
         partials = {QEdgeID(edge.binding): list[Partial]() for edge in node.edges}
 
         for edge in node.edges:
-            subject_id = CURIE(edge.node.id if edge.direction == "in" else node.id)
-            object_id = CURIE(node.id if edge.direction == "in" else edge.node.id)
-
             qedge_id = QEdgeID(edge.binding)
-
             trapi_edge = self._build_trapi_edge(edge, node.id)
-            edge_hash = EdgeIdentifier(hash_hex(hash_edge(trapi_edge)))
 
-            # Update kgraph
-            if edge_hash not in self.kgraph["edges"]:
-                self.kgraph["edges"][edge_hash] = trapi_edge
+            constraints = qg["edges"][qedge_id].get("constraints", []) or []
+            attributes = trapi_edge.get("attributes", []) or []
 
-            # Update k_agraph
-            if subject_id not in self.k_agraph[qedge_id]:
-                self.k_agraph[qedge_id][subject_id] = dict[
-                    CURIE, list[EdgeIdentifier]
-                ]()
-            if object_id not in self.k_agraph[qedge_id][subject_id]:
-                self.k_agraph[qedge_id][subject_id][object_id] = list[EdgeIdentifier]()
-            self.k_agraph[qedge_id][subject_id][object_id].append(edge_hash)
+            if not attributes_meet_contraints(constraints, attributes):
+                continue
 
-            for partial in self._build_results(edge.node):
+            self._update_graphs(qedge_id, trapi_edge)
+
+            for partial in self._build_results(edge.node, qg):
                 partials[qedge_id].append(
                     partial.combine(
                         Partial(
                             [(original_node_id, CURIE(node.id))],
-                            [(qedge_id, subject_id, object_id)],
+                            [(qedge_id, trapi_edge["subject"], trapi_edge["object"])],
                         )
                     )
                 )
@@ -1150,7 +1178,7 @@ class DgraphTranspiler(Tier0Transpiler):
         reconciled = list[Partial]()
 
         for node in results:
-            reconciled.extend(self._build_results(node))
+            reconciled.extend(self._build_results(node, qgraph))
 
         trapi_results = [part.as_result(self.k_agraph) for part in reconciled]
 
