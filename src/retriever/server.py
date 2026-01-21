@@ -307,7 +307,7 @@ async def logs(  # noqa: PLR0913 Can't reduce args due to FastAPI endpoint forma
     start: Annotated[
         datetime | None,
         Query(
-            description="Start datetime to search logs. Defaults to yesterday at midnight if `all_dates` is not set.",
+            description="Start datetime to search logs. Defaults to last hour if `lookback` is not set.",
         ),
     ] = None,
     end: Annotated[
@@ -317,25 +317,36 @@ async def logs(  # noqa: PLR0913 Can't reduce args due to FastAPI endpoint forma
         ),
     ] = None,
     level: LogLevel = "DEBUG",
-    all_dates: Annotated[
-        bool, Query(description="Retrieve all logs without filtering by date.")
-    ] = False,
-    job_id: str | None = None,
-    fmt: Annotated[
-        Literal["flat", "trapi", "default"],
+    lookback: Annotated[
+        float | None,
         Query(
-            description="Respond with a specific format. flat: plaintext log lines; trapi: TRAPI-style logs; default: default structured format"
+            description="Number of hours back from present time to retrieve. Overrides `start`."
         ),
-    ] = "default",
+    ] = None,
+    job_id: Annotated[
+        str | None,
+        Query(
+            description="ID of a previously-run job to search for. Limits logs to those related to that job."
+        ),
+    ] = None,
+    fmt: Annotated[
+        Literal["flat", "trapi", "structured"],
+        Query(
+            description="Respond with a specific format. flat: plaintext log lines; trapi: TRAPI-style logs; structured: loguru-structured format"
+        ),
+    ] = "flat",
 ) -> StreamingResponse:
     """Retrieve MongoDB-saved server logs."""
     if not CONFIG.log.log_to_mongo:
         raise HTTPException(404, detail="Persisted logging not enabled.")
 
-    if (
-        not start and not job_id and not all_dates
-    ):  # Get all logs since midnight yesterday
-        start = datetime.combine(datetime.today(), time.min) - timedelta(days=1)
+    if lookback is not None:
+        start = datetime.combine(datetime.today(), time=time.min) - timedelta(
+            seconds=lookback * 60 * 60
+        )
+
+    elif not start and not job_id:  # Get all logs from last hour
+        start = datetime.combine(datetime.today(), time.min) - timedelta(hours=1)
 
     if fmt == "flat":
         logs = MONGO_CLIENT.get_flat_logs(start, end, level, job_id)
