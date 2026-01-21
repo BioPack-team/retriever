@@ -1333,7 +1333,7 @@ DGRAPH_RESULT_WITH_SOURCES = {
                             "source_record_urls": ["http://example.com/record1"],
                         }
                     ],
-                    "object": {
+                    "node_n0": {
                         "uid": "0x3",
                         "id": "GO:0031410",
                         "name": "cytoplasmic vesicle",
