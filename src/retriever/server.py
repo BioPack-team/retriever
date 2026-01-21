@@ -3,7 +3,7 @@ import io
 import os
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from datetime import datetime, time, timedelta
+from datetime import datetime, timedelta
 from typing import Annotated, Literal
 
 import yaml
@@ -341,12 +341,10 @@ async def logs(  # noqa: PLR0913 Can't reduce args due to FastAPI endpoint forma
         raise HTTPException(404, detail="Persisted logging not enabled.")
 
     if lookback is not None:
-        start = datetime.combine(datetime.today(), time=time.min) - timedelta(
-            seconds=lookback * 60 * 60
-        )
+        start = datetime.now() - timedelta(seconds=lookback * 60 * 60)
 
     elif not start and not job_id:  # Get all logs from last hour
-        start = datetime.combine(datetime.today(), time.min) - timedelta(hours=1)
+        start = datetime.now() - timedelta(hours=1)
 
     if fmt == "flat":
         logs = MONGO_CLIENT.get_flat_logs(start, end, level, job_id)
