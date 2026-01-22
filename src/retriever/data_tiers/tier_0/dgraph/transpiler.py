@@ -1175,12 +1175,18 @@ class DgraphTranspiler(Tier0Transpiler):
             for qedge_id in qgraph["edges"]
         }
 
-        reconciled = list[Partial]()
+        partial_count = 0
+        reconciled = dict[int, Partial]()
 
         for node in results:
-            reconciled.extend(self._build_results(node, qgraph))
+            partials = self._build_results(node, qgraph)
+            partial_count += len(partials)
+            reconciled.update({hash(part): part for part in partials})
 
-        trapi_results = [part.as_result(self.k_agraph) for part in reconciled]
+        logger.debug(
+            f"Reconciled {partial_count} partials into {len(reconciled)} results."
+        )
+        trapi_results = [part.as_result(self.k_agraph) for part in reconciled.values()]
 
         logger.info("Finished transforming records")
         return BackendResult(
