@@ -12,7 +12,6 @@ from retriever.types.trapi import (
     Infores,
     KnowledgeGraphDict,
     QueryGraphDict,
-    ResultDict,
 )
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.trapi import (
@@ -43,21 +42,12 @@ class Tier0Query(ABC):
             start_time = time.time()
             self.job_log.info("Starting lookup against Tier 0...")
 
-            try:
-                timeout = None if self.ctx.timeout[0] < 0 else self.ctx.timeout[0]
-                self.job_log.debug(
-                    f"Tier 0 timeout is {'disabled' if timeout is None else f'{timeout}s'}."
-                )
-                async with asyncio.timeout(timeout):
-                    backend_results = await self.get_results(self.qgraph)
-
-            except TimeoutError:
-                self.job_log.error("Tier 0 operation timed out.")
-                backend_results = BackendResult(
-                    results=list[ResultDict](),
-                    knowledge_graph=KnowledgeGraphDict(nodes={}, edges={}),
-                    auxiliary_graphs=dict[AuxGraphID, AuxiliaryGraphDict](),
-                )
+            timeout = None if self.ctx.timeout[0] < 0 else self.ctx.timeout[0]
+            self.job_log.debug(
+                f"Tier 0 timeout is {'disabled' if timeout is None else f'{timeout}s'}."
+            )
+            async with asyncio.timeout(timeout):
+                backend_results = await self.get_results(self.qgraph)
 
             with tracer.start_as_current_span("update_kg"):
                 normalize_kgraph(
@@ -90,10 +80,13 @@ class Tier0Query(ABC):
                 self.aux_graphs,
                 self.job_log.get_logs(),
             )
-        except Exception:
-            self.job_log.exception(
-                "Unhandled exception occurred while processing Tier 0. See logs for details."
-            )
+        except Exception as e:
+            if isinstance(e, TimeoutError):
+                self.job_log.error("Tier 0 operation timed out.")
+            elif not isinstance(e, asyncio.exceptions.CancelledError):
+                self.job_log.exception(
+                    "Unhandled exception occurred while processing Tier 0 query. See logs for details."
+                )
             return LookupArtifacts(
                 [], self.kgraph, self.aux_graphs, self.job_log.get_logs(), error=True
             )
