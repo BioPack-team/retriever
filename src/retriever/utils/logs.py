@@ -42,12 +42,14 @@ def trapi_level_to_int(level: TRAPILogLevel) -> int:
 def format_trapi_log(
     level: LogLevel,
     message: str,
-    timestamp: datetime | None = None,
+    timestamp: str | datetime | None = None,
     trace: str | None = None,
 ) -> LogEntryDict:
     """Format a loguru message into a TRAPI-spec LogEntry."""
     if timestamp is None:
         timestamp = datetime.now().astimezone()
+    if isinstance(timestamp, str):
+        timestamp = datetime.fromisoformat(timestamp)
     log_entry = LogEntryDict(
         level=log_level_to_trapi(level),
         message=message,
