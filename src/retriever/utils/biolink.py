@@ -86,7 +86,7 @@ def reverse_qualifier_constraints(
     """Reverse a given list of qualifier constraints."""
     new = list[QualifierConstraintDict]()
     for constraint in qualifier_constraints:
-        new_qualifier_set = set[QualifierDict]()
+        new_qualifier_set = list[QualifierDict]()
         for qualifier in constraint["qualifier_set"]:
             new_qualifier = QualifierDict(**qualifier)
             if "object" in qualifier["qualifier_type_id"]:
@@ -105,7 +105,7 @@ def reverse_qualifier_constraints(
                 # BUG: Technically invalid if we can't reverse the predicate
                 # but this is vanishingly rare and not worth addressing right now
                 new_qualifier["qualifier_value"] = inverse
-            new_qualifier_set.add(new_qualifier)
+            new_qualifier_set.append(new_qualifier)
         new.append(constraint)
     return new
 
