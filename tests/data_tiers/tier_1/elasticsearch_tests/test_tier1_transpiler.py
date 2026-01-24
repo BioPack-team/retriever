@@ -1,3 +1,5 @@
+from typing import Literal, cast
+
 import pytest
 from payload.cases import (  # pyright:ignore[reportImplicitRelativeImport]
     Q_GRAPH_CASES,
@@ -7,7 +9,7 @@ from payload.es_hits import (  # pyright:ignore[reportImplicitRelativeImport]
     SIMPLE_ES_HITS,
 )
 from payload.trapi_qgraphs import (  # pyright:ignore[reportImplicitRelativeImport]
-    BASE_QGRAPH,
+    BASE_QGRAPH, ID_BYPASS_PAYLOAD,
 )
 
 from retriever.data_tiers.tier_1.elasticsearch.constraints.types.qualifier_types import (
@@ -20,7 +22,7 @@ from retriever.data_tiers.tier_1.elasticsearch.transpiler import (
     ElasticsearchTranspiler,
 )
 from retriever.data_tiers.tier_1.elasticsearch.types import ESPayload
-from retriever.types.trapi import QualifierConstraintDict, QualifierDict, QueryGraphDict
+from retriever.types.trapi import QualifierConstraintDict, QualifierDict, QueryGraphDict, QNodeDict
 from retriever.utils import biolink
 
 # sample generated query
@@ -74,8 +76,6 @@ def check_single_query_payload(q_graph: QueryGraphDict, generated_payload: ESPay
     assert isinstance(filter_content, list)
 
     q_edge = next(iter(q_graph["edges"].values()), None)
-    out_node = q_graph["nodes"][q_edge["subject"]]
-    in_node = q_graph["nodes"][q_edge["object"]]
 
     # qualifier checker
     # 0. check should, if > 1 constraints; make sure minimum_should_match
@@ -157,15 +157,21 @@ def check_single_query_payload(q_graph: QueryGraphDict, generated_payload: ESPay
                 remove_biolink_prefixes(q_edge[field])
             )
 
+    side_type = Literal["object", "subject"]
+
+    def add_to_required_fields(_field: str, _side: side_type):
+        cur_node = q_graph["nodes"][q_edge[_side]]
+        if _field in cur_node:
+            if _field != 'categories' or "ids" not in cur_node:
+                required_fields_to_check[f"{_side}.{NODE_FIELDS_MAPPING[_field]}"] = (
+                    remove_biolink_prefixes(cur_node[_field])
+                )
+
+    sides: list[side_type] = ["subject", "object"]
     for field in NODE_FIELDS_MAPPING.keys():
-        if field in out_node:
-            required_fields_to_check[f"subject.{NODE_FIELDS_MAPPING[field]}"] = (
-                remove_biolink_prefixes(out_node[field])
-            )
-        if field in in_node:
-            required_fields_to_check[f"object.{NODE_FIELDS_MAPPING[field]}"] = (
-                remove_biolink_prefixes(in_node[field])
-            )
+        for side in sides:
+            add_to_required_fields(field, side)
+
 
     for single_filter in filter_content:
         if "terms" not in single_filter:
@@ -180,6 +186,24 @@ def check_single_query_payload(q_graph: QueryGraphDict, generated_payload: ESPay
 
     assert not required_fields_to_check
 
+def test_bypass_payload(
+        es_transpiler: ElasticsearchTranspiler
+) -> None:
+    generated_payload = es_transpiler.convert_triple(ID_BYPASS_PAYLOAD)
+    check_single_query_payload(ID_BYPASS_PAYLOAD, generated_payload)
+    must_clauses = generated_payload["query"]["bool"]["filter"]
+
+    # make sure id is present
+    assert any(
+        clause.get("terms", {}).get("subject.id") is not None
+        for clause in must_clauses
+    )
+
+    # make sure category is NOT present
+    assert not any(
+        "subject.category" in clause.get("terms", {})
+        for clause in must_clauses
+    )
 
 @pytest.mark.parametrize(*Q_GRAPH_CASES, ids=Q_GRAPH_CASES_IDS)
 def test_convert_triple(

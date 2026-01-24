@@ -88,9 +88,15 @@ class ElasticsearchTranspiler(Tier1Transpiler):
 
         Example return value: { "terms": { "subject.id": ["NCBIGene:22828"] }},
         """
+        query_fields = NODE_FIELDS_MAPPING.copy()
+
+        # bypass categories if id is provided
+        if "ids" in qnode and qnode["ids"] is not None:
+            query_fields.pop("categories")
+
         return [
             self.generate_query_term(f"{side}.{es_field}", values)
-            for qfield, es_field in NODE_FIELDS_MAPPING.items()
+            for qfield, es_field in query_fields.items()
             if (values := qnode.get(qfield))
         ]
 

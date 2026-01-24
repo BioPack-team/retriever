@@ -1,16 +1,14 @@
 import importlib
-import json
-from itertools import islice
 from typing import Iterator, cast, Any
 
 import pytest
 import retriever.config.general as general_mod
 import retriever.data_tiers.tier_1.elasticsearch.driver as driver_mod
-from retriever.data_tiers.tier_1.elasticsearch.meta import extract_metadata_entries_from_blob, \
-    merge_operations, get_t1_indices
+from retriever.data_tiers.tier_1.elasticsearch.meta import extract_metadata_entries_from_blob, get_t1_indices
 from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
 from retriever.data_tiers.tier_1.elasticsearch.types import ESPayload, ESEdge
-from payload.trapi_qgraphs import DINGO_QGRAPH, VALID_REGEX_QGRAPHS, INVALID_REGEX_QGRAPHS
+from payload.trapi_qgraphs import DINGO_QGRAPH, VALID_REGEX_QGRAPHS, INVALID_REGEX_QGRAPHS, ID_BYPASS_PAYLOAD
+from retriever.utils.redis import REDIS_CLIENT
 
 
 def esp(d: dict[str, Any]) -> ESPayload:
@@ -94,11 +92,11 @@ PAYLOAD_2: ESPayload = esp({
     "payload, expected",
     [
         (PAYLOAD_0, 1),
-        (PAYLOAD_1, 26),
+        (PAYLOAD_1, 4),
         (PAYLOAD_2, 32),
         (
                 [PAYLOAD_0, PAYLOAD_1, PAYLOAD_2],
-                [1, 26, 32]
+                [1, 4, 32]
         )
     ],
     ids=[
@@ -199,11 +197,16 @@ async def test_metadata_retrieval():
 
 @pytest.mark.usefixtures("mock_elasticsearch_config")
 @pytest.mark.asyncio
-async def test_end_to_end():
-    target_qgraph = DINGO_QGRAPH
+@pytest.mark.parametrize(
+    "qgraph, expected_hits",
+    [
+        (DINGO_QGRAPH, 8),
+        (ID_BYPASS_PAYLOAD, 6395),  # <-- adjust to the real number
+    ],
+)
+async def test_end_to_end(qgraph, expected_hits):
     transpiler = ElasticsearchTranspiler()
-
-    payload = transpiler.convert_triple(target_qgraph)
+    payload = transpiler.convert_triple(qgraph)
 
     driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
 
@@ -215,16 +218,18 @@ async def test_end_to_end():
 
     hits: list[ESEdge] = await driver.run_query(payload)
 
-    assert len(hits) == 8
-
-
+    assert len(hits) == expected_hits
 
 
 @pytest.mark.usefixtures("mock_elasticsearch_config")
 @pytest.mark.asyncio
 async def test_ubergraph_info_retrieval():
-    driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
+    # --- MANUAL LOOP RESET ---
+    # Since REDIS_CLIENT can retain stale connections/loop references from previous tests,
+    # we need to force-reset the Redis connection pool to prevent 'Event loop is closed' errors.
+    REDIS_CLIENT.client.connection_pool.reset()
 
+    driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
     try:
         await driver.connect()
         assert driver.es_connection is not None

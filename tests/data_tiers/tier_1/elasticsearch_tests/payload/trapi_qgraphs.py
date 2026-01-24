@@ -125,6 +125,34 @@ ALT_BASE_GRAPH = qg({
         })
 
 
+ID_BYPASS_PAYLOAD = qg({
+    "nodes": {
+        "sn": {
+            "categories": ["biolink:Gene"],
+            "constraints": [],
+            "ids": [
+                "CHEBI:45783"
+            ],
+            "is_set": False
+        },
+        "n1": {
+            "categories": [
+                "biolink:NamedThing"
+            ]
+        }
+    },
+    "edges": {
+        "e0": {
+            "subject": "sn",
+            "object": "n1",
+            "predicates": [
+                "biolink:related_to"
+            ]
+        }
+    }
+})
+
+
 def generate_qgraph_with_attribute_constraints(constraints: list[AttributeConstraintDict]):
     """Generate a QGraph with attribute constraints."""
     _q_graph = copy.deepcopy(ALT_BASE_GRAPH)
