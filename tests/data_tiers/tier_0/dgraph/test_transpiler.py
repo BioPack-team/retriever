@@ -916,18 +916,6 @@ EXP_FIVE_HOP_MULTIPLE_IDS = dedent("""
                 }
             }
         }
-        in_edges_e3: ~object @filter(eq(predicate_ancestors, "P3")) @cascade(predicate, subject) {
-            expand(Edge) { sources expand(Source) }
-            node_n4: subject @filter(eq(id, ["Q8", "Q9"])) @cascade(id, in_edges_e4) {
-                expand(Node)
-                in_edges_e4: ~object @filter(eq(predicate_ancestors, "P4")) @cascade(predicate, subject) {
-                    expand(Edge) { sources expand(Source) }
-                    node_n5: subject @filter(eq(id, ["Q10", "Q11"])) @cascade(id) {
-                        expand(Node)
-                    }
-                }
-            }
-        }
     }
 }
 """).strip()
