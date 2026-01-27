@@ -1,10 +1,10 @@
 import hashlib
 import itertools
+import re
 from collections import defaultdict
 from collections.abc import Sequence
 from typing import Any, cast
 
-import pcre2
 from opentelemetry import trace
 from reasoner_pydantic import QueryGraph
 from reasoner_pydantic.utils import make_hashable
@@ -417,14 +417,7 @@ def attribute_meets_constraint(
             (operator == OperatorEnum.EQUAL and (value == constraint_value))
             or (operator == OperatorEnum.GT and (value > constraint_value))
             or (operator == OperatorEnum.LT and (value < constraint_value))
-            or (
-                operator == OperatorEnum.MATCH
-                and (
-                    pcre2.compile(  # pyright:ignore[reportUnknownMemberType] Not hinted :(
-                        constraint_value, flags=pcre2.MULTILINE
-                    ).search(value)
-                )
-            )
+            or (operator == OperatorEnum.MATCH and (re.search(constraint_value, value)))
         ):
             success = True
             break
