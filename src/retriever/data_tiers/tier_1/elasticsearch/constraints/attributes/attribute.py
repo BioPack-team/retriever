@@ -183,6 +183,11 @@ def process_single_constraint(
                 f"text field{target_field_name} only supports loose match operator '==' "
             )
 
+        if field_meta_info["value_type"] == "bool" and raw_operator != "===":
+            raise AttributeError(
+                f"boolean field{target_field_name} only supports strict match operator '===' "
+            )
+
         # translate negation where possible
         raw_operator, should_negate = handle_negation(raw_operator, should_negate)
 
