@@ -267,15 +267,12 @@ async def retrieve_ubergraph_info_from_es(
 
 def to_ubergraph_info(data: T1MetaData) -> UbergraphNodeInfo:
     """Casting method to satisfy our linter overlord."""
-    return UbergraphNodeInfo(
-        nodes=data.get("nodes", {}), mapping=data.get("mapping", {})
-    )
+    return UbergraphNodeInfo(mapping=data.get("mapping", {}))
 
 
 def from_ubergraph_info(info: UbergraphNodeInfo) -> T1MetaData:
     """Reverse of `to_ubergraph_info`."""
     return {
-        "nodes": info["nodes"],
         "mapping": info["mapping"],
     }
 

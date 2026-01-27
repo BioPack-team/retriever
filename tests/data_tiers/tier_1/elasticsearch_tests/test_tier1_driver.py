@@ -238,7 +238,5 @@ async def test_ubergraph_info_retrieval():
     # for k, v in islice(info['mapping'].items(), 5):
     #     print(k, v)
 
-    assert "nodes" in info
     assert "mapping" in info
-    assert len(info["nodes"]) == 581234
     assert len(info["mapping"]) == 581143
