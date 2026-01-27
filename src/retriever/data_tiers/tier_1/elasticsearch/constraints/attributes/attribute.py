@@ -150,6 +150,10 @@ def process_single_constraint(
         # todo consider not met?
         return None
 
+    # attach node prefix
+    if origin != "edge":
+        target_field_name = f"{origin}.{target_field_name}"
+
     if raw_operator == "matches":
         # regex is not easily reversed
 
