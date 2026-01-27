@@ -161,7 +161,7 @@ def check_single_query_payload(q_graph: QueryGraphDict, generated_payload: ESPay
 
             must_not = query_content["must_not"]
             assert must_not == [
-                {"term": {f"{_side}.chembl_prodrug": True}}
+                {"term": {f"{_side}.chembl_prodrug": False}}
             ]
 
     # generate check targets

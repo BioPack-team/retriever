@@ -35,7 +35,7 @@ base_node_negation_constraint: AttributeConstraintDict ={
     "id": "biolink:chembl_prodrug",
     "name": "Ensure not prod drug",
     "operator": OperatorEnum.STRICT_EQUAL,
-    "value": True,
+    "value": False,
     "not": True
 }
 

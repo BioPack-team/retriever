@@ -1,7 +1,8 @@
 import copy
 from typing import cast, Any
 
-from retriever.types.trapi import QueryGraphDict, QEdgeID, QualifierConstraintDict, AttributeConstraintDict, QNodeID
+from retriever.types.trapi import QueryGraphDict, QEdgeID, QualifierConstraintDict, AttributeConstraintDict, QNodeID, \
+    OperatorEnum
 from .trapi_attributes import ATTRIBUTE_CONSTRAINTS, base_constraint, \
     base_negation_constraint, VALID_REGEX_CONSTRAINTS, INVALID_REGEX_CONSTRAINTS, NODE_CONSTRAINTS
 from .trapi_qualifiers import multiple_qualifier_constraints, \
@@ -147,6 +148,14 @@ ID_BYPASS_PAYLOAD = qg({
         "n1": {
             "categories": [
                 "biolink:NamedThing"
+            ],
+            "constraints": [
+                    # {
+                    #     "id": "biolink:information_content",
+                    #     "name": "information content score limit",
+                    #     "operator": OperatorEnum.GT,
+                    #     "value": 60,
+                    # }
             ]
         }
     },
