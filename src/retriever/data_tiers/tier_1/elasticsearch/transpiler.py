@@ -8,6 +8,10 @@ from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.attribute 
 from retriever.data_tiers.tier_1.elasticsearch.constraints.qualifiers.qualifier import (
     process_qualifier_constraints,
 )
+from retriever.data_tiers.tier_1.elasticsearch.constraints.types.attribute_types import (
+    AttributeFilterQuery,
+    AttributeOrigin,
+)
 from retriever.data_tiers.tier_1.elasticsearch.types import (
     ESBooleanQuery,
     ESEdge,
@@ -166,14 +170,37 @@ class ElasticsearchTranspiler(Tier1Transpiler):
             elif "term" in qualifier_terms:
                 query_kwargs["filter"].append(qualifier_terms)
 
-        attribute_constraints = edge.get("attribute_constraints", None)
+        # generate constraint terms for edges and associated nodes
+        constraint_origins: list[AttributeOrigin] = ["edge", "subject", "object"]
 
-        if attribute_constraints:
-            must, must_not = process_attribute_constraints(attribute_constraints)
-            if must:
-                query_kwargs["must"] = must
-            if must_not:
-                query_kwargs["must_not"] = must_not
+        all_must: list[AttributeFilterQuery] = []
+        all_must_not: list[AttributeFilterQuery] = []
+
+        for origin in constraint_origins:
+            entity = (
+                edge
+                if origin == "edge"
+                else in_node
+                if origin == "subject"
+                else out_node
+            )
+
+            if origin == "edge":
+                constraints = entity.get("attribute_constraints", None)
+            else:
+                constraints = entity.get("constraints", None)
+
+            if constraints:
+                must, must_not = process_attribute_constraints(constraints, origin)
+                if must:
+                    all_must.extend(must)
+                if must_not:
+                    all_must_not.extend(must_not)
+
+        if all_must:
+            query_kwargs["must"] = all_must
+        if all_must_not:
+            query_kwargs["must_not"] = all_must_not
 
         return ESPayload(query=ESQueryContext(bool=ESBooleanQuery(**query_kwargs)))
 
