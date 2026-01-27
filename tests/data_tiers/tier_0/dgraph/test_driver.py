@@ -3,9 +3,10 @@ import json
 import re
 import time
 from collections.abc import Iterator
+from datetime import datetime, timedelta, timezone
 from typing import Any, cast, final, override
 from textwrap import dedent
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import asyncio
 import aiohttp
@@ -93,6 +94,33 @@ def mock_dgraph_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     importlib.reload(general_mod)
     importlib.reload(driver_mod)
     # Ensure the driver module uses the same CONFIG instance
+    monkeypatch.setattr(driver_mod, "CONFIG", general_mod.CONFIG, raising=False)
+    yield
+
+
+@pytest.fixture
+def mock_dgraph_auth_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Sets valid Dgraph auth credentials via environment variables."""
+    monkeypatch.setenv("TIER0__DGRAPH__USERNAME", "groot")
+    monkeypatch.setenv("TIER0__DGRAPH__PASSWORD", "password")
+    monkeypatch.setenv("TIER0__DGRAPH__NAMESPACE", "0")
+
+    # Rebuild CONFIG and reload driver to pick up new auth settings
+    importlib.reload(general_mod)
+    importlib.reload(driver_mod)
+    monkeypatch.setattr(driver_mod, "CONFIG", general_mod.CONFIG, raising=False)
+    yield
+
+
+@pytest.fixture
+def mock_dgraph_invalid_auth_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Sets invalid Dgraph auth credentials for failure testing."""
+    monkeypatch.setenv("TIER0__DGRAPH__USERNAME", "groot")
+    monkeypatch.setenv("TIER0__DGRAPH__PASSWORD", "invalid-password")
+
+    # Rebuild CONFIG and reload driver
+    importlib.reload(general_mod)
+    importlib.reload(driver_mod)
     monkeypatch.setattr(driver_mod, "CONFIG", general_mod.CONFIG, raising=False)
     yield
 
@@ -735,6 +763,122 @@ async def test_fetch_mapping_from_db_mocked(
 
         mapping = await driver.fetch_mapping_from_db("vTest")
         assert mapping is None, "Mapping should be None when msgpack deserialization fails"
+
+        await driver.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_http_query_fails_on_bad_status() -> None:
+    """Test that _run_http_query raises RuntimeError on a non-200 status."""
+    driver = new_http_driver()
+
+    mock_session_instance = AsyncMock()
+    mock_session_instance.post = MagicMock()
+
+    # Mock the successful connect() call first
+    connect_cm = AsyncMock()
+    connect_response = AsyncMock()
+    type(connect_response).status = PropertyMock(return_value=200)
+    connect_response.json.return_value = {"data": {"health": [{"status": "healthy"}]}}
+    connect_cm.__aenter__.return_value = connect_response
+    mock_session_instance.post.return_value = connect_cm
+
+    with patch("aiohttp.ClientSession", return_value=mock_session_instance):
+        await driver.connect()
+
+        # Now, re-configure the mock for the failing run_query() call
+        query_cm = AsyncMock()
+        query_response = AsyncMock()
+        type(query_response).status = PropertyMock(return_value=503)
+        query_response.text.return_value = "Service Unavailable"
+        query_cm.__aenter__.return_value = query_response
+        mock_session_instance.post.return_value = query_cm
+
+        mock_transpiler = _TestDgraphTranspiler()
+        with pytest.raises(RuntimeError, match="HTTP query failed with status 503"):
+            await driver.run_query("any query", transpiler=mock_transpiler)
+
+        await driver.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_http_query_fails_on_graphql_error() -> None:
+    """Test that _run_http_query raises RuntimeError on a GraphQL error."""
+    driver = new_http_driver()
+
+    mock_session_instance = AsyncMock()
+    mock_session_instance.post = MagicMock()
+
+    # Mock the successful connect() call first
+    connect_cm = AsyncMock()
+    connect_response = AsyncMock()
+    type(connect_response).status = PropertyMock(return_value=200)
+    connect_response.json.return_value = {"data": {"health": [{"status": "healthy"}]}}
+    connect_cm.__aenter__.return_value = connect_response
+    mock_session_instance.post.return_value = connect_cm
+
+    with patch("aiohttp.ClientSession", return_value=mock_session_instance):
+        await driver.connect()
+
+        # Now, re-configure the mock for the run_query() call that returns a GraphQL error
+        query_cm = AsyncMock()
+        query_response = AsyncMock()
+        type(query_response).status = PropertyMock(return_value=200)
+        query_response.json.return_value = {"errors": [{"message": "Invalid query"}]}
+        query_cm.__aenter__.return_value = query_response
+        mock_session_instance.post.return_value = query_cm
+
+        mock_transpiler = _TestDgraphTranspiler()
+        with pytest.raises(RuntimeError, match="Dgraph query returned errors"):
+            await driver.run_query("any query", transpiler=mock_transpiler)
+
+        await driver.close()
+
+
+@pytest.mark.asyncio
+async def test_fetch_mapping_from_db_invalid_base64() -> None:
+    """Test fetch_mapping_from_db returns None for invalid base64 data."""
+    driver = new_http_driver()
+
+    # 1. Create a mock session INSTANCE.
+    mock_session_instance = AsyncMock()
+
+    # 2. Configure the 'post' method. It's a regular method that returns
+    #    an async context manager.
+    mock_session_instance.post = MagicMock()
+
+    # 3. Create the async context manager that post() will return.
+    #    This will be used for the connect() call.
+    connect_cm = AsyncMock()
+    connect_response = AsyncMock()
+    type(connect_response).status = PropertyMock(return_value=200)
+    connect_response.json.return_value = {"data": {"health": [{"status": "healthy"}]}}
+    connect_cm.__aenter__.return_value = connect_response
+    mock_session_instance.post.return_value = connect_cm
+
+    # 4. Patch the ClientSession CLASS to return our configured INSTANCE.
+    with patch("aiohttp.ClientSession", return_value=mock_session_instance):
+        # The driver must be connected *inside* the patch block to use the mock.
+        await driver.connect()
+
+        # The driver's internal session should now be our mock instance.
+        assert driver.http_session is mock_session_instance
+
+        # 5. Now, re-configure the 'post' mock for the actual test call.
+        #    This response will be used by fetch_mapping_from_db.
+        fetch_cm = AsyncMock()
+        fetch_response = AsyncMock()
+        type(fetch_response).status = PropertyMock(return_value=200)
+        fetch_response.json.return_value = {
+            "data": {"metadata": [{"schema_metadata_mapping": "this-is-not-base64"}]}
+        }
+        fetch_cm.__aenter__.return_value = fetch_response
+        mock_session_instance.post.return_value = fetch_cm
+
+        mapping = await driver.fetch_mapping_from_db("vTest")
+        assert mapping is None, "Mapping should be None for invalid base64"
 
         await driver.close()
 
@@ -1502,5 +1646,131 @@ async def test_run_grpc_query_name_error_workaround(
     # 2. Act & Assert
     with pytest.raises(ConnectionError, match="Dgraph gRPC query failed: while running ToJson"):
         await driver.run_query("any query", transpiler=mock_transpiler)
+
+    await driver.close()
+
+
+@pytest.mark.live
+@pytest.mark.auth
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config", "mock_dgraph_auth_config")
+async def test_dgraph_live_grpc_auth_success() -> None:
+    """Live test: Verify successful gRPC connection with valid credentials."""
+    driver = new_grpc_driver()
+    await driver.connect()  # Should log in and connect without error
+    assert driver.client is not None
+
+    # Run a simple query to confirm the connection is usable
+    transpiler = _TestDgraphTranspiler(version="vG")
+    result = await driver.run_query("{ node(func: has(vG_id), first: 1) { vG_id } }", transpiler=transpiler)
+    assert "q0" in result.data and result.data["q0"], "Query should succeed with auth"
+
+    await driver.close()
+
+
+@pytest.mark.live
+@pytest.mark.auth
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config", "mock_dgraph_auth_config")
+async def test_dgraph_live_http_auth_success() -> None:
+    """Live test: Verify successful HTTP connection with valid credentials and token storage."""
+    driver = new_http_driver()
+    await driver.connect()  # Should log in and connect without error
+    assert driver.http_session is not None
+
+    # Verify token and expiry were set
+    assert driver._access_token is not None
+    assert driver._token_expiry is not None
+    assert driver.http_session.headers.get("X-Dgraph-AccessToken") == driver._access_token
+
+    # Run a simple query to confirm the connection is usable
+    transpiler = _TestDgraphTranspiler(version="vG")
+    result = await driver.run_query("{ node(func: has(vG_id), first: 1) { vG_id } }", transpiler=transpiler)
+    assert "q0" in result.data and result.data["q0"], "Query should succeed with auth"
+
+    await driver.close()
+
+
+@pytest.mark.live
+@pytest.mark.auth
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config", "mock_dgraph_invalid_auth_config")
+async def test_dgraph_live_grpc_auth_failure() -> None:
+    """Live test: Verify gRPC connection fails with invalid credentials."""
+    driver = new_grpc_driver()
+    with pytest.raises(ConnectionError):
+        await driver.connect()
+
+
+@pytest.mark.live
+@pytest.mark.auth
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config", "mock_dgraph_invalid_auth_config")
+async def test_dgraph_live_http_auth_failure() -> None:
+    """Live test: Verify HTTP connection fails with invalid credentials."""
+    driver = new_http_driver()
+    with pytest.raises(ConnectionError, match="Dgraph HTTP login failed"):
+        await driver.connect()
+
+
+@pytest.mark.live
+@pytest.mark.auth
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config", "mock_dgraph_auth_config")
+async def test_dgraph_live_http_token_auto_renewal() -> None:
+    """Live test: Verify the HTTP driver automatically renews an expired token."""
+    driver = new_http_driver()
+    await driver.connect()
+    assert driver._access_token is not None
+
+    initial_token = driver._access_token
+    transpiler = _TestDgraphTranspiler(version="vG")
+
+    # Manually expire the token to trigger the renewal logic on the next query
+    driver._token_expiry = datetime.now(timezone.utc) - timedelta(minutes=1)
+
+    qgraph_query: QueryGraphDict = qg({
+        "nodes": {
+            "n0": {"ids": ["GO:0031410"], "constraints": []},
+            "n1": {"ids": ["NCBIGene:11276"], "constraints": []},
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["located_in"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+        },
+    })
+
+    dgraph_query_match: str = dedent("""
+    {
+        q0_node_n1(func: eq(vG_id, "NCBIGene:11276")) @cascade(vG_id, ~vG_subject) {
+            expand(vG_Node)
+            out_edges_e0: ~vG_subject @filter(eq(vG_predicate_ancestors, "located_in")) @cascade(vG_predicate, vG_object) {
+                expand(vG_Edge) { vG_sources expand(vG_Source) }
+                node_n0: vG_object @filter(eq(vG_id, "GO:0031410")) @cascade(vG_id) {
+                    expand(vG_Node)
+                }
+            }
+        }
+    }
+    """).strip()
+
+    dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
+    assert_query_equals(dgraph_query, dgraph_query_match)
+
+    # This query should trigger the auto-renewal logic
+    result = await driver.run_query(dgraph_query, transpiler=transpiler)
+
+    # Assert the query was still successful
+    assert "q0" in result.data and result.data["q0"], "Query should succeed after auto-renewal"
+
+    # Assert that a new token has been fetched
+    assert driver._access_token is not None
+    assert driver._access_token != initial_token, "A new token should have been fetched"
+    assert driver.http_session.headers.get("X-Dgraph-AccessToken") == driver._access_token
 
     await driver.close()
