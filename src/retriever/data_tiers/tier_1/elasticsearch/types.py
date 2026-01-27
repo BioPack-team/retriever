@@ -23,7 +23,6 @@ from retriever.utils import biolink
 class UbergraphNodeInfo(TypedDict):
     """Ubergraph node info."""
 
-    nodes: dict[str, dict[str, Any]]
     mapping: dict[str, dict[str, Any]]
 
 
