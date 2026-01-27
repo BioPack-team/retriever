@@ -91,16 +91,15 @@ async def make_query(
     timeout: dict[int, float] = {
         -1: CONFIG.job.metakg.timeout,
         0: custom_timeout
-        if custom_timeout is not None
+        if isinstance(custom_timeout, float)
         else CONFIG.job.lookup.tier0_timeout,
         1: custom_timeout
-        if custom_timeout is not None
+        if isinstance(custom_timeout, float)
         else CONFIG.job.lookup.tier1_timeout,
         2: custom_timeout
-        if custom_timeout is not None
+        if isinstance(custom_timeout, float)
         else CONFIG.job.lookup.tier2_timeout,
     }
-    print(timeout)
     if tiers is None:
         tiers = [0]
     if custom_tiers := body and body.parameters and body.parameters.tiers:
