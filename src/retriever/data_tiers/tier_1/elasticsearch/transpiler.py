@@ -95,7 +95,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
         query_fields = NODE_FIELDS_MAPPING.copy()
 
         # bypass categories if id is provided
-        if "ids" in qnode and qnode["ids"] is not None:
+        if qnode.get("ids", None):
             query_fields.pop("categories")
 
         return [
