@@ -76,6 +76,8 @@ def check_single_query_payload(q_graph: QueryGraphDict, generated_payload: ESPay
     assert isinstance(filter_content, list)
 
     q_edge = next(iter(q_graph["edges"].values()), None)
+    side_type = Literal["object", "subject"]
+    sides: list[side_type] = ["subject", "object"]
 
     # qualifier checker
     # 0. check should, if > 1 constraints; make sure minimum_should_match
@@ -146,6 +148,22 @@ def check_single_query_payload(q_graph: QueryGraphDict, generated_payload: ESPay
             {"range": {"has_total": {"lte": 4}}},
         ]
 
+    for _side in sides:
+        node = q_graph["nodes"][q_edge[_side]]
+        if node.get("constraints"):
+            assert "must" in query_content
+            assert "must_not" in query_content
+
+            must = query_content["must"]
+            assert must == [
+                {"term": {f"{_side}.chembl_natural_product": True}}
+            ]
+
+            must_not = query_content["must_not"]
+            assert must_not == [
+                {"term": {f"{_side}.chembl_prodrug": True}}
+            ]
+
     # generate check targets
     required_fields_to_check = dict()
     # Generated field targets
@@ -157,7 +175,6 @@ def check_single_query_payload(q_graph: QueryGraphDict, generated_payload: ESPay
                 remove_biolink_prefixes(q_edge[field])
             )
 
-    side_type = Literal["object", "subject"]
 
     def add_to_required_fields(_field: str, _side: side_type):
         cur_node = q_graph["nodes"][q_edge[_side]]
@@ -167,7 +184,6 @@ def check_single_query_payload(q_graph: QueryGraphDict, generated_payload: ESPay
                     remove_biolink_prefixes(cur_node[_field])
                 )
 
-    sides: list[side_type] = ["subject", "object"]
     for field in NODE_FIELDS_MAPPING.keys():
         for side in sides:
             add_to_required_fields(field, side)
