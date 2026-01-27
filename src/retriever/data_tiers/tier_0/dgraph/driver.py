@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import Enum
 from http import HTTPStatus
@@ -13,7 +14,6 @@ import msgpack
 import pydgraph
 from aiohttp import ClientTimeout
 from cachetools import TTLCache
-from dataclasses import dataclass
 from loguru import logger as log
 from opentelemetry import trace
 
@@ -207,8 +207,7 @@ class DgraphDriver(DatabaseDriver):
         self._schema_info_cache.clear()
 
     async def get_active_schema_info(self) -> ActiveSchemaInfo | None:
-        """
-        Fetches and caches all information for the active schema version.
+        """Fetches and caches all information for the active schema version.
 
         This is the single source of truth for the active version, namespace, and mapping.
         It respects manual overrides for version and namespace from the config.
@@ -249,9 +248,7 @@ class DgraphDriver(DatabaseDriver):
             return None
 
     async def _fetch_and_build_schema_info(self) -> ActiveSchemaInfo | None:
-        """
-        Performs the actual database query to get version, namespace, and mapping.
-        """
+        """Performs the actual database query to get version, namespace, and mapping."""
         # Determine the filter to use.
         # If a manual version is set, filter by that version.
         # Otherwise, filter for the active schema.
@@ -378,9 +375,7 @@ class DgraphDriver(DatabaseDriver):
 
     @override
     async def get_metadata(self) -> dict[str, Any] | None:
-        """
-        Returns the metadata mapping for the active schema.
-        """
+        """Returns the metadata mapping for the active schema."""
         schema_info = await self.get_active_schema_info()
         if not schema_info:
             log.warning("Cannot retrieve schema metadata: no active schema info found.")
@@ -388,9 +383,7 @@ class DgraphDriver(DatabaseDriver):
         return schema_info.mapping
 
     async def get_active_version(self) -> str | None:
-        """
-        Convenience method to get only the version string of the active schema.
-        """
+        """Convenience method to get only the version string of the active schema."""
         schema_info = await self.get_active_schema_info()
         if not schema_info:
             return None
