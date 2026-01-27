@@ -1,5 +1,6 @@
 from .trapi_qgraphs import Q_GRAPHS_WITH_QUALIFIER_CONSTRAINTS, \
-    QGRAPH_MULTIPLE_IDS, COMPREHENSIVE_QGRAPH, Q_GRAPH_WITH_ATTRIBUTE_CONSTRAINTS
+    QGRAPH_MULTIPLE_IDS, COMPREHENSIVE_QGRAPH, Q_GRAPH_WITH_ATTRIBUTE_CONSTRAINTS, \
+    Q_GRAPH_WITH_SUBJECT_NODE_CONSTRAINTS, Q_GRAPH_WITH_OBJECT_NODE_CONSTRAINTS
 
 Q_GRAPH_CASES = (
     "q_graph",
@@ -8,6 +9,8 @@ Q_GRAPH_CASES = (
         *Q_GRAPHS_WITH_QUALIFIER_CONSTRAINTS,
         QGRAPH_MULTIPLE_IDS,
         COMPREHENSIVE_QGRAPH,
+        Q_GRAPH_WITH_SUBJECT_NODE_CONSTRAINTS,
+        Q_GRAPH_WITH_OBJECT_NODE_CONSTRAINTS,
     ]
 )
 
@@ -15,4 +18,4 @@ qualifier_case_ids = [
     f'with_qualifier_{case_num}' for case_num, _ in enumerate(Q_GRAPHS_WITH_QUALIFIER_CONSTRAINTS)
 ]
 
-Q_GRAPH_CASES_IDS = ["with attribute", *qualifier_case_ids, "multiple ids", "comprehensive qgraph"]
+Q_GRAPH_CASES_IDS = ["with attribute", *qualifier_case_ids, "multiple ids", "comprehensive qgraph", "subject with constraints", "object with constraints"]

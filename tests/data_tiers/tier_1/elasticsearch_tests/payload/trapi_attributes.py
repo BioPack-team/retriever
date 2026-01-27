@@ -1,4 +1,4 @@
-from retriever.types.trapi import AttributeConstraintDict
+from retriever.types.trapi import AttributeConstraintDict, OperatorEnum
 
 # sample
 # {
@@ -21,6 +21,21 @@ base_negation_constraint: AttributeConstraintDict ={
     "name": "total value must not be greater than 4",
     "operator": ">",
     "value": 4,
+    "not": True
+}
+
+base_node_constraint: AttributeConstraintDict ={
+    "id": "biolink:chembl_natural_product",
+    "name": "Ensure natural product",
+    "operator": OperatorEnum.STRICT_EQUAL,
+    "value": True,
+}
+
+base_node_negation_constraint: AttributeConstraintDict ={
+    "id": "biolink:chembl_prodrug",
+    "name": "Ensure not prod drug",
+    "operator": OperatorEnum.STRICT_EQUAL,
+    "value": False,
     "not": True
 }
 
@@ -111,3 +126,4 @@ VALID_REGEX_CONSTRAINTS = [make_regex_constraint(pattern) for pattern in valid_r
 INVALID_REGEX_CONSTRAINTS = [make_regex_constraint(pattern) for pattern in invalid_regex_patterns]
 
 ATTRIBUTE_CONSTRAINTS = [base_constraint, base_negation_constraint]
+NODE_CONSTRAINTS = [base_node_constraint, base_node_negation_constraint]
