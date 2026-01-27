@@ -352,11 +352,11 @@ class RetrievalSourceDict(TypedDict):
 
 
 # These don't offer any special behavior, but make type annotation less confusable
-EdgeIdentifier = NewType("EdgeIdentifier", str)
-AuxGraphID = NewType("AuxGraphID", str)
-QNodeID = NewType("QNodeID", str)
-QEdgeID = NewType("QEdgeID", str)
-QPathID = NewType("QPathID", str)
-Infores = NewType("Infores", str)
-QualifierTypeID = NewType("QualifierTypeID", str)
-URL = NewType("URL", str)
+EdgeIdentifier = str
+AuxGraphID = str
+QNodeID = str
+QEdgeID = str
+QPathID = str
+Infores = str
+QualifierTypeID = str
+URL = str

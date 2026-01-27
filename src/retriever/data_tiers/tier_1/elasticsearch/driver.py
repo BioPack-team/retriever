@@ -25,12 +25,12 @@ from retriever.data_tiers.tier_1.elasticsearch.meta import (
 from retriever.data_tiers.tier_1.elasticsearch.types import (
     ESEdge,
     ESPayload,
-    UbergraphNodeInfo,
 )
 from retriever.data_tiers.utils import (
     parse_dingo_metadata_unhashed,
 )
 from retriever.types.dingo import DINGO_ADAPTER, DINGOMetadata
+from retriever.types.general import EntityToEntityMapping
 from retriever.types.metakg import Operation, OperationNode
 from retriever.types.trapi import BiolinkEntity, Infores
 from retriever.utils.calls import get_metadata_client
@@ -286,14 +286,9 @@ class ElasticSearchDriver(DatabaseDriver):
 
         return operations, nodes
 
-    async def get_ubergraph_nodes_mapping(
+    @override
+    async def get_subclass_mapping(
         self,
-    ) -> UbergraphNodeInfo:
+    ) -> EntityToEntityMapping:
         """Get UBERGRAPH nodes mapping/adjacency list."""
-        # result shape:
-        # {
-        #   "nodes": dict[str, dict[str, Any],
-        #    "mapping": dict[str, dict[str, list[str]],
-        # }
-
         return await get_ubergraph_info(self.es_connection)

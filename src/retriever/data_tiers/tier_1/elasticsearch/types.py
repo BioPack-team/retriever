@@ -20,12 +20,6 @@ from retriever.types.trapi import (
 from retriever.utils import biolink
 
 
-class UbergraphNodeInfo(TypedDict):
-    """Ubergraph node info."""
-
-    mapping: dict[str, dict[str, Any]]
-
-
 class ESFilterClause(TypedDict):
     """An Elasticsearch filter clause."""
 

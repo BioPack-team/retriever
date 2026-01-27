@@ -12,7 +12,7 @@ from pydantic_settings import (
     YamlConfigSettingsSource,
 )
 
-from retriever.utils.general import CommentedSettings
+from retriever.config.utils import CommentedSettings
 
 biolink = bmt.Toolkit()
 

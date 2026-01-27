@@ -21,6 +21,7 @@ from retriever.data_tiers.base_driver import DatabaseDriver
 from retriever.data_tiers.tier_0.dgraph import result_models as dg_models
 from retriever.data_tiers.utils import parse_dingo_metadata
 from retriever.types.dingo import DINGOMetadata
+from retriever.types.general import EntityToEntityMapping
 from retriever.types.metakg import Operation, OperationNode
 from retriever.types.trapi import BiolinkEntity, Infores
 
@@ -716,6 +717,10 @@ class DgraphDriver(DatabaseDriver):
     async def close(self) -> None:
         """Close the connection to Dgraph and clean up resources."""
         await self._cleanup_connections()
+
+    @override
+    async def get_subclass_mapping(self) -> EntityToEntityMapping:
+        raise NotImplementedError("Tier 0 does not implement subclass mapping.")
 
 
 class DgraphHttpDriver(DgraphDriver):

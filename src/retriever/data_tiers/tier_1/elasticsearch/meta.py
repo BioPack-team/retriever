@@ -11,13 +11,13 @@ from elasticsearch import AsyncElasticsearch
 from loguru import logger as log
 
 from retriever.config.general import CONFIG
-from retriever.data_tiers.tier_1.elasticsearch.types import UbergraphNodeInfo
 from retriever.data_tiers.utils import (
     generate_operation,
     get_simple_op_hash,
     parse_dingo_metadata_unhashed,
 )
 from retriever.types.dingo import DINGOMetadata
+from retriever.types.general import EntityToEntityMapping
 from retriever.types.metakg import Operation, OperationNode, UnhashedOperation
 from retriever.types.trapi import BiolinkEntity, Infores, MetaAttributeDict
 from retriever.utils.redis import REDIS_CLIENT
@@ -249,7 +249,7 @@ async def generate_operations(
 
 async def retrieve_ubergraph_info_from_es(
     es_connection: AsyncElasticsearch,
-) -> UbergraphNodeInfo:
+) -> EntityToEntityMapping:
     """Retrieve Ubergraph info from Elasticsearch."""
     index_name = "ubergraph_nodes_mapping"
     resp = await es_connection.search(
@@ -262,24 +262,24 @@ async def retrieve_ubergraph_info_from_es(
     b64 = "".join(hit["_source"]["value"] for hit in resp["hits"]["hits"])
 
     obj = msgpack.unpackb(zlib.decompress(base64.b64decode(b64)), raw=False)
-    return obj
+    return obj.get("mapping", {})
 
 
-def to_ubergraph_info(data: T1MetaData) -> UbergraphNodeInfo:
+def to_ubergraph_info(data: T1MetaData) -> EntityToEntityMapping:
     """Casting method to satisfy our linter overlord."""
-    return UbergraphNodeInfo(mapping=data.get("mapping", {}))
+    return data.get("mapping", {})
 
 
-def from_ubergraph_info(info: UbergraphNodeInfo) -> T1MetaData:
+def from_ubergraph_info(info: EntityToEntityMapping) -> T1MetaData:
     """Reverse of `to_ubergraph_info`."""
     return {
-        "mapping": info["mapping"],
+        "mapping": info,
     }
 
 
 async def get_ubergraph_info(
     es_connection: AsyncElasticsearch | None, retries: int = 0
-) -> UbergraphNodeInfo:
+) -> EntityToEntityMapping:
     """Assemble ubergraph related info from ES."""
     ubergraph_info_cache_key = "TIER1_UBERGRAPH_INFO"
 

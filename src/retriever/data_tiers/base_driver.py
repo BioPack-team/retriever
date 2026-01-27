@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
+from retriever.types.general import EntityToEntityMapping
 from retriever.types.metakg import Operation, OperationNode
 from retriever.types.trapi import BiolinkEntity
 from retriever.utils.general import Singleton
@@ -47,3 +48,7 @@ class DatabaseDriver(ABC, metaclass=Singleton):
         self,
     ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
         """Return Operations and Nodes exposed by this driver."""
+
+    @abstractmethod
+    async def get_subclass_mapping(self) -> EntityToEntityMapping:
+        """Return a mapping of nodes to their ontological descendents."""
