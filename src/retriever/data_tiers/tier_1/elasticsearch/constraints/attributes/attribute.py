@@ -188,6 +188,13 @@ def process_single_constraint(
                 f"boolean field{target_field_name} only supports strict match operator '===' "
             )
 
+            # we don't flip value to do negation here is because of the case of missing fields
+            # e.g. `===, true, not` essentially means anything that does not equal true, including missing fields
+
+            # if should_negate:
+            #     value = not value
+            #     should_negate = False
+
         # translate negation where possible
         raw_operator, should_negate = handle_negation(raw_operator, should_negate)
 
