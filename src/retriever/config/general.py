@@ -253,7 +253,7 @@ class DgraphSettings(BaseModel):
     grpc_port: int = 9080
     username: str | None = None
     password: SecretStr | None = None
-    namespace: int | None = None
+    preferred_namespace: int | None = None
     preferred_version: str | None = None
     use_tls: bool = False
     query_timeout: Annotated[
@@ -332,7 +332,7 @@ class GeneralConfig(CommentedSettings):
         description="Level of application logs to print/keep.",
     )
     host: Annotated[str, Field(description="Uvicorn listen host.")] = "0.0.0.0"
-    port: Annotated[int, Field(description="Uvicorn listen port.")] = 8080
+    port: Annotated[int, Field(description="Uvicorn listen port.")] = 8081
     trust_proxy: Annotated[
         bool, Field(description="Use proxy IP headers (such as in nginx cases)")
     ] = True
