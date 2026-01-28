@@ -3,10 +3,11 @@ import itertools
 import math
 import time
 from asyncio.tasks import Task
-from collections.abc import AsyncGenerator, Hashable
+from collections.abc import AsyncGenerator, Hashable, Iterable
 
 from opentelemetry import trace
 
+from retriever.config.general import CONFIG
 from retriever.lookup.branch import (
     Branch,
     BranchID,
@@ -14,6 +15,7 @@ from retriever.lookup.branch import (
     SuperpositionID,
 )
 from retriever.lookup.partial import Partial
+from retriever.lookup.subclass import SubclassMapping
 from retriever.lookup.subquery import get_subgraph, subquery
 from retriever.lookup.utils import make_mappings
 from retriever.metadata.optable import OP_TABLE_MANAGER
@@ -28,11 +30,13 @@ from retriever.types.trapi import (
     CURIE,
     AuxGraphID,
     AuxiliaryGraphDict,
+    BiolinkPredicate,
     EdgeDict,
     EdgeIdentifier,
     KnowledgeGraphDict,
     LogEntryDict,
     QEdgeID,
+    QNodeID,
     QueryGraphDict,
     ResultDict,
 )
@@ -69,6 +73,8 @@ class QueryGraphExecutor:
     dead_superpositions: set[SuperpositionID]
     complete_paths: set[CompletePathName]
 
+    subclass_curies: dict[tuple[QNodeID, CURIE], set[CURIE]]
+
     locks: dict[Hashable, asyncio.Lock]
     terminate: bool
     start_time: float
@@ -102,6 +108,8 @@ class QueryGraphExecutor:
         self.active_superpositions = set()
         self.dead_superpositions = set()
         self.complete_paths = set()
+
+        self.subclass_curies = {}
 
         # Initialize locks for accessing some of the above
         self.locks = {
@@ -148,6 +156,9 @@ class QueryGraphExecutor:
                 return LookupArtifacts(
                     [], self.kgraph, self.aux_graphs, self.job_log.get_logs()
                 )
+
+            # FIX: somehow causes 0 results when enabled
+            await self.expand_initial_subclasses()
 
             starting_branches = await Branch.get_start_branches(
                 self.qedge_claims,
@@ -197,6 +208,57 @@ class QueryGraphExecutor:
             return LookupArtifacts(
                 [], self.kgraph, self.aux_graphs, self.job_log.get_logs(), error=True
             )
+
+    async def expand_initial_subclasses(self) -> None:
+        """Check if any pinned nodes have subclasses and expand them accordingly."""
+        for qnode_id, node in self.qgraph["nodes"].items():
+            # Verify that no edges connected to this node use subclass_of
+            if any(
+                any(
+                    BiolinkPredicate("biolink:subclass_of")
+                    in (edge.get("predicates", []) or [])
+                    for edge in edges
+                )
+                for edges in self.q_agraph[qnode_id].values()
+            ):
+                continue
+
+            expanded_curies = await self.expand_subclasses(
+                qnode_id, (node.get("ids", []) or [])
+            )
+
+            node["ids"] = expanded_curies
+
+    async def expand_subclasses(
+        self, qnode_id: QNodeID, curies: Iterable[CURIE]
+    ) -> list[CURIE]:
+        """Given a set of CURIEs, return them and any subclasses they may have."""
+        if not CONFIG.job.lookup.implicit_subclassing:
+            return list(curies)
+
+        subclass_mapping = await SubclassMapping().get()
+        if subclass_mapping is None:
+            return list(curies)
+
+        new_curies = set[CURIE](curies)
+        for curie in curies:
+            descendants = subclass_mapping.get(curie, [])
+            if not descendants:
+                self.job_log.trace(
+                    f"Found no descendants for {curie} on QNode {qnode_id}"
+                )
+                continue
+
+            primary = (qnode_id, curie)
+            if primary not in self.subclass_curies:
+                self.subclass_curies[primary] = set()
+            self.subclass_curies[primary].update(descendants)
+            new_curies.update(descendants)
+            self.job_log.info(
+                f"Found {len(descendants)} descendants for {curie} on QNode {qnode_id}: {descendants}"
+            )
+
+        return list(new_curies)
 
     @tracer.start_as_current_span("run_branches")
     async def run_starting_branches(
@@ -286,7 +348,6 @@ class QueryGraphExecutor:
                 self.job_log.trace("No other branches ready.")
                 continue
 
-            self.job_log.trace("Reconciliation started!")
             # Find valid reconciliations of each branch combined
             for combo in itertools.product(*other_branches):
                 reconcile_attempt = partial
@@ -296,7 +357,6 @@ class QueryGraphExecutor:
                         break
                 if reconcile_attempt is not None:
                     reconciled.append(reconcile_attempt)
-            self.job_log.trace("Reconciliation finished!")
 
     async def execute_branch(
         self, current_branch: Branch
@@ -491,8 +551,12 @@ class QueryGraphExecutor:
                 curie for curie in next_curies if curie != current_branch.input_curie
             )
 
+        expanded_next_curies = await self.expand_subclasses(
+            current_branch.output_node, next_curies
+        )
+
         next_steps = await current_branch.get_next_steps(
-            next_curies, self.qedge_claims, self.locks["claim"]
+            expanded_next_curies, self.qedge_claims, self.locks["claim"]
         )
 
         self.job_log.trace(
@@ -675,3 +739,6 @@ class QueryGraphExecutor:
             self.terminate = True
         except asyncio.CancelledError:
             return
+
+    async def initialize_subclass_mapping(self) -> None:
+        """Grab a copy of the subclass mapping for use."""

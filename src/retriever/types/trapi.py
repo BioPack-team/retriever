@@ -15,7 +15,7 @@ A few notes:
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, NewType, NotRequired, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 
 class SetInterpretationEnum(str, Enum):
@@ -280,9 +280,9 @@ class QualifierConstraintDict(TypedDict):
     qualifier_set: list[QualifierDict]
 
 
-BiolinkEntity = NewType("BiolinkEntity", str)
-BiolinkPredicate = NewType("BiolinkPredicate", str)
-CURIE = NewType("CURIE", str)
+BiolinkEntity = str
+BiolinkPredicate = str
+CURIE = str
 
 
 class MetaKnowledgeGraphDict(TypedDict):

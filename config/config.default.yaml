@@ -1,51 +1,49 @@
+---
 # Default configuration values.
 # Managed by Retriever.
 # Don't edit this file, it will be overwritten.
 # Edit the appropriate config file instead.
 debug: false  # Run server with increased compatibility for breakpoint debugging.
-instance_env: dev # Instance environment. Used in Sentry, userAgent of subqueries, instance-appropriate behavior, etc.
-instance_idx: 0 # Instance index. Use when multiple Retriever instances are run, so a leader can be determined.
-log_level: DEBUG # Level of application logs to print/keep.
-host: 0.0.0.0 # Uvicorn listen host.
-port: 8080 # Uvicorn listen port.
-trust_proxy: true # Use proxy IP headers (such as in nginx cases)
+instance_env: dev  # Instance environment. Used in Sentry, userAgent of subqueries, instance-appropriate behavior, etc.
+instance_idx: 0  # Instance index. Use when multiple Retriever instances are run, so a leader can be determined.
+log_level: DEBUG  # Level of application logs to print/keep.
+host: 0.0.0.0  # Uvicorn listen host.
+port: 8080  # Uvicorn listen port.
+trust_proxy: true  # Use proxy IP headers (such as in nginx cases)
 cors:
-  allow_origins:  # Origins allowed to make cross-origin requests.
-  - '*'
-  allow_credentials: true # Support cookies in cross-origin requests.
-  allow_methods: # Methods allowed in cross-origin requests.
-  - '*'
-  allow_headers: # Headers allowed in cross-origin requests.
-  - '*'
-workers: # Number of workers, defaults to n_cpus * worker_cpu_ratio if unset.
-worker_cpu_ratio: 1 # Ratio of workers to n_cpus if worker count is unset (rounds to ceiling after multiplication).
-allow_profiler: true # Allow all queries to enable profiling with a query parameter.
-job:
-  callback:
+  allow_origins: ['*']  # Origins allowed to make cross-origin requests.
+  allow_credentials: true  # Support cookies in cross-origin requests.
+  allow_methods: ['*']  # Methods allowed in cross-origin requests.
+  allow_headers: ['*']  # Headers allowed in cross-origin requests.
+workers:  # Number of workers, defaults to n_cpus * worker_cpu_ratio if unset.
+worker_cpu_ratio: 1  # Ratio of workers to n_cpus if worker count is unset (rounds to ceiling after multiplication).
+allow_profiler: true  # Allow all queries to enable profiling with a query parameter.
+job: callback:
     retries: 3  # Number of times to retry the callback.
-    timeout: 60 # Time in seconds before a callback attempt should time out.
+    timeout: 60  # Time in seconds before a callback attempt should time out.
   lookup:
     tier0_timeout: 180  # Time in seconds before a tier 0 query should time out, set to -1 to disable.
-    tier1_timeout: 10 # Time in seconds before a tier 1 query should time out, set to -1 to disable.
-    tier2_timeout: 300 # Time in seconds before a tier 2 query should time out, set to -1 to disable.
+    tier1_timeout: 10  # Time in seconds before a tier 1 query should time out, set to -1 to disable.
+    tier2_timeout: 300  # Time in seconds before a tier 2 query should time out, set to -1 to disable.
+    implicit_subclassing: true  # Whether or not to answer via subclasses.
   metakg:
     retries: 3  # Number of times to retry obtaining DINGO metadata.
-    acquire_timeout: 30 # Time in seconds until a metadata call should time out, set to -1 to disable.
-    timeout: 10 # Time in seconds before a job should time out, set to -1 to disable.
-    build_time: -1 # Time in seconds before MetaKG should be rebuilt. Set to -1 to only build at start.
+    acquire_timeout: 30  # Time in seconds until a metadata call should time out, set to -1 to disable.
+    timeout: 10  # Time in seconds before a job should time out, set to -1 to disable.
+    build_time: -1  # Time in seconds before MetaKG should be rebuilt. Set to -1 to only build at start.
   ttl: 2592000  # Time in seconds for job state to remain after it was last touched
-  ttl_max: 31536000 # Time in seconds after which job state is cleared, regardless of last touch
+  ttl_max: 31536000  # Time in seconds after which job state is cleared, regardless of last touch
 log:
   log_to_mongo: true  # Persist logs in MongoDB.
-  ttl: 1209600 # Time in seconds for a log to persist.
+  ttl: 1209600  # Time in seconds for a log to persist.
 redis:
   host: localhost
   port: 6379
   password:
   ssl_enabled: false
   attempts: 3  # Number of attempts to accomplish operation before considering it failed.
-  timeout: 5 # Time before a redis operation is considered failed.
-  shutdown_timeout: 3 # Time in seconds to wait for batched tasks to finish before force-quitting.
+  timeout: 5  # Time before a redis operation is considered failed.
+  shutdown_timeout: 3  # Time in seconds to wait for batched tasks to finish before force-quitting.
 mongo:
   host: localhost
   port: 27017
@@ -53,14 +51,14 @@ mongo:
   password:
   authsource:
   attempts: 3  # Number of attempts to accomplish operation before considering it failed.
-  shutdown_timeout: 3 # Time in seconds to wait for serialize task to finish.
-  flood_batch_size: 1000 #  Batch size for basic mongo inserts.
+  shutdown_timeout: 3  # Time in seconds to wait for serialize task to finish.
+  flood_batch_size: 1000  #  Batch size for basic mongo inserts.
 tier0:
   backend: dgraph
   backend_infores: infores:dogpark-tier0
   neo4j:
     query_timeout: 3600  # Time in seconds before a neo4j query should time out.
-    connect_retries: 5 # Number of retries before declaring a connection failure.
+    connect_retries: 5  # Number of retries before declaring a connection failure.
     host: ''
     bolt_port: 7687
     username: ''
@@ -73,18 +71,16 @@ tier0:
     preferred_version:
     use_tls: false
     query_timeout: 3600  # Time in seconds before a Dgraph query should time out.
-    connect_retries: 5 # Number of retries before declaring a connection failure.
-    grpc_max_send_message_length: -1 # gRPC max send message length in bytes (-1 for unlimited).
-    grpc_max_receive_message_length: -1 # gRPC max receive message length in bytes (-1 for unlimited).
-  dump_queries: false  # Write out TRAPI and translated queries to a file in jsonl format.
+    connect_retries: 5  # Number of retries before declaring a connection failure.
+    grpc_max_send_message_length: -1  # gRPC max send message length in bytes (-1 for unlimited).
+    grpc_max_receive_message_length: -1  # gRPC max receive message length in bytes (-1 for unlimited).
 tier1:
   backend: elasticsearch
-  metadata_url:
-    https://stars.renci.org/var/translator/releases/translator_kg/latest/graph-metadata.json
+  metadata_url: https://stars.renci.org/var/translator/releases/translator_kg/latest/graph-metadata.json
   backend_infores: infores:dogpark-tier1
   elasticsearch:
     query_timeout: 180  # Time in seconds before a Elasticsearch query should time out.
-    connect_retries: 5 # Number of retries before declaring a connection failure.
+    connect_retries: 5  # Number of retries before declaring a connection failure.
     host: ''
     port: 9200
     database_name: elasticsearch
@@ -98,4 +94,4 @@ telemetry:
   sentry_enabled: false
   sentry_dsn:
   traces_sample_rate: 0.1  # Proportion of traces to send to Sentry.
-  profiles_sample_rate: 0.5 # Proportion of sampled traces to profile.
+  profiles_sample_rate: 0.5  # Proportion of sampled traces to profile.

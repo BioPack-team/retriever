@@ -42,6 +42,8 @@ class SubclassMapping(metaclass=Singleton):
 
     async def expire(self, timeout: float = 0) -> None:
         """Expire the initialization, requiring a new update."""
+        if timeout < 1:
+            return
         try:
             await asyncio.sleep(timeout)
             self._initialized = False
