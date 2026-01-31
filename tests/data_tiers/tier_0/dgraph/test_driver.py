@@ -765,11 +765,11 @@ async def test_simple_one_query_live_http() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vG_id, "NCBIGene:11276")) @cascade(vG_id, ~vG_subject) {
+        q0_node_n0(func: eq(vG_id, "GO:0031410")) @cascade(vG_id, in_edges_e0) {
             expand(vG_Node)
-            out_edges_e0: ~vG_subject @filter(eq(vG_predicate_ancestors, "located_in")) @cascade(vG_predicate, vG_object) {
+            in_edges_e0: ~vG_object @filter(eq(vG_predicate_ancestors, "located_in")) @cascade(vG_predicate, vG_subject) {
                 expand(vG_Edge) { vG_sources expand(vG_Source) }
-                node_n0: vG_object @filter(eq(vG_id, "GO:0031410")) @cascade(vG_id) {
+                node_n1: vG_subject @filter(eq(vG_id, "NCBIGene:11276")) @cascade(vG_id) {
                     expand(vG_Node)
                 }
             }
@@ -777,6 +777,7 @@ async def test_simple_one_query_live_http() -> None:
     }
     """).strip()
 
+    # driver = new_http_driver(version="vG")
     driver = new_http_driver()
     await driver.connect()
 
@@ -784,7 +785,7 @@ async def test_simple_one_query_live_http() -> None:
     dgraph_schema_version = await driver.get_active_version()
 
     # Initialize the transpiler with the detected version
-    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version, subclassing_enabled=False)
     assert transpiler.version == "vG"
     assert transpiler.prefix == "vG_"
 
@@ -804,40 +805,27 @@ async def test_simple_one_query_live_http() -> None:
     root_node = result.data["q0"][0]
 
     # 1. Validate Root Node (NCBIGene:11276)
-    assert root_node.binding == "n1"
-    assert root_node.id == "NCBIGene:11276"
-    assert root_node.name == "SYNRG"
+    assert root_node.binding == "n0"
+    assert root_node.id == "GO:0031410"
+    assert root_node.name == "cytoplasmic vesicle"
 
     expected_root_cats = sorted([
-        "MacromolecularMachineMixin", "NamedThing", "Gene",
-        "ChemicalEntityOrProteinOrPolypeptide", "PhysicalEssence",
-        "PhysicalEssenceOrOccurrent", "OntologyClass",
-        "ChemicalEntityOrGeneOrGeneProduct", "GeneOrGeneProduct", "Polypeptide",
-        "ThingWithTaxon", "GenomicEntity", "GeneProductMixin", "Protein",
-        "BiologicalEntity"
+        "NamedThing", "OrganismalEntity", "PhysicalEssence",
+        "PhysicalEssenceOrOccurrent", "CellularComponent", "ThingWithTaxon",
+        "SubjectOfInvestigation", "AnatomicalEntity", "BiologicalEntity"
     ])
     assert sorted(root_node.category) == expected_root_cats
 
     # Validate attributes dictionary
     root_attrs = root_node.attributes
-    assert root_attrs.get("description") == "Synergin gamma"
-    assert root_attrs.get("full_name") == "synergin gamma"
-    assert root_attrs.get("symbol") == "SYNRG"
-    assert root_attrs.get("taxon") == "NCBITaxon:9606"
-    assert root_attrs.get("in_taxon") == ["NCBITaxon:9606"]
-    assert root_attrs.get("information_content") == pytest.approx(83.1)
-
-    expected_equiv_ids = sorted([
-        "PR:Q9UMZ2", "OMIM:607291", "UniProtKB:Q9UMZ2", "ENSEMBL:ENSG00000275066",
-        "UMLS:C1412437", "UMLS:C0893518", "MESH:C121510", "HGNC:557", "NCBIGene:11276"
-    ])
-    assert sorted(root_attrs.get("equivalent_identifiers", [])) == expected_equiv_ids
+    assert root_attrs.get("information_content") == 56.8
+    assert root_attrs.get("equivalent_identifiers") == ["GO:0031410"]
 
     # 2. Validate Edge
     assert len(root_node.edges) == 1
     edge = root_node.edges[0]
     assert edge.binding == "e0"
-    assert edge.direction == "out"
+    assert edge.direction == "in"
     assert edge.predicate == "located_in"
     assert isinstance(edge.id, str) and "urn:uuid:" in edge.id
     assert edge.qualifiers == {}
@@ -858,22 +846,35 @@ async def test_simple_one_query_live_http() -> None:
 
     # 3. Validate Connected Node (GO:0031410)
     connected_node = edge.node
-    assert connected_node.binding == "n0"
-    assert connected_node.id == "GO:0031410"
-    assert connected_node.name == "cytoplasmic vesicle"
+    assert connected_node.binding == "n1"
+    assert connected_node.id == "NCBIGene:11276"
+    assert connected_node.name == "SYNRG"
     assert connected_node.edges == []
 
     expected_go_cats = sorted([
-        "NamedThing", "OrganismalEntity", "PhysicalEssence",
-        "PhysicalEssenceOrOccurrent", "CellularComponent", "ThingWithTaxon",
-        "SubjectOfInvestigation", "AnatomicalEntity", "BiologicalEntity"
+        "MacromolecularMachineMixin", "NamedThing", "Gene",
+        "ChemicalEntityOrProteinOrPolypeptide", "PhysicalEssence",
+        "PhysicalEssenceOrOccurrent", "OntologyClass",
+        "ChemicalEntityOrGeneOrGeneProduct", "GeneOrGeneProduct", "Polypeptide",
+        "ThingWithTaxon", "GenomicEntity", "GeneProductMixin", "Protein",
+        "BiologicalEntity"
     ])
     assert sorted(connected_node.category) == expected_go_cats
 
     # Validate connected node attributes
     go_attrs = connected_node.attributes
-    assert go_attrs.get("information_content") == 56.8
-    assert go_attrs.get("equivalent_identifiers") == ["GO:0031410"]
+    assert go_attrs.get("description") == "Synergin gamma"
+    assert go_attrs.get("full_name") == "synergin gamma"
+    assert go_attrs.get("symbol") == "SYNRG"
+    assert go_attrs.get("taxon") == "NCBITaxon:9606"
+    assert go_attrs.get("in_taxon") == ["NCBITaxon:9606"]
+    assert go_attrs.get("information_content") == 83.1
+
+    expected_equiv_ids = sorted([
+        "PR:Q9UMZ2", "OMIM:607291", "UniProtKB:Q9UMZ2", "ENSEMBL:ENSG00000275066",
+        "UMLS:C1412437", "UMLS:C0893518", "MESH:C121510", "HGNC:557", "NCBIGene:11276"
+    ])
+    assert sorted(go_attrs.get("equivalent_identifiers", [])) == expected_equiv_ids
 
     await driver.close()
 
@@ -904,7 +905,7 @@ async def test_simple_one_query_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vG_id, "NCBIGene:11276")) @cascade(vG_id, ~vG_subject) {
+        q0_node_n1(func: eq(vG_id, "NCBIGene:11276")) @cascade(vG_id, out_edges_e0) {
             expand(vG_Node)
             out_edges_e0: ~vG_subject @filter(eq(vG_predicate_ancestors, "located_in")) @cascade(vG_predicate, vG_object) {
                 expand(vG_Edge) { vG_sources expand(vG_Source) }
@@ -923,7 +924,7 @@ async def test_simple_one_query_live_grpc() -> None:
     dgraph_schema_version = await driver.get_active_version()
 
     # Initialize the transpiler with the detected version
-    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version, subclassing_enabled=False)
     assert transpiler.version == "vG"
     assert transpiler.prefix == "vG_"
 
@@ -986,7 +987,7 @@ async def test_simple_reverse_query_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vG_id, "NCBIGene:3778")) @cascade(vG_id, ~vG_subject) {
+        q0_node_n1(func: eq(vG_id, "NCBIGene:3778")) @cascade(vG_id, out_edges_e0) {
             expand(vG_Node)
             out_edges_e0: ~vG_subject @filter(eq(vG_predicate_ancestors, "has_phenotype")) @cascade(vG_predicate, vG_object) {
                 expand(vG_Edge) { vG_sources expand(vG_Source) }
@@ -1005,7 +1006,7 @@ async def test_simple_reverse_query_live_grpc() -> None:
     dgraph_schema_version = await driver.get_active_version()
 
     # Initialize the transpiler with the detected version
-    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version, subclassing_enabled=False)
     assert transpiler.version == "vG"
     assert transpiler.prefix == "vG_"
 
@@ -1069,7 +1070,7 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vG_id, "NCBIGene:3778")) @cascade(vG_id, ~vG_subject) {
+        q0_node_n1(func: eq(vG_id, "NCBIGene:3778")) @cascade(vG_id, out_edges_e0) {
             expand(vG_Node)
 
             out_edges_e0: ~vG_subject
@@ -1106,7 +1107,7 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
     dgraph_schema_version = await driver.get_active_version()
 
     # Initialize the transpiler with the detected version
-    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version, subclassing_enabled=False)
     assert transpiler.version == "vG"
     assert transpiler.prefix == "vG_"
 
@@ -1249,7 +1250,7 @@ async def test_normalization_with_special_edge_id_live_grpc() -> None:
     # Expected query should use normalized edge ID 'e0', not 'e0_bad$%^'
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vG_id, "NCBIGene:3778")) @cascade(vG_id, ~vG_subject) {
+        q0_node_n1(func: eq(vG_id, "NCBIGene:3778")) @cascade(vG_id, out_edges_e0) {
             expand(vG_Node)
 
             out_edges_e0: ~vG_subject
@@ -1286,7 +1287,7 @@ async def test_normalization_with_special_edge_id_live_grpc() -> None:
     dgraph_schema_version = await driver.get_active_version()
 
     # Initialize the transpiler with the detected version
-    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version, subclassing_enabled=False)
     assert transpiler.version == "vG"
     assert transpiler.prefix == "vG_"
 
@@ -1502,5 +1503,95 @@ async def test_run_grpc_query_name_error_workaround(
     # 2. Act & Assert
     with pytest.raises(ConnectionError, match="Dgraph gRPC query failed: while running ToJson"):
         await driver.run_query("any query", transpiler=mock_transpiler)
+
+    await driver.close()
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_subclassing_live_id_to_id_case1_http() -> None:
+    """Live test: Case 1 (ID→R→ID) should emit subclassing forms B/C/D."""
+    driver = new_http_driver()
+    await driver.connect()
+
+    # Discover version and construct transpiler (subclassing enabled by default)
+    dgraph_schema_version = await driver.get_active_version()
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+
+    # ID → related_to → ID
+    qgraph_query: QueryGraphDict = qg({
+        "nodes": {
+            "n0": {"ids": ["NCBIGene:7157"], "constraints": []},
+            "n1": {"ids": ["NCBIGene:1956"], "constraints": []},
+        },
+        "edges": {
+            "e0": {
+                "subject": "n0",
+                "object": "n1",
+                "predicates": ["biolink:related_to"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            }
+        },
+    })
+
+    dgraph_query = transpiler.convert_multihop_public(qgraph_query)
+
+    # Subclassing aliases should be present for Case 1
+    assert "in_edges-subclassB_e0:" in dgraph_query
+    assert "out_edges-subclassC_e0:" in dgraph_query
+    assert "in_edges-subclassD_e0:" in dgraph_query
+
+    # Run query and verify response type
+    result: dg_models.DgraphResponse = await driver.run_query(dgraph_query, transpiler=transpiler)
+    assert isinstance(result, dg_models.DgraphResponse)
+    assert "q0" in result.data
+
+    await driver.close()
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_subclassing_live_id_to_category_case2_http() -> None:
+    """Live test: Case 2 (ID→R→CAT-only) should emit subclassing Form B only."""
+    driver = new_http_driver()
+    await driver.connect()
+
+    dgraph_schema_version = await driver.get_active_version()
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
+
+    # ID → participates_in → CAT-only (ensure target has no IDs)
+    qgraph_query: QueryGraphDict = qg({
+        "nodes": {
+            "n0": {"ids": ["NCBIGene:3778"], "constraints": []},              # source ID
+            "n1": {"categories": ["biolink:Pathway"], "constraints": []},     # target categories only
+        },
+        "edges": {
+            "e0": {
+                "subject": "n0",
+                "object": "n1",
+                "predicates": ["biolink:participates_in"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            }
+        },
+    })
+
+    dgraph_query = transpiler.convert_multihop_public(qgraph_query)
+
+    # Case 2: only Form B should be present, C/D should not
+    assert ("in_edges-subclassB_e0:" in dgraph_query) or ("out_edges-subclassB_e0:" in dgraph_query)
+    assert "subclassC_e0:" not in dgraph_query
+    assert "subclassD_e0:" not in dgraph_query
+
+    # Category filter should be applied on final node
+    assert '@filter(eq(' in dgraph_query and 'category' in dgraph_query
+
+    # Run query and verify response type
+    result: dg_models.DgraphResponse = await driver.run_query(dgraph_query, transpiler=transpiler)
+    assert isinstance(result, dg_models.DgraphResponse)
+    assert "q0" in result.data
 
     await driver.close()
