@@ -1,7 +1,7 @@
 import asyncio
-from collections import deque
 import math
 import time
+from collections import deque
 from copy import deepcopy
 from typing import Any, Literal, cast, overload
 
