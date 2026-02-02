@@ -1,4 +1,5 @@
 import asyncio
+from collections import deque
 import math
 import time
 from copy import deepcopy
@@ -66,7 +67,11 @@ async def async_lookup(query: QueryInfo) -> None:
             "An unhandled exception occured while making response callback."
         )
 
-    # update so callback logs are kept with response
+    # Effectively tack the callback logs onto the end of the response
+    response_logs = response.get("logs", []) or []
+    job_log.log_deque = deque(response_logs) + job_log.log_deque
+
+    # Update the stored state with new logs
     tracked_response(status, query, response, job_log)
 
 
