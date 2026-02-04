@@ -1483,6 +1483,18 @@ def test_symmetric_predicate_incoming_edge(transpiler: _TestDgraphTranspiler) ->
                     expand(Node)
                 }
             }
+            in_edges-subclassObjB_e0: ~object @filter(eq(predicate_ancestors, "correlated_with")) @cascade(predicate, subject) {
+                expand(Edge) { sources expand(Source) }
+                node_intermediate: subject @filter(has(id)) @cascade(id, ~subject) {
+                    expand(Node)
+                    out_edges-subclassObjB-tail_e0: ~subject @filter(eq(predicate_ancestors, "subclass_of")) @cascade(predicate, object) {
+                        expand(Edge) { sources expand(Source) }
+                        node_n1: object @filter(eq(category, "Gene")) @cascade(id) {
+                            expand(Node)
+                        }
+                    }
+                }
+            }
         }
     }
     """).strip()
@@ -2394,6 +2406,7 @@ def test_pinnedness_issue(transpiler: _TestDgraphTranspiler) -> None:
 
     # 2. Act
     actual = transpiler.convert_multihop_public(qgraph)
+
     expected = dedent("""
     {
         q0_node_n0(func: eq(id, "MONDO:0011705")) @cascade(id, out_edges_e2, in_edges_e1) {
@@ -2429,6 +2442,18 @@ def test_pinnedness_issue(transpiler: _TestDgraphTranspiler) -> None:
                     in_edges_e0: ~object @filter(eq(predicate_ancestors, "treats_or_applied_or_studied_to_treat")) @cascade(predicate, subject) {
                         expand(Edge) { sources expand(Source) }
                         node_n1: subject @filter(eq(category, "ChemicalEntity")) @cascade(id) {
+                            expand(Node)
+                        }
+                    }
+                }
+            }
+            in_edges-subclassObjB_e1: ~object @filter(eq(predicate_ancestors, "has_phenotype")) @cascade(predicate, subject) {
+                expand(Edge) { sources expand(Source) }
+                node_intermediate: subject @filter(has(id)) @cascade(id, ~subject) {
+                    expand(Node)
+                    out_edges-subclassObjB-tail_e1: ~subject @filter(eq(predicate_ancestors, "subclass_of")) @cascade(predicate, object) {
+                        expand(Edge) { sources expand(Source) }
+                        node_n2: object @filter(eq(category, "Disease")) @cascade(id, in_edges_e0) {
                             expand(Node)
                         }
                     }
