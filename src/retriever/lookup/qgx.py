@@ -52,44 +52,67 @@ CompletePathName = str
 class QueryGraphExecutor:
     """Handler class for running the QGX algorithm."""
 
+    ctx: QueryInfo
+    qgraph: QueryGraphDict
+    job_log: TRAPILogger
+
+    q_agraph: AdjacencyGraph
+    qedge_map: QEdgeIDMap
+    qedge_claims: dict[QEdgeID, Branch | None]
+    kgraph: KnowledgeGraphDict
+    aux_graphs: dict[AuxGraphID, AuxiliaryGraphDict]
+    kedges_by_input: dict[SuperpositionHop, list[EdgeDict]]
+    k_agraph: KAdjacencyGraph
+
+    active_branches: set[BranchID]
+    active_superpositions: set[SuperpositionID]
+    dead_superpositions: set[SuperpositionID]
+    complete_paths: set[CompletePathName]
+
+    locks: dict[Hashable, asyncio.Lock]
+    terminate: bool
+    start_time: float
+    timeout: float
+
     def __init__(self, qgraph: QueryGraphDict, query_info: QueryInfo) -> None:
         """Initialize a QueryGraphExecutor, setting up information shared by methods."""
-        self.ctx: QueryInfo = query_info
-        self.qgraph: QueryGraphDict = qgraph
-        self.job_log: TRAPILogger = TRAPILogger(self.ctx.job_id)
+        self.ctx = query_info
+        self.qgraph = qgraph
+        self.job_log = TRAPILogger(self.ctx.job_id)
 
         q_agraph, qedge_map = make_mappings(self.qgraph)
-        self.q_agraph: AdjacencyGraph = q_agraph
-        self.qedge_map: QEdgeIDMap = qedge_map
-        self.qedge_claims: dict[QEdgeID, Branch | None] = {
+        self.q_agraph = q_agraph
+        self.qedge_map = qedge_map
+        self.qedge_claims = {
             QEdgeID(qedge_id): None for qedge_id in self.qgraph["edges"]
         }
 
-        self.kgraph: KnowledgeGraphDict = initialize_kgraph(self.qgraph)
-        self.aux_graphs: dict[AuxGraphID, AuxiliaryGraphDict] = {}
+        self.kgraph = initialize_kgraph(self.qgraph)
+        self.aux_graphs = {}
         # For more detailed tracking
         # Each key represents an input superposition for a given branch
         # (branch's input curie and current edge)
-        self.kedges_by_input: dict[SuperpositionHop, list[EdgeDict]] = {}
-        self.k_agraph: KAdjacencyGraph = {
+        self.kedges_by_input = {}
+        self.k_agraph = {
             QEdgeID(qedge_id): dict[CURIE, dict[CURIE, list[EdgeIdentifier]]]()
             for qedge_id in self.qgraph["edges"]
         }
 
-        self.active_branches: set[BranchID] = set()
-        self.active_superpositions: set[SuperpositionID] = set()
-        self.complete_paths: set[CompletePathName] = set()
+        self.active_branches = set()
+        self.active_superpositions = set()
+        self.dead_superpositions = set()
+        self.complete_paths = set()
 
         # Initialize locks for accessing some of the above
-        self.locks: dict[Hashable, asyncio.Lock] = {
+        self.locks = {
             "claim": asyncio.Lock(),
             "hop_check": asyncio.Lock(),
             "partial_sync": asyncio.Lock(),
             "kgraph": asyncio.Lock(),
         }
 
-        self.terminate: bool = False
-        self.start_time: float = 0  # replaced on execute start
+        self.terminate = False
+        self.start_time = 0  # replaced on execute start
 
         # Because timeouts are configured on a per-tier basis, we take the longest timeout
         # of the tiers we are accessing. If any of them are -1, we consider the timeout
@@ -101,7 +124,7 @@ class QueryGraphExecutor:
         ]
         if -1 in timeouts:
             self.timeout = -1
-        self.timeout: float = max(timeouts)
+        self.timeout = max(timeouts)
 
     @tracer.start_as_current_span("qgx_execute")
     async def execute(self) -> LookupArtifacts:
@@ -189,18 +212,8 @@ class QueryGraphExecutor:
         except EmptyIteratorError as e:
             # Longest branch matching the starting branch will always be the one that failed
             initial_id = starting_branches[e.iterator].branch_id
-            matching_branches = [
-                br for br in self.active_branches if str(initial_id) in str(br)
-            ]
-            branch_lengths = [len(br) for br in matching_branches]
-            longest_branch = matching_branches[
-                branch_lengths.index(max(branch_lengths))
-            ]
-            self.job_log.debug(
-                f"Branch {Branch.branch_id_to_name(longest_branch)} (starting branch {Branch.branch_id_to_name(initial_id)}) terminated with no partials."
-            )
             self.job_log.warning(
-                f"QEdge {longest_branch[-2][1]} found no supporting knowledge. No results can be reconciled. Query terminates."
+                f"Branch {Branch.branch_id_to_name(initial_id)} terminated in an unexpected manner."
             )
             self.terminate = True
 
@@ -208,7 +221,7 @@ class QueryGraphExecutor:
 
     async def reconcile_starting_branches(
         self,
-        branch_tasks: list[AsyncGenerator[tuple[Branch, Partial]]],
+        branch_tasks: list[AsyncGenerator[tuple[Branch, Partial | None]]],
         partials: dict[BranchID, list[Partial]],
         reconciled: list[Partial],
     ) -> None:
@@ -216,6 +229,39 @@ class QueryGraphExecutor:
         async for branch, partial in merge_iterators(
             *branch_tasks, raise_on_empty=True
         ):
+            if partial is None:  # A branch terminated with nothing
+                # Either this is just one of several on the same starting node
+                # Meaning we can continue, business as usual
+                self.job_log.debug(
+                    f"Branch {branch.superposition_name} terminated with no partials."
+                )
+                self.dead_superpositions.add(branch.superposition_id)
+
+                starting_hop = branch.branch_id[0]
+                if any(
+                    s_id not in self.dead_superpositions
+                    and (s_id[0][0], s_id[0][2]) == starting_hop
+                    for s_id in self.active_superpositions
+                ):
+                    continue
+
+                # ...Or it's the last of several on the starting node
+                # Meaning we have to terminate, because there'll be nothing to reconcile to
+                matching_branches = [
+                    br
+                    for br in self.active_branches
+                    if str(branch.branch_id) in str(br)
+                ]
+                branch_lengths = [len(br) for br in matching_branches]
+                longest_branch = matching_branches[
+                    branch_lengths.index(max(branch_lengths))
+                ]
+                self.job_log.warning(
+                    f"QEdge {longest_branch[-2][1]} found no supporting knowledge. No results can be reconciled. Query terminates."
+                )
+                self.terminate = True
+                break
+
             # await asyncio.sleep(0)
             branch_id = branch.branch_id
             partial.node_bindings.append((branch.start_node, branch.curies[0]))
@@ -247,7 +293,7 @@ class QueryGraphExecutor:
 
     async def execute_branch(
         self, current_branch: Branch
-    ) -> AsyncGenerator[tuple[Branch, Partial]]:
+    ) -> AsyncGenerator[tuple[Branch, Partial | None]]:
         """Recursively execute a query graph, traversing in parallel by curie.
 
         Yields:
@@ -263,6 +309,8 @@ class QueryGraphExecutor:
         # Execute with the given lock so any other superpositions that cause this hop await the first one's completion
         async with self.locks[current_branch.hop_id]:
             self.active_branches.add(current_branch.branch_id)
+            async with self.locks["hop_check"]:
+                self.active_superpositions.add(current_branch.superposition_id)
             subquery_tasks, update_kgraph = await self.get_subquery_tasks(
                 current_branch
             )
@@ -319,6 +367,9 @@ class QueryGraphExecutor:
 
                 branch_tasks.extend(new_branch_tasks)
                 parallel_tasks = [*pending, *new_branch_tasks]
+
+            if yielded_partials == 0:
+                yield current_branch, None
 
         return
 
