@@ -330,9 +330,9 @@ async def logs(  # noqa: PLR0913 Can't reduce args due to FastAPI endpoint forma
         ),
     ] = None,
     fmt: Annotated[
-        Literal["flat", "trapi", "structured"],
+        Literal["flat", "trapi", "struct"],
         Query(
-            description="Respond with a specific format. flat: plaintext log lines; trapi: TRAPI-style logs; structured: loguru-structured format"
+            description="Respond with a specific format. flat: plaintext log lines; trapi: TRAPI-style logs; struct: loguru-structured format"
         ),
     ] = "flat",
 ) -> StreamingResponse:
@@ -352,7 +352,8 @@ async def logs(  # noqa: PLR0913 Can't reduce args due to FastAPI endpoint forma
         logs = MONGO_CLIENT.get_logs(start, end, level, job_id)
         if fmt == "trapi":
             logs = structured_log_to_trapi(logs)
-        logs = objs_to_json(logs)
+        use_jsonl = fmt == "struct"
+        logs = objs_to_json(logs, jsonl=use_jsonl)
 
     return StreamingResponse(
         logs,

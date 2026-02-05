@@ -79,15 +79,21 @@ async def structured_log_to_trapi(
         )
 
 
-async def objs_to_json(generator: AsyncGenerator[Any]) -> AsyncGenerator[str]:
+async def objs_to_json(
+    generator: AsyncGenerator[Any], jsonl: bool = False
+) -> AsyncGenerator[str]:
     """Take an async generator of json-dumpable and yield them in a JSON-compliant fasion."""
-    yield "["
+    if not jsonl:
+        yield "["
+
+    delimiter = "," if not jsonl else "\n"
 
     first = True
     async for item in generator:
-        yield ("" if first else ",") + orjson.dumps(item).decode()
+        yield ("" if first else delimiter) + orjson.dumps(item).decode()
         first = False
-    yield "]"
+    if not jsonl:
+        yield "]"
 
 
 class TRAPILogger:
