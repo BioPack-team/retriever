@@ -1,6 +1,8 @@
 import asyncio
 import base64
 import json
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from http import HTTPStatus
 from typing import Any, Protocol, TypedDict, cast, override
@@ -108,6 +110,21 @@ class DgraphClientProtocol(Protocol):
         """Check the version of the Dgraph server."""
         ...
 
+    def login_into_namespace(
+        self, userid: str, password: str, namespace: int | None
+    ) -> None:
+        """Logs into a Dgraph namespace."""
+        ...
+
+
+@dataclass(frozen=True)
+class ActiveSchemaInfo:
+    """Holds all information about the active schema."""
+
+    version: str
+    namespace: int | None
+    mapping: dict[str, Any]
+
 
 class DgraphDriver(DatabaseDriver):
     """Driver for Dgraph supporting both gRPC and HTTP protocols."""
@@ -118,12 +135,17 @@ class DgraphDriver(DatabaseDriver):
     query_timeout: float
     connect_retries: int
     version: str | None = None
+    namespace: int | None = None
     _client_stub: DgraphClientStubProtocol | None = None
     _client: DgraphClientProtocol | None = None
     _http_session: aiohttp.ClientSession | None = None
+    _access_token: str | None = None
+    _token_namespace: int | None = None
+    _token_expiry: datetime | None = None
     _failed: bool = False
-    _version_cache: TTLCache[str, str | None] = TTLCache(maxsize=1, ttl=60)
-    _mapping_cache: TTLCache[str, dict[str, Any] | None] = TTLCache(maxsize=1, ttl=300)
+    _schema_info_cache: TTLCache[str, ActiveSchemaInfo | None] = TTLCache(
+        maxsize=1, ttl=300
+    )
 
     def __init__(
         self,
@@ -156,210 +178,216 @@ class DgraphDriver(DatabaseDriver):
         else:
             self.version = None
 
+        # Set preferred namespace from settings, if provided.
+        if self.settings.preferred_namespace is not None:
+            self.namespace = self.settings.preferred_namespace
+            log.debug(
+                "Using namespace from TIER0__DGRAPH__PREFERRED_NAMESPACE env var: "
+                + f"{self.namespace}"
+            )
+        else:
+            self.namespace = None
+
         # Set endpoint based on protocol
         if protocol == DgraphProtocol.GRPC:
             self.endpoint = self.settings.grpc_endpoint
         else:  # HTTP
             self.endpoint = self.settings.http_endpoint
 
-    def clear_version_cache(self) -> None:
-        """Clears the internal schema version cache. Primarily for testing."""
-        log.debug("Clearing Dgraph schema version cache.")
-        self._version_cache.clear()
+    def is_connected(self) -> bool:
+        """Checks if the driver has an active connection client."""
+        if self.protocol == DgraphProtocol.GRPC:
+            return self._client is not None
+        else:  # HTTP
+            return self._http_session is not None and not self._http_session.closed
 
-    def clear_mapping_cache(self) -> None:
-        """Clears the internal schema mapping cache. Primarily for testing."""
-        log.debug("Clearing Dgraph schema mapping cache.")
-        self._mapping_cache.clear()
+    def clear_schema_info_cache(self) -> None:
+        """Clears the internal active schema info cache. Primarily for testing."""
+        log.debug("Clearing Dgraph active schema info cache.")
+        self._schema_info_cache.clear()
 
-    async def get_active_version(self) -> str | None:
-        """Queries Dgraph for the active schema version and caches the result.
+    async def get_active_schema_info(self) -> ActiveSchemaInfo | None:
+        """Fetches and caches all information for the active schema version.
 
-        If a version was provided at initialization, it will be returned directly.
-
-        This method implements manual caching to be async-safe.
-        """
-        # If a version was manually set on the driver, always use it.
-        if self.version:
-            log.debug(f"Using manually specified Dgraph schema version: {self.version}")
-            return self.version
-
-        # Manually check the cache first
-        try:
-            cached_version = self._version_cache["active_version"]
-            log.debug(f"Returning cached Dgraph schema version: {cached_version}")
-            return cached_version
-        except KeyError:
-            log.debug("Querying for active Dgraph schema version (cache miss)...")
-            # Not in cache, proceed to fetch
-
-        query = """
-            query active_version() {
-              versions(func: type(SchemaMetadata)) @filter(eq(schema_metadata_is_active, true)) {
-                schema_metadata_version
-              }
-            }
-        """
-        txn: DgraphTxnProtocol | None = None
-        try:
-            versions = []
-            if self.protocol == DgraphProtocol.GRPC:
-                assert self._client is not None, "gRPC client not initialized"
-                txn = self._client.txn(read_only=True)
-                response = await asyncio.to_thread(txn.query, query)
-                raw_data = json.loads(response.json)
-                log.debug(f"Dgraph version query raw data: {raw_data}")
-                versions = raw_data.get("versions", [])
-            else:  # HTTP
-                assert self._http_session is not None, "HTTP session not initialized"
-                async with self._http_session.post(
-                    urljoin(self.endpoint, "/query"),
-                    json={"query": query},
-                    timeout=ClientTimeout(total=self.query_timeout),
-                ) as response:
-                    raw_data = await response.json()
-                    versions = raw_data.get("data").get("versions", [])
-
-            version = versions[0].get("schema_metadata_version") if versions else None
-
-            if version:
-                log.info(f"Found and cached active Dgraph schema version: {version}")
-            else:
-                log.warning(
-                    "No active Dgraph schema version found. Caching null result."
-                )
-
-            # Manually store the result in the cache before returning
-            self._version_cache["active_version"] = version
-            return version
-        except Exception as e:
-            log.error(f"Failed to query for active Dgraph schema version: {e}")
-            # Cache the failure as None to prevent retrying on every call
-            self._version_cache["active_version"] = None
-            return None
-        finally:
-            # Only discard the transaction if it was successfully created
-            if self.protocol == DgraphProtocol.GRPC and txn:
-                await asyncio.to_thread(txn.discard)
-
-    async def fetch_mapping_from_db(self, version: str) -> dict[str, Any] | None:
-        """Helper to fetch and deserialize mapping from Dgraph.
-
-        Args:
-            version: The schema version to fetch mapping for
+        This is the single source of truth for the active version, namespace, and mapping.
+        It respects manual overrides for version and namespace from the config.
 
         Returns:
-            Deserialized mapping dictionary, or None if not found or on error.
+            An ActiveSchemaInfo object, or None if no active schema is found.
         """
+        # Ensure the driver is connected before proceeding.
+        if not self.is_connected():
+            log.debug("Driver not connected. Establishing connection now...")
+            await self.connect()
+
+        # 1. Check cache first
+        try:
+            cached_info = self._schema_info_cache["active_info"]
+            if cached_info:
+                log.debug(
+                    f"Returning cached schema info for version '{cached_info.version}'"
+                )
+            return cached_info
+        except KeyError:
+            log.debug("Querying for active Dgraph schema info (cache miss)...")
+
+        # 2. Fetch from database
+        try:
+            info = await self._fetch_and_build_schema_info()
+            self._schema_info_cache["active_info"] = info
+            if info:
+                log.info(
+                    f"Successfully fetched and cached active schema info for version '{info.version}'"
+                )
+            else:
+                log.warning("No active schema found. Caching null result.")
+            return info
+        except Exception as e:
+            log.error(f"Failed to fetch active schema info: {e}")
+            self._schema_info_cache["active_info"] = None
+            return None
+
+    async def _fetch_and_build_schema_info(self) -> ActiveSchemaInfo | None:
+        """Performs the actual database query to get version, namespace, and mapping."""
+        # Determine the filter to use.
+        # If a manual version is set, filter by that version.
+        # Otherwise, filter for the active schema.
+        if self.version:
+            log.debug(f"Querying for manually specified Dgraph schema: {self.version}")
+            dgraph_filter = f'@filter(eq(schema_metadata_version, "{self.version}"))'
+        else:
+            log.debug("Querying for active Dgraph schema.")
+            dgraph_filter = "@filter(eq(schema_metadata_is_active, true))"
+
+        # This query now correctly uses `has()` and works for both cases.
         query = f"""
-            query schema_mapping() {{
-                metadata(func: type(SchemaMetadata))
-                    @filter(eq(schema_metadata_version, "{version}")) {{
-                    schema_metadata_mapping
-                }}
+            query get_schema_info {{
+              schema_metadata(func: has(schema_metadata_version)) {dgraph_filter} {{
+                schema_metadata_version
+                schema_metadata_namespace
+                schema_metadata_mapping
+              }}
             }}
         """
-        txn: DgraphTxnProtocol | None = None
-        try:
-            metadata_list = []
-            if self.protocol == DgraphProtocol.GRPC:
-                assert self._client is not None, "gRPC client not initialized"
-                txn = self._client.txn(read_only=True)
-                response = await asyncio.to_thread(txn.query, query)
-                raw_data = json.loads(response.json)
-                metadata_list = raw_data.get("metadata", [])
-            else:  # HTTP
-                assert self._http_session is not None, "HTTP session not initialized"
-                async with self._http_session.post(
-                    urljoin(self.endpoint, "/query"),
-                    json={"query": query},
-                    timeout=ClientTimeout(total=self.query_timeout),
-                ) as response:
-                    raw_data = await response.json()
-                    metadata_list = raw_data.get("data", {}).get("metadata", [])
+        raw_data = await self._execute_metadata_query(query)
+        schema_metadata_list = raw_data.get("schema_metadata", [])
 
-            if not metadata_list:
-                log.warning(f"No schema metadata found for version '{version}'")
-                return None
+        if not schema_metadata_list:
+            return None
 
-            # Get the msgpack-encoded mapping
-            mapping_blob = metadata_list[0].get("schema_metadata_mapping")
-            if not mapping_blob:
-                log.warning(
-                    f"schema_metadata_mapping field is empty for version '{version}'"
-                )
-                return None
+        active_schema = schema_metadata_list[0]
+        version = active_schema.get("schema_metadata_version")
+        mapping_blob = active_schema.get("schema_metadata_mapping")
 
-            # Dgraph may return the blob as a base64-encoded string or raw bytes
-            # depending on how it was stored. Try to handle both cases.
-            mapping_bytes: bytes
-            if isinstance(mapping_blob, str):
-                # If it's a string, it might be base64-encoded
-
-                try:
-                    mapping_bytes = base64.b64decode(mapping_blob)
-                except Exception:
-                    # If base64 decode fails, assume it's UTF-8 encoded msgpack
-                    mapping_bytes = mapping_blob.encode("utf-8")
-            else:
-                mapping_bytes = mapping_blob
-
-            # Deserialize msgpack - explicitly type the result
-            mapping = cast(dict[str, Any], msgpack.unpackb(mapping_bytes, raw=False))
-            log.info(
-                f"Successfully retrieved schema metadata mapping for version '{version}'"
-            )
-            return mapping
-
-        except Exception as e:
+        if not version or not mapping_blob:
             log.error(
-                f"Failed to retrieve schema metadata mapping for version '{version}': {e}"
+                "Found schema metadata, but it is missing version or mapping fields."
             )
             return None
-        finally:
-            if self.protocol == DgraphProtocol.GRPC and txn:
-                await asyncio.to_thread(txn.discard)
+
+        # Respect manual namespace override even with auto-detected version
+        namespace_val = (
+            self.namespace
+            if self.namespace is not None
+            else active_schema.get("schema_metadata_namespace")
+        )
+        namespace: int | None = None
+        if namespace_val is not None:
+            try:
+                namespace = int(namespace_val)
+            except (ValueError, TypeError):
+                log.warning(
+                    f"Could not parse namespace '{namespace_val}' as an integer. Defaulting to None."
+                )
+                namespace = None
+
+        try:
+            mapping_bytes = (
+                base64.b64decode(mapping_blob)
+                if isinstance(mapping_blob, str)
+                else mapping_blob
+            )
+            mapping = cast(dict[str, Any], msgpack.unpackb(mapping_bytes, raw=False))
+        except Exception as e:
+            log.error(f"Failed to decode mapping for version '{version}': {e}")
+            return None
+
+        return ActiveSchemaInfo(version=version, namespace=namespace, mapping=mapping)
+
+    async def _execute_metadata_query(self, query: str) -> dict[str, Any]:
+        """Executes a simple, read-only query against the metadata namespace."""
+        # With ACLs, metadata is always in namespace 0. We must ensure we are
+        # logged into that namespace before executing the query.
+        if self.protocol == DgraphProtocol.GRPC:
+            # For critical metadata queries with ACLs, we create a temporary, clean
+            # client to ensure there's no stale authentication state.
+            if self.settings.username and self.settings.password:
+                temp_stub = None
+                try:
+                    log.debug("Creating temporary gRPC client for metadata query.")
+                    grpc_options = [
+                        (
+                            "grpc.max_send_message_length",
+                            self.settings.grpc_max_send_message_length,
+                        ),
+                        (
+                            "grpc.max_receive_message_length",
+                            self.settings.grpc_max_receive_message_length,
+                        ),
+                    ]
+                    temp_stub = pydgraph.DgraphClientStub(
+                        self.endpoint, options=grpc_options
+                    )
+                    temp_client = cast(
+                        DgraphClientProtocol,
+                        cast(object, pydgraph.DgraphClient(temp_stub)),
+                    )
+                    await asyncio.to_thread(
+                        temp_client.login_into_namespace,
+                        self.settings.username,
+                        self.settings.password.get_secret_value(),
+                        0,  # Always namespace 0 for metadata
+                    )
+                    txn = temp_client.txn(read_only=True)
+                    response = await asyncio.to_thread(txn.query, query)
+                    return json.loads(response.json)
+                finally:
+                    if temp_stub:
+                        temp_stub.close()
+            else:
+                # No auth, use the existing client
+                assert self._client is not None, "gRPC client not initialized"
+                txn = self._client.txn(read_only=True)
+                try:
+                    response = await asyncio.to_thread(txn.query, query)
+                    return json.loads(response.json)
+                finally:
+                    await asyncio.to_thread(txn.discard)
+        else:  # HTTP
+            assert self._http_session is not None, "HTTP session not initialized"
+            async with self._http_session.post(
+                urljoin(self.endpoint, "/query"),
+                json={"query": query},
+                timeout=ClientTimeout(total=self.query_timeout),
+            ) as response:
+                response.raise_for_status()
+                return await response.json()
 
     @override
     async def get_metadata(self) -> dict[str, Any] | None:
-        """Queries Dgraph for the active schema's metadata mapping.
-
-        The mapping is stored as a msgpack-serialized JSON blob in the
-        schema_metadata_mapping field. This method retrieves and deserializes it
-        for the active schema version.
-
-        The result is cached per-version with a 5-minute TTL.
-
-        Returns:
-            Deserialized mapping dictionary, or None if not found or on error.
-        """
-        # Get the active version (respects manual version, env var, or DB query)
-        version = await self.get_active_version()
-        if not version:
-            log.warning(
-                "Cannot retrieve schema metadata mapping: no active version found"
-            )
+        """Returns the metadata mapping for the active schema."""
+        schema_info = await self.get_active_schema_info()
+        if not schema_info:
+            log.warning("Cannot retrieve schema metadata: no active schema info found.")
             return None
+        return schema_info.mapping
 
-        # Check cache first (keyed by version)
-        cache_key = f"mapping_{version}"
-        try:
-            cached_mapping = self._mapping_cache[cache_key]
-            log.debug(
-                f"Returning cached schema metadata mapping for version '{version}'"
-            )
-            return cached_mapping
-        except KeyError:
-            log.debug(
-                f"Fetching schema metadata mapping for version '{version}' (cache miss)..."
-            )
-
-        # Fetch from database
-        mapping = await self.fetch_mapping_from_db(version)
-
-        # Cache the result (whether successful or None)
-        self._mapping_cache[cache_key] = mapping
-        return mapping
+    async def get_active_version(self) -> str | None:
+        """Convenience method to get only the version string of the active schema."""
+        schema_info = await self.get_active_schema_info()
+        if not schema_info:
+            return None
+        return schema_info.version
 
     @override
     async def get_operations(
@@ -386,13 +414,14 @@ class DgraphDriver(DatabaseDriver):
                 await self._connect_http()
             log.success(f"Dgraph {self.protocol} connection successful!")
 
-            # Populate version cache after successful connect so subsequent
-            # code can use get_active_version without triggering a query.
+            # Populate version and namespace caches after successful connect so subsequent
+            # code can use them without triggering a query.
             try:
-                await self.get_active_version()
+                await self.get_active_schema_info()
             except Exception as e:
-                log.warning(f"Unable to fetch active schema version after connect: {e}")
-
+                log.warning(
+                    f"Unable to fetch active schema version/namespace after connect: {e}"
+                )
         except Exception as e:
             await self._cleanup_connections()
             if retries < self.connect_retries:
@@ -428,6 +457,29 @@ class DgraphDriver(DatabaseDriver):
 
         try:
             assert self._client is not None
+
+            # If username and password are provided, attempt to log in.
+            if self.settings.username and self.settings.password:
+                username = self.settings.username
+                password = self.settings.password.get_secret_value()
+                # With ACLs, metadata is always in namespace 0.
+                # Data queries will use the dynamic namespace later.
+                login_namespace = 0
+
+                log.info(
+                    f"Attempting Dgraph login for user '{username}' "
+                    + f"in metadata namespace {login_namespace}"
+                )
+
+                # pydgraph login is synchronous, so run it in a separate thread.
+                await asyncio.to_thread(
+                    self._client.login_into_namespace,
+                    username,
+                    password,
+                    login_namespace,
+                )
+                log.success(f"Dgraph login successful for user '{username}'.")
+
             # The pydgraph client is synchronous, so `check_version()` is a blocking
             # network call. We use `asyncio.to_thread()` to run it in a separate
             # thread, which prevents it from freezing the main application's event
@@ -443,9 +495,82 @@ class DgraphDriver(DatabaseDriver):
                 f"Failed to verify gRPC connection to {self.endpoint}"
             ) from e
 
+    async def _http_login(self) -> None:
+        """Logs into Dgraph over HTTP and stores the access token."""
+        if not (self.settings.username and self.settings.password):
+            return
+
+        assert self._http_session is not None, "HTTP session not initialized for login"
+
+        username = self.settings.username
+        password = self.settings.password.get_secret_value()
+        # With ACLs, metadata is always in namespace 0.
+        # Data queries will use the dynamic namespace later.
+        login_namespace = 0
+
+        log.info(
+            f"Attempting Dgraph HTTP login for user '{username}'"
+            + f" in metadata namespace {login_namespace}"
+        )
+
+        login_mutation = {
+            "query": f"""
+                mutation Login {{
+                    login(userId: "{username}", password: "{password}"{f", namespace: {login_namespace}" if login_namespace else ""}) {{
+                        response {{
+                            accessJWT
+                        }}
+                    }}
+                }}
+            """
+        }
+
+        try:
+            async with self._http_session.post(
+                urljoin(self.endpoint, "/admin"),
+                json=login_mutation,
+                timeout=ClientTimeout(total=self.query_timeout),
+            ) as response:
+                response.raise_for_status()
+                data = await response.json()
+
+                if "errors" in data:
+                    raise RuntimeError(f"Dgraph login failed: {data['errors']}")
+
+                self._access_token = data["data"]["login"]["response"]["accessJWT"]
+                assert (
+                    self._access_token is not None
+                ), "Access token should not be None after successful login"
+
+                # Decode JWT payload to get expiration time
+                # A JWT is three parts: header.payload.signature
+                payload_b64 = self._access_token.split(".")[1]
+                # Add padding for correct base64 decoding
+                payload_b64 += "=" * (-len(payload_b64) % 4)
+                payload = json.loads(base64.b64decode(payload_b64))
+
+                # Set expiry with a 60-second buffer to be safe
+                self._token_expiry = datetime.fromtimestamp(
+                    payload["exp"], tz=UTC
+                ) - timedelta(seconds=60)
+
+                # Update the session headers for subsequent requests
+                self._http_session.headers["X-Dgraph-AccessToken"] = self._access_token
+                log.success(f"Dgraph HTTP login successful for user '{username}'.")
+
+        except Exception as e:
+            self._access_token = None
+            self._token_expiry = None
+            raise ConnectionError("Dgraph HTTP login failed.") from e
+
     async def _connect_http(self) -> None:
         """Establish HTTP connection to Dgraph."""
         self._http_session = aiohttp.ClientSession()
+
+        # If auth is configured, perform login
+        if self.settings.username and self.settings.password:
+            await self._http_login()
+
         # Test connection with a simple query
         query = "{ health { status } }"
         async with self._http_session.post(
@@ -502,9 +627,12 @@ class DgraphDriver(DatabaseDriver):
         else:
             otel_span = None
 
-        # Get the version to build the prefix for parsing the response
-        version = await self.get_active_version()
-        prefix = f"{version}_" if version else None
+        # Get active schema info
+        schema_info = await self.get_active_schema_info()
+        if not schema_info:
+            raise RuntimeError("Could not determine active Dgraph schema to run query.")
+
+        prefix = f"{schema_info.version}_"
 
         # Extract ID mappings from transpiler
         node_id_map = transpiler._reverse_node_map
@@ -560,6 +688,23 @@ class DgraphDriver(DatabaseDriver):
 
         txn: DgraphTxnProtocol | None = None
         try:
+            # If auth is enabled, we may need to re-login to the correct data namespace
+            if self.settings.username and self.settings.password:
+                schema_info = await self.get_active_schema_info()
+                data_namespace = schema_info.namespace if schema_info else None
+
+                username = self.settings.username
+                password = self.settings.password.get_secret_value()
+                log.debug(
+                    f"gRPC query: ensuring login to data namespace {data_namespace}"
+                )
+                await asyncio.to_thread(
+                    self._client.login_into_namespace,
+                    username,
+                    password,
+                    data_namespace,
+                )
+
             txn = self._client.txn(read_only=True)
             txn_protocol: DgraphTxnProtocol = cast(DgraphTxnProtocol, cast(object, txn))
 
@@ -624,6 +769,32 @@ class DgraphDriver(DatabaseDriver):
         """
         assert self._http_session is not None, "HTTP session not initialized"
 
+        # If auth is enabled, check if we need to re-login.
+        if self.settings.username and self.settings.password:
+            schema_info = await self.get_active_schema_info()
+            data_namespace = schema_info.namespace if schema_info else None
+
+            token_is_expired = (
+                self._token_expiry is not None
+                and datetime.now(UTC) >= self._token_expiry
+            )
+            namespace_mismatch = self._token_namespace != data_namespace
+
+            if not self._access_token or token_is_expired or namespace_mismatch:
+                if token_is_expired:
+                    log.info("Dgraph HTTP access token expired. Refreshing...")
+                elif namespace_mismatch:
+                    log.info(
+                        f"Switching Dgraph HTTP namespace from {self._token_namespace} to {data_namespace}. Re-logging in..."
+                    )
+
+                try:
+                    await self._http_login_for_namespace(data_namespace)
+                except Exception as e:
+                    log.error(f"Failed to refresh/acquire Dgraph HTTP token: {e}")
+                    # Propagate the error as the query will likely fail anyway
+                    raise
+
         clean_query = query.strip()
 
         log.debug(f"HTTP DQL query: {clean_query}")
@@ -655,6 +826,81 @@ class DgraphDriver(DatabaseDriver):
                 node_id_map=node_id_map,
                 edge_id_map=edge_id_map,
             )
+
+    async def _http_login_for_namespace(self, namespace: int | None) -> None:
+        """Logs into a specific Dgraph namespace over HTTP.
+
+        This is a helper for _run_http_query to ensure the session token is valid
+        for the required data namespace.
+        """
+        if not (self.settings.username and self.settings.password):
+            return
+
+        assert self._http_session is not None, "HTTP session not initialized for login"
+
+        username = self.settings.username
+        password = self.settings.password.get_secret_value()
+
+        log.info(
+            f"Attempting Dgraph HTTP login for user '{username}'"
+            + (f" in namespace {namespace}" if namespace is not None else "")
+        )
+
+        login_mutation = {
+            "query": f"""
+                mutation Login {{
+                    login(userId: "{username}", password: "{password}"{f", namespace: {namespace}" if namespace is not None else ""}) {{
+                        response {{
+                            accessJWT
+                        }}
+                    }}
+                }}
+            """
+        }
+
+        try:
+            async with self._http_session.post(
+                urljoin(self.endpoint, "/admin"),
+                json=login_mutation,
+                timeout=ClientTimeout(total=self.query_timeout),
+            ) as response:
+                response.raise_for_status()
+                data = await response.json()
+
+                if "errors" in data:
+                    raise RuntimeError(f"Dgraph login failed: {data['errors']}")
+
+                self._access_token = data["data"]["login"]["response"]["accessJWT"]
+                assert (
+                    self._access_token is not None
+                ), "Access token should not be None after successful login"
+
+                # Decode JWT payload to get expiration time
+                payload_b64 = self._access_token.split(".")[1]
+                payload_b64 += "=" * (-len(payload_b64) % 4)
+                payload = json.loads(base64.b64decode(payload_b64))
+
+                # Set expiry with a 60-second buffer to be safe
+                self._token_expiry = datetime.fromtimestamp(
+                    payload["exp"], tz=UTC
+                ) - timedelta(seconds=60)
+
+                # Store the namespace this token is valid for
+                self._token_namespace = namespace
+
+                # Update the session headers for subsequent requests
+                self._http_session.headers["X-Dgraph-AccessToken"] = self._access_token
+                log.success(
+                    f"Dgraph HTTP login for user '{username}' in namespace {namespace} successful."
+                )
+
+        except Exception as e:
+            self._access_token = None
+            self._token_expiry = None
+            self._token_namespace = None
+            raise ConnectionError(
+                f"Dgraph HTTP login for namespace {namespace} failed."
+            ) from e
 
     async def _cleanup_connections(self) -> None:
         """Clean up any open connections."""
