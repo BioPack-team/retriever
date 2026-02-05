@@ -113,13 +113,13 @@ class DgraphTranspiler(Tier0Transpiler):
     _reverse_edge_map: dict[str, QEdgeID]
 
     def __init__(
-        self, version: str | None = None, subclassing_enabled: bool = True
+        self, *, version: str | None = None, subclassing_enabled: bool = False
     ) -> None:
         """Initialize a Transpiler instance.
 
         Args:
             version: An optional version string to prefix to all schema fields.
-            subclassing_enabled: Enable subclass expansion (default True).
+            subclassing_enabled: Enable subclass expansion (default False).
         """
         super().__init__()
         self.kgraph: KnowledgeGraphDict = KnowledgeGraphDict(nodes={}, edges={})
@@ -910,7 +910,9 @@ class DgraphTranspiler(Tier0Transpiler):
                 and self._node_has_categories(source_node)
                 and not self._node_has_ids(source_node)
             ):
-                query += self._build_subclass_object_case3_form_b(ctx, normalized_edge_id)
+                query += self._build_subclass_object_case3_form_b(
+                    ctx, normalized_edge_id
+                )
 
         return query
 
@@ -1327,7 +1329,10 @@ class DgraphTranspiler(Tier0Transpiler):
         original = self._get_original_edge_id(m.group(1))
         return original if original in qg["edges"] else None
 
-    def _build_results(
+    # Ignoring PLR0912 because right now this implementation is incomplete for subclassing
+    # We'll refactor once we have time to revisit subclassing and complete subclass result behavior
+    # The function still operates entirely as-expected for non-subclassing cases
+    def _build_results(  # noqa:PLR0912
         self,
         node: dg.Node,
         qg: QueryGraphDict,
@@ -1371,7 +1376,9 @@ class DgraphTranspiler(Tier0Transpiler):
         passthrough: list[Partial] = []
 
         for edge in node.edges:
-            child_partials = self._build_results(edge.node, qg, anchor_curie=anchor_curie)
+            child_partials = self._build_results(
+                edge.node, qg, anchor_curie=anchor_curie
+            )
             if not child_partials:
                 continue
 

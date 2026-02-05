@@ -1448,7 +1448,7 @@ def test_symmetric_predicate_generates_bidirectional_queries(transpiler_no_subcl
     assert "in_edges-symmetric_e0:" in actual
 
 
-def test_symmetric_predicate_incoming_edge(transpiler: _TestDgraphTranspiler) -> None:
+def test_symmetric_predicate_incoming_edge(transpiler_with_subclassing: _TestDgraphTranspiler) -> None:
     """Test that symmetric predicates work for incoming edges."""
     # 1. Arrange
     qgraph = qg({
@@ -1466,7 +1466,7 @@ def test_symmetric_predicate_incoming_edge(transpiler: _TestDgraphTranspiler) ->
     })
 
     # 2. Act
-    actual = transpiler.convert_multihop_public(qgraph)
+    actual = transpiler_with_subclassing.convert_multihop_public(qgraph)
     expected = dedent("""
     {
         q0_node_n0(func: eq(id, "MONDO:0005148")) @cascade(id, in_edges_e0) {
@@ -2354,7 +2354,7 @@ def test_pinnedness_tie_breaker_uses_node_id(transpiler: _TestDgraphTranspiler) 
     assert 'func: eq(category, "Gene")' in actual
 
 
-def test_pinnedness_issue(transpiler: _TestDgraphTranspiler) -> None:
+def test_pinnedness_issue(transpiler_with_subclassing: _TestDgraphTranspiler) -> None:
     """Test Pinnedness algorithm issue."""
     # 1. Arrange
     qgraph = qg({
@@ -2405,7 +2405,7 @@ def test_pinnedness_issue(transpiler: _TestDgraphTranspiler) -> None:
     })
 
     # 2. Act
-    actual = transpiler.convert_multihop_public(qgraph)
+    actual = transpiler_with_subclassing.convert_multihop_public(qgraph)
 
     expected = dedent("""
     {
