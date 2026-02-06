@@ -2,6 +2,7 @@ from retriever.lookup.branch import Branch, SuperpositionHop
 from retriever.types.general import (
     AdjacencyGraph,
     QEdgeIDMap,
+    QueryInfo,
 )
 from retriever.types.trapi import (
     CURIE,
@@ -118,3 +119,13 @@ async def get_subgraph(
     )
 
     return kg, list[LogEntryDict]()
+
+
+def get_submitter(query: QueryInfo) -> str:
+    """Extract the submitter from a query, if it's provided."""
+    body = query.body
+
+    if submitter := body is not None and body.get("submitter"):
+        return str(submitter)
+    else:
+        return "not_provided"

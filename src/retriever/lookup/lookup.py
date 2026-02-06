@@ -13,7 +13,7 @@ from retriever.config.general import CONFIG
 from retriever.config.openapi import OPENAPI_CONFIG
 from retriever.data_tiers import tier_manager
 from retriever.lookup.qgx import QueryGraphExecutor
-from retriever.lookup.utils import expand_qgraph
+from retriever.lookup.utils import expand_qgraph, get_submitter
 from retriever.lookup.validate import validate
 from retriever.metadata.optable import OP_TABLE_MANAGER
 from retriever.types.general import LookupArtifacts, QueryInfo
@@ -89,7 +89,9 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
 
     try:
         start_time = time.time()
-        job_log.info(f"Begin processing job {job_id}.")
+        job_log.info(
+            f"Begin processing job {job_id} for client {get_submitter(query)}."
+        )
 
         qgraph = query.body["message"].get("query_graph")
         if qgraph is None:
