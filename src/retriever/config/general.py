@@ -226,6 +226,12 @@ class Tier1Settings(BaseModel):
     metadata_url: str = "https://stars.renci.org/var/translator/releases/translator_kg/latest/graph-metadata.json"
     backend_infores: str = "infores:dogpark-tier1"
     elasticsearch: ElasticSearchSettings = ElasticSearchSettings()
+    dump_queries: Annotated[
+        bool,
+        Field(
+            description="Write out TRAPI and translated queries to a file in jsonl format."
+        ),
+    ] = False
 
 
 class Neo4jSettings(BaseModel):
@@ -297,6 +303,12 @@ class Tier0Settings(BaseModel):
     backend_infores: str = "infores:dogpark-tier0"
     neo4j: Neo4jSettings = Neo4jSettings()
     dgraph: DgraphSettings = DgraphSettings()
+    dump_queries: Annotated[
+        bool,
+        Field(
+            description="Write out TRAPI and translated queries to a file in jsonl format."
+        ),
+    ] = False
 
 
 class GeneralConfig(CommentedSettings):

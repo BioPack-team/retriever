@@ -14,8 +14,8 @@ from retriever.lookup.branch import (
     SuperpositionID,
 )
 from retriever.lookup.partial import Partial
-from retriever.lookup.subquery import subquery
-from retriever.lookup.utils import get_subgraph, make_mappings
+from retriever.lookup.subquery import get_subgraph, subquery
+from retriever.lookup.utils import make_mappings
 from retriever.metadata.optable import OP_TABLE_MANAGER
 from retriever.types.general import (
     AdjacencyGraph,

@@ -1,5 +1,7 @@
 from typing import Any, Literal, override
 
+import orjson
+
 from retriever.config.general import CONFIG
 from retriever.data_tiers.base_transpiler import Tier1Transpiler
 from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.attribute import (
@@ -20,6 +22,7 @@ from retriever.data_tiers.tier_1.elasticsearch.types import (
     ESPayload,
     ESQueryContext,
 )
+from retriever.lookup.utils import QueryDumper
 from retriever.types.general import BackendResult
 from retriever.types.trapi import (
     CURIE,
@@ -71,7 +74,18 @@ class ElasticsearchTranspiler(Tier1Transpiler):
     def process_qgraph(
         self, qgraph: QueryGraphDict, *additional_qgraphs: QueryGraphDict
     ) -> ESPayload | list[ESPayload]:
-        return super().process_qgraph(qgraph, *additional_qgraphs)
+        payload = super().process_qgraph(qgraph, *additional_qgraphs)
+
+        if CONFIG.tier1.dump_queries:
+            QueryDumper().put(
+                "write_tier1",
+                orjson.dumps(
+                    {"trapi": qgraph, "es": payload},
+                    option=orjson.OPT_APPEND_NEWLINE,
+                ),
+            )
+
+        return payload
 
     def generate_query_term(self, target: str, value: list[str]) -> ESFilterClause:
         """Common utility function to generate a termed query based on key-value pairs."""

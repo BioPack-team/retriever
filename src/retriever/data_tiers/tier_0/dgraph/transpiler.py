@@ -6,12 +6,14 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol, TypeAlias, override
 
+import orjson
 from loguru import logger
 
 from retriever.config.general import CONFIG
 from retriever.data_tiers.base_transpiler import Tier0Transpiler
 from retriever.data_tiers.tier_0.dgraph import result_models as dg
 from retriever.lookup.partial import Partial
+from retriever.lookup.utils import QueryDumper
 from retriever.types.general import BackendResult, KAdjacencyGraph
 from retriever.types.trapi import (
     CURIE,
@@ -224,7 +226,18 @@ class DgraphTranspiler(Tier0Transpiler):
     def process_qgraph(
         self, qgraph: QueryGraphDict, *additional_qgraphs: QueryGraphDict
     ) -> str:
-        return super().process_qgraph(qgraph, *additional_qgraphs)
+        payload = super().process_qgraph(qgraph, *additional_qgraphs)
+
+        if CONFIG.tier0.dump_queries:
+            QueryDumper().put(
+                "write_tier0",
+                orjson.dumps(
+                    {"trapi": qgraph, "dgraph": payload},
+                    option=orjson.OPT_APPEND_NEWLINE,
+                ),
+            )
+
+        return payload
 
     @override
     def convert_multihop(self, qgraph: QueryGraphDict) -> str:

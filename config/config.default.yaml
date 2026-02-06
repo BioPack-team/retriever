@@ -76,6 +76,7 @@ tier0:
     connect_retries: 5 # Number of retries before declaring a connection failure.
     grpc_max_send_message_length: -1 # gRPC max send message length in bytes (-1 for unlimited).
     grpc_max_receive_message_length: -1 # gRPC max receive message length in bytes (-1 for unlimited).
+  dump_queries: false  # Write out TRAPI and translated queries to a file in jsonl format.
 tier1:
   backend: elasticsearch
   metadata_url:
@@ -88,6 +89,7 @@ tier1:
     port: 9200
     database_name: elasticsearch
     index_name: dingo
+  dump_queries: false  # Write out TRAPI and translated queries to a file in jsonl format.
 telemetry:
   otel_enabled: false
   otel_host: jaeger-otel-collector.sri
