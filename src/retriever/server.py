@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 
 import git
 import yaml
-from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Query, Request
+from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Path, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import (
     ORJSONResponse,
@@ -44,6 +44,8 @@ from retriever.utils.redis import RedisClient
 from retriever.utils.telemetry import configure_telemetry
 
 configure_logging()
+
+JOB_ID_PATTERN = r"^[a-z0-9]+$"
 
 
 # Lifespan handling for each FastAPI worker (not main process, see __main__.py)
@@ -342,7 +344,8 @@ async def logs(  # noqa: PLR0913 Can't reduce args due to FastAPI endpoint forma
     job_id: Annotated[
         str | None,
         Query(
-            description="ID of a previously-run job to search for. Limits logs to those related to that job."
+            description="ID of a previously-run job to search for. Limits logs to those related to that job.",
+            pattern=JOB_ID_PATTERN,
         ),
     ] = None,
     fmt: Annotated[
