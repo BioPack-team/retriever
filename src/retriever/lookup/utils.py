@@ -1,3 +1,5 @@
+import os
+
 import aiofiles
 from loguru import logger
 
@@ -125,7 +127,9 @@ class QueryDumper(BatchedAction):
 
         Assumes the lines have already been dumped by orjson with a terminating newline.
         """
-        async with aiofiles.open(f"tier{tier}_dump.jsonl", mode="ab") as file:
+        async with aiofiles.open(
+            f"{os.getpid()}_tier{tier}_dump.jsonl", mode="ab"
+        ) as file:
             for line in payload:
                 await file.write(line)
         logger.trace(f"Wrote {len(payload)} tier-{tier} queries.")
