@@ -455,7 +455,10 @@ class DgraphDriver(DatabaseDriver):
             ),
         ]
         self._client_stubs = [
-            cast(DgraphClientStubProtocol, cast(object, pydgraph.DgraphClientStub(ep, options=grpc_options)))
+            cast(
+                DgraphClientStubProtocol,
+                cast(object, pydgraph.DgraphClientStub(ep, options=grpc_options)),
+            )
             for ep in (self._grpc_endpoints or [self.endpoint])
         ]
         self._client = cast(
