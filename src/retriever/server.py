@@ -16,6 +16,7 @@ from retriever.config.general import CONFIG
 from retriever.config.logger import configure_logging
 from retriever.config.openapi import OPENAPI_CONFIG, TRAPI
 from retriever.data_tiers import tier_manager
+from retriever.lookup.utils import QueryDumper
 from retriever.metadata.optable import OP_TABLE_MANAGER
 from retriever.query import get_job_state, make_query
 from retriever.types.general import APIInfo, ErrorDetail, LogLevel
@@ -50,10 +51,15 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     await REDIS_CLIENT.initialize()
     await OP_TABLE_MANAGER.initialize()
     await tier_manager.connect_drivers()
+    query_dumper = QueryDumper()
+    if CONFIG.tier0.dump_queries or CONFIG.tier1.dump_queries:
+        query_dumper.initialize()
 
     yield  # Separates startup/shutdown phase
 
     # Shutdown
+    if query_dumper.initialized:
+        query_dumper.wrapup()
     await tier_manager.close_drivers()
     await OP_TABLE_MANAGER.wrapup()
     await REDIS_CLIENT.close()

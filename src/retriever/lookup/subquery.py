@@ -7,10 +7,12 @@ from opentelemetry import trace
 
 from retriever.data_tiers import tier_manager
 from retriever.data_tiers.base_transpiler import Transpiler
-from retriever.lookup.branch import Branch
+from retriever.lookup.branch import Branch, SuperpositionHop
 from retriever.types.general import BackendResult
 from retriever.types.trapi import (
+    CURIE,
     BiolinkPredicate,
+    EdgeDict,
     Infores,
     KnowledgeGraphDict,
     LogEntryDict,
@@ -21,6 +23,8 @@ from retriever.utils import biolink
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.trapi import (
     append_aggregator_source,
+    hash_edge,
+    hash_hex,
     normalize_kgraph,
 )
 
@@ -207,3 +211,29 @@ async def subquery(
 
     except asyncio.CancelledError:
         return KnowledgeGraphDict(nodes={}, edges={}), []
+
+
+async def get_subgraph(
+    branch: Branch,
+    key: SuperpositionHop,
+    kedges: dict[SuperpositionHop, list[EdgeDict]],
+    kgraph: KnowledgeGraphDict,
+) -> tuple[KnowledgeGraphDict, list[LogEntryDict]]:
+    """Get a subgraph from a given set of kedges.
+
+    Used to replace subquerying when a given hop has already been completed.
+    """
+    edges = kedges[key]
+    curies = list[str]()
+    for edge in edges:
+        if not branch.reversed:
+            curies.append(edge["object"])
+        else:
+            curies.append(edge["subject"])
+
+    kg = KnowledgeGraphDict(
+        edges={hash_hex(hash_edge(edge)): edge for edge in edges},
+        nodes={CURIE(curie): kgraph["nodes"][CURIE(curie)] for curie in curies},
+    )
+
+    return kg, list[LogEntryDict]()

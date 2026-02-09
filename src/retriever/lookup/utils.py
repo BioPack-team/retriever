@@ -1,23 +1,23 @@
-from retriever.lookup.branch import Branch, SuperpositionHop
+import os
+
+import aiofiles
+from loguru import logger
+
 from retriever.types.general import (
     AdjacencyGraph,
     QEdgeIDMap,
     QueryInfo,
 )
 from retriever.types.trapi import (
-    CURIE,
     BiolinkEntity,
     BiolinkPredicate,
-    EdgeDict,
-    KnowledgeGraphDict,
-    LogEntryDict,
     QEdgeDict,
     QEdgeID,
     QNodeID,
     QueryGraphDict,
 )
+from retriever.utils.general import BatchedAction
 from retriever.utils.logs import TRAPILogger
-from retriever.utils.trapi import hash_edge, hash_hex
 
 
 def expand_qgraph(qg: QueryGraphDict, job_log: TRAPILogger) -> QueryGraphDict:
@@ -95,32 +95,6 @@ def make_mappings(qg: QueryGraphDict) -> tuple[AdjacencyGraph, QEdgeIDMap]:
     return agraph, edge_id_map
 
 
-async def get_subgraph(
-    branch: Branch,
-    key: SuperpositionHop,
-    kedges: dict[SuperpositionHop, list[EdgeDict]],
-    kgraph: KnowledgeGraphDict,
-) -> tuple[KnowledgeGraphDict, list[LogEntryDict]]:
-    """Get a subgraph from a given set of kedges.
-
-    Used to replace subquerying when a given hop has already been completed.
-    """
-    edges = kedges[key]
-    curies = list[str]()
-    for edge in edges:
-        if not branch.reversed:
-            curies.append(edge["object"])
-        else:
-            curies.append(edge["subject"])
-
-    kg = KnowledgeGraphDict(
-        edges={hash_hex(hash_edge(edge)): edge for edge in edges},
-        nodes={CURIE(curie): kgraph["nodes"][CURIE(curie)] for curie in curies},
-    )
-
-    return kg, list[LogEntryDict]()
-
-
 def get_submitter(query: QueryInfo) -> str:
     """Extract the submitter from a query, if it's provided."""
     body = query.body
@@ -129,3 +103,33 @@ def get_submitter(query: QueryInfo) -> str:
         return str(submitter)
     else:
         return "not_provided"
+
+
+class QueryDumper(BatchedAction):
+    """A class for quickly queueing queries to dump to a file."""
+
+    flush_time: float = 60
+
+    async def write_tier0(self, payload: list[bytes]) -> None:
+        """Alias for tier 0 specifically."""
+        await self.write(0, payload)
+
+    async def write_tier1(self, payload: list[bytes]) -> None:
+        """Alias for tier 1 specifically."""
+        await self.write(1, payload)
+
+    async def write_tier2(self, payload: list[bytes]) -> None:
+        """Alias for tier 2 specifically."""
+        await self.write(2, payload)
+
+    async def write(self, tier: int, payload: list[bytes]) -> None:
+        """Write a batch of query payloads to the dump.
+
+        Assumes the lines have already been dumped by orjson with a terminating newline.
+        """
+        async with aiofiles.open(
+            f"{os.getpid()}_tier{tier}_dump.jsonl", mode="ab"
+        ) as file:
+            for line in payload:
+                await file.write(line)
+        logger.trace(f"Wrote {len(payload)} tier-{tier} queries.")
