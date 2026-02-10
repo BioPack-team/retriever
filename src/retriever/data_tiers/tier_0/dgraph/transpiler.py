@@ -1,6 +1,5 @@
 import itertools
 import math
-import re
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -100,13 +99,10 @@ class DgraphTranspiler(Tier0Transpiler):
         0.1  # dampen adjacency contribution relative to the base ID selectivity
     )
 
-    NORM_EDGE_SUFFIX_RE: re.Pattern[str] = re.compile(r"(e\d+)$")
-
     FilterScalar: TypeAlias = str | int | float | bool  # noqa: UP040
     FilterValue: TypeAlias = FilterScalar | list[FilterScalar]  # noqa: UP040
     version: str | None
     prefix: str
-    subclassing_enabled: bool
 
     # Normalization mappings for injection prevention
     _node_id_map: dict[QNodeID, str]
@@ -114,21 +110,17 @@ class DgraphTranspiler(Tier0Transpiler):
     _reverse_node_map: dict[str, QNodeID]
     _reverse_edge_map: dict[str, QEdgeID]
 
-    def __init__(
-        self, *, version: str | None = None, subclassing_enabled: bool = False
-    ) -> None:
+    def __init__(self, version: str | None = None) -> None:
         """Initialize a Transpiler instance.
 
         Args:
             version: An optional version string to prefix to all schema fields.
-            subclassing_enabled: Enable subclass expansion (default False).
         """
         super().__init__()
         self.kgraph: KnowledgeGraphDict = KnowledgeGraphDict(nodes={}, edges={})
         self.k_agraph: KAdjacencyGraph
         self.version = version
         self.prefix = f"{version}_" if version else ""
-        self.subclassing_enabled = subclassing_enabled
 
         # Initialize normalization mappings
         self._node_id_map = {}
@@ -286,9 +278,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
         # Return the node_id with the maximum pinnedness score
         # Use node_id as tiebreaker for deterministic ordering
-        return max(
-            pinnedness_scores, key=lambda nid: (pinnedness_scores[nid], -ord(nid[-1]))
-        )
+        return max(pinnedness_scores, key=lambda nid: (pinnedness_scores[nid], nid))
 
     # --- Pinnedness Algorithm Methods ---
 
@@ -717,24 +707,26 @@ class DgraphTranspiler(Tier0Transpiler):
     ) -> str:
         """Build a @cascade(...) clause for a node block.
 
-        Always require id. Require edge aliases (out_edges_*, in_edges_*)
-        if there are corresponding traversals from this node to not-yet-visited nodes.
+        Always require id, and require reverse predicates (~subject, ~object)
+        only if there are corresponding traversals from this node to not-yet-visited nodes.
         """
         cascade_fields: list[str] = [self._v("id")]
 
         # If this node has any outgoing edges (node as subject) to unvisited objects,
-        # include their alias names so the block cascades only when such edges exist.
-        for eid, e in edges.items():
-            if e["subject"] == node_id and e["object"] not in visited:
-                normalized_eid = self._get_normalized_edge_id(eid)
-                cascade_fields.append(f"out_edges_{normalized_eid}")
+        # require ~subject in cascade to ensure at least one such edge exists.
+        if any(
+            e["subject"] == node_id and e["object"] not in visited
+            for e in edges.values()
+        ):
+            cascade_fields.append(f"~{self._v('subject')}")
 
         # If this node has any incoming edges (node as object) to unvisited subjects,
-        # include their alias names similarly.
-        for eid, e in edges.items():
-            if e["object"] == node_id and e["subject"] not in visited:
-                normalized_eid = self._get_normalized_edge_id(eid)
-                cascade_fields.append(f"in_edges_{normalized_eid}")
+        # require ~object in cascade to ensure at least one such edge exists.
+        if any(
+            e["object"] == node_id and e["subject"] not in visited
+            for e in edges.values()
+        ):
+            cascade_fields.append(f"~{self._v('object')}")
 
         # Always emit a cascade; at minimum it will include the id
         return f" @cascade({', '.join(cascade_fields)})"
@@ -790,20 +782,6 @@ class DgraphTranspiler(Tier0Transpiler):
         query += "} "
         return query
 
-    def _is_subclass_predicate(self, predicates: Sequence[str] | None) -> bool:
-        """Return True if predicates contain biolink:subclass_of."""
-        if not predicates:
-            return False
-        return any(str(p).endswith("subclass_of") for p in predicates)
-
-    def _node_has_ids(self, node: QNodeDict) -> bool:
-        ids = node.get("ids")
-        return bool(ids and len(ids) > 0)
-
-    def _node_has_categories(self, node: QNodeDict) -> bool:
-        cats = node.get("categories")
-        return bool(cats and len(cats) > 0)
-
     def _build_edge_traversal(self, ctx: EdgeTraversalContext) -> str:
         """Build query fragment for traversing an edge in a specific direction.
 
@@ -821,7 +799,6 @@ class DgraphTranspiler(Tier0Transpiler):
         # Check if predicate is symmetric
         predicates = ctx.edge.get("predicates") or []
         is_symmetric = any(biolink.is_symmetric(str(pred)) for pred in predicates)
-        is_subclass = self._is_subclass_predicate(predicates)
 
         edge_filter = self._build_edge_filter(ctx.edge)
         filter_clause = f" @filter({edge_filter})" if edge_filter else ""
@@ -874,206 +851,6 @@ class DgraphTranspiler(Tier0Transpiler):
                 edges=ctx.edges,
             )
             query += self._build_single_direction_traversal(reverse_ctx)
-
-        # --- Subclass expansions (Cases 1/2), skip if subclass_of itself (Cases 0a/0b) ---
-        if self.subclassing_enabled and not is_subclass:
-            # Original source/target nodes
-            source_id = ctx.edge["subject"]
-            target_id = ctx.edge["object"]
-            source_node = ctx.nodes[source_id]
-            target_node = ctx.nodes[target_id]
-
-            # Identify the node whose block we're currently building
-            current_node_id: QNodeID = (
-                source_id if ctx.edge_direction == "out" else target_id
-            )
-            logger.trace(f"### {source_node}")
-            logger.trace(f"### {self._node_has_ids(source_node)}")
-            logger.trace(f"### {target_node}")
-            logger.trace(f"### {self._node_has_categories(target_node)}")
-            logger.trace(f"### {target_node}")
-            logger.trace(f"### {self._node_has_ids(target_node)}")
-
-            # Case 1: ID -> predicate -> ID
-            if self._node_has_ids(source_node) and self._node_has_ids(target_node):
-                query += self._build_subclass_form_b(
-                    ctx, normalized_edge_id
-                )  # A' -> predicate -> B
-                query += self._build_subclass_form_c(
-                    ctx, normalized_edge_id
-                )  # A -> predicate -> B'
-                query += self._build_subclass_form_d(
-                    ctx, normalized_edge_id
-                )  # A' -> predicate -> B'
-            # Case 2: ID -> predicate -> CAT (only when target is filtered by categories, not IDs)
-            elif (
-                self._node_has_ids(source_node)
-                and self._node_has_categories(target_node)
-                and not self._node_has_ids(
-                    target_node
-                )  # ensure target is not ID-filtered
-            ):
-                query += self._build_subclass_form_b(ctx, normalized_edge_id)
-
-            # Mirrored Case 2: CAT -> predicate -> ID
-            # Emit only when we're currently at the object/ID node (so we can walk subclass_of from B).
-            elif (
-                current_node_id == target_id
-                and self._node_has_ids(target_node)
-                and self._node_has_categories(source_node)
-                and not self._node_has_ids(source_node)
-            ):
-                query += self._build_subclass_object_case3_form_b(
-                    ctx, normalized_edge_id
-                )
-
-        return query
-
-    def _subclass_edge_filter(self) -> str:
-        """Filter clause for subclass_of edges only."""
-        return f'eq({self._v("predicate_ancestors")}, "subclass_of")'
-
-    def _build_subclass_form_b(self, ctx: EdgeTraversalContext, norm_eid: str) -> str:
-        """Form B: A' subclass_of→ A; A' → predicate1 → B. Alias: in_edges-subclassB_eX."""
-        # Traverse reverse from subclass A' into current node A
-        alias = f"in_edges-subclassB_{norm_eid}"
-        # No constraints on subclass edge; use only subclass_of filter
-        subclass_filter_clause = f" @filter({self._subclass_edge_filter()})"
-        # A' -> subclass_of -> A (reverse)
-        query = f"{alias}: ~{self._v('object')}{subclass_filter_clause} @cascade({self._v('predicate')}, {self._v('subject')}) {{ "
-        query += self._add_standard_edge_fields()
-        # Now from A', traverse the original predicate1 to B with original edge filters
-        # Emit child node with original constraints preserved for target B
-        mid_edge_alias = f"out_edges-subclassB-mid_{norm_eid}"
-        query += f"node_intermediate: {self._v('subject')} @filter(has({self._v('id')})) @cascade({self._v('id')}, ~{self._v('subject')}) {{ "
-        query += self._add_standard_node_fields()
-        pred_edge_filter = self._build_edge_filter(ctx.edge)
-        pred_filter_clause = f" @filter({pred_edge_filter})" if pred_edge_filter else ""
-        normalized_target_id = self._get_normalized_node_id(ctx.target_id)
-        query += f"{mid_edge_alias}: ~{self._v('subject')}{pred_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
-        query += self._add_standard_edge_fields()
-        query += f"node_{normalized_target_id}: {self._v('object')}"
-        target_filter = self._build_node_filter(ctx.target_node)
-        if target_filter:
-            query += f" @filter({target_filter})"
-        query += self._build_node_cascade_clause(
-            ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
-        )
-        query += " { " + self._add_standard_node_fields() + " } } } } "
-        return query
-
-    def _build_subclass_form_c(self, ctx: EdgeTraversalContext, norm_eid: str) -> str:
-        """Form C: A → predicate1 → B'; B' subclass_of→ B. Alias: out_edges-subclassC_eX."""
-        # First traverse original predicate1 to B'
-        alias = f"out_edges-subclassC_{norm_eid}"
-        pred_edge_filter = self._build_edge_filter(ctx.edge)
-        pred_filter_clause = f" @filter({pred_edge_filter})" if pred_edge_filter else ""
-        query = f"{alias}: ~{self._v('subject')}{pred_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
-        query += self._add_standard_edge_fields()
-        # Then from B', traverse subclass_of to B
-        tail_edge_alias = f"out_edges-subclassC-tail_{norm_eid}"
-        query += f"node_intermediate: {self._v('object')} @filter(has({self._v('id')})) @cascade({self._v('id')}, ~{self._v('subject')}) {{ "
-        query += self._add_standard_node_fields()
-        subclass_filter_clause = f" @filter({self._subclass_edge_filter()})"
-        normalized_target_id = self._get_normalized_node_id(ctx.target_id)
-        query += f"{tail_edge_alias}: ~{self._v('subject')}{subclass_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
-        query += self._add_standard_edge_fields()
-        query += f"node_{normalized_target_id}: {self._v('object')} "
-        target_filter = self._build_node_filter(ctx.target_node)
-        if target_filter:
-            query += f" @filter({target_filter})"
-        query += self._build_node_cascade_clause(
-            ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
-        )
-        query += " { " + self._add_standard_node_fields() + " } } } } "
-        return query
-
-    def _build_subclass_form_d(self, ctx: EdgeTraversalContext, norm_eid: str) -> str:
-        """Form D: A' subclass_of→ A; A' → predicate1 → B'; B' subclass_of→ B. Alias: in_edges-subclassD_eX."""
-        alias = f"in_edges-subclassD_{norm_eid}"
-        # A' -> subclass_of -> A
-        subclass_filter_clause = f" @filter({self._subclass_edge_filter()})"
-        query = f"{alias}: ~{self._v('object')}{subclass_filter_clause} @cascade({self._v('predicate')}, {self._v('subject')}) {{ "
-        query += self._add_standard_edge_fields()
-
-        # A' -> predicate1 -> B'
-        mid_edge_alias = f"out_edges-subclassD-mid_{norm_eid}"
-        query += f"node_intermediate_A: {self._v('subject')} @filter(has({self._v('id')})) @cascade({self._v('id')}, ~{self._v('subject')}) {{ "
-        query += self._add_standard_node_fields()
-        pred_edge_filter = self._build_edge_filter(ctx.edge)
-        pred_filter_clause = f" @filter({pred_edge_filter})" if pred_edge_filter else ""
-        query += f"{mid_edge_alias}: ~{self._v('subject')}{pred_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
-        query += self._add_standard_edge_fields()
-
-        # B' -> subclass_of -> B
-        tail_edge_alias = f"out_edges-subclassD-tail_{norm_eid}"
-        query += f"node_intermediate_B: {self._v('object')} @filter(has({self._v('id')})) @cascade({self._v('id')}, ~{self._v('subject')}) {{ "
-        query += self._add_standard_node_fields()
-        normalized_target_id = self._get_normalized_node_id(ctx.target_id)
-        query += f"{tail_edge_alias}: ~{self._v('subject')}{subclass_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
-        query += self._add_standard_edge_fields()
-        query += f"node_{normalized_target_id}: {self._v('object')} "
-        target_filter = self._build_node_filter(ctx.target_node)
-        if target_filter:
-            query += f" @filter({target_filter})"
-        query += self._build_node_cascade_clause(
-            ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
-        )
-        query += " { " + self._add_standard_node_fields() + " } } } } } } "
-        return query
-
-    def _build_subclass_object_case3_form_b(
-        self, ctx: EdgeTraversalContext, norm_eid: str
-    ) -> str:
-        """Mirrored Case 2 (CAT->P->ID).
-
-                Starting at the current node which is the QEdge object (ID-pinned), walk:
-            ID (current) -> ~object (predicate1) -> subject (intermediate)
-            intermediate -> ~subject (subclass_of) -> object (CAT-only target)
-
-        Notes:
-        - Apply attribute/qualifier constraints ONLY to the original predicate1 segment.
-        - Do NOT apply constraints to subclass_of edges.
-        """
-        alias = f"in_edges-subclassObjB_{norm_eid}"
-
-        # Step 1: From current ID node, find incoming predicate1 edges (where object == current node)
-        pred_edge_filter = self._build_edge_filter(ctx.edge)
-        pred_filter_clause = f" @filter({pred_edge_filter})" if pred_edge_filter else ""
-
-        query = (
-            f"{alias}: ~{self._v('object')}{pred_filter_clause} "
-            f"@cascade({self._v('predicate')}, {self._v('subject')}) {{ "
-        )
-        query += self._add_standard_edge_fields()
-
-        # Hop to the predicate-edge subject (intermediate node)
-        query += (
-            f"node_intermediate: {self._v('subject')} "
-            f"@filter(has({self._v('id')})) "
-            f"@cascade({self._v('id')}, ~{self._v('subject')}) {{ "
-        )
-        query += self._add_standard_node_fields()
-
-        # Step 2: From intermediate, follow subclass_of edges that start at intermediate (subject == intermediate)
-        subclass_filter_clause = f" @filter({self._subclass_edge_filter()})"
-        tail_edge_alias = f"out_edges-subclassObjB-tail_{norm_eid}"
-        query += (
-            f"{tail_edge_alias}: ~{self._v('subject')}{subclass_filter_clause} "
-            f"@cascade({self._v('predicate')}, {self._v('object')}) {{ "
-        )
-        query += self._add_standard_edge_fields()
-
-        # Bind the final CAT-only target node (ctx.target_id)
-        normalized_target_id = self._get_normalized_node_id(ctx.target_id)
-        query += f"node_{normalized_target_id}: {self._v('object')}"
-        target_filter = self._build_node_filter(ctx.target_node)
-        if target_filter:
-            query += f" @filter({target_filter})"
-        query += self._build_node_cascade_clause(
-            ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
-        )
-        query += " { " + self._add_standard_node_fields() + " } } } } "
 
         return query
 
@@ -1322,125 +1099,68 @@ class DgraphTranspiler(Tier0Transpiler):
             self.k_agraph[qedge_id][subject_id][object_id] = list[EdgeIdentifier]()
         self.k_agraph[qedge_id][subject_id][object_id].append(edge_hash)
 
-    def _edge_binding_to_qedge_id(
-        self, binding: str, edge: dg.Edge, qg: QueryGraphDict
-    ) -> QEdgeID | None:
-        """Return a QEdgeID for this edge binding, or None if it's an internal/helper edge."""
-        # If already a real qedge id, use it
-        direct = QEdgeID(binding)
-        if direct in qg["edges"]:
-            return direct
-
-        # Never map subclass_of edges to user qedges
-        if str(edge.predicate).endswith("subclass_of"):
-            return None
-
-        # Map aliases that end with normalized edge id (e0/e1/...)
-        m = self.NORM_EDGE_SUFFIX_RE.search(binding)
-        if not m:
-            return None
-        original = self._get_original_edge_id(m.group(1))
-        return original if original in qg["edges"] else None
-
-    # Ignoring PLR0912 because right now this implementation is incomplete for subclassing
-    # We'll refactor once we have time to revisit subclassing and complete subclass result behavior
-    # The function still operates entirely as-expected for non-subclassing cases
-    def _build_results(  # noqa:PLR0912
-        self,
-        node: dg.Node,
-        qg: QueryGraphDict,
-        *,
-        anchor_curie: str | None = None,
-    ) -> list[Partial]:
+    def _build_results(self, node: dg.Node, qg: QueryGraphDict) -> list[Partial]:
         """Recursively build results from dgraph response.
 
         Args:
             node: Parsed node from Dgraph response (with bindings already restored to original IDs)
             qg: The TRAPI query graph used in getting the response.
-            anchor_curie: CURIE of the nearest real (non-helper) QNode ancestor to use as the
-                anchored endpoint when building TRAPI edges across helper nodes.
 
         Returns:
             List of partial results with original node/edge IDs
         """
         original_node_id = QNodeID(node.binding)
-        is_qnode = original_node_id in qg["nodes"]
 
-        # Update anchor when we're at a real QNode; keep it when we're in helper nodes.
-        if is_qnode:
-            anchor_curie = node.id
+        if node.id not in self.kgraph["nodes"]:
+            trapi_node = self._build_trapi_node(node)
+            constraints = qg["nodes"][original_node_id].get("constraints", []) or []
+            attributes = trapi_node.get("attributes", []) or []
 
-            if node.id not in self.kgraph["nodes"]:
-                trapi_node = self._build_trapi_node(node)
-                constraints = qg["nodes"][original_node_id].get("constraints", []) or []
-                attributes = trapi_node.get("attributes", []) or []
-                if not attributes_meet_contraints(constraints, attributes):
-                    return []
-                self.kgraph["nodes"][CURIE(node.id)] = trapi_node
-
-        # Leaf
-        if not len(node.edges):
-            if not is_qnode:
+            if not attributes_meet_contraints(constraints, attributes):
                 return []
+
+            self.kgraph["nodes"][CURIE(node.id)] = trapi_node
+
+        # If we hit a stop condition, return partial for the node
+        if not len(node.edges):
             return [Partial([(original_node_id, CURIE(node.id))], [])]
 
-        # Collect mapped-qedge partials and structural passthrough partials
-        per_qedge: dict[QEdgeID, list[Partial]] = {}
-        passthrough: list[Partial] = []
+        partials = {QEdgeID(edge.binding): list[Partial]() for edge in node.edges}
 
         for edge in node.edges:
-            child_partials = self._build_results(
-                edge.node, qg, anchor_curie=anchor_curie
-            )
-            if not child_partials:
-                continue
-
-            qedge_id = self._edge_binding_to_qedge_id(edge.binding, edge, qg)
-            if qedge_id is None:
-                # structural edge (subclass_of, helper traversal, etc.)
-                passthrough.extend(child_partials)
-                continue
-
-            # IMPORTANT: use anchor_curie so subclass helper nodes don't become endpoints
-            trapi_edge = self._build_trapi_edge(edge, anchor_curie or node.id)
+            qedge_id = QEdgeID(edge.binding)
+            trapi_edge = self._build_trapi_edge(edge, node.id)
 
             constraints = qg["edges"][qedge_id].get("constraints", []) or []
             attributes = trapi_edge.get("attributes", []) or []
+
             if not attributes_meet_contraints(constraints, attributes):
                 continue
 
             self._update_graphs(qedge_id, trapi_edge)
 
-            base = Partial(
-                ([(original_node_id, CURIE(node.id))] if is_qnode else []),
-                [(qedge_id, trapi_edge["subject"], trapi_edge["object"])],
-            )
-            for p in child_partials:
-                per_qedge.setdefault(qedge_id, []).append(p.combine(base))
+            for partial in self._build_results(edge.node, qg):
+                partials[qedge_id].append(
+                    partial.combine(
+                        Partial(
+                            [(original_node_id, CURIE(node.id))],
+                            [(qedge_id, trapi_edge["subject"], trapi_edge["object"])],
+                        )
+                    )
+                )
 
-        reconciled: list[Partial] = []
-
-        if per_qedge:
-            for combo in itertools.product(*per_qedge.values()):
-                if len(combo) == 1:
-                    reconciled.append(combo[0])
-                    continue
-                reconcile_attempt = combo[0]
-                for part in combo[1:]:
-                    reconcile_attempt = reconcile_attempt.reconcile(part)
-                    if reconcile_attempt is None:
-                        break
-                if reconcile_attempt is not None:
-                    reconciled.append(reconcile_attempt)
-
-        # passthrough paths still count
-        if passthrough:
-            if is_qnode:
-                here = Partial([(original_node_id, CURIE(node.id))], [])
-                reconciled.extend([p.combine(here) for p in passthrough])
-            else:
-                reconciled.extend(passthrough)
-
+        reconciled = list[Partial]()
+        for combo in itertools.product(*partials.values()):
+            if len(combo) == 1:
+                reconciled.append(combo[0])
+                continue
+            reconcile_attempt = combo[0]
+            for part in combo[1:]:
+                reconcile_attempt = reconcile_attempt.reconcile(part)
+                if reconcile_attempt is None:
+                    break
+            if reconcile_attempt is not None:
+                reconciled.append(reconcile_attempt)
         return reconciled
 
     @override

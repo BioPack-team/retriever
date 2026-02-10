@@ -313,6 +313,7 @@ def prune_kg(
     edges_to_check = list(bound_edges)
     while len(edges_to_check) > 0:
         edge_id = edges_to_check.pop()
+
         # Avoid infinite loops if edge and aux graph reference each other
         if edge_id in checked_edges:
             continue
@@ -338,15 +339,6 @@ def prune_kg(
         # But attribute value is generally of type Any
         for aux_graph_id in cast(list[AuxGraphID], edge_aux_graphs["value"]):
             edges_to_check.extend(edge for edge in aux_graphs[aux_graph_id]["edges"])
-
-    # Backfill: bound_nodes may have grown via edge endpoints / support graphs
-    missing_nodes = [curie for curie in bound_nodes if curie not in kgraph["nodes"]]
-    if missing_nodes:
-        job_log.warning(
-            f"KG Pruning: {len(missing_nodes)} bound nodes missing from kgraph (from edge endpoints); backfilling placeholders."
-        )
-        for curie in missing_nodes:
-            kgraph["nodes"][curie] = NodeDict(categories=[], attributes=[])
 
     prior_edge_count = len(kgraph["edges"])
     prior_node_count = len(kgraph["nodes"])
