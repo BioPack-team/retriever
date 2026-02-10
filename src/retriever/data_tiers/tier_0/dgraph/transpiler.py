@@ -278,7 +278,9 @@ class DgraphTranspiler(Tier0Transpiler):
 
         # Return the node_id with the maximum pinnedness score
         # Use node_id as tiebreaker for deterministic ordering
-        return max(pinnedness_scores, key=lambda nid: (pinnedness_scores[nid], nid))
+        return max(
+            pinnedness_scores, key=lambda nid: (pinnedness_scores[nid], -ord(nid[-1]))
+        )
 
     # --- Pinnedness Algorithm Methods ---
 
