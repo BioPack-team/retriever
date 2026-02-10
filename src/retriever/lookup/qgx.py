@@ -153,6 +153,7 @@ class QueryGraphExecutor:
                 self.qedge_claims,
                 self.locks["claim"],
                 (self.qgraph, self.q_agraph, self.qedge_map, operation_plan),
+                self.job_log,
             )
             self.job_log.debug(
                 f"Found {len(starting_branches)} starting branches: {', '.join(branch.superposition_name for branch in starting_branches)}"
@@ -230,6 +231,12 @@ class QueryGraphExecutor:
             *branch_tasks, raise_on_empty=True
         ):
             if partial is None:  # A branch terminated with nothing
+                if self.terminate:  # Termination case, no handling needed
+                    self.job_log.debug(
+                        f"Branch {branch.superposition_name} terminated due to QGX wrapup."
+                    )
+                    break
+
                 # Either this is just one of several on the same starting node
                 # Meaning we can continue, business as usual
                 self.job_log.debug(
@@ -583,10 +590,6 @@ class QueryGraphExecutor:
                 if next_branch.current_edge not in partials[partial_key]:
                     partials[partial_key][next_branch.current_edge] = list[Partial]()
 
-            current_branch.next_steps.add(next_branch.branch_id)
-            if next_branch.branch_id in current_branch.skipped_steps:
-                continue
-
             # Check if superposition has already been created by some other branch
             async with self.locks["hop_check"]:
                 if next_branch.superposition_id in self.active_superpositions:
@@ -622,12 +625,8 @@ class QueryGraphExecutor:
             edge_bind = qedge_id, current_branch.input_curie, next_branch.input_curie
 
             if partial is None:
-                # Branch was made invalid by another branch's edge claim
-                self.job_log.trace(
-                    f"{current_branch.superposition_name}{next_branch.input_curie}]"
-                )
-                current_branch.skipped_steps.add(next_branch.branch_id)
-                task_partials.append(Partial([node_bind], [edge_bind]))
+                # All superpositions on next branch failed
+                # Not necessarily a broken chain since other superpositions may be running
                 continue
 
             partials_key: SuperpositionHop = (

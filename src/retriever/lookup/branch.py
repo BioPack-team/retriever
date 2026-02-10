@@ -8,6 +8,7 @@ from retriever.metadata.optable import OperationPlan
 from retriever.types.general import AdjacencyGraph, QEdgeIDMap
 from retriever.types.metakg import Operation
 from retriever.types.trapi import CURIE, QEdgeDict, QEdgeID, QNodeID, QueryGraphDict
+from retriever.utils.logs import TRAPILogger
 
 BranchHop = tuple[QNodeID, QEdgeID | None]
 SuperpositionHop = tuple[QNodeID, CURIE | None, QEdgeID | None]
@@ -26,24 +27,37 @@ class Branch:
     A superposition is thus uniquely identified by its curies.
     """
 
+    job_log: TRAPILogger
+    qgraph: QueryGraphDict
+    q_agraph: AdjacencyGraph
+    edge_id_map: QEdgeIDMap
+    op_plan: OperationPlan
+    nodes: list[QNodeID]
+    curies: list[CURIE]
+    edges: list[QEdgeID]
+    reversed: bool
+
     def __init__(
-        self, starting_node: QNodeID, starting_curie: CURIE, qgraph_info: QGraphInfo
+        self,
+        starting_node: QNodeID,
+        starting_curie: CURIE,
+        qgraph_info: QGraphInfo,
+        job_log: TRAPILogger,
     ) -> None:
         """Initialize a Branch instance.
 
         Expects that nodes, curies, and edges are all the same length.
         """
         qgraph, q_agraph, edge_id_map, op_plan = qgraph_info
-        self.qgraph: QueryGraphDict = qgraph
-        self.q_agraph: AdjacencyGraph = q_agraph
-        self.edge_id_map: QEdgeIDMap = edge_id_map
-        self.op_plan: OperationPlan = op_plan
-        self.nodes: list[QNodeID] = [starting_node]
-        self.curies: list[CURIE] = [starting_curie]
-        self.edges: list[QEdgeID] = []
-        self.reversed: bool = False  # executing reversed relative to current_edge
-        self.next_steps: set[BranchID] = set()
-        self.skipped_steps: set[BranchID] = set()
+        self.job_log = job_log
+        self.qgraph = qgraph
+        self.q_agraph = q_agraph
+        self.edge_id_map = edge_id_map
+        self.op_plan = op_plan
+        self.nodes = [starting_node]
+        self.curies = [starting_curie]
+        self.edges = []
+        self.reversed = False  # executing reversed relative to current_edge
 
     @override
     def __eq__(self, other: object) -> bool:
@@ -59,6 +73,11 @@ class Branch:
         Does not take into account superposition.
         """
         return hash(self.branch_name)
+
+    @override
+    def __str__(self) -> str:
+        """Returns the superposition name."""
+        return self.superposition_name
 
     @cached_property
     def branch_id(self) -> BranchID:
@@ -205,6 +224,7 @@ class Branch:
             self.start_node,
             self.curies[0],
             (self.qgraph, self.q_agraph, self.edge_id_map, self.op_plan),
+            self.job_log,
         )
         branch.nodes = [*self.nodes, node]
         branch.curies = [*self.curies]
@@ -238,8 +258,8 @@ class Branch:
                     continue
 
                 claim_checked = False
+                next_qedge_id = self.edge_id_map[id(next_edge)]
                 for curie in curies:
-                    next_qedge_id = self.edge_id_map[id(next_edge)]
                     branch = self.advance(
                         next_qedge_id,
                         next_qnode_id,
@@ -249,6 +269,9 @@ class Branch:
                     if not claim_checked and not await branch.has_claim(
                         qedge_claims, lock
                     ):
+                        self.job_log.trace(
+                            f"Branch {self.branch_name} halts due to existing claim on QEdge {next_qedge_id} by {qedge_claims[next_qedge_id]}"
+                        )
                         break
                     claim_checked = True
                     next_steps.append(branch)
@@ -271,6 +294,9 @@ class Branch:
             ):
                 return False
             qedge_claims[self.current_edge] = self
+            self.job_log.trace(
+                f"Branch {self.branch_name} claims QEdge {self.current_edge}"
+            )
             return True
 
     @staticmethod
@@ -278,6 +304,7 @@ class Branch:
         qedge_claims: dict[QEdgeID, "Branch | None"],
         lock: asyncio.Lock,
         qgraph_info: QGraphInfo,
+        job_log: TRAPILogger,
     ) -> list["Branch"]:
         """Get starting edges from a query graph.
 
@@ -300,9 +327,9 @@ class Branch:
                         else edge["subject"]
                     )
                     reverse = edge["object"] == node_id
-                    branch = Branch(node_id, CURIE(curie), (qg, ag, em, tiers)).advance(
-                        edge_id, next_node, reverse=reverse
-                    )
+                    branch = Branch(
+                        node_id, CURIE(curie), (qg, ag, em, tiers), job_log
+                    ).advance(edge_id, next_node, reverse=reverse)
                     if await branch.has_claim(qedge_claims, lock):
                         start.append(branch)
         return start
