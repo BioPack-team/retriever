@@ -115,10 +115,13 @@ RETRY_LIMIT = 3
 
 
 async def get_t1_metadata(
-    es_connection: AsyncElasticsearch | None, indices_alias: str, retries: int = 0
+    es_connection: AsyncElasticsearch | None,
+    indices_alias: str,
+    bypass_cache: bool,
+    retries: int = 0,
 ) -> T1MetaData | None:
     """Caller to orchestrate retrieving t1 metadata."""
-    meta_blob = await read_metadata_cache(CACHE_KEY)
+    meta_blob = None if bypass_cache else await read_metadata_cache(CACHE_KEY)
     if not meta_blob:
         try:
             if es_connection is None:
@@ -133,7 +136,9 @@ async def get_t1_metadata(
                 "Invalid Elasticsearch connection"
             ):
                 return None
-            return await get_t1_metadata(es_connection, indices_alias, retries + 1)
+            return await get_t1_metadata(
+                es_connection, indices_alias, bypass_cache=True, retries=retries + 1
+            )
 
     log.success("DINGO Metadata retrieved!")
     return meta_blob
