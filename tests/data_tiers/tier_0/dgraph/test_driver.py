@@ -765,7 +765,7 @@ async def test_simple_one_query_live_http() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n0(func: eq(vH_id, "GO:0031410")) @cascade(vH_id, in_edges_e0) {
+        q0_node_n0(func: eq(vH_id, "GO:0031410")) @cascade(vH_id, ~vH_object) {
             expand(vH_Node)
             in_edges_e0: ~vH_object @filter(eq(vH_predicate_ancestors, "located_in")) @cascade(vH_predicate, vH_subject) {
                 expand(vH_Edge) { vH_sources expand(vH_Source) }
@@ -785,7 +785,7 @@ async def test_simple_one_query_live_http() -> None:
     dgraph_schema_version = await driver.get_active_version()
 
     # Initialize the transpiler with the detected version
-    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version, subclassing_enabled=False)
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(version=dgraph_schema_version)
     assert transpiler.version == "vH"
     assert transpiler.prefix == "vH_"
 
@@ -805,40 +805,27 @@ async def test_simple_one_query_live_http() -> None:
     root_node = result.data["q0"][0]
 
     # 1. Validate Root Node (NCBIGene:11276)
-    assert root_node.binding == "n1"
-    assert root_node.id == "NCBIGene:11276"
-    assert root_node.name == "SYNRG"
+    assert root_node.binding == "n0"
+    assert root_node.id == "GO:0031410"
+    assert root_node.name == "cytoplasmic vesicle"
 
     expected_root_cats = sorted([
-        "MacromolecularMachineMixin", "NamedThing", "Gene",
-        "ChemicalEntityOrProteinOrPolypeptide", "PhysicalEssence",
-        "PhysicalEssenceOrOccurrent", "OntologyClass",
-        "ChemicalEntityOrGeneOrGeneProduct", "GeneOrGeneProduct", "Polypeptide",
-        "ThingWithTaxon", "GenomicEntity", "GeneProductMixin", "Protein",
-        "BiologicalEntity"
+        "NamedThing", "OrganismalEntity", "PhysicalEssence",
+        "PhysicalEssenceOrOccurrent", "CellularComponent", "ThingWithTaxon",
+        "SubjectOfInvestigation", "AnatomicalEntity", "BiologicalEntity"
     ])
     assert sorted(root_node.category) == expected_root_cats
 
     # Validate attributes dictionary
     root_attrs = root_node.attributes
-    assert root_attrs.get("description") == "Synergin gamma"
-    assert root_attrs.get("full_name") == "synergin gamma"
-    assert root_attrs.get("symbol") == "SYNRG"
-    assert root_attrs.get("taxon") == "NCBITaxon:9606"
-    assert root_attrs.get("in_taxon") == ["NCBITaxon:9606"]
-    assert root_attrs.get("information_content") == pytest.approx(83.1)
-
-    expected_equiv_ids = sorted([
-        "PR:Q9UMZ2", "OMIM:607291", "UniProtKB:Q9UMZ2", "ENSEMBL:ENSG00000275066",
-        "UMLS:C1412437", "UMLS:C0893518", "MESH:C121510", "HGNC:557", "NCBIGene:11276"
-    ])
-    assert sorted(root_attrs.get("equivalent_identifiers", [])) == expected_equiv_ids
+    assert root_attrs.get("information_content") == 56.8
+    assert root_attrs.get("equivalent_identifiers") == ["GO:0031410"]
 
     # 2. Validate Edge
     assert len(root_node.edges) == 1
     edge = root_node.edges[0]
     assert edge.binding == "e0"
-    assert edge.direction == "out"
+    assert edge.direction == "in"
     assert edge.predicate == "located_in"
     assert isinstance(edge.id, str) and "urn:uuid:" in edge.id
     assert edge.qualifiers == {}
@@ -859,22 +846,35 @@ async def test_simple_one_query_live_http() -> None:
 
     # 3. Validate Connected Node (GO:0031410)
     connected_node = edge.node
-    assert connected_node.binding == "n0"
-    assert connected_node.id == "GO:0031410"
-    assert connected_node.name == "cytoplasmic vesicle"
+    assert connected_node.binding == "n1"
+    assert connected_node.id == "NCBIGene:11276"
+    assert connected_node.name == "SYNRG"
     assert connected_node.edges == []
 
     expected_go_cats = sorted([
-        "NamedThing", "OrganismalEntity", "PhysicalEssence",
-        "PhysicalEssenceOrOccurrent", "CellularComponent", "ThingWithTaxon",
-        "SubjectOfInvestigation", "AnatomicalEntity", "BiologicalEntity"
+        "MacromolecularMachineMixin", "NamedThing", "Gene",
+        "ChemicalEntityOrProteinOrPolypeptide", "PhysicalEssence",
+        "PhysicalEssenceOrOccurrent", "OntologyClass",
+        "ChemicalEntityOrGeneOrGeneProduct", "GeneOrGeneProduct", "Polypeptide",
+        "ThingWithTaxon", "GenomicEntity", "GeneProductMixin", "Protein",
+        "BiologicalEntity"
     ])
     assert sorted(connected_node.category) == expected_go_cats
 
     # Validate connected node attributes
     go_attrs = connected_node.attributes
-    assert go_attrs.get("information_content") == 56.8
-    assert go_attrs.get("equivalent_identifiers") == ["GO:0031410"]
+    assert go_attrs.get("description") == "Synergin gamma"
+    assert go_attrs.get("full_name") == "synergin gamma"
+    assert go_attrs.get("symbol") == "SYNRG"
+    assert go_attrs.get("taxon") == "NCBITaxon:9606"
+    assert go_attrs.get("in_taxon") == ["NCBITaxon:9606"]
+    assert go_attrs.get("information_content") == pytest.approx(83.1)
+
+    expected_equiv_ids = sorted([
+        "PR:Q9UMZ2", "OMIM:607291", "UniProtKB:Q9UMZ2", "ENSEMBL:ENSG00000275066",
+        "UMLS:C1412437", "UMLS:C0893518", "MESH:C121510", "HGNC:557", "NCBIGene:11276"
+    ])
+    assert sorted(go_attrs.get("equivalent_identifiers", [])) == expected_equiv_ids
 
     await driver.close()
 
@@ -905,7 +905,7 @@ async def test_simple_one_query_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vH_id, "NCBIGene:11276")) @cascade(vH_id, out_edges_e0) {
+        q0_node_n1(func: eq(vH_id, "NCBIGene:11276")) @cascade(vH_id, ~vH_subject) {
             expand(vH_Node)
             out_edges_e0: ~vH_subject @filter(eq(vH_predicate_ancestors, "located_in")) @cascade(vH_predicate, vH_object) {
                 expand(vH_Edge) { vH_sources expand(vH_Source) }
@@ -987,7 +987,7 @@ async def test_simple_reverse_query_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vH_id, "NCBIGene:3778")) @cascade(vH_id, out_edges_e0) {
+        q0_node_n1(func: eq(vH_id, "NCBIGene:3778")) @cascade(vH_id, ~vH_subject) {
             expand(vH_Node)
             out_edges_e0: ~vH_subject @filter(eq(vH_predicate_ancestors, "has_phenotype")) @cascade(vH_predicate, vH_object) {
                 expand(vH_Edge) { vH_sources expand(vH_Source) }
@@ -1070,7 +1070,7 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vH_id, "NCBIGene:3778")) @cascade(vH_id, out_edges_e0) {
+        q0_node_n1(func: eq(vH_id, "NCBIGene:3778")) @cascade(vH_id, ~vH_subject) {
             expand(vH_Node)
 
             out_edges_e0: ~vH_subject
@@ -1250,7 +1250,7 @@ async def test_normalization_with_special_edge_id_live_grpc() -> None:
     # Expected query should use normalized edge ID 'e0', not 'e0_bad$%^'
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vH_id, "NCBIGene:3778")) @cascade(vH_id, out_edges_e0) {
+        q0_node_n1(func: eq(vH_id, "NCBIGene:3778")) @cascade(vH_id, ~vH_subject) {
             expand(vH_Node)
 
             out_edges_e0: ~vH_subject
