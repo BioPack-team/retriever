@@ -945,6 +945,7 @@ class QueryGraphExecutor:
 
         WARNING: This implementation is specific to Tier 1/2 use.
         """
+        self.job_log.debug("Fixing implicit subclass-derived knowledge format...")
         # Keyed to parent, descendant
         subclass_edges = SubclassEdgesByCURIE()
 
@@ -977,6 +978,10 @@ class QueryGraphExecutor:
                 f"{'_'.join(edge_key)}_via_subclass",
                 self.build_subclass_construct_edge(edge_key, edge),
             )
+
+        self.job_log.debug(
+            f"Found and reformated dependents for {len(edges_to_fix)} edges."
+        )
 
         self.insert_constructs(results, aux_graphs, edges_to_fix, construct_edges)
         self.add_new_knowledge(
