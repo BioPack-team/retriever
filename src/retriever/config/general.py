@@ -9,8 +9,8 @@ from pydantic_settings import (
     YamlConfigSettingsSource,
 )
 
+from retriever.config.utils import CommentedSettings
 from retriever.types.general import LogLevel
-from retriever.utils.general import CommentedSettings
 
 # Filter warnings about secrets because they're optional
 warnings.filterwarnings(
@@ -136,6 +136,9 @@ class LookupSettings(BaseModel):
             description="Time in seconds before a tier 2 query should time out, set to -1 to disable."
         ),
     ] = 300
+    implicit_subclassing: Annotated[
+        bool, Field(description="Whether or not to answer via subclasses.")
+    ] = True
 
 
 class MetaKGSettings(BaseModel):

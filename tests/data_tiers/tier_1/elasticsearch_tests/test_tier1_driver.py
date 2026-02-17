@@ -241,7 +241,7 @@ async def test_ubergraph_info_retrieval():
     except Exception:
         pytest.skip("skipping es driver connection test: cannot connect")
 
-    info = await driver.get_ubergraph_nodes_mapping()
+    info = await driver.get_subclass_mapping()
 
     # print("total nodes", len(info["nodes"]))
     # print("adj list sample:")

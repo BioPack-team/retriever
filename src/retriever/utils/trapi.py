@@ -25,6 +25,7 @@ from retriever.types.trapi import (
     NodeDict,
     OperatorEnum,
     QualifierConstraintDict,
+    QualifierDict,
     QualifierTypeID,
     QueryGraphDict,
     ResultDict,
@@ -111,6 +112,18 @@ def hash_retrieval_source(source: RetrievalSourceDict) -> int:
     return hash((source["resource_id"], source["resource_role"]))
 
 
+def hash_qualifier(qualifier: QualifierDict) -> int:
+    """Get a hash of a qualifier."""
+    return hash((qualifier["qualifier_type_id"], qualifier["qualifier_value"]))
+
+
+def hash_qualifier_set(qualifiers: list[QualifierDict]) -> int:
+    """Hash a set of qualifiers."""
+    if len(qualifiers) == 0:
+        return 0
+    return hash(hash_qualifier(qual) for qual in qualifiers)
+
+
 def edge_primary_knowledge_source(edge: EdgeDict) -> RetrievalSourceDict | None:
     """Get the primary source information for a given edge."""
     for source in edge["sources"]:
@@ -159,7 +172,13 @@ def hash_edge(edge: EdgeDict) -> int:
         )
     )["resource_id"]
     return hash(
-        (edge["subject"], edge["object"], edge["predicate"], primary_knowledge_source)
+        (
+            edge["subject"],
+            edge["object"],
+            edge["predicate"],
+            hash_qualifier_set(edge.get("qualifiers", []) or []),
+            primary_knowledge_source,
+        )
     )
 
 
@@ -174,7 +193,9 @@ def hash_result(result: ResultDict) -> int:
 
 
 @tracer.start_as_current_span("merge_results")
-def merge_results(current: dict[int, ResultDict], new: list[ResultDict]) -> None:
+def merge_results(
+    current: dict[int, ResultDict], new: list[ResultDict], merge_analyses: bool = True
+) -> None:
     """Merge ResultDicts in a dict of results by hash."""
     for result in new:
         key = hash_result(result)
@@ -182,8 +203,40 @@ def merge_results(current: dict[int, ResultDict], new: list[ResultDict]) -> None
             current[key] = result
             continue
         # Otherwise, need to merge results
-        # We're gonna do a lazy style: no deep analysis merge
-        current[key]["analyses"].extend(result["analyses"])
+
+        if (not merge_analyses) or len(
+            current[key]["analyses"]
+        ) == 0:  # Just add the new analsis
+            current[key]["analyses"].extend(result["analyses"])
+            continue
+
+        # Merge into the existing analysis
+        target = next(
+            iter(
+                analysis
+                for analysis in current[key]["analyses"]
+                if "edge_bindings" in analysis
+            )
+        )
+
+        for analysis in result["analyses"]:
+            if "path_bindings" in analysis:
+                continue  # BUG: not handling path bindings because Retriever doesn't do pathfinder
+            for qedge_id, bindings in (analysis["edge_bindings"]).items():
+                current_bindings = {
+                    binding["id"]: binding
+                    for binding in target["edge_bindings"].get(qedge_id, [])
+                }
+                for bind in bindings:
+                    if bind["id"] not in current_bindings:
+                        current_bindings[bind["id"]] = bind
+                        continue
+
+                    # Not attempting attribute merging, just concat
+                    current_bindings[bind["id"]]["attributes"].extend(
+                        bind["attributes"]
+                    )
+                target["edge_bindings"][qedge_id] = list(current_bindings.values())
 
 
 def update_node(node: NodeDict, new: NodeDict) -> None:

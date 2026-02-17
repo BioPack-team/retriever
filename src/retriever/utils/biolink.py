@@ -16,6 +16,10 @@ biolink = bmt.Toolkit(
     predicate_map=f"https://raw.githubusercontent.com/biolink/biolink-model/refs/tags/v{OPENAPI_CONFIG.x_translator.biolink_version}/predicate_mapping.yaml",
 )
 
+SUBCLASS_SKIP_PREDICATES = set(
+    biolink.get_ancestors("biolink:subclass_of", formatted=True)
+)
+
 
 def ensure_prefix(item: str) -> str:
     """Add a `biolink:` prefix to the given string.
