@@ -757,9 +757,6 @@ class QueryGraphExecutor:
         except asyncio.CancelledError:
             return
 
-    async def initialize_subclass_mapping(self) -> None:
-        """Grab a copy of the subclass mapping for use."""
-
     def create_subclass_edge(
         self, parent: CURIE, descendant: CURIE
     ) -> tuple[EdgeIdentifier, EdgeDict]:
