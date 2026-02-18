@@ -1,6 +1,7 @@
 from typing import Literal, NotRequired, TypedDict
 
-AttrValType = Literal["text", "num", "date", "keyword"]
+AttributeOrigin = Literal["subject", "object", "edge"]
+AttrValType = Literal["text", "num", "date", "keyword", "bool"]
 AttrContainerType = Literal["scalar", "array"]
 
 

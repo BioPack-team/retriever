@@ -19,13 +19,18 @@ from retriever.data_tiers.tier_1.elasticsearch.meta import (
     generate_operations,
     get_t1_indices,
     get_t1_metadata,
+    get_ubergraph_info,
     merge_operations,
 )
-from retriever.data_tiers.tier_1.elasticsearch.types import ESEdge, ESPayload
+from retriever.data_tiers.tier_1.elasticsearch.types import (
+    ESEdge,
+    ESPayload,
+)
 from retriever.data_tiers.utils import (
     parse_dingo_metadata_unhashed,
 )
 from retriever.types.dingo import DINGO_ADAPTER, DINGOMetadata
+from retriever.types.general import EntityToEntityMapping
 from retriever.types.metakg import Operation, OperationNode
 from retriever.types.trapi import BiolinkEntity, Infores
 from retriever.utils.calls import get_metadata_client
@@ -245,10 +250,11 @@ class ElasticSearchDriver(DatabaseDriver):
         return operations, nodes
 
     @override
-    async def get_metadata(self) -> dict[str, Any] | None:
+    async def get_metadata(self, bypass_cache: bool = False) -> dict[str, Any] | None:
         return await get_t1_metadata(
             es_connection=self.es_connection,
             indices_alias=CONFIG.tier1.elasticsearch.index_name,
+            bypass_cache=bypass_cache,
         )
 
     @override
@@ -258,15 +264,16 @@ class ElasticSearchDriver(DatabaseDriver):
         # return await self.legacy_get_metadata()
         return await self.get_t1_operations()
 
-    async def get_t1_operations(
-        self,
-    ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
-        """Get tier1 operations based on metadata."""
-        metadata_blob = await self.get_metadata()
+    async def get_valid_metadata(
+        self, bypass_cache: bool = False
+    ) -> tuple[dict[str, Any], list[str]]:
+        """Get valid metadata and raise exception if failed."""
+        metadata_blob = await self.get_metadata(bypass_cache)
 
         if metadata_blob is None:
             raise ValueError(
-                "Unable to obtain metadata from backend, cannot parse operations."
+                "Unable to obtain metadata from backend, cannot parse operations.",
+                f"Elasticsearch config: {CONFIG.tier1.elasticsearch}",
             )
 
         if self.es_connection is None:
@@ -274,8 +281,31 @@ class ElasticSearchDriver(DatabaseDriver):
 
         indices = await get_t1_indices(self.es_connection)
 
-        metadata_list = extract_metadata_entries_from_blob(metadata_blob, indices)
+        # ensure metadata matches indices
+        mismatched = any(metadata_blob.get(i) is None for i in indices)
 
+        if mismatched:
+            if not bypass_cache:
+                log.error("Possibly stale data got from cache. Refetching remotely.")
+                return await self.get_valid_metadata(bypass_cache=True)
+            else:
+                raise ValueError("Invalid metadata retrieved.")
+
+        return metadata_blob, indices
+
+    async def get_t1_operations(
+        self,
+    ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
+        """Get tier1 operations based on metadata."""
+        metadata_blob, indices = await self.get_valid_metadata()
+        metadata_list = extract_metadata_entries_from_blob(metadata_blob, indices)
         operations, nodes = await generate_operations(metadata_list)
 
         return operations, nodes
+
+    @override
+    async def get_subclass_mapping(
+        self,
+    ) -> EntityToEntityMapping:
+        """Get UBERGRAPH nodes mapping/adjacency list."""
+        return await get_ubergraph_info(self.es_connection)

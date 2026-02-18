@@ -1,21 +1,23 @@
 import hashlib
 import itertools
 import uuid
+import re
 from collections import defaultdict
 from collections.abc import Sequence
-from typing import cast
+from typing import Any, cast
 
 from opentelemetry import trace
 from reasoner_pydantic import QueryGraph
 from reasoner_pydantic.utils import make_hashable
 
 from retriever.types.trapi import (
-    CURIE,
     AnalysisDict,
+    AttributeConstraintDict,
     AttributeDict,
     AuxGraphID,
     AuxiliaryGraphDict,
     BiolinkEntity,
+    CURIE,
     EdgeBindingDict,
     EdgeDict,
     EdgeIdentifier,
@@ -24,11 +26,13 @@ from retriever.types.trapi import (
     MetaAttributeDict,
     NodeBindingDict,
     NodeDict,
+    OperatorEnum,
     PathfinderAnalysisDict,
     QEdgeID,
     QNodeDict,
     QNodeID,
     QualifierConstraintDict,
+    QualifierDict,
     QualifierTypeID,
     QueryGraphDict,
     ResultDict,
@@ -116,6 +120,18 @@ def hash_retrieval_source(source: RetrievalSourceDict) -> int:
     return hash((source["resource_id"], source["resource_role"]))
 
 
+def hash_qualifier(qualifier: QualifierDict) -> int:
+    """Get a hash of a qualifier."""
+    return hash((qualifier["qualifier_type_id"], qualifier["qualifier_value"]))
+
+
+def hash_qualifier_set(qualifiers: list[QualifierDict]) -> int:
+    """Hash a set of qualifiers."""
+    if len(qualifiers) == 0:
+        return 0
+    return hash(hash_qualifier(qual) for qual in qualifiers)
+
+
 def edge_primary_knowledge_source(edge: EdgeDict) -> RetrievalSourceDict | None:
     """Get the primary source information for a given edge."""
     for source in edge["sources"]:
@@ -164,7 +180,13 @@ def hash_edge(edge: EdgeDict) -> int:
         )
     )["resource_id"]
     return hash(
-        (edge["subject"], edge["object"], edge["predicate"], primary_knowledge_source)
+        (
+            edge["subject"],
+            edge["object"],
+            edge["predicate"],
+            hash_qualifier_set(edge.get("qualifiers", []) or []),
+            primary_knowledge_source,
+        )
     )
 
 
@@ -179,7 +201,9 @@ def hash_result(result: ResultDict) -> int:
 
 
 @tracer.start_as_current_span("merge_results")
-def merge_results(current: dict[int, ResultDict], new: list[ResultDict]) -> None:
+def merge_results(
+    current: dict[int, ResultDict], new: list[ResultDict], merge_analyses: bool = True
+) -> None:
     """Merge ResultDicts in a dict of results by hash."""
     for result in new:
         key = hash_result(result)
@@ -187,8 +211,40 @@ def merge_results(current: dict[int, ResultDict], new: list[ResultDict]) -> None
             current[key] = result
             continue
         # Otherwise, need to merge results
-        # We're gonna do a lazy style: no deep analysis merge
-        current[key]["analyses"].extend(result["analyses"])
+
+        if (not merge_analyses) or len(
+            current[key]["analyses"]
+        ) == 0:  # Just add the new analsis
+            current[key]["analyses"].extend(result["analyses"])
+            continue
+
+        # Merge into the existing analysis
+        target = next(
+            iter(
+                analysis
+                for analysis in current[key]["analyses"]
+                if "edge_bindings" in analysis
+            )
+        )
+
+        for analysis in result["analyses"]:
+            if "path_bindings" in analysis:
+                continue  # BUG: not handling path bindings because Retriever doesn't do pathfinder
+            for qedge_id, bindings in (analysis["edge_bindings"]).items():
+                current_bindings = {
+                    binding["id"]: binding
+                    for binding in target["edge_bindings"].get(qedge_id, [])
+                }
+                for bind in bindings:
+                    if bind["id"] not in current_bindings:
+                        current_bindings[bind["id"]] = bind
+                        continue
+
+                    # Not attempting attribute merging, just concat
+                    current_bindings[bind["id"]]["attributes"].extend(
+                        bind["attributes"]
+                    )
+                target["edge_bindings"][qedge_id] = list(current_bindings.values())
 
 
 def update_node(node: NodeDict, new: NodeDict) -> None:
@@ -390,6 +446,75 @@ def meta_qualifier_meets_constraints(
         if qualifiers_met:
             return True
     return False
+
+
+def attribute_meets_constraint(
+    constraint: AttributeConstraintDict, attribute: AttributeDict
+) -> bool:
+    """Check whether a single attribute meets a single constraint."""
+    constraint_value = constraint["value"]
+    operator = constraint["operator"]
+    negated = constraint.get("not", False)
+
+    if operator == OperatorEnum.STRICT_EQUAL:
+        if not negated:
+            # Leveraging python's deep equality to handle this
+            return constraint_value == attribute["value"]
+        else:
+            return constraint_value != attribute["value"]
+
+    # Per attribute constraints, all other operators operate
+    # On either the value itself, or list members if the value is a list
+    # This way, we can do both at once
+    attr_values: list[Any] = (  # pyright:ignore[reportUnknownVariableType]
+        attribute["value"]
+        if isinstance(attribute["value"], list)
+        else [attribute["value"]]
+    )
+
+    success = False
+    for value in attr_values:
+        if (
+            (operator == OperatorEnum.EQUAL and (value == constraint_value))
+            or (operator == OperatorEnum.GT and (value > constraint_value))
+            or (operator == OperatorEnum.LT and (value < constraint_value))
+            or (operator == OperatorEnum.MATCH and (re.search(constraint_value, value)))
+        ):
+            success = True
+            break
+
+    if negated:
+        success = not success
+
+    return success
+
+
+def attributes_meet_contraints(
+    constraints: list[AttributeConstraintDict], attributes: list[AttributeDict]
+) -> bool:
+    """Check whether a given node satisfies the attribute constraints of the given query node."""
+    if len(constraints) == 0:
+        return True  # No constraints, can't fail to satisfy them
+    if len(attributes) == 0:
+        return False  # Can't possibly satisfy constraints without attributes
+
+    # Make a dict of attributes for quicker lookup
+    attributes_by_type = defaultdict[str, list[AttributeDict]](list)
+    for attribute in attributes:
+        attributes_by_type[attribute["attribute_type_id"]].append(attribute)
+
+    for constraint in constraints:
+        applicable_attributes = attributes_by_type.get(constraint["id"], [])
+        if len(applicable_attributes) == 0:
+            return False
+
+        if not all(
+            attribute_meets_constraint(constraint, attribute)
+            for attribute in applicable_attributes
+        ):
+            return False
+
+    return True
 
 
 def evaluate_set_interpretation(

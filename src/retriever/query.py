@@ -9,6 +9,7 @@ from opentelemetry import trace
 
 from retriever.config.general import CONFIG
 from retriever.lookup.lookup import async_lookup, lookup
+from retriever.lookup.utils import get_submitter
 from retriever.metadata.metadata import get_metadata
 from retriever.metadata.trapi_metakg import trapi_metakg
 from retriever.types.dingo import DINGOMetadata
@@ -91,16 +92,15 @@ async def make_query(
     timeout: dict[int, float] = {
         -1: CONFIG.job.metakg.timeout,
         0: custom_timeout
-        if custom_timeout is not None
+        if isinstance(custom_timeout, float)
         else CONFIG.job.lookup.tier0_timeout,
         1: custom_timeout
-        if custom_timeout is not None
+        if isinstance(custom_timeout, float)
         else CONFIG.job.lookup.tier1_timeout,
         2: custom_timeout
-        if custom_timeout is not None
+        if isinstance(custom_timeout, float)
         else CONFIG.job.lookup.tier2_timeout,
     }
-    print(timeout)
     if tiers is None:
         tiers = [0]
     if custom_tiers := body and body.parameters and body.parameters.tiers:
@@ -164,10 +164,7 @@ def contextualize_query_telemetry(query: QueryInfo, func: str, is_async: bool) -
 
     body = query.body
 
-    if submitter := body is not None and body.get("submitter"):
-        span_tags["submitter"] = str(submitter)
-    else:
-        span_tags["submitter"] = "not_provided"
+    span_tags["submitter"] = get_submitter(query)
 
     if (
         body is not None

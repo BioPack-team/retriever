@@ -3,7 +3,7 @@ import io
 import os
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from datetime import datetime, time, timedelta
+from datetime import datetime, timedelta
 from typing import Annotated, Literal
 
 import yaml
@@ -16,6 +16,8 @@ from retriever.config.general import CONFIG
 from retriever.config.logger import configure_logging
 from retriever.config.openapi import OPENAPI_CONFIG, TRAPI
 from retriever.data_tiers import tier_manager
+from retriever.lookup.subclass import SubclassMapping
+from retriever.lookup.utils import QueryDumper
 from retriever.metadata.optable import OP_TABLE_MANAGER
 from retriever.query import get_job_state, make_query
 from retriever.types.general import APIInfo, ErrorDetail, LogLevel
@@ -50,10 +52,17 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     await REDIS_CLIENT.initialize()
     await OP_TABLE_MANAGER.initialize()
     await tier_manager.connect_drivers()
+    query_dumper = QueryDumper()
+    if CONFIG.tier0.dump_queries or CONFIG.tier1.dump_queries:
+        query_dumper.initialize()
+    await SubclassMapping().initialize()
 
     yield  # Separates startup/shutdown phase
 
     # Shutdown
+    if query_dumper.initialized:
+        query_dumper.wrapup()
+    await SubclassMapping().wrapup()
     await tier_manager.close_drivers()
     await OP_TABLE_MANAGER.wrapup()
     await REDIS_CLIENT.close()
@@ -307,7 +316,7 @@ async def logs(  # noqa: PLR0913 Can't reduce args due to FastAPI endpoint forma
     start: Annotated[
         datetime | None,
         Query(
-            description="Start datetime to search logs. Defaults to yesterday at midnight if `all_dates` is not set.",
+            description="Start datetime to search logs. Defaults to last hour if `lookback` is not set.",
         ),
     ] = None,
     end: Annotated[
@@ -317,25 +326,34 @@ async def logs(  # noqa: PLR0913 Can't reduce args due to FastAPI endpoint forma
         ),
     ] = None,
     level: LogLevel = "DEBUG",
-    all_dates: Annotated[
-        bool, Query(description="Retrieve all logs without filtering by date.")
-    ] = False,
-    job_id: str | None = None,
-    fmt: Annotated[
-        Literal["flat", "trapi", "default"],
+    lookback: Annotated[
+        float | None,
         Query(
-            description="Respond with a specific format. flat: plaintext log lines; trapi: TRAPI-style logs; default: default structured format"
+            description="Number of hours back from present time to retrieve. Overrides `start`."
         ),
-    ] = "default",
+    ] = None,
+    job_id: Annotated[
+        str | None,
+        Query(
+            description="ID of a previously-run job to search for. Limits logs to those related to that job."
+        ),
+    ] = None,
+    fmt: Annotated[
+        Literal["flat", "trapi", "struct"],
+        Query(
+            description="Respond with a specific format. flat: plaintext log lines; trapi: TRAPI-style logs; struct: loguru-structured format"
+        ),
+    ] = "flat",
 ) -> StreamingResponse:
     """Retrieve MongoDB-saved server logs."""
     if not CONFIG.log.log_to_mongo:
         raise HTTPException(404, detail="Persisted logging not enabled.")
 
-    if (
-        not start and not job_id and not all_dates
-    ):  # Get all logs since midnight yesterday
-        start = datetime.combine(datetime.today(), time.min) - timedelta(days=1)
+    if lookback is not None:
+        start = datetime.now() - timedelta(seconds=lookback * 60 * 60)
+
+    elif not start and not job_id:  # Get all logs from last hour
+        start = datetime.now() - timedelta(hours=1)
 
     if fmt == "flat":
         logs = MONGO_CLIENT.get_flat_logs(start, end, level, job_id)
@@ -343,7 +361,8 @@ async def logs(  # noqa: PLR0913 Can't reduce args due to FastAPI endpoint forma
         logs = MONGO_CLIENT.get_logs(start, end, level, job_id)
         if fmt == "trapi":
             logs = structured_log_to_trapi(logs)
-        logs = objs_to_json(logs)
+        use_jsonl = fmt == "struct"
+        logs = objs_to_json(logs, jsonl=use_jsonl)
 
     return StreamingResponse(
         logs,

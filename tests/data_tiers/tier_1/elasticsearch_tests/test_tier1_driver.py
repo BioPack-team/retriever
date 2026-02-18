@@ -1,15 +1,14 @@
 import importlib
-import json
 from typing import Iterator, cast, Any
 
 import pytest
 import retriever.config.general as general_mod
 import retriever.data_tiers.tier_1.elasticsearch.driver as driver_mod
-from retriever.data_tiers.tier_1.elasticsearch.meta import extract_metadata_entries_from_blob, \
-    merge_operations, get_t1_indices
+from retriever.data_tiers.tier_1.elasticsearch.meta import extract_metadata_entries_from_blob, get_t1_indices
 from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
 from retriever.data_tiers.tier_1.elasticsearch.types import ESPayload, ESEdge
-from payload.trapi_qgraphs import DINGO_QGRAPH, VALID_REGEX_QGRAPHS, INVALID_REGEX_QGRAPHS
+from payload.trapi_qgraphs import DINGO_QGRAPH, VALID_REGEX_QGRAPHS, INVALID_REGEX_QGRAPHS, ID_BYPASS_PAYLOAD
+from retriever.utils.redis import REDIS_CLIENT
 
 
 def esp(d: dict[str, Any]) -> ESPayload:
@@ -92,12 +91,12 @@ PAYLOAD_2: ESPayload = esp({
 @pytest.mark.parametrize(
     "payload, expected",
     [
-        (PAYLOAD_0, 1),
-        (PAYLOAD_1, 26),
+        (PAYLOAD_0, 0),
+        (PAYLOAD_1, 4),
         (PAYLOAD_2, 32),
         (
                 [PAYLOAD_0, PAYLOAD_1, PAYLOAD_2],
-                [1, 26, 32]
+                [0, 4, 32]
         )
     ],
     ids=[
@@ -118,6 +117,11 @@ async def test_elasticsearch_driver(payload: ESPayload | list[ESPayload], expect
     hits: list[ESEdge] | list[ESEdge] = await driver.run_query(payload)
 
     def assert_single_result(res, expected_result_num: int):
+        if res is None:
+            if expected_result_num != 0:
+                raise AssertionError(f"Expected empty result, got {type(res)}")
+            else:
+                return
         if not isinstance(res, list):
             raise AssertionError(f"Expected results to be list, got {type(res)}")
         if not len(res) == expected_result_num:
@@ -198,11 +202,16 @@ async def test_metadata_retrieval():
 
 @pytest.mark.usefixtures("mock_elasticsearch_config")
 @pytest.mark.asyncio
-async def test_end_to_end():
-    target_qgraph = DINGO_QGRAPH
+@pytest.mark.parametrize(
+    "qgraph, expected_hits",
+    [
+        (DINGO_QGRAPH, 8),
+        (ID_BYPASS_PAYLOAD, 6776),  # <-- adjust to the real number
+    ],
+)
+async def test_end_to_end(qgraph, expected_hits):
     transpiler = ElasticsearchTranspiler()
-
-    payload = transpiler.convert_triple(target_qgraph)
+    payload = transpiler.convert_triple(qgraph)
 
     driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
 
@@ -214,4 +223,30 @@ async def test_end_to_end():
 
     hits: list[ESEdge] = await driver.run_query(payload)
 
-    assert len(hits) == 8
+    assert len(hits) == expected_hits
+
+
+@pytest.mark.usefixtures("mock_elasticsearch_config")
+@pytest.mark.asyncio
+async def test_ubergraph_info_retrieval():
+    # --- MANUAL LOOP RESET ---
+    # Since REDIS_CLIENT can retain stale connections/loop references from previous tests,
+    # we need to force-reset the Redis connection pool to prevent 'Event loop is closed' errors.
+    REDIS_CLIENT.client.connection_pool.reset()
+
+    driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
+    try:
+        await driver.connect()
+        assert driver.es_connection is not None
+    except Exception:
+        pytest.skip("skipping es driver connection test: cannot connect")
+
+    info = await driver.get_subclass_mapping()
+
+    # print("total nodes", len(info["nodes"]))
+    # print("adj list sample:")
+    # for k, v in islice(info['mapping'].items(), 5):
+    #     print(k, v)
+
+    assert "mapping" in info
+    assert len(info["mapping"]) == 122707

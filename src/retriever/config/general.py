@@ -9,8 +9,8 @@ from pydantic_settings import (
     YamlConfigSettingsSource,
 )
 
+from retriever.config.utils import CommentedSettings
 from retriever.types.general import LogLevel
-from retriever.utils.general import CommentedSettings
 
 # Filter warnings about secrets because they're optional
 warnings.filterwarnings(
@@ -136,6 +136,9 @@ class LookupSettings(BaseModel):
             description="Time in seconds before a tier 2 query should time out, set to -1 to disable."
         ),
     ] = 300
+    implicit_subclassing: Annotated[
+        bool, Field(description="Whether or not to answer via subclasses.")
+    ] = True
 
 
 class MetaKGSettings(BaseModel):
@@ -226,6 +229,12 @@ class Tier1Settings(BaseModel):
     metadata_url: str = "https://stars.renci.org/var/translator/releases/translator_kg/latest/graph-metadata.json"
     backend_infores: str = "infores:dogpark-tier1"
     elasticsearch: ElasticSearchSettings = ElasticSearchSettings()
+    dump_queries: Annotated[
+        bool,
+        Field(
+            description="Write out TRAPI and translated queries to a file in jsonl format."
+        ),
+    ] = False
 
 
 class Neo4jSettings(BaseModel):
@@ -297,6 +306,12 @@ class Tier0Settings(BaseModel):
     backend_infores: str = "infores:dogpark-tier0"
     neo4j: Neo4jSettings = Neo4jSettings()
     dgraph: DgraphSettings = DgraphSettings()
+    dump_queries: Annotated[
+        bool,
+        Field(
+            description="Write out TRAPI and translated queries to a file in jsonl format."
+        ),
+    ] = False
 
 
 class GeneralConfig(CommentedSettings):

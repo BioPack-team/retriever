@@ -1,19 +1,19 @@
 import asyncio
 import math
 import time
+from collections import deque
 from copy import deepcopy
 from typing import Any, Literal, cast, overload
 
 import bmt
 import httpx
-from loguru import logger as log
 from opentelemetry import trace
 
 from retriever.config.general import CONFIG
 from retriever.config.openapi import OPENAPI_CONFIG
 from retriever.data_tiers import tier_manager
 from retriever.lookup.qgx import QueryGraphExecutor
-from retriever.lookup.utils import expand_qgraph
+from retriever.lookup.utils import expand_qgraph, get_submitter
 from retriever.lookup.validate import validate
 from retriever.metadata.optable import OP_TABLE_MANAGER
 from retriever.types.general import LookupArtifacts, QueryInfo
@@ -51,7 +51,7 @@ async def async_lookup(query: QueryInfo) -> None:
         raise TypeError(f"Expected AsyncQuery, received {type(query.body)}.")
 
     job_id = query.job_id
-    job_log = log.bind(job_id=job_id)
+    job_log = TRAPILogger(job_id)
     status, response = await lookup(query)
 
     job_log.debug(f"Sending callback to `{query.body['callback']}`...")
@@ -72,8 +72,12 @@ async def async_lookup(query: QueryInfo) -> None:
             "An unhandled exception occured while making response callback."
         )
 
-    # update so callback logs are kept with response
-    tracked_response(status, response)
+    # Effectively tack the callback logs onto the end of the response
+    response_logs = response.get("logs", []) or []
+    job_log.log_deque = deque(response_logs) + job_log.log_deque
+
+    # Update the stored state with new logs
+    tracked_response(status, query, response, job_log)
 
 
 async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
@@ -90,7 +94,9 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
 
     try:
         start_time = time.time()
-        job_log.info(f"Begin processing job {job_id}.")
+        job_log.info(
+            f"Begin processing job {job_id} for client {get_submitter(query)}."
+        )
 
         qgraph = query.body["message"].get("query_graph")
         if qgraph is None:
@@ -98,12 +104,12 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
 
         # Query graph validation that isn't handled by reasoner_pydantic
         if not passes_validation(qgraph, response, job_log) or "paths" in qgraph:
-            return tracked_response(422, response)
+            return tracked_response(422, query, response, job_log)
 
         expanded_qgraph = expand_qgraph(deepcopy(qgraph), job_log)
 
         if not await qgraph_supported(expanded_qgraph, response, job_log, query.tiers):
-            return tracked_response(424, response)
+            return tracked_response(424, query, response, job_log)
 
         results, kgraph, aux_graphs, logs, _ = await run_tiered_lookups(
             query, expanded_qgraph
@@ -120,20 +126,10 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
 
         response["status"] = "Complete"
         response["description"] = finish_msg
-        # Filter for desired log_level
-        desired_log_level = trapi_level_to_int(
-            LogLevel(query.body.get("log_level", LogLevel.DEBUG) or LogLevel.DEBUG)
-        )
-        response["logs"] = [
-            log
-            for log in job_log.get_logs()
-            if trapi_level_to_int(log.get("level", LogLevel.DEBUG) or LogLevel.DEBUG)
-            >= desired_log_level
-        ]
         response["message"]["results"] = results
         response["message"]["knowledge_graph"] = kgraph
         response["message"]["auxiliary_graphs"] = aux_graphs
-        return tracked_response(200, response)
+        return tracked_response(200, query, response, job_log)
 
     except Exception:
         job_log.error(
@@ -144,8 +140,7 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
         response["description"] = (
             "Execution failed due to an unhandled error. See the logs for more details."
         )
-        response["logs"] = job_log.get_logs()
-        return tracked_response(500, response)
+        return tracked_response(500, query, response, job_log)
 
 
 def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]:
@@ -309,8 +304,23 @@ async def run_tiered_lookups(
     return LookupArtifacts(list(results.values()), kgraph, aux_graphs, logs)
 
 
-def tracked_response(status: int, body: ResponseDict) -> tuple[int, ResponseDict]:
+def tracked_response(
+    status: int, query: QueryInfo, response: ResponseDict, job_log: TRAPILogger
+) -> tuple[int, ResponseDict]:
     """Utility function for response handling."""
+    # Filter for desired log_level
+    desired_log_level = trapi_level_to_int(
+        LogLevel(
+            ((query.body) or {}).get("log_level", LogLevel.DEBUG) or LogLevel.DEBUG
+        )
+    )
+    response["logs"] = [
+        log
+        for log in job_log.get_logs()
+        if trapi_level_to_int(log.get("level", LogLevel.DEBUG) or LogLevel.DEBUG)
+        >= desired_log_level
+    ]
+
     # Cast because TypedDict has some *really annoying* interactions with more general dicts
-    MONGO_QUEUE.put("job_state", cast(dict[str, Any], cast(object, body)))
-    return status, body
+    MONGO_QUEUE.put("job_state", cast(dict[str, Any], cast(object, response)))
+    return status, response

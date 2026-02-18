@@ -11,3 +11,7 @@ def test_singleton() -> None:
     b = TestClass()
 
     assert a is b
+
+    a.some_data = "new"
+    assert a.some_data == "new"
+    assert b.some_data == "new"

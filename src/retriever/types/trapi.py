@@ -15,7 +15,7 @@ A few notes:
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, NewType, NotRequired, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 
 class SetInterpretationEnum(str, Enum):
@@ -24,6 +24,16 @@ class SetInterpretationEnum(str, Enum):
     BATCH = "BATCH"
     ALL = "ALL"
     MANY = "MANY"
+
+
+class OperatorEnum(str, Enum):
+    """Enumeration of possible operators for attribute constraints."""
+
+    EQUAL = "=="
+    STRICT_EQUAL = "==="
+    GT = ">"
+    LT = "<"
+    MATCH = "matches"
 
 
 class ParametersDict(TypedDict):
@@ -270,9 +280,9 @@ class QualifierConstraintDict(TypedDict):
     qualifier_set: list[QualifierDict]
 
 
-BiolinkEntity = NewType("BiolinkEntity", str)
-BiolinkPredicate = NewType("BiolinkPredicate", str)
-CURIE = NewType("CURIE", str)
+BiolinkEntity = str
+BiolinkPredicate = str
+CURIE = str
 
 
 class MetaKnowledgeGraphDict(TypedDict):
@@ -324,7 +334,7 @@ AttributeConstraintDict = TypedDict(
         "id": str,
         "name": str,
         "not": NotRequired[bool],
-        "operator": str,
+        "operator": OperatorEnum,
         "value": Any,
         "unit_id": NotRequired[str | None],
         "unit_name": NotRequired[str | None],
@@ -342,11 +352,11 @@ class RetrievalSourceDict(TypedDict):
 
 
 # These don't offer any special behavior, but make type annotation less confusable
-EdgeIdentifier = NewType("EdgeIdentifier", str)
-AuxGraphID = NewType("AuxGraphID", str)
-QNodeID = NewType("QNodeID", str)
-QEdgeID = NewType("QEdgeID", str)
-QPathID = NewType("QPathID", str)
-Infores = NewType("Infores", str)
-QualifierTypeID = NewType("QualifierTypeID", str)
-URL = NewType("URL", str)
+EdgeIdentifier = str
+AuxGraphID = str
+QNodeID = str
+QEdgeID = str
+QPathID = str
+Infores = str
+QualifierTypeID = str
+URL = str

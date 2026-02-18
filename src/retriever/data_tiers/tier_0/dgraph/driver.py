@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+from contextlib import suppress
 from enum import Enum
 from http import HTTPStatus
 from typing import Any, Protocol, TypedDict, cast, override
@@ -20,6 +21,7 @@ from retriever.data_tiers.base_driver import DatabaseDriver
 from retriever.data_tiers.tier_0.dgraph import result_models as dg_models
 from retriever.data_tiers.utils import parse_dingo_metadata
 from retriever.types.dingo import DINGOMetadata
+from retriever.types.general import EntityToEntityMapping
 from retriever.types.metakg import Operation, OperationNode
 from retriever.types.trapi import BiolinkEntity, Infores
 
@@ -118,12 +120,21 @@ class DgraphDriver(DatabaseDriver):
     query_timeout: float
     connect_retries: int
     version: str | None = None
-    _client_stub: DgraphClientStubProtocol | None = None
+
+    _client_stubs: list[DgraphClientStubProtocol]
     _client: DgraphClientProtocol | None = None
+
     _http_session: aiohttp.ClientSession | None = None
+
     _failed: bool = False
     _version_cache: TTLCache[str, str | None] = TTLCache(maxsize=1, ttl=60)
     _mapping_cache: TTLCache[str, dict[str, Any] | None] = TTLCache(maxsize=1, ttl=300)
+    _grpc_endpoints: list[str]
+
+    @staticmethod
+    def _split_hosts(hosts: str) -> list[str]:
+        # Accept comma-separated hosts in TIER0__DGRAPH__HOST / settings.host
+        return [h.strip() for h in hosts.split(",") if h.strip()]
 
     def __init__(
         self,
@@ -143,6 +154,11 @@ class DgraphDriver(DatabaseDriver):
         self.query_timeout = self.settings.query_timeout
         self.connect_retries = self.settings.connect_retries
 
+        self._client_stubs = []
+        self._grpc_endpoints = []
+        self._client = None
+        self._http_session = None
+
         # Version precedence: constructor arg > env var > auto-detect from DB
         if version is not None:
             self.version = version
@@ -156,11 +172,31 @@ class DgraphDriver(DatabaseDriver):
         else:
             self.version = None
 
-        # Set endpoint based on protocol
+        # Set endpoint(s) based on protocol
         if protocol == DgraphProtocol.GRPC:
-            self.endpoint = self.settings.grpc_endpoint
+            hosts = self._split_hosts(self.settings.host)
+            if not hosts:
+                hosts = ["localhost"]
+            self._grpc_endpoints = [f"{h}:{self.settings.grpc_port}" for h in hosts]
+
+            # Keep `endpoint` as the first for logging/error messages
+            self.endpoint = self._grpc_endpoints[0]
         else:  # HTTP
-            self.endpoint = self.settings.http_endpoint
+            hosts = self._split_hosts(self.settings.host)
+            if len(hosts) > 1:
+                log.warning("""
+                    Multiple Dgraph hosts provided for HTTP; using the first.
+                    For HA, configure an HTTP load balancer and set host to that.
+                """)
+
+            # Temporarily use the first host for HTTP endpoint construction
+            original_host = self.settings.host
+            try:
+                if hosts:
+                    self.settings.host = hosts[0]
+                self.endpoint = self.settings.http_endpoint
+            finally:
+                self.settings.host = original_host
 
     def clear_version_cache(self) -> None:
         """Clears the internal schema version cache. Primarily for testing."""
@@ -419,11 +455,16 @@ class DgraphDriver(DatabaseDriver):
                 self.settings.grpc_max_receive_message_length,
             ),
         ]
-        self._client_stub = pydgraph.DgraphClientStub(
-            self.endpoint, options=grpc_options
-        )
+        self._client_stubs = [
+            cast(
+                DgraphClientStubProtocol,
+                cast(object, pydgraph.DgraphClientStub(ep, options=grpc_options)),
+            )
+            for ep in (self._grpc_endpoints or [self.endpoint])
+        ]
         self._client = cast(
-            DgraphClientProtocol, cast(object, pydgraph.DgraphClient(self._client_stub))
+            DgraphClientProtocol,
+            cast(object, pydgraph.DgraphClient(*cast(list[Any], self._client_stubs))),
         )
 
         try:
@@ -658,21 +699,28 @@ class DgraphDriver(DatabaseDriver):
 
     async def _cleanup_connections(self) -> None:
         """Clean up any open connections."""
-        # Close gRPC connection if open
-        if self._client_stub is not None:
-            self._client_stub.close()
-            self._client_stub = None
+        # Close gRPC connection(s) if open
+        if self._client_stubs:
+            for stub in self._client_stubs:
+                with suppress(Exception):
+                    stub.close()
+            self._client_stubs = []
             self._client = None
 
         # Close HTTP session if open
         if self._http_session is not None:
-            await self._http_session.close()
+            with suppress(Exception):
+                await self._http_session.close()
             self._http_session = None
 
     @override
     async def close(self) -> None:
         """Close the connection to Dgraph and clean up resources."""
         await self._cleanup_connections()
+
+    @override
+    async def get_subclass_mapping(self) -> EntityToEntityMapping:
+        raise NotImplementedError("Tier 0 does not implement subclass mapping.")
 
 
 class DgraphHttpDriver(DgraphDriver):

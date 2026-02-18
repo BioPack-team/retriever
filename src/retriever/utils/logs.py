@@ -42,12 +42,14 @@ def trapi_level_to_int(level: TRAPILogLevel) -> int:
 def format_trapi_log(
     level: LogLevel,
     message: str,
-    timestamp: datetime | None = None,
+    timestamp: str | datetime | None = None,
     trace: str | None = None,
 ) -> LogEntryDict:
     """Format a loguru message into a TRAPI-spec LogEntry."""
     if timestamp is None:
         timestamp = datetime.now().astimezone()
+    if isinstance(timestamp, str):
+        timestamp = datetime.fromisoformat(timestamp)
     log_entry = LogEntryDict(
         level=log_level_to_trapi(level),
         message=message,
@@ -77,15 +79,21 @@ async def structured_log_to_trapi(
         )
 
 
-async def objs_to_json(generator: AsyncGenerator[Any]) -> AsyncGenerator[str]:
+async def objs_to_json(
+    generator: AsyncGenerator[Any], jsonl: bool = False
+) -> AsyncGenerator[str]:
     """Take an async generator of json-dumpable and yield them in a JSON-compliant fasion."""
-    yield "["
+    if not jsonl:
+        yield "["
+
+    delimiter = "," if not jsonl else "\n"
 
     first = True
     async for item in generator:
-        yield ("" if first else ",") + orjson.dumps(item).decode()
+        yield ("" if first else delimiter) + orjson.dumps(item).decode()
         first = False
-    yield "]"
+    if not jsonl:
+        yield "]"
 
 
 class TRAPILogger:

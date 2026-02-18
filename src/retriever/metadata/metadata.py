@@ -15,7 +15,7 @@ async def get_metadata(
     """
     try:
         async with asyncio.timeout(
-            query.timeout[-1] if query.timeout[-1] is not -1 else None
+            query.timeout[-1] if query.timeout[-1] != -1 else None
         ):
             driver = get_driver(next(iter(query.tiers), 0))
             metadata = await driver.get_metadata()

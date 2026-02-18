@@ -20,9 +20,11 @@ curie_keyword_array_field = AttrFieldMeta(
 
 number_field = AttrFieldMeta(container="scalar", value_type="num", curie=False)
 
+bool_field = AttrFieldMeta(container="scalar", value_type="bool", curie=False)
+
 datetime_field = AttrFieldMeta(container="scalar", value_type="date", curie=False)
 
-ATTR_META = {
+EDGE_ATTR_META = {
     ## fields below are EDGE attributes
     "knowledge_level": keyword_field,
     "agent_type": keyword_field,
@@ -49,6 +51,23 @@ ATTR_META = {
     "equivalent_identifiers": curie_keyword_array_field,
     # ================
     # no record with these fields, skipped for now
+    "provided_by": None,
+    "inheritance": None,
+}
+
+
+NODE_ATTR_META = {
+    "information_content": number_field,
+    "description": text_field,
+    "equivalent_identifiers": curie_keyword_array_field,
+    "symbol": keyword_field,
+    "full_name": keyword_field,
+    "xref": curie_keyword_field,
+    "synonym": curie_keyword_field,
+    "chembl_natural_product": bool_field,
+    "chembl_availability_type": text_field,
+    "chembl_black_box_warning": bool_field,
+    "chembl_prodrug": bool_field,
     "provided_by": None,
     "inheritance": None,
 }

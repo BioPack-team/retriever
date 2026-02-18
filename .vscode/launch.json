@@ -9,14 +9,30 @@
       "type": "debugpy",
       "request": "launch",
       "module": "retriever",
-      "env": { "WORKERS": "1", "DEBUG": "true" },
+      "env": {
+        "WORKERS": "1",
+        "DEBUG": "true",
+        "LOG_LEVEL": "TRACE",
+        "JOB__LOOKUP__TIER0_TIMEOUT": "-1",
+        "JOB__LOOKUP__TIER1_TIMEOUT": "-1",
+        "JOB__LOOKUP__TIER2_TIMEOUT": "-1",
+        "JOB__METAKG__TIMEOUT": "-1"
+      },
       "preLaunchTask": "Start DBs"
     },
     {
       "name": "Retriever (single worker, no db reset)",
       "type": "debugpy",
       "request": "launch",
-      "env": { "WORKERS": "1", "DEBUG": "true" },
+      "env": {
+        "WORKERS": "1",
+        "DEBUG": "true",
+        "LOG_LEVEL": "TRACE",
+        "JOB__LOOKUP__TIER0_TIMEOUT": "-1",
+        "JOB__LOOKUP__TIER1_TIMEOUT": "-1",
+        "JOB__LOOKUP__TIER2_TIMEOUT": "-1",
+        "JOB__METAKG__TIMEOUT": "-1"
+      },
       "module": "retriever"
     }
   ]

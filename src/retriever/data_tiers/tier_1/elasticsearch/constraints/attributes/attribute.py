@@ -45,7 +45,8 @@ from datetime import datetime
 from typing import Any
 
 from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.meta_info import (
-    ATTR_META,
+    EDGE_ATTR_META,
+    NODE_ATTR_META,
 )
 from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.ops.handle_comparison import (
     handle_negation,
@@ -59,6 +60,7 @@ from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.ops.handle
 from retriever.data_tiers.tier_1.elasticsearch.constraints.types.attribute_types import (
     AttrFieldMeta,
     AttributeFilterQuery,
+    AttributeOrigin,
     AttrValType,
     SingleAttributeFilterQueryPayload,
 )
@@ -69,7 +71,7 @@ from retriever.utils import biolink
 # {
 #   "id": "biolink:publications",
 #   "name": "Must have 3+ publications",
-#   "operator": ">",
+#   "operator": OperatorEnum.GT,
 #   "value": [2,3],
 # }
 
@@ -127,6 +129,7 @@ def ensure_type_consistency(field_type: AttrValType, raw_value: Any) -> Any:
 
 def process_single_constraint(
     constraint: AttributeConstraintDict,
+    origin: AttributeOrigin,
 ) -> SingleAttributeFilterQueryPayload | None:
     """Process a single attribute constraint."""
     validate_constraint(constraint)
@@ -139,11 +142,17 @@ def process_single_constraint(
 
     validate_operator(raw_operator)
 
-    field_meta_info: AttrFieldMeta | None = ATTR_META.get(target_field_name, None)
+    attr_meta = EDGE_ATTR_META if origin == "edge" else NODE_ATTR_META
+
+    field_meta_info: AttrFieldMeta | None = attr_meta.get(target_field_name, None)
 
     if field_meta_info is None:
         # todo consider not met?
         return None
+
+    # attach node prefix
+    if origin != "edge":
+        target_field_name = f"{origin}.{target_field_name}"
 
     if raw_operator == "matches":
         # regex is not easily reversed
@@ -173,6 +182,18 @@ def process_single_constraint(
             raise AttributeError(
                 f"text field{target_field_name} only supports loose match operator '==' "
             )
+
+        if field_meta_info["value_type"] == "bool" and raw_operator != "===":
+            raise AttributeError(
+                f"boolean field{target_field_name} only supports strict match operator '===' "
+            )
+
+            # we don't flip value to do negation here is because of the case of missing fields
+            # e.g. `===, true, not` essentially means anything that does not equal true, including missing fields
+
+            # if should_negate:
+            #     value = not value
+            #     should_negate = False
 
         # translate negation where possible
         raw_operator, should_negate = handle_negation(raw_operator, should_negate)
@@ -213,6 +234,7 @@ def process_single_constraint(
 
 def process_attribute_constraints(
     constraints: list[AttributeConstraintDict],
+    origin: AttributeOrigin = "edge",
 ) -> tuple[list[AttributeFilterQuery], list[AttributeFilterQuery]]:
     """Generate ES query for attribute constraint field."""
     must: list[AttributeFilterQuery] = []
@@ -221,7 +243,7 @@ def process_attribute_constraints(
     # fail fast. exception => not met => fails everything
     for constraint in constraints:
         # attribute error will ba raised if illegal
-        payload = process_single_constraint(constraint)
+        payload = process_single_constraint(constraint, origin)
 
         # None will be returned if not a supported filtering
         if not payload:

@@ -100,3 +100,5 @@ JsonSerializable = (
     | list["JsonSerializable"]
     | dict[str, "JsonSerializable"]
 )
+
+EntityToEntityMapping = dict[CURIE, list[CURIE]]

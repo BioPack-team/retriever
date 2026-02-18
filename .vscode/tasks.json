@@ -7,7 +7,7 @@
             "label": "Start DBs",
             "type": "shell",
             "options": {
-                "cwd": "${workspaceFolder}",
+                "cwd": "${workspaceFolder}"
             },
             "command": "uv",
             "args": ["run", "task", "dbs"]
