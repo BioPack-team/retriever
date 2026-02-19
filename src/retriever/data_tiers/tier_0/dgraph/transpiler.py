@@ -766,40 +766,37 @@ class DgraphTranspiler(Tier0Transpiler):
     ) -> str:
         """Build a @cascade(...) clause for a node block.
 
-        Always require id. If this node is connected by any symmetric edge,
-        only require id (let post-processing handle the OR logic).
+        Always require id. If this node is ONLY connected by symmetric edges
+        going to unvisited nodes, only require id (let post-processing handle the OR logic).
         Otherwise, require reverse predicates (~subject, ~object) for
         traversals to not-yet-visited nodes.
         """
         cascade_fields: list[str] = [self._v("id")]
 
-        # Check if this node is connected by any symmetric edge
-        has_symmetric_edge = False
+        # Check outgoing edges (node as subject) to unvisited objects
+        has_non_symmetric_out = False
         for e_id, e in edges.items():
-            if e_id in self._symmetric_edge_map:
-                # Check if this node is involved in this symmetric edge
-                if e["subject"] == node_id or e["object"] == node_id:
-                    has_symmetric_edge = True
+            if e["subject"] == node_id and e["object"] not in visited:
+                # Check if this edge is NOT symmetric
+                if e_id not in self._symmetric_edge_map:
+                    has_non_symmetric_out = True
                     break
 
-        # If this node has symmetric edges, only cascade on id
-        # The OR logic will be handled in post-processing
-        if has_symmetric_edge:
-            return f" @cascade({', '.join(cascade_fields)})"
-
-        # For non-symmetric cases, use the original logic
-        # Check outgoing edges (node as subject) to unvisited objects
-        if any(
-            e["subject"] == node_id and e["object"] not in visited
-            for e in edges.values()
-        ):
+        # Only require ~subject if there are non-symmetric outgoing edges
+        if has_non_symmetric_out:
             cascade_fields.append(f"~{self._v('subject')}")
 
         # Check incoming edges (node as object) to unvisited subjects
-        if any(
-            e["object"] == node_id and e["subject"] not in visited
-            for e in edges.values()
-        ):
+        has_non_symmetric_in = False
+        for e_id, e in edges.items():
+            if e["object"] == node_id and e["subject"] not in visited:
+                # Check if this edge is NOT symmetric
+                if e_id not in self._symmetric_edge_map:
+                    has_non_symmetric_in = True
+                    break
+
+        # Only require ~object if there are non-symmetric incoming edges
+        if has_non_symmetric_in:
             cascade_fields.append(f"~{self._v('object')}")
 
         return f" @cascade({', '.join(cascade_fields)})"
