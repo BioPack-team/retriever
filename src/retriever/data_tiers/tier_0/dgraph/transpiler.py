@@ -231,13 +231,14 @@ class DgraphTranspiler(Tier0Transpiler):
         Returns:
             Filtered list of nodes that satisfy cascade with OR logic
         """
-        def validate_edge_path(node: dg.Node, symmetric_map: dict) -> bool:
+
+        def validate_edge_path(node: dg.Node, symmetric_map: Mapping[QEdgeID, tuple[str, str]]) -> bool:
             """Recursively validate all edges in the path."""
             if not node.edges:
                 return True
 
             # Group edges by their query edge ID
-            edges_by_qid = {}
+            edges_by_qid: dict[QEdgeID, list[dg.Edge]] = {}
             for edge in node.edges:
                 qid = QEdgeID(edge.binding)
                 if qid not in edges_by_qid:
@@ -264,7 +265,7 @@ class DgraphTranspiler(Tier0Transpiler):
             return True
 
         # Filter top-level nodes
-        filtered = []
+        filtered: list[dg.Node] = []
         for node in nodes:
             if validate_edge_path(node, symmetric_edges):
                 filtered.append(node)
