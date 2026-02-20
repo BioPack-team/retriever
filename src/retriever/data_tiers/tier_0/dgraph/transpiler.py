@@ -265,10 +265,9 @@ class DgraphTranspiler(Tier0Transpiler):
             return True
 
         # Filter top-level nodes
-        filtered: list[dg.Node] = []
-        for node in nodes:
-            if validate_edge_path(node, symmetric_edges):
-                filtered.append(node)
+        filtered: list[dg.Node] = [
+            node for node in nodes if validate_edge_path(node, symmetric_edges)
+        ]
 
         return filtered
 
@@ -777,11 +776,9 @@ class DgraphTranspiler(Tier0Transpiler):
         # Check outgoing edges (node as subject) to unvisited objects
         has_non_symmetric_out = False
         for e_id, e in edges.items():
-            if e["subject"] == node_id and e["object"] not in visited:
-                # Check if this edge is NOT symmetric
-                if e_id not in self._symmetric_edge_map:
-                    has_non_symmetric_out = True
-                    break
+            if e["subject"] == node_id and e["object"] not in visited and e_id not in self._symmetric_edge_map:
+                has_non_symmetric_out = True
+                break
 
         # Only require ~subject if there are non-symmetric outgoing edges
         if has_non_symmetric_out:
@@ -790,11 +787,9 @@ class DgraphTranspiler(Tier0Transpiler):
         # Check incoming edges (node as object) to unvisited subjects
         has_non_symmetric_in = False
         for e_id, e in edges.items():
-            if e["object"] == node_id and e["subject"] not in visited:
-                # Check if this edge is NOT symmetric
-                if e_id not in self._symmetric_edge_map:
-                    has_non_symmetric_in = True
-                    break
+            if e["object"] == node_id and e["subject"] not in visited and e_id not in self._symmetric_edge_map:
+                has_non_symmetric_in = True
+                break
 
         # Only require ~object if there are non-symmetric incoming edges
         if has_non_symmetric_in:
