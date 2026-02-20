@@ -868,7 +868,7 @@ async def test_simple_one_query_live_http() -> None:
     assert go_attrs.get("symbol") == "SYNRG"
     assert go_attrs.get("taxon") == "NCBITaxon:9606"
     assert go_attrs.get("in_taxon") == ["NCBITaxon:9606"]
-    assert go_attrs.get("information_content") == pytest.approx(83.1)
+    assert go_attrs.get("information_content") == 83.1
 
     expected_equiv_ids = sorted([
         "PR:Q9UMZ2", "OMIM:607291", "UniProtKB:Q9UMZ2", "ENSEMBL:ENSG00000275066",
