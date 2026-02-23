@@ -74,6 +74,7 @@ tier0:
     connect_retries: 5  # Number of retries before declaring a connection failure.
     grpc_max_send_message_length: -1  # gRPC max send message length in bytes (-1 for unlimited).
     grpc_max_receive_message_length: -1  # gRPC max receive message length in bytes (-1 for unlimited).
+  dump_queries: false  # Write out TRAPI and translated queries to a file in jsonl format.
 tier1:
   backend: elasticsearch
   metadata_url: https://stars.renci.org/var/translator/releases/translator_kg/latest/graph-metadata.json
