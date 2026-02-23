@@ -96,7 +96,7 @@ class XTrapi(BaseModel):
     ] = 300
     rate_limit: Annotated[
         int, Field(description="Maximum number of requests per minute.")
-    ] = 300
+    ] = 1000
     test_data_location: TestDataLocationObject = TestDataLocationObject()
     externalDocs: ExternalDocs = ExternalDocs(
         description="The values for version are restricted according to the regex in this external JSON schema. See schema and examples at url",

@@ -440,6 +440,24 @@ def meta_qualifier_meets_constraints(
     return False
 
 
+def meta_attributes_meet_constraints(
+    constraints: list[AttributeConstraintDict], meta_attributes: list[MetaAttributeDict]
+) -> bool:
+    """Check whether the the given meta_attributes can potentially satisfy the given constraints."""
+    if len(constraints) == 0:
+        return True  # No constraints, can't fail to satisfy them
+    if len(meta_attributes) == 0:
+        return False  # Can't possibly satisfy constraints without attributes
+
+    attribute_type_ids = {
+        mattr["attribute_type_id"]
+        for mattr in meta_attributes
+        if mattr.get("constraint_use", False)
+    }
+
+    return all(constr["id"] in attribute_type_ids for constr in constraints)
+
+
 def attribute_meets_constraint(
     constraint: AttributeConstraintDict, attribute: AttributeDict
 ) -> bool:

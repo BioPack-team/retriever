@@ -4,7 +4,7 @@ import math
 import time
 from asyncio.tasks import Task
 from collections.abc import AsyncGenerator, Hashable, Iterable
-from typing import Literal
+from typing import Literal, cast
 
 from opentelemetry import trace
 
@@ -19,7 +19,7 @@ from retriever.lookup.partial import Partial
 from retriever.lookup.subclass import SubclassMapping
 from retriever.lookup.subquery import get_subgraph, subquery
 from retriever.lookup.utils import make_mappings
-from retriever.metadata.optable import OP_TABLE_MANAGER
+from retriever.metadata.optable import OP_TABLE_MANAGER, OperationPlan
 from retriever.types.general import (
     AdjacencyGraph,
     KAdjacencyGraph,
@@ -162,12 +162,12 @@ class QueryGraphExecutor:
             self.job_log.info(
                 f"Starting lookup against Tier {', '.join(str(t) for t in self.ctx.tiers if t > 0)}..."
             )
-            operation_plan = await OP_TABLE_MANAGER.create_operation_plan(
+            supported, operation_plan = await OP_TABLE_MANAGER.create_operation_plan(
                 self.qgraph, {t for t in self.ctx.tiers if t > 0}
             )
-            if isinstance(operation_plan, list):
+            if not supported:
                 self.job_log.warning(
-                    f"Failed for find operations supporting query edge(s): {operation_plan}"
+                    f"Failed for find operations supporting query edge(s): {list(operation_plan.keys())}"
                 )
                 return LookupArtifacts(
                     [], self.kgraph, self.aux_graphs, self.job_log.get_logs()
@@ -178,7 +178,14 @@ class QueryGraphExecutor:
             starting_branches = await Branch.get_start_branches(
                 self.qedge_claims,
                 self.locks["claim"],
-                (self.qgraph, self.q_agraph, self.qedge_map, operation_plan),
+                (
+                    self.qgraph,
+                    self.q_agraph,
+                    self.qedge_map,
+                    cast(
+                        OperationPlan, operation_plan
+                    ),  # Should never be the alternative
+                ),
                 self.job_log,
             )
             self.job_log.debug(

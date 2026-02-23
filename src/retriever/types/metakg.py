@@ -60,4 +60,4 @@ class OperationTable(NamedTuple):
 
     operations_sorted: SortedOperations
     operations_flat: FlatOperations
-    nodes: dict[BiolinkEntity, OperationNode]
+    nodes: dict[BiolinkEntity, dict[TierNumber, OperationNode]]

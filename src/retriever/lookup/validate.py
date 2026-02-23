@@ -1,3 +1,5 @@
+from typing import get_type_hints
+
 from reasoner_pydantic.shared import KnowledgeType
 
 from retriever.config.openapi import OPENAPI_CONFIG
@@ -12,16 +14,20 @@ from retriever.types.trapi import (
 from retriever.utils import biolink
 
 
-def validate(qg: QueryGraphDict | PathfinderQueryGraphDict) -> list[str]:
+def validate(
+    qg: QueryGraphDict | PathfinderQueryGraphDict,
+) -> tuple[list[str], list[str]]:
     """Check that a given query graph is valid.
 
     Returns:
-        A list of messages detailing validation problems.
+        A list of warning messages, which do not fail validation but should be logged.
+        And a list of messages detailing validation problems.
         If the list is empty, the graph passes validation.
     """
     if "paths" in qg:
-        return ["Retriever does not support Pathfinder queries."]
-    problems: dict[str, bool] = {}  # False means failing
+        return [], ["Retriever does not support Pathfinder queries."]
+    warnings = list[str]()
+    problems = dict[str, bool]()  # False means failing
     problems["Query graph must have at least one node"] = len(qg["nodes"].values()) > 0
     problems["Query graph must have at least one edge"] = len(qg["edges"].values()) > 0
     problems["Query graph must have at least one node with an ID"] = any(
@@ -32,17 +38,21 @@ def validate(qg: QueryGraphDict | PathfinderQueryGraphDict) -> list[str]:
 
     # node_pairs = set[str]()
     for qedge_id, qedge in qg["edges"].items():
-        problems.update(validate_qedge(qg, qedge_id, qedge))
+        edge_warnings, edge_problems = validate_qedge(qg, qedge_id, qedge)
+        problems.update(edge_problems)
+        warnings.extend(edge_warnings)
 
     for qnode_id, qnode in qg["nodes"].items():
-        problems.update(validate_qnode(qg, qnode_id, qnode))
+        node_warnings, node_problems = validate_qnode(qg, qnode_id, qnode)
+        problems.update(node_problems)
+        warnings.extend(node_warnings)
 
-    return [name for name, passed in problems.items() if not passed]
+    return warnings, [name for name, passed in problems.items() if not passed]
 
 
 def validate_qedge(
     qg: QueryGraphDict, qedge_id: QEdgeID, qedge: QEdgeDict
-) -> dict[str, bool]:
+) -> tuple[list[str], dict[str, bool]]:
     """Find and return any problems with a given Query Edge.
 
     Problems in the dictionary marked False are failing.
@@ -86,12 +96,20 @@ def validate_qedge(
     #     problems["Duplicate qedges not allowed."] = False
     # node_pairs.add(f"{qedge.subject}-{qedge.object}")
 
-    return problems
+    warnings = list[str]()
+    known_fields = get_type_hints(QEdgeDict)
+    unknown_fields = [field for field in qedge if field not in known_fields]
+    if len(unknown_fields) > 0:
+        warnings.append(
+            f"Edge `{qedge_id}`: skipping unknown fields ({', '.join(unknown_fields)})"
+        )
+
+    return warnings, problems
 
 
 def validate_qnode(
     _qg: QueryGraphDict, qnode_id: QNodeID, qnode: QNodeDict
-) -> dict[str, bool]:
+) -> tuple[list[str], dict[str, bool]]:
     """Find and return any problems with a given Query Node.
 
     Problems in the dictionary marked False are failing.
@@ -111,4 +129,12 @@ def validate_qnode(
             False
         )
 
-    return problems
+    warnings = list[str]()
+    known_fields = get_type_hints(QNodeDict)
+    unknown_fields = [field for field in qnode if field not in known_fields]
+    if len(unknown_fields) > 0:
+        warnings.append(
+            f"Node `{qnode_id}`: skipping unknown fields ({', '.join(unknown_fields)})"
+        )
+
+    return warnings, problems

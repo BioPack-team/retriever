@@ -15,7 +15,11 @@ from retriever.data_tiers import tier_manager
 from retriever.lookup.qgx import QueryGraphExecutor
 from retriever.lookup.utils import expand_qgraph, get_submitter
 from retriever.lookup.validate import validate
-from retriever.metadata.optable import OP_TABLE_MANAGER
+from retriever.metadata.optable import (
+    OP_TABLE_MANAGER,
+    QueryNotTraversable,
+    UnsupportedConstraint,
+)
 from retriever.types.general import LookupArtifacts, QueryInfo
 from retriever.types.trapi import (
     AuxGraphID,
@@ -202,12 +206,14 @@ def passes_validation(
 
     Prepares response with appropriate messages if not.
     """
-    validation_problems = validate(qgraph)
-    if validation_problems:
+    warnings, errors = validate(qgraph)
+    for warning in warnings:
+        job_log.warning(warning)
+    if len(errors) > 0:
         job_log.error(
-            f"Query validation encountered {len(validation_problems)} error{'s' if len(validation_problems) > 1 else ''}. Error logs to follow:"
+            f"Query validation encountered {len(errors)} error{'s' if len(errors) > 1 else ''}. Error logs to follow:"
         )
-        for problem in validation_problems:
+        for problem in errors:
             job_log.error(f"Validation Error: {problem}")
         job_log.error("Due to the above errors, your query terminates.")
 
@@ -230,17 +236,58 @@ async def qgraph_supported(
 
     Prepares response with appropriate messages if not.
     """
-    operation_plan = await OP_TABLE_MANAGER.create_operation_plan(qgraph, tiers)
-    if isinstance(operation_plan, list):
-        job_log.warning(
-            f"MetaEdges could not be found for the following QEdge(s): {operation_plan}"
+    supported, plan_or_report = await OP_TABLE_MANAGER.create_operation_plan(
+        qgraph, tiers
+    )
+    if not supported:
+        missing_edges = [
+            qedge_id
+            for qedge_id, reason in plan_or_report.items()
+            if isinstance(reason, QueryNotTraversable)
+        ]
+        unsupported_constraints = {
+            qedge_id: reason
+            for qedge_id, reason in plan_or_report.items()
+            if isinstance(reason, UnsupportedConstraint)
+        }
+        if len(missing_edges) > 0:
+            job_log.warning(
+                f"MetaEdges could not be found for the following QEdge(s): {missing_edges}"
+            )
+        if len(unsupported_constraints) > 0:
+            for qedge_id, reason in unsupported_constraints.items():
+                job_log.warning(
+                    f"Unsupported constraint(s) present in QEdge `{qedge_id}` (if multiple, try a smaller combination): {reason.unmet}"
+                )
+        status = (
+            "QueryNotTraversable"
+            if "QueryNotTraversable" in plan_or_report.values()
+            else "UnsupportedConstraint"
         )
-        response["status"] = "QueryNotTraversable"
+        response["status"] = status
+        reason_desc = (
+            "missing MetaEdges"
+            if status == "QueryNotTraversable"
+            else "unsupported constraints"
+        )
         response["description"] = (
-            "Query cannot be traversed due to missing metaEdges. See logs for details."
+            f"Query cannot be traversed due to {reason_desc}. See logs for details."
         )
-        return False
-    return True
+
+    unsupported_nodes = await OP_TABLE_MANAGER.qnodes_supported(qgraph, tiers)
+    if unsupported_nodes is not None:
+        for qnode_id, reason in unsupported_nodes.items():
+            job_log.warning(
+                f"Unsupported constraint(s) present in QNode `{qnode_id}` (if multiple, try a smaller combination): {reason.unmet}"
+            )
+        if response.get("status") != "QueryNotTraversable":
+            response["status"] = "UnsupportedConstraint"
+            response["description"] = (
+                "Query cannot be traversed due to unsupported constraints. See logs for details."
+            )
+
+    supported = supported and unsupported_nodes is None
+    return supported
 
 
 @tracer.start_as_current_span("execute_lookup")
