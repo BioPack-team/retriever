@@ -47,7 +47,7 @@ x_trapi:
   asyncquery: true  # Supports async query type.
   operations: [lookup]
   batch_size_limit: 300  # Maximum IDs on any one node.
-  rate_limit: 300  # Maximum number of requests per minute.
+  rate_limit: 1000  # Maximum number of requests per minute.
   test_data_location:
     default:
       url: https://raw.githubusercontent.com/NCATS-Tangerine/translator-api-registry/master/biothings_explorer/sri-test-bte-ara.json
