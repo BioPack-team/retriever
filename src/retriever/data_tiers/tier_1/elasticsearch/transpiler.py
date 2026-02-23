@@ -137,8 +137,53 @@ class ElasticsearchTranspiler(Tier1Transpiler):
             if (values := qedge.get(qfield))
         ]
 
-    def generate_query_for_merged_edges(
-        self, in_node: QNodeDict, edge: QEdgeDict, out_node: QNodeDict
+    def generate_attribute_constraints(
+        self,
+        in_node: QNodeDict,
+        edge: QEdgeDict,
+        out_node: QNodeDict,
+        query_kwargs: ESBooleanQuery,
+    ) -> ESBooleanQuery:
+        """Generate attribute constraints based on QNode/QEdge payload."""
+        constraint_origins: list[AttributeOrigin] = ["edge", "subject", "object"]
+
+        all_must: list[AttributeFilterQuery] = []
+        all_must_not: list[AttributeFilterQuery] = []
+
+        for origin in constraint_origins:
+            entity = (
+                edge
+                if origin == "edge"
+                else in_node
+                if origin == "subject"
+                else out_node
+            )
+
+            if origin == "edge":
+                constraints = entity.get("attribute_constraints", None)
+            else:
+                constraints = entity.get("constraints", None)
+
+            if constraints:
+                must, must_not = process_attribute_constraints(constraints, origin)
+                if must:
+                    all_must.extend(must)
+                if must_not:
+                    all_must_not.extend(must_not)
+
+        if all_must:
+            query_kwargs["must"] = all_must
+        if all_must_not:
+            query_kwargs["must_not"] = all_must_not
+
+        return query_kwargs
+
+    def generate_queries(
+        self,
+        in_node: QNodeDict,
+        edge: QEdgeDict,
+        out_node: QNodeDict,
+        gen_attribute_constraints: bool = False,  # disable attribute constraints for now
     ) -> ESPayload:
         """Generate query based on merged edges schema on Elasticsearch.
 
@@ -185,36 +230,11 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                 query_kwargs["filter"].append(qualifier_terms)
 
         # generate constraint terms for edges and associated nodes
-        constraint_origins: list[AttributeOrigin] = ["edge", "subject", "object"]
-
-        all_must: list[AttributeFilterQuery] = []
-        all_must_not: list[AttributeFilterQuery] = []
-
-        for origin in constraint_origins:
-            entity = (
-                edge
-                if origin == "edge"
-                else in_node
-                if origin == "subject"
-                else out_node
+        # currently, this is DISABLED by default to favor post-processing
+        if gen_attribute_constraints:
+            query_kwargs = self.generate_attribute_constraints(
+                in_node, edge, out_node, query_kwargs
             )
-
-            if origin == "edge":
-                constraints = entity.get("attribute_constraints", None)
-            else:
-                constraints = entity.get("constraints", None)
-
-            if constraints:
-                must, must_not = process_attribute_constraints(constraints, origin)
-                if must:
-                    all_must.extend(must)
-                if must_not:
-                    all_must_not.extend(must_not)
-
-        if all_must:
-            query_kwargs["must"] = all_must
-        if all_must_not:
-            query_kwargs["must_not"] = all_must_not
 
         return ESPayload(query=ESQueryContext(bool=ESBooleanQuery(**query_kwargs)))
 
@@ -226,7 +246,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
             raise ValueError("Query graph must contain exactly one edge.")
         in_node = qgraph["nodes"][edge["subject"]]
         out_node = qgraph["nodes"][edge["object"]]
-        return self.generate_query_for_merged_edges(in_node, edge, out_node)
+        return self.generate_queries(in_node, edge, out_node)
 
     @override
     def convert_batch_triple(self, qgraphs: list[QueryGraphDict]) -> list[ESPayload]:
