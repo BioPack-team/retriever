@@ -9,6 +9,7 @@ from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTr
 from retriever.data_tiers.tier_1.elasticsearch.types import ESPayload, ESEdge
 from payload.trapi_qgraphs import DINGO_QGRAPH, VALID_REGEX_QGRAPHS, INVALID_REGEX_QGRAPHS, ID_BYPASS_PAYLOAD
 from retriever.utils.redis import REDIS_CLIENT
+from test_tier1_transpiler import _convert_triple, _convert_batch_triple
 
 
 def esp(d: dict[str, Any]) -> ESPayload:
@@ -156,7 +157,7 @@ def test_invalid_regex_qgraph(qgraph):
 async def test_valid_regex_query():
     transpiler = ElasticsearchTranspiler()
 
-    qgraphs_with_valid_regex = transpiler.convert_batch_triple(VALID_REGEX_QGRAPHS)
+    qgraphs_with_valid_regex = _convert_batch_triple(transpiler, VALID_REGEX_QGRAPHS)
 
     driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
 
@@ -211,7 +212,7 @@ async def test_metadata_retrieval():
 )
 async def test_end_to_end(qgraph, expected_hits):
     transpiler = ElasticsearchTranspiler()
-    payload = transpiler.convert_triple(qgraph)
+    payload = _convert_triple(transpiler, qgraph)
 
     driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
 
