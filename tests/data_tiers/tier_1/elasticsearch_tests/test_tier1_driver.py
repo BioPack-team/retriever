@@ -149,7 +149,7 @@ async def test_elasticsearch_driver(payload: ESPayload | list[ESPayload], expect
 def test_invalid_regex_qgraph(qgraph):
     transpiler = ElasticsearchTranspiler()
     with pytest.raises(ValueError):
-        transpiler.convert_triple(qgraph)
+        _convert_triple(transpiler, qgraph)
 
 
 @pytest.mark.usefixtures("mock_elasticsearch_config")
