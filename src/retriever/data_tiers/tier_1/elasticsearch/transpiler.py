@@ -137,8 +137,11 @@ class ElasticsearchTranspiler(Tier1Transpiler):
             if (values := qedge.get(qfield))
         ]
 
-    def generate_query_for_merged_edges(
-        self, in_node: QNodeDict, edge: QEdgeDict, out_node: QNodeDict
+    def generate_queries(
+        self,
+        in_node: QNodeDict,
+        edge: QEdgeDict,
+        out_node: QNodeDict,
     ) -> ESPayload:
         """Generate query based on merged edges schema on Elasticsearch.
 
@@ -226,7 +229,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
             raise ValueError("Query graph must contain exactly one edge.")
         in_node = qgraph["nodes"][edge["subject"]]
         out_node = qgraph["nodes"][edge["object"]]
-        return self.generate_query_for_merged_edges(in_node, edge, out_node)
+        return self.generate_queries(in_node, edge, out_node)
 
     @override
     def convert_batch_triple(self, qgraphs: list[QueryGraphDict]) -> list[ESPayload]:
