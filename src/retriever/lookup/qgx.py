@@ -867,7 +867,7 @@ class QueryGraphExecutor:
             ],
             sources=[
                 RetrievalSourceDict(
-                    resource_id="infore:retriever",
+                    resource_id="infores:retriever",
                     resource_role="primary_knowledge_source",
                 ),
             ],
