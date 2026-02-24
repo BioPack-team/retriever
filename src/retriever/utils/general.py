@@ -82,20 +82,19 @@ class AsyncDaemon(ABC, metaclass=Singleton):
 
     tasks: ClassVar[list[asyncio.Task[None]]] = []
     initialized: bool = False
-    namespace: str = "AsyncDaemon"
 
-    def initialize(self) -> None:
+    async def initialize(self) -> None:
         """Start up long-running tasks."""
         if self.initialized:
             return
         logger.info(f"{self.__class__.__name__} starting tasks.")
         for i, func in enumerate(self.get_task_funcs()):
             self.tasks.append(
-                asyncio.create_task(func(), name=f"{self.namespace}:task_{i}")
+                asyncio.create_task(func(), name=f"{self.__class__.__name__}:task_{i}")
             )
         self.initialized = True
 
-    def wrapup(self) -> None:
+    async def wrapup(self) -> None:
         """Cancel all long-running tasks."""
         logger.info(f"{self.__class__.__name__} wrapping up.")
         for task in self.tasks:

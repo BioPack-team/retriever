@@ -20,7 +20,7 @@ from retriever.types.dingo import DINGOMetadata
 from retriever.types.general import EntityToEntityMapping
 from retriever.types.metakg import Operation, OperationNode, UnhashedOperation
 from retriever.types.trapi import BiolinkEntity, Infores, MetaAttributeDict
-from retriever.utils.redis import REDIS_CLIENT
+from retriever.utils.redis import RedisClient
 
 T1MetaData = dict[str, Any]
 
@@ -54,7 +54,7 @@ def get_stable_hash(key: str) -> str:
 
 async def save_metadata_cache(key: str, payload: T1MetaData) -> None:
     """Wrapper for persist metadata in Redis."""
-    await REDIS_CLIENT.set(
+    await RedisClient().set(
         get_stable_hash(key),
         ormsgpack.packb(payload),
         compress=True,
@@ -65,7 +65,7 @@ async def save_metadata_cache(key: str, payload: T1MetaData) -> None:
 async def read_metadata_cache(key: str) -> T1MetaData | None:
     """Wrapper for retrieving persisted metadata in Redis."""
     redis_key = get_stable_hash(key)
-    metadata_pack = await REDIS_CLIENT.get(redis_key, compressed=True)
+    metadata_pack = await RedisClient().get(redis_key, compressed=True)
     if metadata_pack is not None:
         return ormsgpack.unpackb(metadata_pack)
 

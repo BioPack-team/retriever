@@ -3,7 +3,7 @@ import math
 import time
 from collections import deque
 from copy import deepcopy
-from typing import Any, Literal, cast, overload
+from typing import Literal, overload
 
 import bmt
 import httpx
@@ -16,7 +16,7 @@ from retriever.lookup.qgx import QueryGraphExecutor
 from retriever.lookup.utils import expand_qgraph, get_submitter
 from retriever.lookup.validate import validate
 from retriever.metadata.optable import (
-    OP_TABLE_MANAGER,
+    OpTableManager,
     QueryNotTraversable,
     UnsupportedConstraint,
 )
@@ -37,11 +37,13 @@ from retriever.types.trapi import (
 from retriever.types.trapi_pydantic import TierNumber
 from retriever.utils.calls import get_callback_client
 from retriever.utils.logs import TRAPILogger, trapi_level_to_int
-from retriever.utils.mongo import MONGO_QUEUE
+from retriever.utils.mongo import MongoQueue
 from retriever.utils.trapi import merge_results, prune_kg, update_kgraph
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 biolink = bmt.Toolkit()
+MONGO_QUEUE = MongoQueue()
+OP_TABLE_MANAGER = OpTableManager()
 
 
 async def async_lookup(query: QueryInfo) -> None:
@@ -364,5 +366,5 @@ def tracked_response(
     ]
 
     # Cast because TypedDict has some *really annoying* interactions with more general dicts
-    MONGO_QUEUE.put("job_state", cast(dict[str, Any], cast(object, response)))
+    MONGO_QUEUE.put("job_state", response)
     return status, response

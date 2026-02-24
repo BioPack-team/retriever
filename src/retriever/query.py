@@ -26,9 +26,10 @@ from retriever.types.trapi_pydantic import Query as TRAPIQuery
 from retriever.types.trapi_pydantic import TierNumber
 from retriever.utils import telemetry
 from retriever.utils.logs import TRAPILogger, structured_log_to_trapi
-from retriever.utils.mongo import MONGO_CLIENT, MONGO_QUEUE
+from retriever.utils.mongo import MongoClient, MongoQueue
 
 tracer = trace.get_tracer("lookup.execution.tracer")
+MONGO_QUEUE = MongoQueue()
 
 
 @overload
@@ -195,7 +196,7 @@ async def get_job_state(
     ctx_log = TRAPILogger(job_id)
 
     try:
-        job_dict = await MONGO_CLIENT.get_job_doc(job_id)
+        job_dict = await MongoClient().get_job_doc(job_id)
         if job_dict:
             ctx_log.debug(f"Got job {job_id} result from MongoDB.")
         else:
@@ -211,7 +212,7 @@ async def get_job_state(
         job_logs = [
             log
             async for log in structured_log_to_trapi(
-                MONGO_CLIENT.get_logs(job_id=job_id)
+                MongoClient().get_logs(job_id=job_id)
             )
         ]
         if len(job_logs) > 0:

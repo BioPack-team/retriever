@@ -18,7 +18,7 @@ from retriever.config.openapi import OPENAPI_CONFIG, TRAPI
 from retriever.data_tiers import tier_manager
 from retriever.lookup.subclass import SubclassMapping
 from retriever.lookup.utils import QueryDumper
-from retriever.metadata.optable import OP_TABLE_MANAGER
+from retriever.metadata.optable import OpTableManager
 from retriever.query import get_job_state, make_query
 from retriever.types.general import APIInfo, ErrorDetail, LogLevel
 from retriever.types.trapi_pydantic import AsyncQuery as TRAPIAsyncQuery
@@ -33,8 +33,8 @@ from retriever.utils.logs import (
     objs_to_json,
     structured_log_to_trapi,
 )
-from retriever.utils.mongo import MONGO_CLIENT, MONGO_QUEUE
-from retriever.utils.redis import REDIS_CLIENT
+from retriever.utils.mongo import MongoClient, MongoQueue
+from retriever.utils.redis import RedisClient
 from retriever.utils.telemetry import configure_telemetry
 
 configure_logging()
@@ -46,28 +46,31 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     """Lifespan hook for any setup/shutdown behavior."""
     # Startup
     os.environ["PYTHONHASHSEED"] = "0"  # So reasoner_pydantic hashing is deterministic
-    await MONGO_CLIENT.initialize()
-    await MONGO_QUEUE.start_process_task()
+    await MongoClient().initialize()
+    await MongoQueue().initialize()
     add_mongo_sink()
-    await REDIS_CLIENT.initialize()
-    await OP_TABLE_MANAGER.initialize()
+    await RedisClient().initialize()
+    await OpTableManager().initialize()
     await tier_manager.connect_drivers()
     query_dumper = QueryDumper()
     if CONFIG.tier0.dump_queries or CONFIG.tier1.dump_queries:
-        query_dumper.initialize()
+        await query_dumper.initialize()
+
+    # TODO: make this a background task that stores hashed to redis
+    # instead of keeping in local memory for each worker
     await SubclassMapping().initialize()
 
     yield  # Separates startup/shutdown phase
 
     # Shutdown
     if query_dumper.initialized:
-        query_dumper.wrapup()
+        await query_dumper.wrapup()
     await SubclassMapping().wrapup()
     await tier_manager.close_drivers()
-    await OP_TABLE_MANAGER.wrapup()
-    await REDIS_CLIENT.close()
-    await MONGO_QUEUE.stop_process_task()
-    await MONGO_CLIENT.close()
+    await OpTableManager().wrapup()
+    await RedisClient().wrapup()
+    await MongoQueue().wrapup()
+    await MongoClient().close()
     await cleanup()
 
 
@@ -356,9 +359,9 @@ async def logs(  # noqa: PLR0913 Can't reduce args due to FastAPI endpoint forma
         start = datetime.now() - timedelta(hours=1)
 
     if fmt == "flat":
-        logs = MONGO_CLIENT.get_flat_logs(start, end, level, job_id)
+        logs = MongoClient().get_flat_logs(start, end, level, job_id)
     else:
-        logs = MONGO_CLIENT.get_logs(start, end, level, job_id)
+        logs = MongoClient().get_logs(start, end, level, job_id)
         if fmt == "trapi":
             logs = structured_log_to_trapi(logs)
         use_jsonl = fmt == "struct"

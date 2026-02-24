@@ -19,7 +19,7 @@ from retriever.lookup.partial import Partial
 from retriever.lookup.subclass import SubclassMapping
 from retriever.lookup.subquery import get_subgraph, subquery
 from retriever.lookup.utils import make_mappings
-from retriever.metadata.optable import OP_TABLE_MANAGER, OperationPlan
+from retriever.metadata.optable import OperationPlan, OpTableManager
 from retriever.types.general import (
     AdjacencyGraph,
     KAdjacencyGraph,
@@ -56,6 +56,7 @@ from retriever.utils.trapi import (
 )
 
 tracer = trace.get_tracer("lookup.execution.tracer")
+OP_TABLE_MANAGER = OpTableManager()
 
 # TODO: Set interpretation
 

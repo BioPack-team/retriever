@@ -1,6 +1,6 @@
 import asyncio
-from collections.abc import Awaitable, Callable
-from typing import Any, cast
+from collections.abc import Awaitable, Callable, Coroutine
+from typing import Any, cast, override
 
 import redis.asyncio as redis
 import zstandard
@@ -11,6 +11,7 @@ from redis.backoff import ExponentialBackoff
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 from retriever.config.general import CONFIG
+from retriever.utils.general import AsyncDaemon
 
 # Required to avoid CROSSSLOT errors: https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/#hash-tags
 # Technically not needed as cluster is not supported, but worth keeping in case we need to re-add cluster support
@@ -25,7 +26,7 @@ ZSTD_COMPRESSOR = zstandard.ZstdCompressor()
 ZSTD_DECOMPRESSOR = zstandard.ZstdDecompressor()
 
 
-class RedisClient:
+class RedisClient(AsyncDaemon):
     """A client abstraction layer for basic operations."""
 
     def __init__(self) -> None:
@@ -43,9 +44,13 @@ class RedisClient:
             ssl_cert_reqs="none",
             retry=retry,
         )
-        self.tasks: list[asyncio.Task[None]] = []
         self.subscriptions: dict[str, list[Callable[[str], Awaitable[None]]]] = {}
 
+    @override
+    def get_task_funcs(self) -> list[Callable[[], Coroutine[None, None, None]]]:
+        return []
+
+    @override
     async def initialize(self) -> None:
         """Initialize a connection to the redis server."""
         try:
@@ -58,11 +63,11 @@ class RedisClient:
                 "Connection to Redis failed. Ensure an instance is running and the connection config is correct."
             )
             raise error
+        return await super().initialize()
 
-    async def close(self) -> None:
-        """Close redis connections."""
-        for task in self.tasks:
-            task.cancel()
+    @override
+    async def wrapup(self) -> None:
+        await super().wrapup()
         await self.client.aclose()
 
     async def publish(self, channel: str, message: Any) -> None:
@@ -158,6 +163,3 @@ class RedisClient:
         """Generically delete a key-value pair."""
         response = await self.client.delete(f"{PREFIX}{key}")
         return response > 0
-
-
-REDIS_CLIENT = RedisClient()

@@ -1,8 +1,8 @@
 import asyncio
 import itertools
 from collections import defaultdict
-from collections.abc import Iterable
-from typing import NamedTuple
+from collections.abc import Callable, Coroutine, Iterable
+from typing import NamedTuple, override
 
 import ormsgpack
 from loguru import logger
@@ -35,13 +35,15 @@ from retriever.types.trapi import (
 from retriever.types.trapi_pydantic import TierNumber
 from retriever.utils import biolink
 from retriever.utils.biolink import expand
-from retriever.utils.redis import OP_TABLE_KEY, OP_TABLE_UPDATE_CHANNEL, REDIS_CLIENT
+from retriever.utils.general import AsyncDaemon
+from retriever.utils.redis import OP_TABLE_KEY, OP_TABLE_UPDATE_CHANNEL, RedisClient
 from retriever.utils.trapi import (
     hash_meta_attribute,
     meta_qualifier_meets_constraints,
 )
 
 tracer = trace.get_tracer("lookup.execution.tracer")
+REDIS_CLIENT = RedisClient()
 
 METAKG_GET_ATTEMPTS = 3
 
@@ -81,15 +83,43 @@ class UnsupportedConstraint(Exception):
         self.unmet = list(unmet)
 
 
-class OPTableManager:
+class OpTableManager(AsyncDaemon):
     """Utility class that keeps an up-to-date OperationTable."""
 
+    _operation_table: OperationTable | None = None
+    update_lock: asyncio.Lock = asyncio.Lock()
+    is_leader: bool
+
     def __init__(self, leader: bool = False) -> None:
-        """Initialize a OpTableManager instance."""
-        self.task: asyncio.Task[None] | None = None
-        self._operation_table: OperationTable | None = None
-        self.update_lock: asyncio.Lock = asyncio.Lock()
-        self.is_leader: bool = leader
+        """Initialize with leader setting."""
+        self.is_leader = leader
+        super().__init__()
+
+    @override
+    def get_task_funcs(self) -> list[Callable[[], Coroutine[None, None, None]]]:
+        tasks = list[Callable[[], Coroutine[None, None, None]]]()
+        if self.is_leader and CONFIG.job.metakg.build_time > -1:
+            tasks.append(self.periodic_build_op_table)
+        return tasks
+
+    @override
+    async def initialize(self) -> None:
+        """Start the appropriate tasks for a given process."""
+        if self.is_leader:
+            await self.build_operation_table()
+        else:
+            await self.pull_op_table("")
+            await REDIS_CLIENT.subscribe(OP_TABLE_UPDATE_CHANNEL, self.pull_op_table)
+        return await super().initialize()
+
+    @override
+    async def wrapup(self) -> None:
+        """Cancel running tasks so connections can close."""
+        try:
+            await REDIS_CLIENT.unsubscribe(OP_TABLE_UPDATE_CHANNEL, self.pull_op_table)
+        except Exception:
+            logger.exception("Exception occurred stopping OpTable task.")
+        return await super().wrapup()
 
     async def store_operation_table(self, op_table: OperationTable) -> None:
         """Update the stored OpTable."""
@@ -236,18 +266,6 @@ class OPTableManager:
             self._operation_table = await self.retrieve_stored_operation_table()
         logger.success("In-memory OpTable updated.")
 
-    async def initialize(self) -> None:
-        """Start the appropriate tasks for a given process."""
-        if self.is_leader:
-            await self.build_operation_table()
-            if CONFIG.job.metakg.build_time > -1:
-                self.task = asyncio.create_task(
-                    self.periodic_build_op_table(), name="build_op_table_task"
-                )
-        else:
-            await self.pull_op_table("")
-            await REDIS_CLIENT.subscribe(OP_TABLE_UPDATE_CHANNEL, self.pull_op_table)
-
     async def get_op_table(self, retries: int = 0) -> OperationTable:
         """Return the currently-stored Operation Table."""
         async with self.update_lock:
@@ -258,13 +276,6 @@ class OPTableManager:
             await self.pull_op_table("")
             return await self.get_op_table(retries + 1)
         return op_table
-
-    async def wrapup(self) -> None:
-        """Cancel running tasks so connections can close."""
-        try:
-            await REDIS_CLIENT.unsubscribe(OP_TABLE_UPDATE_CHANNEL, self.pull_op_table)
-        except Exception:
-            logger.exception("Exception occurred stopping OpTable task.")
 
     async def find_operations(
         self, edge: QEdgeDict, qgraph: QueryGraphDict, tiers: set[TierNumber]
@@ -418,108 +429,109 @@ class OPTableManager:
             for qnode_id, unmet in unmet_nodes.items()
         }
 
-
-OP_TABLE_MANAGER = OPTableManager()
-
-
-async def build_edges(
-    op_table: OperationTable,
-    tiers: tuple[TierNumber, ...],
-) -> tuple[
-    dict[SPO, MetaEdgeDict],
-    dict[SPO, dict[str, set[str]]],
-    dict[SPO, dict[int, MetaAttributeDict]],
-    set[BiolinkEntity],
-]:
-    """Build merged TRAPI MetaEdges from the operation table."""
-    edges = dict[SPO, MetaEdgeDict]()
-    edge_qualifiers = dict[SPO, dict[str, set[str]]]()
-    edge_attributes = dict[SPO, dict[int, MetaAttributeDict]]()
-    mentioned_nodes = set[BiolinkEntity]()
-    for op in op_table.operations_flat.values():
-        if op.tier not in tiers:
-            continue
-
-        sbj, obj, pred = op.subject, op.object, op.predicate
-        mentioned_nodes.update((sbj, obj))
-
-        spo = (sbj, pred, obj)
-        if spo in edges:
-            meta_edge = edges[spo]
-            qualifiers = edge_qualifiers[spo]
-            attributes = edge_attributes[spo]
-        else:
-            meta_edge = MetaEdgeDict(
-                subject=sbj, predicate=pred, object=obj, knowledge_types=["lookup"]
-            )
-            qualifiers = dict[str, set[str]]()
-            attributes = dict[int, MetaAttributeDict]()
-
-        # Merge qualifiers
-        if op.qualifiers is not None:
-            for qual_type, values in op.qualifiers.items():
-                if qual_type not in qualifiers:
-                    qualifiers[qual_type] = set[str]()
-                qualifiers[qual_type].update(values)
-
-        # Merge attributes
-        if op.attributes is not None:
-            attributes.update(
-                {hash_meta_attribute(attr): attr for attr in op.attributes}
-            )
-
-        if spo not in edges:
-            edges[spo] = meta_edge
-            edge_qualifiers[spo] = qualifiers
-            edge_attributes[spo] = attributes
-
-    return edges, edge_qualifiers, edge_attributes, mentioned_nodes
-
-
-async def get_trapi_metakg(tiers: tuple[TierNumber, ...]) -> MetaKnowledgeGraphDict:
-    """Convert an OperationTable to a TRAPI MetaKG dict.
-
-    Because it depends on OP_TABLE_MANAGER, it can't be used with the lead manager.
-    This shouldn't be a problem because the lead manager isn't used to answer API calls.
-    """
-    op_table = await OP_TABLE_MANAGER.get_op_table()
-    edges, edge_qualifiers, edge_attributes, mentioned_nodes = await build_edges(
-        op_table, tiers
-    )
-    nodes = dict[BiolinkEntity, MetaNodeDict]()
-
-    for spo, edge in edges.items():
-        qualifiers = list[MetaQualifierDict]()
-        for qual_type, values in edge_qualifiers[spo].items():
-            qualifier = MetaQualifierDict(
-                qualifier_type_id=QualifierTypeID(qual_type),
-            )
-            if len(values):
-                qualifier["applicable_values"] = list(values)
-            qualifiers.append(qualifier)
-        if len(qualifiers):
-            edge["qualifiers"] = qualifiers
-        if len(edge_attributes[spo]):
-            edge["attributes"] = list(edge_attributes[spo].values())
-
-    for category, tier_nodes in op_table.nodes.items():
-        if category not in mentioned_nodes:
-            continue
-        id_prefixes = set[str]()
-        attributes = dict[int, MetaAttributeDict]()
-        for tier, node in tier_nodes.items():
-            if tier not in tiers:
+    async def build_edges(
+        self,
+        op_table: OperationTable,
+        tiers: tuple[TierNumber, ...],
+    ) -> tuple[
+        dict[SPO, MetaEdgeDict],
+        dict[SPO, dict[str, set[str]]],
+        dict[SPO, dict[int, MetaAttributeDict]],
+        set[BiolinkEntity],
+    ]:
+        """Build merged TRAPI MetaEdges from the operation table."""
+        edges = dict[SPO, MetaEdgeDict]()
+        edge_qualifiers = dict[SPO, dict[str, set[str]]]()
+        edge_attributes = dict[SPO, dict[int, MetaAttributeDict]]()
+        mentioned_nodes = set[BiolinkEntity]()
+        for op in op_table.operations_flat.values():
+            if op.tier not in tiers:
                 continue
-            id_prefixes.update(itertools.chain(*node.prefixes.values()))
-            attributes.update(
-                {
-                    hash_meta_attribute(attr): attr
-                    for attr in itertools.chain(*node.attributes.values())
-                }
-            )
-        nodes[category] = MetaNodeDict(
-            id_prefixes=list(id_prefixes),
-            attributes=list(attributes.values()),
-        )
 
-    return MetaKnowledgeGraphDict(nodes=nodes, edges=list(edges.values()))
+            sbj, obj, pred = op.subject, op.object, op.predicate
+            mentioned_nodes.update((sbj, obj))
+
+            spo = (sbj, pred, obj)
+            if spo in edges:
+                meta_edge = edges[spo]
+                qualifiers = edge_qualifiers[spo]
+                attributes = edge_attributes[spo]
+            else:
+                meta_edge = MetaEdgeDict(
+                    subject=sbj, predicate=pred, object=obj, knowledge_types=["lookup"]
+                )
+                qualifiers = dict[str, set[str]]()
+                attributes = dict[int, MetaAttributeDict]()
+
+            # Merge qualifiers
+            if op.qualifiers is not None:
+                for qual_type, values in op.qualifiers.items():
+                    if qual_type not in qualifiers:
+                        qualifiers[qual_type] = set[str]()
+                    qualifiers[qual_type].update(values)
+
+            # Merge attributes
+            if op.attributes is not None:
+                attributes.update(
+                    {hash_meta_attribute(attr): attr for attr in op.attributes}
+                )
+
+            if spo not in edges:
+                edges[spo] = meta_edge
+                edge_qualifiers[spo] = qualifiers
+                edge_attributes[spo] = attributes
+
+        return edges, edge_qualifiers, edge_attributes, mentioned_nodes
+
+    async def get_trapi_metakg(
+        self, tiers: tuple[TierNumber, ...]
+    ) -> MetaKnowledgeGraphDict:
+        """Convert an OperationTable to a TRAPI MetaKG dict.
+
+        Because it depends on OP_TABLE_MANAGER, it can't be used with the lead manager.
+        This shouldn't be a problem because the lead manager isn't used to answer API calls.
+        """
+        op_table = await self.get_op_table()
+        (
+            edges,
+            edge_qualifiers,
+            edge_attributes,
+            mentioned_nodes,
+        ) = await self.build_edges(op_table, tiers)
+        nodes = dict[BiolinkEntity, MetaNodeDict]()
+
+        for spo, edge in edges.items():
+            qualifiers = list[MetaQualifierDict]()
+            for qual_type, values in edge_qualifiers[spo].items():
+                qualifier = MetaQualifierDict(
+                    qualifier_type_id=QualifierTypeID(qual_type),
+                )
+                if len(values):
+                    qualifier["applicable_values"] = list(values)
+                qualifiers.append(qualifier)
+            if len(qualifiers):
+                edge["qualifiers"] = qualifiers
+            if len(edge_attributes[spo]):
+                edge["attributes"] = list(edge_attributes[spo].values())
+
+        for category, tier_nodes in op_table.nodes.items():
+            if category not in mentioned_nodes:
+                continue
+            id_prefixes = set[str]()
+            attributes = dict[int, MetaAttributeDict]()
+            for tier, node in tier_nodes.items():
+                if tier not in tiers:
+                    continue
+                id_prefixes.update(itertools.chain(*node.prefixes.values()))
+                attributes.update(
+                    {
+                        hash_meta_attribute(attr): attr
+                        for attr in itertools.chain(*node.attributes.values())
+                    }
+                )
+            nodes[category] = MetaNodeDict(
+                id_prefixes=list(id_prefixes),
+                attributes=list(attributes.values()),
+            )
+
+        return MetaKnowledgeGraphDict(nodes=nodes, edges=list(edges.values()))
