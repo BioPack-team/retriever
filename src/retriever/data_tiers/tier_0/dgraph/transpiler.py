@@ -217,9 +217,7 @@ class DgraphTranspiler(Tier0Transpiler):
         return self._reverse_edge_map.get(normalized_id, QEdgeID(normalized_id))
 
     def _filter_cascaded_with_or(
-        self,
-        nodes: list[dg.Node],
-        symmetric_edges: dict[QEdgeID, tuple[str, str]]
+        self, nodes: list[dg.Node], symmetric_edges: dict[QEdgeID, tuple[str, str]]
     ) -> list[dg.Node]:
         """Filter results to enforce cascade with OR logic between symmetric edge directions.
 
@@ -232,7 +230,9 @@ class DgraphTranspiler(Tier0Transpiler):
             Filtered list of nodes that satisfy cascade with OR logic
         """
 
-        def validate_edge_path(node: dg.Node, symmetric_map: Mapping[QEdgeID, tuple[str, str]]) -> bool:
+        def validate_edge_path(
+            node: dg.Node, symmetric_map: Mapping[QEdgeID, tuple[str, str]]
+        ) -> bool:
             """Recursively validate all edges in the path."""
             if not node.edges:
                 return True
@@ -776,7 +776,11 @@ class DgraphTranspiler(Tier0Transpiler):
         # Check outgoing edges (node as subject) to unvisited objects
         has_non_symmetric_out = False
         for e_id, e in edges.items():
-            if e["subject"] == node_id and e["object"] not in visited and e_id not in self._symmetric_edge_map:
+            if (
+                e["subject"] == node_id
+                and e["object"] not in visited
+                and e_id not in self._symmetric_edge_map
+            ):
                 has_non_symmetric_out = True
                 break
 
@@ -787,7 +791,11 @@ class DgraphTranspiler(Tier0Transpiler):
         # Check incoming edges (node as object) to unvisited subjects
         has_non_symmetric_in = False
         for e_id, e in edges.items():
-            if e["object"] == node_id and e["subject"] not in visited and e_id not in self._symmetric_edge_map:
+            if (
+                e["object"] == node_id
+                and e["subject"] not in visited
+                and e_id not in self._symmetric_edge_map
+            ):
                 has_non_symmetric_in = True
                 break
 
@@ -1286,7 +1294,9 @@ class DgraphTranspiler(Tier0Transpiler):
 
         # Apply symmetric cascade filtering BEFORE building results
         if self._symmetric_edge_map:
-            logger.debug(f"Applying symmetric cascade filter for {len(self._symmetric_edge_map)} edges")
+            logger.debug(
+                f"Applying symmetric cascade filter for {len(self._symmetric_edge_map)} edges"
+            )
             results = self._filter_cascaded_with_or(results, self._symmetric_edge_map)
             logger.debug(f"Filtered to {len(results)} valid result paths")
 
