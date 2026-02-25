@@ -424,10 +424,13 @@ class DgraphTranspiler(Tier0Transpiler):
                     f"eq({self._v('predicate_ancestors')}, [{predicates_str}])"
                 )
 
-        # Handle attribute constraints
-        attribute_constraints = edge.get("attribute_constraints")
-        if attribute_constraints:
-            filters.extend(self._convert_constraints_to_filters(attribute_constraints))
+        # NOTE: Attribute constraints are intentionally not applied at the Dgraph query level.
+        # They are enforced via Python-level post-filtering in `_build_results` using
+        # `attributes_meet_contraints`. Full transpiler-level support is pending.
+        # TODO: Handle attribute constraints
+        # attribute_constraints = edge.get("attribute_constraints")
+        # if attribute_constraints:
+        #     filters.extend(self._convert_constraints_to_filters(attribute_constraints))
 
         # Qualifier constraints
         qualifier_constraints: Sequence[QualifierConstraintDict] | None = edge.get(
