@@ -56,7 +56,7 @@ def format_trapi_log(
         timestamp=timestamp.isoformat(timespec="milliseconds"),
     )
     if trace:
-        log_entry.trace = (  # pyright:ignore[reportAttributeAccessIssue] It's allowed
+        log_entry["trace"] = (  # pyright:ignore[reportGeneralTypeIssues] It's allowed
             trace
         )
     return log_entry
