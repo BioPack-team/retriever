@@ -168,7 +168,7 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
     return (
         job_id,
         job_log,
-        ResponseDict(
+        ResponseDict(  # pyright:ignore[reportCallIssue] Extra is allowed
             message=MessageDict(
                 query_graph=query.body["message"]["query_graph"],
                 knowledge_graph=KnowledgeGraphDict(nodes={}, edges={}),
@@ -178,7 +178,8 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
             schema_version=OPENAPI_CONFIG.x_trapi.version,
             workflow=query.body.get("workflow"),
             parameters=parameters,
-            job_id=job_id,  # pyright:ignore[reportCallIssue] Extra is allowed
+            submitter=get_submitter(query),
+            job_id=job_id,
         ),
     )
 
