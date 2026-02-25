@@ -128,6 +128,8 @@ class DgraphTranspiler(Tier0Transpiler):
         self._reverse_node_map = {}
         self._reverse_edge_map = {}
 
+        self._symmetric_edge_map: dict[QEdgeID, tuple[str, str]] = {}
+
     def _v(self, field: str) -> str:
         """Return the versioned field name."""
         return f"{self.prefix}{field}"
@@ -213,6 +215,61 @@ class DgraphTranspiler(Tier0Transpiler):
             The original edge ID from the query graph
         """
         return self._reverse_edge_map.get(normalized_id, QEdgeID(normalized_id))
+
+    def _filter_cascaded_with_or(
+        self, nodes: list[dg.Node], symmetric_edges: dict[QEdgeID, tuple[str, str]]
+    ) -> list[dg.Node]:
+        """Filter results to enforce cascade with OR logic between symmetric edge directions.
+
+        Args:
+            nodes: Parsed Dgraph response nodes
+            symmetric_edges: Map of edge IDs to their (primary, symmetric) field name pairs
+                        e.g., {QEdgeID('e0'): ('in_edges_e0', 'out_edges-symmetric_e0')}
+
+        Returns:
+            Filtered list of nodes that satisfy cascade with OR logic
+        """
+
+        def validate_edge_path(
+            node: dg.Node, symmetric_map: Mapping[QEdgeID, tuple[str, str]]
+        ) -> bool:
+            """Recursively validate all edges in the path."""
+            if not node.edges:
+                return True
+
+            # Group edges by their query edge ID
+            edges_by_qid: dict[QEdgeID, list[dg.Edge]] = {}
+            for edge in node.edges:
+                qid = QEdgeID(edge.binding)
+                if qid not in edges_by_qid:
+                    edges_by_qid[qid] = []
+                edges_by_qid[qid].append(edge)
+
+            # Check each edge group - must have at least one valid path
+            for qid, edge_group in edges_by_qid.items():
+                if qid in symmetric_map:
+                    # For symmetric edges, check if at least one direction has valid nested paths
+                    has_valid = False
+                    for edge in edge_group:
+                        if validate_edge_path(edge.node, symmetric_map):
+                            has_valid = True
+                            break
+                    if not has_valid:
+                        return False
+                else:
+                    # For non-symmetric edges, all must be valid
+                    for edge in edge_group:
+                        if not validate_edge_path(edge.node, symmetric_map):
+                            return False
+
+            return True
+
+        # Filter top-level nodes
+        filtered: list[dg.Node] = [
+            node for node in nodes if validate_edge_path(node, symmetric_edges)
+        ]
+
+        return filtered
 
     @override
     def process_qgraph(
@@ -712,29 +769,69 @@ class DgraphTranspiler(Tier0Transpiler):
     ) -> str:
         """Build a @cascade(...) clause for a node block.
 
-        Always require id, and require reverse predicates (~subject, ~object)
-        only if there are corresponding traversals from this node to not-yet-visited nodes.
+        Always require id. If this node is ONLY connected by symmetric edges
+        going to unvisited nodes, only require id (let post-processing handle the OR logic).
+        Otherwise, require reverse predicates (~subject, ~object) for
+        traversals to not-yet-visited nodes.
         """
         cascade_fields: list[str] = [self._v("id")]
 
-        # If this node has any outgoing edges (node as subject) to unvisited objects,
-        # require ~subject in cascade to ensure at least one such edge exists.
-        if any(
-            e["subject"] == node_id and e["object"] not in visited
-            for e in edges.values()
-        ):
+        # Check outgoing edges (node as subject) to unvisited objects
+        has_non_symmetric_out = False
+        for e_id, e in edges.items():
+            if (
+                e["subject"] == node_id
+                and e["object"] not in visited
+                and e_id not in self._symmetric_edge_map
+            ):
+                has_non_symmetric_out = True
+                break
+
+        # Only require ~subject if there are non-symmetric outgoing edges
+        if has_non_symmetric_out:
             cascade_fields.append(f"~{self._v('subject')}")
 
-        # If this node has any incoming edges (node as object) to unvisited subjects,
-        # require ~object in cascade to ensure at least one such edge exists.
-        if any(
-            e["object"] == node_id and e["subject"] not in visited
-            for e in edges.values()
-        ):
+        # Check incoming edges (node as object) to unvisited subjects
+        has_non_symmetric_in = False
+        for e_id, e in edges.items():
+            if (
+                e["object"] == node_id
+                and e["subject"] not in visited
+                and e_id not in self._symmetric_edge_map
+            ):
+                has_non_symmetric_in = True
+                break
+
+        # Only require ~object if there are non-symmetric incoming edges
+        if has_non_symmetric_in:
             cascade_fields.append(f"~{self._v('object')}")
 
-        # Always emit a cascade; at minimum it will include the id
         return f" @cascade({', '.join(cascade_fields)})"
+
+    def _detect_symmetric_edges(
+        self,
+        edges: Mapping[QEdgeID, QEdgeDict],
+    ) -> None:
+        """Pre-detect all symmetric edges in the query graph.
+
+        This must be called before building the query to ensure cascade
+        clauses can correctly identify nodes with symmetric edges.
+
+        Args:
+            edges: Dictionary of all edges in the query graph
+        """
+        self._symmetric_edge_map.clear()
+
+        for edge_id, edge in edges.items():
+            predicates = edge.get("predicates") or []
+            is_symmetric = any(biolink.is_symmetric(str(pred)) for pred in predicates)
+
+            if is_symmetric:
+                normalized_edge_id = self._get_normalized_edge_id(edge_id)
+                # Store with placeholder names - actual direction doesn't matter for detection
+                primary = f"in_edges_{normalized_edge_id}"
+                symmetric = f"out_edges-symmetric_{normalized_edge_id}"
+                self._symmetric_edge_map[edge_id] = (primary, symmetric)
 
     def _build_node_query(
         self,
@@ -754,6 +851,9 @@ class DgraphTranspiler(Tier0Transpiler):
         Returns:
             Query fragment string with normalized identifiers
         """
+        # Pre-detect symmetric edges before building any queries
+        self._detect_symmetric_edges(edges)
+
         node = nodes[node_id]
 
         # Use normalized node ID for query generation
@@ -801,9 +901,8 @@ class DgraphTranspiler(Tier0Transpiler):
         # Use normalized edge ID for query generation
         normalized_edge_id = self._get_normalized_edge_id(ctx.edge_id)
 
-        # Check if predicate is symmetric
-        predicates = ctx.edge.get("predicates") or []
-        is_symmetric = any(biolink.is_symmetric(str(pred)) for pred in predicates)
+        # Check if this edge was already detected as symmetric
+        is_symmetric = ctx.edge_id in self._symmetric_edge_map
 
         edge_filter = self._build_edge_filter(ctx.edge)
         filter_clause = f" @filter({edge_filter})" if edge_filter else ""
@@ -1195,6 +1294,14 @@ class DgraphTranspiler(Tier0Transpiler):
 
         partial_count = 0
         reconciled = dict[int, Partial]()
+
+        # Apply symmetric cascade filtering BEFORE building results
+        if self._symmetric_edge_map:
+            logger.debug(
+                f"Applying symmetric cascade filter for {len(self._symmetric_edge_map)} edges"
+            )
+            results = self._filter_cascaded_with_or(results, self._symmetric_edge_map)
+            logger.debug(f"Filtered to {len(results)} valid result paths")
 
         for node in results:
             partials = self._build_results(node, qgraph)

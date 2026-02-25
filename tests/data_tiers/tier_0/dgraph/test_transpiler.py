@@ -1418,7 +1418,7 @@ def test_symmetric_predicate_generates_bidirectional_queries(transpiler: _TestDg
     actual = transpiler.convert_multihop_public(qgraph)
     expected = dedent("""
     {
-        q0_node_n0(func: eq(id, "MONDO:0005148")) @cascade(id, ~subject) {
+        q0_node_n0(func: eq(id, "MONDO:0005148")) @cascade(id) {
             expand(Node)
             out_edges_e0: ~subject @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, object) {
                 expand(Edge) { sources expand(Source) }
@@ -1461,7 +1461,7 @@ def test_symmetric_predicate_incoming_edge(transpiler: _TestDgraphTranspiler) ->
     actual = transpiler.convert_multihop_public(qgraph)
     expected = dedent("""
     {
-        q0_node_n0(func: eq(id, "MONDO:0005148")) @cascade(id, ~object) {
+        q0_node_n0(func: eq(id, "MONDO:0005148")) @cascade(id) {
             expand(Node)
             in_edges_e0: ~object @filter(eq(predicate_ancestors, "correlated_with")) @cascade(predicate, subject) {
                 expand(Edge) { sources expand(Source) }
@@ -1513,7 +1513,7 @@ def test_symmetric_predicate_multi_hop(transpiler: _TestDgraphTranspiler) -> Non
     actual = transpiler.convert_multihop_public(qgraph)
     expected = dedent("""
     {
-        q0_node_n0(func: eq(id, "MONDO:0005148")) @cascade(id, ~subject) {
+        q0_node_n0(func: eq(id, "MONDO:0005148")) @cascade(id) {
             expand(Node)
             out_edges_e0: ~subject @filter(eq(predicate_ancestors, "related_to")) @cascade(predicate, object) {
                 expand(Edge) { sources expand(Source) }
@@ -1577,7 +1577,7 @@ def test_multiple_symmetric_predicates_on_edge(transpiler: _TestDgraphTranspiler
     actual = transpiler.convert_multihop_public(qgraph)
     expected = dedent("""
     {
-        q0_node_n0(func: eq(id, "MONDO:0005148")) @cascade(id, ~subject) {
+        q0_node_n0(func: eq(id, "MONDO:0005148")) @cascade(id) {
             expand(Node)
             out_edges_e0: ~subject @filter(eq(predicate_ancestors, ["related_to", "associated_with"])) @cascade(predicate, object) {
                 expand(Edge) { sources expand(Source) }
@@ -1626,7 +1626,7 @@ def test_mixed_predicates_treats_as_symmetric(transpiler: _TestDgraphTranspiler)
     actual = transpiler.convert_multihop_public(qgraph)
     expected = dedent("""
     {
-        q0_node_n0(func: eq(id, "MONDO:0005148")) @cascade(id, ~subject) {
+        q0_node_n0(func: eq(id, "MONDO:0005148")) @cascade(id) {
             expand(Node)
             out_edges_e0: ~subject @filter(eq(predicate_ancestors, ["related_to", "treated_by"])) @cascade(predicate, object) {
                 expand(Edge) { sources expand(Source) }
@@ -1869,7 +1869,7 @@ def test_normalization_symmetric_predicate(transpiler: _TestDgraphTranspiler) ->
     # 3. Expected - Should use normalized IDs with symmetric edges
     expected = dedent("""
     {
-        q0_node_n0(func: eq(id, "MONDO:0005148")) @cascade(id, ~subject) {
+        q0_node_n0(func: eq(id, "MONDO:0005148")) @cascade(id) {
             expand(Node)
             out_edges_e0: ~subject @filter(eq(predicate_ancestors, "correlated_with")) @cascade(predicate, object) {
                 expand(Edge) { sources expand(Source) }

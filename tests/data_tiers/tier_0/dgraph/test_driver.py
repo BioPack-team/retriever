@@ -868,7 +868,7 @@ async def test_simple_one_query_live_http() -> None:
     assert go_attrs.get("symbol") == "SYNRG"
     assert go_attrs.get("taxon") == "NCBITaxon:9606"
     assert go_attrs.get("in_taxon") == ["NCBITaxon:9606"]
-    assert go_attrs.get("information_content") == pytest.approx(83.1)
+    assert go_attrs.get("information_content") == 83.1
 
     expected_equiv_ids = sorted([
         "PR:Q9UMZ2", "OMIM:607291", "UniProtKB:Q9UMZ2", "ENSEMBL:ENSG00000275066",
@@ -1070,7 +1070,7 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vH_id, "NCBIGene:3778")) @cascade(vH_id, ~vH_subject) {
+        q0_node_n1(func: eq(vH_id, "NCBIGene:3778")) @cascade(vH_id) {
             expand(vH_Node)
 
             out_edges_e0: ~vH_subject
@@ -1250,7 +1250,7 @@ async def test_normalization_with_special_edge_id_live_grpc() -> None:
     # Expected query should use normalized edge ID 'e0', not 'e0_bad$%^'
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vH_id, "NCBIGene:3778")) @cascade(vH_id, ~vH_subject) {
+        q0_node_n1(func: eq(vH_id, "NCBIGene:3778")) @cascade(vH_id) {
             expand(vH_Node)
 
             out_edges_e0: ~vH_subject
