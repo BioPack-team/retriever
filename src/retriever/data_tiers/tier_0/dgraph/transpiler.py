@@ -104,21 +104,24 @@ class DgraphTranspiler(Tier0Transpiler):
     version: str | None
     prefix: str
 
-    # Feature flags loaded from config
-    _symmetric_edges_enabled: bool
-    _subclass_edges_enabled: bool
-
     # Normalization mappings for injection prevention
     _node_id_map: dict[QNodeID, str]
     _edge_id_map: dict[QEdgeID, str]
     _reverse_node_map: dict[str, QNodeID]
     _reverse_edge_map: dict[str, QEdgeID]
 
-    def __init__(self, version: str | None = None) -> None:
+    def __init__(
+        self,
+        version: str | None = None,
+        enable_symmetric_edges: bool | None = None,
+        enable_subclass_edges: bool | None = None,
+    ) -> None:
         """Initialize a Transpiler instance.
 
         Args:
             version: An optional version string to prefix to all schema fields.
+            enable_symmetric_edges: Enable symmetric edge expansion. If None, uses config value.
+            enable_subclass_edges: Enable subclass edge expansion. If None, uses config value.
         """
         super().__init__()
         self.kgraph: KnowledgeGraphDict = KnowledgeGraphDict(nodes={}, edges={})
@@ -126,9 +129,17 @@ class DgraphTranspiler(Tier0Transpiler):
         self.version = version
         self.prefix = f"{version}_" if version else ""
 
-        # Load feature flags from config once at initialization
-        self._symmetric_edges_enabled = CONFIG.tier0.dgraph.enable_symmetric_edges
-        self._subclass_edges_enabled = CONFIG.tier0.dgraph.enable_subclass_edges
+        # Load feature flags from config, but allow override via parameters
+        self._symmetric_edges_enabled = (
+            enable_symmetric_edges
+            if enable_symmetric_edges is not None
+            else CONFIG.tier0.dgraph.enable_symmetric_edges
+        )
+        self._subclass_edges_enabled = (
+            enable_subclass_edges
+            if enable_subclass_edges is not None
+            else CONFIG.tier0.dgraph.enable_subclass_edges
+        )
 
         # Initialize normalization mappings
         self._node_id_map = {}
@@ -213,11 +224,13 @@ class DgraphTranspiler(Tier0Transpiler):
 
                 # Case 1: ID -> predicate -> ID
                 if self._node_has_ids(source_node) and self._node_has_ids(target_node):
-                    subclass_forms.extend([
-                        f"in_edges-subclassB_{normalized_edge_id}",
-                        f"out_edges-subclassC_{normalized_edge_id}",
-                        f"in_edges-subclassD_{normalized_edge_id}",
-                    ])
+                    subclass_forms.extend(
+                        [
+                            f"in_edges-subclassB_{normalized_edge_id}",
+                            f"out_edges-subclassC_{normalized_edge_id}",
+                            f"in_edges-subclassD_{normalized_edge_id}",
+                        ]
+                    )
                 # Case 2: ID -> predicate -> CAT
                 elif (
                     self._node_has_ids(source_node)
@@ -360,13 +373,16 @@ class DgraphTranspiler(Tier0Transpiler):
                 else:
                     # For regular edges, all must be valid
                     for edge in edge_group:
-                        if not validate_edge_path(edge.node, symmetric_map, subclass_map):
+                        if not validate_edge_path(
+                            edge.node, symmetric_map, subclass_map
+                        ):
                             return False
 
             return True
 
         filtered: list[dg.Node] = [
-            node for node in nodes
+            node
+            for node in nodes
             if validate_edge_path(node, symmetric_edges, subclass_edges)
         ]
 
@@ -880,7 +896,10 @@ class DgraphTranspiler(Tier0Transpiler):
         for e_id, e in edges.items():
             if e["subject"] == node_id and e["object"] not in visited:
                 # Skip if edge has symmetric or subclass expansion
-                if e_id not in self._symmetric_edge_map and e_id not in self._subclass_edge_map:
+                if (
+                    e_id not in self._symmetric_edge_map
+                    and e_id not in self._subclass_edge_map
+                ):
                     has_non_special_out = True
                     break
 
@@ -893,7 +912,10 @@ class DgraphTranspiler(Tier0Transpiler):
         for e_id, e in edges.items():
             if e["object"] == node_id and e["subject"] not in visited:
                 # Skip if edge has symmetric or subclass expansion
-                if e_id not in self._symmetric_edge_map and e_id not in self._subclass_edge_map:
+                if (
+                    e_id not in self._symmetric_edge_map
+                    and e_id not in self._subclass_edge_map
+                ):
                     has_non_special_in = True
                     break
 
@@ -1060,26 +1082,44 @@ class DgraphTranspiler(Tier0Transpiler):
             source_node = ctx.nodes[source_id]
             target_node = ctx.nodes[target_id]
 
-            # Case 1: ID -> predicate -> ID
+            # Case 1: ID -> predicate -> ID (build all three forms regardless of direction)
             if self._node_has_ids(source_node) and self._node_has_ids(target_node):
                 query += self._build_subclass_form_b(ctx, normalized_edge_id)
                 query += self._build_subclass_form_c(ctx, normalized_edge_id)
                 query += self._build_subclass_form_d(ctx, normalized_edge_id)
-            # Case 2: ID -> predicate -> CAT
+
+            # Case 2: ID -> predicate -> CAT (only Form B, source must have IDs)
             elif (
                 self._node_has_ids(source_node)
                 and self._node_has_categories(target_node)
                 and not self._node_has_ids(target_node)
             ):
-                query += self._build_subclass_form_b(ctx, normalized_edge_id)
-            # Mirrored Case 2: CAT -> predicate -> ID (only at target node)
+                # Build Form B when we're at the ID node (source) traversing toward the CAT node
+                # This works regardless of which direction the pinnedness algorithm chose
+                if ctx.edge_direction == "out" and ctx.target_id == target_id:
+                    # Forward: at source (ID), going to object (CAT)
+                    query += self._build_subclass_form_b(ctx, normalized_edge_id)
+                elif ctx.edge_direction == "in" and ctx.target_id == source_id:
+                    # Backward: at object (CAT), going to subject (ID) - still need Form B
+                    query += self._build_subclass_form_b(ctx, normalized_edge_id)
+
+            # Mirrored Case 2: CAT -> predicate -> ID (only mirrored Form B, target must have IDs)
             elif (
-                ctx.target_id == target_id
-                and self._node_has_ids(target_node)
-                and self._node_has_categories(source_node)
+                self._node_has_categories(source_node)
                 and not self._node_has_ids(source_node)
+                and self._node_has_ids(target_node)
             ):
-                query += self._build_subclass_object_case3_form_b(ctx, normalized_edge_id)
+                # Build mirrored Form B when we're at the ID node (target) looking back to CAT
+                if ctx.edge_direction == "out" and ctx.target_id == target_id:
+                    # Forward: at CAT (source), going to ID (object)
+                    query += self._build_subclass_object_case3_form_b(
+                        ctx, normalized_edge_id
+                    )
+                elif ctx.edge_direction == "in" and ctx.target_id == source_id:
+                    # Backward: at ID (object), going back to CAT (subject)
+                    query += self._build_subclass_object_case3_form_b(
+                        ctx, normalized_edge_id
+                    )
 
         return query
 
