@@ -197,10 +197,6 @@ class DgraphTranspiler(Tier0Transpiler):
         self._symmetric_edge_map.clear()
         self._subclass_edge_map.clear()
 
-        # Check feature flags once at the start
-        symmetric_enabled = CONFIG.tier0.dgraph.enable_symmetric_edges
-        subclass_enabled = CONFIG.tier0.dgraph.enable_subclass_edges
-
         for edge_id, edge in edges.items():
             predicates = edge.get("predicates") or []
             is_symmetric = any(biolink.is_symmetric(str(pred)) for pred in predicates)
@@ -337,6 +333,7 @@ class DgraphTranspiler(Tier0Transpiler):
             nodes: Parsed Dgraph response nodes
             symmetric_edges: Map of edge IDs to their (primary, symmetric) field name pairs
                         e.g., {QEdgeID('e0'): ('in_edges_e0', 'out_edges-symmetric_e0')}
+            subclass_edges: Map of edge IDs to their subclass expansion field name lists
 
         Returns:
             Filtered list of nodes that satisfy cascade with OR logic
@@ -894,14 +891,14 @@ class DgraphTranspiler(Tier0Transpiler):
         # Check outgoing edges (node as subject) to unvisited objects
         has_non_special_out = False
         for e_id, e in edges.items():
-            if e["subject"] == node_id and e["object"] not in visited:
-                # Skip if edge has symmetric or subclass expansion
-                if (
-                    e_id not in self._symmetric_edge_map
-                    and e_id not in self._subclass_edge_map
-                ):
-                    has_non_special_out = True
-                    break
+            if (
+                e["subject"] == node_id
+                and e["object"] not in visited
+                and e_id not in self._symmetric_edge_map
+                and e_id not in self._subclass_edge_map
+            ):
+                has_non_special_out = True
+                break
 
         # Only require ~subject if there are non-special outgoing edges
         if has_non_special_out:
@@ -910,14 +907,14 @@ class DgraphTranspiler(Tier0Transpiler):
         # Check incoming edges (node as object) to unvisited subjects
         has_non_special_in = False
         for e_id, e in edges.items():
-            if e["object"] == node_id and e["subject"] not in visited:
-                # Skip if edge has symmetric or subclass expansion
-                if (
-                    e_id not in self._symmetric_edge_map
-                    and e_id not in self._subclass_edge_map
-                ):
-                    has_non_special_in = True
-                    break
+            if (
+                e["object"] == node_id
+                and e["subject"] not in visited
+                and e_id not in self._symmetric_edge_map
+                and e_id not in self._subclass_edge_map
+            ):
+                has_non_special_in = True
+                break
 
         # Only require ~object if there are non-special incoming edges
         if has_non_special_in:
