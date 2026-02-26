@@ -104,6 +104,10 @@ class DgraphTranspiler(Tier0Transpiler):
     version: str | None
     prefix: str
 
+    # Feature flags
+    _symmetric_edges_enabled: bool
+    _subclass_edges_enabled: bool
+
     # Normalization mappings for injection prevention
     _node_id_map: dict[QNodeID, str]
     _edge_id_map: dict[QEdgeID, str]
@@ -1574,7 +1578,7 @@ class DgraphTranspiler(Tier0Transpiler):
         if self._symmetric_edge_map or self._subclass_edge_map:
             logger.debug(
                 f"Applying OR cascade filter for {len(self._symmetric_edge_map)} symmetric "
-                f"and {len(self._subclass_edge_map)} subclass edges"
+                + f"and {len(self._subclass_edge_map)} subclass edges"
             )
             results = self._filter_cascaded_with_or(
                 results, self._symmetric_edge_map, self._subclass_edge_map
