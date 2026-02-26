@@ -10,6 +10,7 @@ from uvicorn.supervisors.multiprocess import SIGNALS
 
 from retriever.config.logger import configure_logging
 from retriever.data_tiers import tier_manager
+from retriever.lookup.subclass import SubclassMapping
 from retriever.metadata.optable import OpTableManager
 from retriever.utils.logs import add_mongo_sink
 from retriever.utils.mongo import MongoClient, MongoQueue
@@ -31,6 +32,7 @@ async def _background_async() -> None:
     await tier_manager.connect_drivers()
     metakg_manager = OpTableManager(leader=True)
     await metakg_manager.initialize()
+    await SubclassMapping(leader=True).initialize()
     logger.success("Background process setup complete!")
 
     # /// MAIN LOOP ///
@@ -44,6 +46,7 @@ async def _background_async() -> None:
 
     # /// WRAPUP ///
 
+    await SubclassMapping().wrapup()
     await metakg_manager.wrapup()
     await RedisClient().wrapup()
     await MongoQueue().wrapup()

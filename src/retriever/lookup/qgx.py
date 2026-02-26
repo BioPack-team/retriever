@@ -57,6 +57,7 @@ from retriever.utils.trapi import (
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 OP_TABLE_MANAGER = OpTableManager()
+SUBCLASS_MAPPING = SubclassMapping()
 
 # TODO: Set interpretation
 
@@ -248,11 +249,9 @@ class QueryGraphExecutor:
         self, qnode_id: QNodeID, curies: Iterable[CURIE]
     ) -> list[CURIE]:
         """Given a set of CURIEs, return them and any subclasses they may have."""
-        if not CONFIG.job.lookup.implicit_subclassing:
-            return list(curies)
-
-        subclass_mapping = await SubclassMapping().get()
-        if subclass_mapping is None:
+        if not (
+            CONFIG.job.lookup.implicit_subclassing and SUBCLASS_MAPPING.initialized
+        ):
             return list(curies)
 
         # If the qnode is going into a predicate that can return "subclass_of",
@@ -270,7 +269,7 @@ class QueryGraphExecutor:
 
         new_curies = set[CURIE](curies)
         for curie in curies:
-            descendants = subclass_mapping.get(curie, [])
+            descendants = await SUBCLASS_MAPPING.get(curie)
             if not descendants:
                 self.job_log.trace(
                     f"Found no descendants for {curie} on QNode {qnode_id}"

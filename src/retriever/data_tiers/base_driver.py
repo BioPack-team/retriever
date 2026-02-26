@@ -51,4 +51,4 @@ class DatabaseDriver(ABC, metaclass=Singleton):
 
     @abstractmethod
     async def get_subclass_mapping(self) -> EntityToEntityMapping:
-        """Return a mapping of nodes to their ontological descendents."""
+        """Return a mapping of nodes to their ontological descendants."""

@@ -52,13 +52,10 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     await RedisClient().initialize()
     await OpTableManager().initialize()
     await tier_manager.connect_drivers()
+    await SubclassMapping().initialize()
     query_dumper = QueryDumper()
     if CONFIG.tier0.dump_queries or CONFIG.tier1.dump_queries:
         await query_dumper.initialize()
-
-    # TODO: make this a background task that stores hashed to redis
-    # instead of keeping in local memory for each worker
-    await SubclassMapping().initialize()
 
     yield  # Separates startup/shutdown phase
 
