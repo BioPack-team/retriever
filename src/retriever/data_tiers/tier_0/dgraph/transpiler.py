@@ -104,6 +104,10 @@ class DgraphTranspiler(Tier0Transpiler):
     version: str | None
     prefix: str
 
+    # Feature flags loaded from config
+    _symmetric_edges_enabled: bool
+    _subclass_edges_enabled: bool
+
     # Normalization mappings for injection prevention
     _node_id_map: dict[QNodeID, str]
     _edge_id_map: dict[QEdgeID, str]
@@ -121,6 +125,10 @@ class DgraphTranspiler(Tier0Transpiler):
         self.k_agraph: KAdjacencyGraph
         self.version = version
         self.prefix = f"{version}_" if version else ""
+
+        # Load feature flags from config once at initialization
+        self._symmetric_edges_enabled = CONFIG.tier0.dgraph.enable_symmetric_edges
+        self._subclass_edges_enabled = CONFIG.tier0.dgraph.enable_subclass_edges
 
         # Initialize normalization mappings
         self._node_id_map = {}
@@ -178,19 +186,23 @@ class DgraphTranspiler(Tier0Transpiler):
         self._symmetric_edge_map.clear()
         self._subclass_edge_map.clear()
 
+        # Check feature flags once at the start
+        symmetric_enabled = CONFIG.tier0.dgraph.enable_symmetric_edges
+        subclass_enabled = CONFIG.tier0.dgraph.enable_subclass_edges
+
         for edge_id, edge in edges.items():
             predicates = edge.get("predicates") or []
             is_symmetric = any(biolink.is_symmetric(str(pred)) for pred in predicates)
             is_subclass = self._is_subclass_predicate(predicates)
 
-            if is_symmetric:
+            if is_symmetric and self._symmetric_edges_enabled:
                 normalized_edge_id = self._get_normalized_edge_id(edge_id)
                 primary = f"in_edges_{normalized_edge_id}"
                 symmetric = f"out_edges-symmetric_{normalized_edge_id}"
                 self._symmetric_edge_map[edge_id] = (primary, symmetric)
 
             # Detect subclass expansion cases (skip if edge itself is subclass_of)
-            if not is_subclass:
+            if not is_subclass and self._subclass_edges_enabled:
                 source_id = edge["subject"]
                 target_id = edge["object"]
                 source_node = nodes[source_id]
