@@ -137,12 +137,12 @@ class DgraphTranspiler(Tier0Transpiler):
         self._symmetric_edges_enabled = (
             enable_symmetric_edges
             if enable_symmetric_edges is not None
-            else CONFIG.tier0.dgraph.enable_symmetric_edges
+            else getattr(CONFIG.tier0.dgraph, "enable_symmetric_edges", True)
         )
         self._subclass_edges_enabled = (
             enable_subclass_edges
             if enable_subclass_edges is not None
-            else CONFIG.tier0.dgraph.enable_subclass_edges
+            else getattr(CONFIG.tier0.dgraph, "enable_subclass_edges", True)
         )
 
         # Initialize normalization mappings
