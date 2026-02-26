@@ -230,7 +230,7 @@ class MongoQueue(BatchedAction):
     """An asynchronous queue for sending items to MongoDB."""
 
     # Essentially should flush every interval
-    batch_size: int = 1
+    batch_size: int = 1000
     flush_time: float = 0
 
     client: ClassVar[MongoClient] = MongoClient()

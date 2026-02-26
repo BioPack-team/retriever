@@ -33,6 +33,7 @@ class RedisClient(AsyncDaemon):
         """Instantiate a client class without initializing the Redis connection."""
         self.client: redis.Redis
 
+        super().__init__()
         retry = Retry(ExponentialBackoff(), CONFIG.redis.attempts)
         self.client = redis.Redis(
             host=CONFIG.redis.host,
