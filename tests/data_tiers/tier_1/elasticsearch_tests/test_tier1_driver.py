@@ -115,10 +115,10 @@ async def test_elasticsearch_driver(payload: ESPayload | list[ESPayload], expect
     except Exception:
         pytest.skip("skipping es driver connection test: cannot connect")
 
-    hits: list[ESEdge] | list[ESEdge] = await driver.run_query(payload)
+    hits: list[ESEdge] | list[list[ESEdge]] = await driver.run_query(payload)
 
     def assert_single_result(res, expected_result_num: int):
-        if res is None:
+        if not res:
             if expected_result_num != 0:
                 raise AssertionError(f"Expected empty result, got {type(res)}")
             else:
@@ -169,8 +169,8 @@ async def test_valid_regex_query():
 
     for payload in qgraphs_with_valid_regex:
         hits: list[ESEdge] = await driver.run_query(payload)
-        if hits is not None:
-            print(len(hits))
+        print(len(hits))
+
 
 
 @pytest.mark.usefixtures("mock_elasticsearch_config")
