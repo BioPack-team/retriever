@@ -8,7 +8,7 @@ from retriever.data_tiers.tier_1.elasticsearch.meta import extract_metadata_entr
 from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
 from retriever.data_tiers.tier_1.elasticsearch.types import ESPayload, ESEdge
 from payload.trapi_qgraphs import DINGO_QGRAPH, VALID_REGEX_QGRAPHS, INVALID_REGEX_QGRAPHS, ID_BYPASS_PAYLOAD
-from retriever.utils.redis import RedisClient()
+from retriever.utils.redis import RedisClient
 from test_tier1_transpiler import _convert_triple, _convert_batch_triple
 
 
