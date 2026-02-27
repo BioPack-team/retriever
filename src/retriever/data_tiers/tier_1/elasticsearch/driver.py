@@ -126,7 +126,7 @@ class ElasticSearchDriver(DatabaseDriver):
 
     async def run(
         self, query: ESPayload | list[ESPayload]
-    ) -> list[ESEdge] | list[list[ESEdge]] | None:
+    ) -> list[ESEdge] | list[list[ESEdge]]:
         """Execute query logic."""
         # Check ES connection instance
         if self.es_connection is None:
@@ -166,17 +166,13 @@ class ElasticSearchDriver(DatabaseDriver):
             log.exception("An unexpected exception occurred during Elasticsearch query")
             raise e
 
-        # empty array
-        if not results:
-            return None
-
         return results
 
     @override
     @tracer.start_as_current_span("elasticsearch_query")
     async def run_query(
         self, query: ESPayload | list[ESPayload], *args: Any, **kwargs: Any
-    ) -> list[ESEdge] | list[list[ESEdge]] | None:
+    ) -> list[ESEdge] | list[list[ESEdge]]:
         """Use ES async client to execute query via the `_search/_msearch` endpoints."""
         otel_span = trace.get_current_span()
         if not otel_span or not otel_span.is_recording():

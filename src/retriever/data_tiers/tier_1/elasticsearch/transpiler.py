@@ -393,13 +393,13 @@ class ElasticsearchTranspiler(Tier1Transpiler):
 
     @override
     def convert_results(
-        self, qgraph: QueryGraphDict, results: list[ESEdge] | None
+        self, qgraph: QueryGraphDict, results: list[ESEdge]
     ) -> BackendResult:
         edge = next(iter(qgraph["edges"].values()))
         sbj = qgraph["nodes"][edge["subject"]]
         obj = qgraph["nodes"][edge["object"]]
-        nodes = self.build_nodes(results, sbj, obj) if results is not None else {}
-        edges = self.build_edges(results, edge) if results is not None else {}
+        nodes = self.build_nodes(results, sbj, obj)
+        edges = self.build_edges(results, edge)
 
         return BackendResult(
             results=[],
