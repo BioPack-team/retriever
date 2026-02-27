@@ -1076,12 +1076,7 @@ class DgraphTranspiler(Tier0Transpiler):
         attributes: list[AttributeDict] = []
 
         # Cases that require additional formatting to be TRAPI-compliant
-        special_cases: dict[str, tuple[str, Any]] = {
-            "equivalent_identifiers": (
-                "biolink:xref",
-                [CURIE(i) for i in node.attributes.get("equivalent_identifiers", [])],
-            )
-        }
+        special_cases: dict[str, tuple[str, Any]] = {}
 
         for attr_id, value in node.attributes.items():
             if attr_id in special_cases:
