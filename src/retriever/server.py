@@ -17,6 +17,7 @@ from retriever.config.logger import configure_logging
 from retriever.config.openapi import OPENAPI_CONFIG, TRAPI
 from retriever.data_tiers import tier_manager
 from retriever.lookup.subclass import SubclassMapping
+from retriever.lookup.subquery import SubqueryDispatcher
 from retriever.lookup.utils import QueryDumper
 from retriever.metadata.optable import OpTableManager
 from retriever.query import get_job_state, make_query
@@ -56,10 +57,12 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     query_dumper = QueryDumper()
     if CONFIG.tier0.dump_queries or CONFIG.tier1.dump_queries:
         await query_dumper.initialize()
+    await SubqueryDispatcher().initialize()
 
     yield  # Separates startup/shutdown phase
 
     # Shutdown
+    await SubqueryDispatcher().wrapup()
     if query_dumper.initialized:
         await query_dumper.wrapup()
     await SubclassMapping().wrapup()
