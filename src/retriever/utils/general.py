@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import time
 from abc import ABC, ABCMeta, abstractmethod
@@ -10,10 +12,10 @@ from loguru import logger
 class Singleton(ABCMeta):
     """Singleton metaclass that ensures classes using it have only one instance."""
 
-    _instances: ClassVar[dict["Singleton", "Singleton"]] = {}
+    _instances: ClassVar[dict[Singleton, Singleton]] = {}
 
     @override
-    def __call__(cls, *args: Any, **kwargs: Any) -> "Singleton":
+    def __call__(cls, *args: Any, **kwargs: Any) -> Singleton:
         """Ensure calls go to one instance."""
         if cls not in cls._instances:
             cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)  # noqa:UP008
@@ -80,22 +82,27 @@ async def merge_iterators[T](
 class AsyncDaemon(ABC, metaclass=Singleton):
     """A base class for handling a number of lifetime-running async tasks."""
 
-    tasks: ClassVar[list[asyncio.Task[None]]] = []
-    initialized: bool = False
-    namespace: str = "AsyncDaemon"
+    tasks: list[asyncio.Task[None]]
+    initialized: bool
 
-    def initialize(self) -> None:
+    def __init__(self) -> None:
+        """Instantiate a new AsyncDaemon."""
+        super().__init__()
+        self.tasks = []
+        self.initialized = False
+
+    async def initialize(self) -> None:
         """Start up long-running tasks."""
         if self.initialized:
             return
         logger.info(f"{self.__class__.__name__} starting tasks.")
         for i, func in enumerate(self.get_task_funcs()):
             self.tasks.append(
-                asyncio.create_task(func(), name=f"{self.namespace}:task_{i}")
+                asyncio.create_task(func(), name=f"{self.__class__.__name__}:task_{i}")
             )
         self.initialized = True
 
-    def wrapup(self) -> None:
+    async def wrapup(self) -> None:
         """Cancel all long-running tasks."""
         logger.info(f"{self.__class__.__name__} wrapping up.")
         for task in self.tasks:
@@ -106,13 +113,18 @@ class AsyncDaemon(ABC, metaclass=Singleton):
         """Return a list of long-running task functions."""
 
 
-class BatchedAction(AsyncDaemon):
+class BatchedAction(AsyncDaemon, metaclass=Singleton):
     """A base class for queuing and batching a number of different sink types."""
 
     batch_size: int = 100
     queue_delay: float = 0.1
     flush_time: float = 1
-    action_queues: ClassVar[dict[str, asyncio.Queue[Any]]] = {}
+    action_queues: dict[str, asyncio.Queue[Any]]
+
+    def __init__(self) -> None:
+        """Instantiate a new BatchedAction."""
+        self.action_queues = {}
+        super().__init__()
 
     @override
     def get_task_funcs(self) -> list[Callable[[], Coroutine[None, None, None]]]:

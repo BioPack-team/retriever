@@ -291,15 +291,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                 attributes: list[AttributeDict] = []
 
                 # Cases that require additional formatting to be TRAPI-compliant
-                special_cases: SpecialCaseDict = {
-                    "equivalent_identifiers": (
-                        "biolink:xref",
-                        [
-                            CURIE(i)
-                            for i in node.attributes.get("equivalent_identifiers", [])
-                        ],
-                    )
-                }
+                special_cases: SpecialCaseDict = {}
 
                 attributes = self.build_attributes(node, special_cases)
 

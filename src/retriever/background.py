@@ -10,10 +10,11 @@ from uvicorn.supervisors.multiprocess import SIGNALS
 
 from retriever.config.logger import configure_logging
 from retriever.data_tiers import tier_manager
-from retriever.metadata.optable import OPTableManager
+from retriever.lookup.subclass import SubclassMapping
+from retriever.metadata.optable import OpTableManager
 from retriever.utils.logs import add_mongo_sink
-from retriever.utils.mongo import MONGO_CLIENT, MONGO_QUEUE
-from retriever.utils.redis import REDIS_CLIENT
+from retriever.utils.mongo import MongoClient, MongoQueue
+from retriever.utils.redis import RedisClient
 from retriever.utils.telemetry import configure_telemetry
 
 
@@ -24,13 +25,14 @@ async def _background_async() -> None:
     # /// SETUP ///
 
     logger.info("Initializing background process...")
-    await MONGO_CLIENT.initialize()
-    await MONGO_QUEUE.start_process_task()
+    await MongoClient().initialize()
+    await MongoQueue().initialize()
     add_mongo_sink()
-    await REDIS_CLIENT.initialize()
+    await RedisClient().initialize()
     await tier_manager.connect_drivers()
-    metakg_manager = OPTableManager(leader=True)
+    metakg_manager = OpTableManager(leader=True)
     await metakg_manager.initialize()
+    await SubclassMapping(leader=True).initialize()
     logger.success("Background process setup complete!")
 
     # /// MAIN LOOP ///
@@ -44,10 +46,11 @@ async def _background_async() -> None:
 
     # /// WRAPUP ///
 
+    await SubclassMapping().wrapup()
     await metakg_manager.wrapup()
-    await REDIS_CLIENT.close()
-    await MONGO_QUEUE.stop_process_task()
-    await MONGO_CLIENT.close()
+    await RedisClient().wrapup()
+    await MongoQueue().wrapup()
+    await MongoClient().close()
 
 
 def background_process() -> None:

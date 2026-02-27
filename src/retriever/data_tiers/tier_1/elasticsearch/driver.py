@@ -34,7 +34,7 @@ from retriever.types.general import EntityToEntityMapping
 from retriever.types.metakg import Operation, OperationNode
 from retriever.types.trapi import BiolinkEntity, Infores
 from retriever.utils.calls import get_metadata_client
-from retriever.utils.redis import REDIS_CLIENT
+from retriever.utils.redis import RedisClient
 from retriever.utils.trapi import hash_hex
 
 tracer = trace.get_tracer("lookup.execution.tracer")
@@ -200,7 +200,7 @@ class ElasticSearchDriver(DatabaseDriver):
         raw_data = response.json()
         metadata = DINGO_ADAPTER.validate_python(raw_data)
 
-        await REDIS_CLIENT.set(
+        await RedisClient().set(
             hash_hex(hash(url)),
             ormsgpack.packb(metadata),
             compress=True,
@@ -210,7 +210,7 @@ class ElasticSearchDriver(DatabaseDriver):
 
     async def _get_metadata(self, url: str, retries: int = 0) -> dict[str, Any] | None:
         """Obtain metadata for a given DINGO ingest."""
-        metadata_pack = await REDIS_CLIENT.get(hash_hex(hash(url)), compressed=True)
+        metadata_pack = await RedisClient().get(hash_hex(hash(url)), compressed=True)
 
         if metadata_pack is None:
             await self._pull_metadata(url)

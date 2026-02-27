@@ -12,7 +12,7 @@ from retriever.config.general import CONFIG
 from retriever.config.logger import configure_logging
 from retriever.config.write_configs import write_default_configs
 from retriever.utils.logs import add_mongo_sink, cleanup
-from retriever.utils.mongo import MONGO_CLIENT, MONGO_QUEUE
+from retriever.utils.mongo import MongoClient, MongoQueue
 from retriever.utils.uvicorn_multiprocess import AsyncMultiprocess
 
 
@@ -26,8 +26,8 @@ async def _main_inner() -> None:
 
     # For main process logging
     if not CONFIG.debug:
-        await MONGO_CLIENT.initialize()
-        await MONGO_QUEUE.start_process_task()
+        await MongoClient().initialize()
+        await MongoQueue().initialize()
         add_mongo_sink()
 
     logger.debug(
@@ -71,8 +71,8 @@ async def _main_inner() -> None:
 
     await background_manager.wrapup()
     if not CONFIG.debug:
-        await MONGO_QUEUE.stop_process_task()
-        await MONGO_CLIENT.close()
+        await MongoQueue().wrapup()
+        await MongoClient().close()
 
     # Wait for loguru to complete
     await cleanup()

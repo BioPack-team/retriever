@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-from collections import deque
 from collections.abc import AsyncGenerator
 from datetime import datetime
-from time import time
-from typing import Any
+from typing import Any, ClassVar
 
 from bson.codec_options import DEFAULT_CODEC_OPTIONS
 from loguru import logger as log
@@ -15,11 +13,12 @@ from pymongo.server_api import ServerApi
 
 from retriever.config.general import CONFIG
 from retriever.types.general import LogLevel
+from retriever.utils.general import BatchedAction, Singleton
 
 CODEC_OPTIONS = DEFAULT_CODEC_OPTIONS.with_options(tz_aware=True)
 
 
-class MongoClient:
+class MongoClient(metaclass=Singleton):
     """A client abstraction layer for basic operations."""
 
     def __init__(self) -> None:
@@ -227,107 +226,21 @@ class MongoClient:
         self.client.close()
 
 
-class MongoQueue:
+class MongoQueue(BatchedAction):
     """An asynchronous queue for sending items to MongoDB."""
 
-    def __init__(self, client: MongoClient) -> None:
-        """Initialize a mongo client and multiprocessing queue."""
-        self.queue: asyncio.Queue[tuple[str, dict[str, Any]]] = asyncio.Queue()
-        self.client: MongoClient = client
-        self.process_tasks: list[asyncio.Task[None]] | None = None
-        self.task_deques: dict[str, tuple[asyncio.Lock, deque[Any]]] = {
-            "job_state": (asyncio.Lock(), deque()),
-            "log_dump": (asyncio.Lock(), deque()),
-        }
+    # Essentially should flush every interval
+    batch_size: int = 1000
+    flush_time: float = 0
 
-    async def process_queue(self) -> None:
-        """Periodically poll the queue for a task and handle it accordingly."""
-        while True:
-            try:
-                target, doc = self.queue.get_nowait()
-                if not hasattr(self.client, target):
-                    log.error(
-                        f"MongoClient has no operation {target}. Operation skipped.",
-                        extra={"no_mongo_log": True},
-                    )
-                try:
-                    task = getattr(self.client, target)(doc)
-                    lock, task_deque = self.task_deques[target]
-                    async with lock:
-                        task_deque.append(task)
-                    self.queue.task_done()
-                except Exception:
-                    log.exception(
-                        f"An exception occurred in the operation {target}",
-                        extra={"doc": doc, "no_mongo_log": True},
-                    )
-            except asyncio.QueueEmpty:
-                try:
-                    await asyncio.sleep(0.1)
-                    continue
-                except asyncio.CancelledError:  # likely to be cancelled while waiting
-                    break
-            except (ValueError, asyncio.CancelledError):  # Queue is closed
-                break
+    client: ClassVar[MongoClient] = MongoClient()
 
-    async def process_batch_tasks(self) -> None:
-        """Periodically grab a batch of mongo tasks and run them."""
-        while True:
-            try:
-                for target, (lock, task_deque) in self.task_deques.items():
-                    async with lock:
-                        tasks = [
-                            task_deque.popleft()
-                            for _ in range(
-                                min(len(task_deque), CONFIG.mongo.flood_batch_size)
-                            )
-                        ]
-                    if len(tasks) == 0:
-                        continue
-                    await getattr(self.client, f"batch_{target}")(tasks)
+    async def job_state(self, batch: list[dict[str, Any]]) -> None:
+        """Send a batch of job states to MongoDB."""
+        await self.client.batch_job_state(
+            [self.client.job_state(state) for state in batch]
+        )
 
-                await asyncio.sleep(0.1)
-            except (ValueError, asyncio.CancelledError):
-                break
-
-    async def start_process_task(self) -> None:
-        """Start a processing loop to serialize documents to MongoDB."""
-        if self.process_tasks is not None:
-            raise ValueError("Cannot start second MongoDB queue process task.")
-        self.process_tasks = [
-            asyncio.create_task(self.process_queue(), name="mongo_process_loop"),
-            asyncio.create_task(self.process_batch_tasks(), name="mongo_batch_loop"),
-        ]
-        log.info("Started MongoDB serialize task.")
-
-    async def stop_process_task(self) -> None:
-        """Close the queue and stop the process loop task."""
-        start = time()
-        while not self.queue.empty():
-            # Don't wait forever
-            if time() - start > CONFIG.mongo.shutdown_timeout:
-                break
-            await asyncio.sleep(0.1)
-        self.queue.shutdown()
-        await self.queue.join()
-
-        try:
-            if self.process_tasks is None:
-                return
-            for task in self.process_tasks:
-                task.cancel()
-                await task
-            log.info("Stopped MongoDB serialize task.")
-        except Exception:
-            log.exception("Exception occurred while stopping MongoDB serialize task.")
-
-    def put(self, task_name: str, doc: dict[str, Any]) -> None:
-        """Add a document to the queue."""
-        try:
-            self.queue.put_nowait((task_name, doc))
-        except (asyncio.QueueShutDown, asyncio.QueueFull):
-            return
-
-
-MONGO_CLIENT = MongoClient()
-MONGO_QUEUE = MongoQueue(MONGO_CLIENT)
+    async def log_dump(self, batch: list[dict[str, Any]]) -> None:
+        """Send a batch of logs to MongoDB."""
+        await self.client.batch_log_dump([self.client.log_dump(log) for log in batch])

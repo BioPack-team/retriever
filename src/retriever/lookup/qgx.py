@@ -17,9 +17,9 @@ from retriever.lookup.branch import (
 )
 from retriever.lookup.partial import Partial
 from retriever.lookup.subclass import SubclassMapping
-from retriever.lookup.subquery import get_subgraph, subquery
+from retriever.lookup.subquery import SubqueryDispatcher
 from retriever.lookup.utils import make_mappings
-from retriever.metadata.optable import OP_TABLE_MANAGER, OperationPlan
+from retriever.metadata.optable import OperationPlan, OpTableManager
 from retriever.types.general import (
     AdjacencyGraph,
     KAdjacencyGraph,
@@ -56,6 +56,9 @@ from retriever.utils.trapi import (
 )
 
 tracer = trace.get_tracer("lookup.execution.tracer")
+OP_TABLE_MANAGER = OpTableManager()
+SUBCLASS_MAPPING = SubclassMapping()
+DISPATCHER = SubqueryDispatcher()
 
 # TODO: Set interpretation
 
@@ -247,11 +250,9 @@ class QueryGraphExecutor:
         self, qnode_id: QNodeID, curies: Iterable[CURIE]
     ) -> list[CURIE]:
         """Given a set of CURIEs, return them and any subclasses they may have."""
-        if not CONFIG.job.lookup.implicit_subclassing:
-            return list(curies)
-
-        subclass_mapping = await SubclassMapping().get()
-        if subclass_mapping is None:
+        if not (
+            CONFIG.job.lookup.implicit_subclassing and SUBCLASS_MAPPING.initialized
+        ):
             return list(curies)
 
         # If the qnode is going into a predicate that can return "subclass_of",
@@ -269,7 +270,7 @@ class QueryGraphExecutor:
 
         new_curies = set[CURIE](curies)
         for curie in curies:
-            descendants = subclass_mapping.get(curie, [])
+            descendants = await SUBCLASS_MAPPING.get(curie)
             if not descendants:
                 self.job_log.trace(
                     f"Found no descendants for {curie} on QNode {qnode_id}"
@@ -318,14 +319,14 @@ class QueryGraphExecutor:
         ):
             if partial is None:  # A branch terminated with nothing
                 if self.terminate:  # Termination case, no handling needed
-                    self.job_log.debug(
+                    self.job_log.trace(
                         f"Branch {branch.superposition_name} terminated due to QGX wrapup."
                     )
                     break
 
                 # Either this is just one of several on the same starting node
                 # Meaning we can continue, business as usual
-                self.job_log.debug(
+                self.job_log.trace(
                     f"Branch {branch.superposition_name} terminated with no partials."
                 )
                 self.dead_superpositions.add(branch.superposition_id)
@@ -484,7 +485,7 @@ class QueryGraphExecutor:
             async with self.locks["kgraph"]:
                 subquery_tasks = [
                     asyncio.create_task(
-                        get_subgraph(
+                        DISPATCHER.get_subgraph(
                             current_branch,
                             current_branch.hop_id,
                             self.kedges_by_input,
@@ -500,7 +501,7 @@ class QueryGraphExecutor:
 
             subquery_tasks = [
                 asyncio.create_task(
-                    subquery(self.ctx.job_id, current_branch, self.qgraph),
+                    DISPATCHER.subquery(self.ctx.job_id, current_branch),
                     name="subquery",
                 )
                 # for operation in current_branch.operations
@@ -984,7 +985,7 @@ class QueryGraphExecutor:
             )
 
         self.job_log.debug(
-            f"Found and reformated dependents for {len(edges_to_fix)} edges."
+            f"Found and reformated dependents for subclass-derived {len(edges_to_fix)} edges."
         )
 
         self.insert_constructs(results, aux_graphs, edges_to_fix, construct_edges)

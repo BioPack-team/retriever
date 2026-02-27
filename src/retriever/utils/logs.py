@@ -15,7 +15,9 @@ from retriever.config.general import CONFIG
 from retriever.types.general import LogLevel
 from retriever.types.trapi import LogEntryDict
 from retriever.types.trapi import LogLevel as TRAPILogLevel
-from retriever.utils.mongo import MONGO_QUEUE
+from retriever.utils.mongo import MongoQueue
+
+MONGO_QUEUE = MongoQueue()
 
 
 def log_level_to_trapi(level: LogLevel) -> TRAPILogLevel:
