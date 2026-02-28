@@ -87,7 +87,7 @@ def mock_dgraph_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setenv("TIER0__DGRAPH__GRPC_PORT", "9080")
     monkeypatch.setenv("TIER0__DGRAPH__PREFERRED_VERSION", "vI")
     monkeypatch.setenv("TIER0__DGRAPH__USE_TLS", "false")
-    monkeypatch.setenv("TIER0__DGRAPH__QUERY_TIMEOUT", "5")
+    monkeypatch.setenv("TIER0__DGRAPH__QUERY_TIMEOUT", "10")
     monkeypatch.setenv("TIER0__DGRAPH__CONNECT_RETRIES", "0")
 
     # Rebuild CONFIG from env and reload driver so classes bind to the new CONFIG
@@ -1616,5 +1616,904 @@ async def test_run_grpc_query_name_error_workaround(
         ConnectionError, match="Dgraph gRPC query failed: while running ToJson"
     ):
         await driver.run_query("any query", transpiler=mock_transpiler)
+
+    await driver.close()
+
+
+# ---------------------------------------------------------------------------
+# Subclassing live tests
+#
+# ── Case 1, Form B (ID→P→ID, source subclass) ───────────────────────────
+#   A  = GO:0051055  (negative regulation of lipid biosynthetic process)
+#   A' = GO:0031393  (negative regulation of prostaglandin biosynthetic process)
+#          A' subclass_of A;  A' → genetic_association → B
+#   B  = EFO:0004528 (mean corpuscular hemoglobin concentration)
+#   No direct A → genetic_association → B edge exists.
+#
+# ── Case 1, Form C (ID→P→ID, target subclass) ───────────────────────────
+#   A  = CHEBI:4042  (Cypermethrin, SmallMolecule)
+#   B' = GO:0031393  (negative regulation of prostaglandin biosynthetic process)
+#          A → affects → B' (direct);  B' subclass_of B
+#   B  = GO:0051055  (negative regulation of lipid biosynthetic process)
+#   No direct A → affects → B edge exists.
+#
+# ── Case 2 (ID→P→CAT, source subclass) ──────────────────────────────────
+#   A   = UMLS:C3273258 (Congenital Systemic Disorder)  — no direct non-subclass edges
+#   A'  = MONDO:0018551 (patent urachus)  subclass_of A
+#          A' → has_phenotype → HP:0034267 (PhenotypicFeature)
+#   CAT = biolink:PhenotypicFeature
+#
+# ── Case 3 (CAT→P→ID, target subclass) ──────────────────────────────────
+#   INTERMEDIATE = GO:0031393 (has IDs)
+#          → genetic_association → EFO:0004528 (B)
+#          → subclass_of         → GO:0051055  (RESULT_N0, BiologicalProcess)
+#   n0 = {categories: ["biolink:BiologicalProcess"]}
+#   n1 = {ids: ["EFO:0004528"]}
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_subclass_case1_direct_path_absent_live_grpc() -> None:
+    """
+    Baseline: confirm GO:0051055 has no direct genetic_association to EFO:0004528.
+
+    This establishes the precondition for the subclass Form B test: without
+    subclass expansion the query must return zero results.
+    """
+    qgraph_query: QueryGraphDict = qg(
+        {
+            "nodes": {
+                "n0": {"ids": ["GO:0051055"], "constraints": []},
+                "n1": {"ids": ["EFO:0004528"], "constraints": []},
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": ["biolink:genetic_association"],
+                    "attribute_constraints": [],
+                    "qualifier_constraints": [],
+                }
+            },
+        }
+    )
+
+    dgraph_query_match: str = dedent("""
+    {
+        q0_node_n0(func: eq(vI_id, "GO:0051055")) @cascade(vI_id, ~vI_subject) {
+            expand(vI_Node)
+            out_edges_e0: ~vI_subject @filter(eq(vI_predicate_ancestors, "genetic_association")) @cascade(vI_predicate, vI_object) {
+                expand(vI_Edge) { vI_sources expand(vI_Source) }
+                node_n1: vI_object @filter(eq(vI_id, "EFO:0004528")) @cascade(vI_id) {
+                    expand(vI_Node)
+                }
+            }
+        }
+    }
+    """).strip()
+
+    driver = new_grpc_driver()
+    await driver.connect()
+    dgraph_schema_version = await driver.get_active_version()
+
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(
+        version=dgraph_schema_version,
+        enable_symmetric_edges=False,
+        enable_subclass_edges=False,
+    )
+
+    dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
+    assert_query_equals(dgraph_query, dgraph_query_match)
+
+    # Sanity-check: no subclass aliases in the generated DQL
+    assert "subclassB" not in dgraph_query
+    assert "subclassC" not in dgraph_query
+    assert "subclassD" not in dgraph_query
+
+    result: dg_models.DgraphResponse = await driver.run_query(
+        dgraph_query, transpiler=transpiler
+    )
+    assert isinstance(result, dg_models.DgraphResponse)
+    assert result.data is not None
+
+    # No direct edge exists → @cascade removes the root node → empty result
+    nodes = result.data.get("q0", [])
+    assert len(nodes) == 0, (
+        "Expected 0 results: GO:0051055 has no direct genetic_association "
+        "to EFO:0004528 — this is the baseline for the subclass Form B test"
+    )
+
+    await driver.close()
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_subclass_case1_form_b_live_grpc() -> None:
+    """
+    Integration test: Case 1, Form B subclass expansion (gRPC).
+
+    Query:  GO:0051055 → genetic_association → EFO:0004528
+    There is no direct edge between these nodes (see baseline test above).
+
+    GO:0031393 (negative regulation of prostaglandin biosynthetic process) is a
+    subclass_of GO:0051055 AND has a genetic_association edge → EFO:0004528.
+
+    With subclass expansion enabled (Form B):
+        A' ← subclass_of ← A ; A' → P → B
+    the transpiler should generate the following additional traversal:
+        GO:0051055 ← subclass_of subject ← GO:0031393 → genetic_association → EFO:0004528
+
+    The result must surface GO:0051055 as a root node with the intermediate
+    subclass edge (binding "e0", predicate "subclass_of") whose nested node
+    GO:0031393 carries the actual genetic_association edge to EFO:0004528.
+    """
+    qgraph_query: QueryGraphDict = qg(
+        {
+            "nodes": {
+                "n0": {"ids": ["GO:0051055"], "constraints": []},
+                "n1": {"ids": ["EFO:0004528"], "constraints": []},
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": ["biolink:genetic_association"],
+                    "attribute_constraints": [],
+                    "qualifier_constraints": [],
+                }
+            },
+        }
+    )
+
+    dgraph_query_match: str = dedent("""
+    {
+        q0_node_n0(func: eq(vI_id, "GO:0051055")) @cascade(vI_id) {
+            expand(vI_Node)
+            out_edges_e0: ~vI_subject @filter(eq(vI_predicate_ancestors, "genetic_association")) @cascade(vI_predicate, vI_object) {
+                expand(vI_Edge) { vI_sources expand(vI_Source) }
+                node_n1: vI_object @filter(eq(vI_id, "EFO:0004528")) @cascade(vI_id) {
+                    expand(vI_Node)
+                }
+            }
+            in_edges-subclassB_e0: ~vI_object @filter(eq(vI_predicate_ancestors, "subclass_of")) @cascade(vI_predicate, vI_subject) {
+                expand(vI_Edge) { vI_sources expand(vI_Source) }
+                node_intermediate: vI_subject @filter(has(vI_id)) @cascade(vI_id, ~vI_subject) {
+                    expand(vI_Node)
+                    out_edges-subclassB-mid_e0: ~vI_subject @filter(eq(vI_predicate_ancestors, "genetic_association")) @cascade(vI_predicate, vI_object) {
+                        expand(vI_Edge) { vI_sources expand(vI_Source) }
+                        node_n1: vI_object @filter(eq(vI_id, "EFO:0004528")) @cascade(vI_id) {
+                            expand(vI_Node)
+                        }
+                    }
+                }
+            }
+            out_edges-subclassC_e0: ~vI_subject @filter(eq(vI_predicate_ancestors, "genetic_association")) @cascade(vI_predicate, vI_object) {
+                expand(vI_Edge) { vI_sources expand(vI_Source) }
+                node_intermediate: vI_object @filter(has(vI_id)) @cascade(vI_id, ~vI_subject) {
+                    expand(vI_Node)
+                    out_edges-subclassC-tail_e0: ~vI_subject @filter(eq(vI_predicate_ancestors, "subclass_of")) @cascade(vI_predicate, vI_object) {
+                        expand(vI_Edge) { vI_sources expand(vI_Source) }
+                        node_n1: vI_object @filter(eq(vI_id, "EFO:0004528")) @cascade(vI_id) {
+                            expand(vI_Node)
+                        }
+                    }
+                }
+            }
+            in_edges-subclassD_e0: ~vI_object @filter(eq(vI_predicate_ancestors, "subclass_of")) @cascade(vI_predicate, vI_subject) {
+                expand(vI_Edge) { vI_sources expand(vI_Source) }
+                node_intermediate_A: vI_subject @filter(has(vI_id)) @cascade(vI_id, ~vI_subject) {
+                    expand(vI_Node)
+                    out_edges-subclassD-mid_e0: ~vI_subject @filter(eq(vI_predicate_ancestors, "genetic_association")) @cascade(vI_predicate, vI_object) {
+                        expand(vI_Edge) { vI_sources expand(vI_Source) }
+                        node_intermediate_B: vI_object @filter(has(vI_id)) @cascade(vI_id, ~vI_subject) {
+                            expand(vI_Node)
+                            out_edges-subclassD-tail_e0: ~vI_subject @filter(eq(vI_predicate_ancestors, "subclass_of")) @cascade(vI_predicate, vI_object) {
+                                expand(vI_Edge) { vI_sources expand(vI_Source) }
+                                node_n1: vI_object @filter(eq(vI_id, "EFO:0004528")) @cascade(vI_id) {
+                                    expand(vI_Node)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    """).strip()
+
+    driver = new_grpc_driver()
+    await driver.connect()
+    dgraph_schema_version = await driver.get_active_version()
+
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(
+        version=dgraph_schema_version,
+        enable_symmetric_edges=False,
+        enable_subclass_edges=True,
+    )
+
+    dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
+    assert_query_equals(dgraph_query, dgraph_query_match)
+
+    # Query must include all three Case 1 subclass form aliases (no version prefix on aliases)
+    assert "in_edges-subclassB_e0" in dgraph_query, "Missing Form B alias"
+    assert "out_edges-subclassC_e0" in dgraph_query, "Missing Form C alias"
+    assert "in_edges-subclassD_e0" in dgraph_query, "Missing Form D alias"
+
+    result: dg_models.DgraphResponse = await driver.run_query(
+        dgraph_query, transpiler=transpiler
+    )
+    assert isinstance(result, dg_models.DgraphResponse)
+    assert result.data, "No data returned from Dgraph for subclass Form B query"
+    assert "q0" in result.data
+
+    nodes = result.data["q0"]
+    assert len(nodes) == 1, "Expected 1 root node (GO:0051055)"
+
+    root_node = nodes[0]
+    assert root_node.binding == "n0"
+    assert root_node.id == "GO:0051055"
+    assert root_node.name == "negative regulation of lipid biosynthetic process"
+
+    # Form B produces an incoming subclass_of edge on the root, binding "e0"
+    subclass_b_edges = [
+        e
+        for e in root_node.edges
+        if e.binding == "e0" and e.direction == "in" and e.predicate == "subclass_of"
+    ]
+    assert subclass_b_edges, (
+        "Expected at least one incoming subclass_of edge (Form B) with binding 'e0'"
+    )
+
+    # The intermediate node A' (GO:0031393) must appear as the connected node
+    # of the subclass_of edge, and must itself carry the genetic_association → EFO:0004528
+    aprime_ids = {e.node.id for e in subclass_b_edges}
+    assert "GO:0031393" in aprime_ids, (
+        "Expected GO:0031393 (negative regulation of prostaglandin biosynthetic process) "
+        "as the intermediate subclass node A'"
+    )
+
+    aprime_node = next(e.node for e in subclass_b_edges if e.node.id == "GO:0031393")
+
+    # The genetic_association edge from A' → B must be present on the intermediate node
+    ga_edges = [
+        e
+        for e in aprime_node.edges
+        if e.binding == "e0"
+        and e.direction == "out"
+        and e.predicate == "genetic_association"
+    ]
+    assert ga_edges, (
+        "Expected at least one genetic_association edge (binding 'e0', direction 'out') "
+        "on the intermediate node GO:0031393"
+    )
+
+    target_ids = {e.node.id for e in ga_edges}
+    assert "EFO:0004528" in target_ids, (
+        "Expected EFO:0004528 (mean corpuscular hemoglobin concentration) as the "
+        "target node reached via Form B subclass expansion"
+    )
+
+    await driver.close()
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_subclass_case1_form_c_baseline_live_grpc() -> None:
+    """
+    Baseline: confirm CHEBI:4042 has no direct affects edge to GO:0051055.
+
+    CHEBI:4042 (Cypermethrin) has a direct affects edge to GO:0031393 (B'),
+    and GO:0031393 is a subclass_of GO:0051055 (B). Without subclass
+    expansion the query must return zero results.
+    """
+    qgraph_query: QueryGraphDict = qg(
+        {
+            "nodes": {
+                "n0": {"ids": ["CHEBI:4042"], "constraints": []},
+                "n1": {"ids": ["GO:0051055"], "constraints": []},
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": ["biolink:affects"],
+                    "attribute_constraints": [],
+                    "qualifier_constraints": [],
+                }
+            },
+        }
+    )
+
+    dgraph_query_match: str = dedent("""
+    {
+        q0_node_n0(func: eq(vI_id, "CHEBI:4042")) @cascade(vI_id, ~vI_subject) {
+            expand(vI_Node)
+            out_edges_e0: ~vI_subject @filter(eq(vI_predicate_ancestors, "affects")) @cascade(vI_predicate, vI_object) {
+                expand(vI_Edge) { vI_sources expand(vI_Source) }
+                node_n1: vI_object @filter(eq(vI_id, "GO:0051055")) @cascade(vI_id) {
+                    expand(vI_Node)
+                }
+            }
+        }
+    }
+    """).strip()
+
+    driver = new_grpc_driver()
+    await driver.connect()
+    dgraph_schema_version = await driver.get_active_version()
+
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(
+        version=dgraph_schema_version,
+        enable_symmetric_edges=False,
+        enable_subclass_edges=False,
+    )
+
+    dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
+    assert_query_equals(dgraph_query, dgraph_query_match)
+    assert "subclassC" not in dgraph_query
+
+    result: dg_models.DgraphResponse = await driver.run_query(
+        dgraph_query, transpiler=transpiler
+    )
+    assert isinstance(result, dg_models.DgraphResponse)
+    nodes = result.data.get("q0", []) if result.data else []
+    assert len(nodes) == 0, (
+        "Expected 0 results: CHEBI:4042 has no direct affects edge to GO:0051055"
+    )
+
+    await driver.close()
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_subclass_case1_form_c_live_grpc() -> None:
+    """
+    Integration test: Case 1, Form C subclass expansion (gRPC).
+
+    Query:  CHEBI:4042 → affects → GO:0051055
+    There is no direct edge (see baseline test above).
+
+    GO:0031393 (negative regulation of prostaglandin biosynthetic process) is
+    a subclass_of GO:0051055 AND CHEBI:4042 has a direct affects edge to it.
+
+    With subclass expansion enabled (Form C):
+        A → P → B' ; B' → subclass_of → B
+    the transpiler generates an additional traversal:
+        CHEBI:4042 → ~subject → affects → object → GO:0031393 (B')
+        GO:0031393 → ~subject → subclass_of → object → GO:0051055 (B)
+
+    The result must surface CHEBI:4042 as the root node, with GO:0031393 as
+    the intermediate B' node (reached via the affects edge) carrying the
+    subclass_of tail edge that resolves to GO:0051055.
+    """
+    qgraph_query: QueryGraphDict = qg(
+        {
+            "nodes": {
+                "n0": {"ids": ["CHEBI:4042"], "constraints": []},
+                "n1": {"ids": ["GO:0051055"], "constraints": []},
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": ["biolink:affects"],
+                    "attribute_constraints": [],
+                    "qualifier_constraints": [],
+                }
+            },
+        }
+    )
+
+    dgraph_query_match: str = dedent("""
+    {
+        q0_node_n0(func: eq(vI_id, "CHEBI:4042")) @cascade(vI_id) {
+            expand(vI_Node)
+            out_edges_e0: ~vI_subject @filter(eq(vI_predicate_ancestors, "affects")) @cascade(vI_predicate, vI_object) {
+                expand(vI_Edge) { vI_sources expand(vI_Source) }
+                node_n1: vI_object @filter(eq(vI_id, "GO:0051055")) @cascade(vI_id) {
+                    expand(vI_Node)
+                }
+            }
+            in_edges-subclassB_e0: ~vI_object @filter(eq(vI_predicate_ancestors, "subclass_of")) @cascade(vI_predicate, vI_subject) {
+                expand(vI_Edge) { vI_sources expand(vI_Source) }
+                node_intermediate: vI_subject @filter(has(vI_id)) @cascade(vI_id, ~vI_subject) {
+                    expand(vI_Node)
+                    out_edges-subclassB-mid_e0: ~vI_subject @filter(eq(vI_predicate_ancestors, "affects")) @cascade(vI_predicate, vI_object) {
+                        expand(vI_Edge) { vI_sources expand(vI_Source) }
+                        node_n1: vI_object @filter(eq(vI_id, "GO:0051055")) @cascade(vI_id) {
+                            expand(vI_Node)
+                        }
+                    }
+                }
+            }
+            out_edges-subclassC_e0: ~vI_subject @filter(eq(vI_predicate_ancestors, "affects")) @cascade(vI_predicate, vI_object) {
+                expand(vI_Edge) { vI_sources expand(vI_Source) }
+                node_intermediate: vI_object @filter(has(vI_id)) @cascade(vI_id, ~vI_subject) {
+                    expand(vI_Node)
+                    out_edges-subclassC-tail_e0: ~vI_subject @filter(eq(vI_predicate_ancestors, "subclass_of")) @cascade(vI_predicate, vI_object) {
+                        expand(vI_Edge) { vI_sources expand(vI_Source) }
+                        node_n1: vI_object @filter(eq(vI_id, "GO:0051055")) @cascade(vI_id) {
+                            expand(vI_Node)
+                        }
+                    }
+                }
+            }
+            in_edges-subclassD_e0: ~vI_object @filter(eq(vI_predicate_ancestors, "subclass_of")) @cascade(vI_predicate, vI_subject) {
+                expand(vI_Edge) { vI_sources expand(vI_Source) }
+                node_intermediate_A: vI_subject @filter(has(vI_id)) @cascade(vI_id, ~vI_subject) {
+                    expand(vI_Node)
+                    out_edges-subclassD-mid_e0: ~vI_subject @filter(eq(vI_predicate_ancestors, "affects")) @cascade(vI_predicate, vI_object) {
+                        expand(vI_Edge) { vI_sources expand(vI_Source) }
+                        node_intermediate_B: vI_object @filter(has(vI_id)) @cascade(vI_id, ~vI_subject) {
+                            expand(vI_Node)
+                            out_edges-subclassD-tail_e0: ~vI_subject @filter(eq(vI_predicate_ancestors, "subclass_of")) @cascade(vI_predicate, vI_object) {
+                                expand(vI_Edge) { vI_sources expand(vI_Source) }
+                                node_n1: vI_object @filter(eq(vI_id, "GO:0051055")) @cascade(vI_id) {
+                                    expand(vI_Node)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    """).strip()
+
+    driver = new_grpc_driver()
+    await driver.connect()
+    dgraph_schema_version = await driver.get_active_version()
+
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(
+        version=dgraph_schema_version,
+        enable_symmetric_edges=False,
+        enable_subclass_edges=True,
+    )
+
+    dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
+    assert_query_equals(dgraph_query, dgraph_query_match)
+    assert "out_edges-subclassC_e0" in dgraph_query, "Missing Form C alias"
+    assert "in_edges-subclassB_e0" in dgraph_query, "Missing Form B alias"
+    assert "in_edges-subclassD_e0" in dgraph_query, "Missing Form D alias"
+
+    result: dg_models.DgraphResponse = await driver.run_query(
+        dgraph_query, transpiler=transpiler
+    )
+    assert isinstance(result, dg_models.DgraphResponse)
+    assert result.data, "No data returned"
+    assert "q0" in result.data
+
+    nodes = result.data["q0"]
+    assert len(nodes) == 1, "Expected 1 root node (CHEBI:4042)"
+
+    root_node = nodes[0]
+    assert root_node.binding == "n0"
+    assert root_node.id == "CHEBI:4042"
+    assert root_node.name == "Cypermethrin"
+
+    # Form C: A → affects → B' (intermediate); B' → subclass_of → B
+    # The intermediate node is B' = GO:0031393, reached via outgoing affects edge
+    affects_edges = [
+        e
+        for e in root_node.edges
+        if e.binding == "e0" and e.direction == "out" and e.predicate == "affects"
+    ]
+    assert affects_edges, "Expected outgoing affects edges (Form C) with binding 'e0'"
+
+    intermediate_ids = {e.node.id for e in affects_edges}
+    assert "GO:0031393" in intermediate_ids, (
+        "Expected GO:0031393 as intermediate B' node in Form C affects traversal"
+    )
+
+    bprime_node = next(e.node for e in affects_edges if e.node.id == "GO:0031393")
+
+    # B' must carry the subclass_of tail edge → GO:0051055
+    subclass_tail_edges = [
+        e
+        for e in bprime_node.edges
+        if e.binding == "e0" and e.direction == "out" and e.predicate == "subclass_of"
+    ]
+    assert subclass_tail_edges, (
+        "Expected outgoing subclass_of edge on GO:0031393 (B') with binding 'e0'"
+    )
+
+    tail_ids = {e.node.id for e in subclass_tail_edges}
+    assert "GO:0051055" in tail_ids, (
+        "Expected GO:0051055 (negative regulation of lipid biosynthetic process) "
+        "as the target B reached via Form C subclass expansion"
+    )
+
+    await driver.close()
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_subclass_case2_id_to_cat_baseline_live_grpc() -> None:
+    """
+    Baseline: confirm UMLS:C3273258 has no direct has_phenotype edges.
+
+    UMLS:C3273258 (Congenital Systemic Disorder) has no direct non-subclass
+    edges. Without subclass expansion, querying it for PhenotypicFeature
+    phenotypes must return zero results.
+    """
+    qgraph_query: QueryGraphDict = qg(
+        {
+            "nodes": {
+                "n0": {"ids": ["UMLS:C3273258"], "constraints": []},
+                "n1": {"categories": ["biolink:PhenotypicFeature"], "constraints": []},
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": ["biolink:has_phenotype"],
+                    "attribute_constraints": [],
+                    "qualifier_constraints": [],
+                }
+            },
+        }
+    )
+
+    dgraph_query_match: str = dedent("""
+    {
+        q0_node_n0(func: eq(vI_id, "UMLS:C3273258")) @cascade(vI_id, ~vI_subject) {
+            expand(vI_Node)
+            out_edges_e0: ~vI_subject @filter(eq(vI_predicate_ancestors, "has_phenotype")) @cascade(vI_predicate, vI_object) {
+                expand(vI_Edge) { vI_sources expand(vI_Source) }
+                node_n1: vI_object @filter(eq(vI_category, "PhenotypicFeature")) @cascade(vI_id) {
+                    expand(vI_Node)
+                }
+            }
+        }
+    }
+    """).strip()
+
+    driver = new_grpc_driver()
+    await driver.connect()
+    dgraph_schema_version = await driver.get_active_version()
+
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(
+        version=dgraph_schema_version,
+        enable_symmetric_edges=False,
+        enable_subclass_edges=False,
+    )
+
+    dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
+    assert_query_equals(dgraph_query, dgraph_query_match)
+    assert "subclassB" not in dgraph_query
+
+    result: dg_models.DgraphResponse = await driver.run_query(
+        dgraph_query, transpiler=transpiler
+    )
+    assert isinstance(result, dg_models.DgraphResponse)
+    nodes = result.data.get("q0", []) if result.data else []
+    assert len(nodes) == 0, (
+        "Expected 0 results: UMLS:C3273258 has no direct has_phenotype edges"
+    )
+
+    await driver.close()
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_subclass_case2_id_to_cat_form_b_live_grpc() -> None:
+    """
+    Integration test: Case 2, Form B subclass expansion — ID → P → CAT (gRPC).
+
+    Query:  UMLS:C3273258 → has_phenotype → CAT:PhenotypicFeature
+    UMLS:C3273258 (Congenital Systemic Disorder) has zero direct non-subclass
+    edges (see baseline test). However, its subclass child MONDO:0018551
+    (patent urachus) has has_phenotype edges to PhenotypicFeature nodes
+    (e.g. HP:0034267, HP:0000010).
+
+    With subclass expansion enabled (Form B, Case 2):
+        A' ← subclass_of ← A ; A' → P → CAT
+    the transpiler adds:
+        UMLS:C3273258 ← subclass_of ← MONDO:0018551 → has_phenotype → PhenotypicFeature
+
+    The result must surface UMLS:C3273258 as the root with the incoming
+    subclass_of edge leading to MONDO:0018551, which in turn carries the
+    has_phenotype edges to PhenotypicFeature nodes.
+    """
+    qgraph_query: QueryGraphDict = qg(
+        {
+            "nodes": {
+                "n0": {"ids": ["UMLS:C3273258"], "constraints": []},
+                "n1": {"categories": ["biolink:PhenotypicFeature"], "constraints": []},
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": ["biolink:has_phenotype"],
+                    "attribute_constraints": [],
+                    "qualifier_constraints": [],
+                }
+            },
+        }
+    )
+
+    dgraph_query_match: str = dedent("""
+    {
+        q0_node_n0(func: eq(vI_id, "UMLS:C3273258")) @cascade(vI_id) {
+            expand(vI_Node)
+            out_edges_e0: ~vI_subject @filter(eq(vI_predicate_ancestors, "has_phenotype")) @cascade(vI_predicate, vI_object) {
+                expand(vI_Edge) { vI_sources expand(vI_Source) }
+                node_n1: vI_object @filter(eq(vI_category, "PhenotypicFeature")) @cascade(vI_id) {
+                    expand(vI_Node)
+                }
+            }
+            in_edges-subclassB_e0: ~vI_object @filter(eq(vI_predicate_ancestors, "subclass_of")) @cascade(vI_predicate, vI_subject) {
+                expand(vI_Edge) { vI_sources expand(vI_Source) }
+                node_intermediate: vI_subject @filter(has(vI_id)) @cascade(vI_id, ~vI_subject) {
+                    expand(vI_Node)
+                    out_edges-subclassB-mid_e0: ~vI_subject @filter(eq(vI_predicate_ancestors, "has_phenotype")) @cascade(vI_predicate, vI_object) {
+                        expand(vI_Edge) { vI_sources expand(vI_Source) }
+                        node_n1: vI_object @filter(eq(vI_category, "PhenotypicFeature")) @cascade(vI_id) {
+                            expand(vI_Node)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    """).strip()
+
+    driver = new_grpc_driver()
+    await driver.connect()
+    dgraph_schema_version = await driver.get_active_version()
+
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(
+        version=dgraph_schema_version,
+        enable_symmetric_edges=False,
+        enable_subclass_edges=True,
+    )
+
+    dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
+    assert_query_equals(dgraph_query, dgraph_query_match)
+    # Case 2 generates Form B only (no Form C / D since target has no IDs)
+    assert "in_edges-subclassB_e0" in dgraph_query, "Missing Form B alias"
+    assert "out_edges-subclassC_e0" not in dgraph_query, "Unexpected Form C alias"
+    assert "in_edges-subclassD_e0" not in dgraph_query, "Unexpected Form D alias"
+
+    result: dg_models.DgraphResponse = await driver.run_query(
+        dgraph_query, transpiler=transpiler
+    )
+    assert isinstance(result, dg_models.DgraphResponse)
+    assert result.data, "No data returned"
+    assert "q0" in result.data
+
+    nodes = result.data["q0"]
+    assert len(nodes) == 1, "Expected 1 root node (UMLS:C3273258)"
+
+    root_node = nodes[0]
+    assert root_node.binding == "n0"
+    assert root_node.id == "UMLS:C3273258"
+    assert root_node.name == "Congenital Systemic Disorder"
+
+    # Form B: A' ← subclass_of ← A ; root receives incoming subclass_of edges
+    subclass_b_edges = [
+        e
+        for e in root_node.edges
+        if e.binding == "e0" and e.direction == "in" and e.predicate == "subclass_of"
+    ]
+    assert subclass_b_edges, (
+        "Expected incoming subclass_of edges (Form B) on UMLS:C3273258 with binding 'e0'"
+    )
+
+    # MONDO:0018551 (patent urachus) must be among the A' subclass children
+    aprime_ids = {e.node.id for e in subclass_b_edges}
+    assert "MONDO:0018551" in aprime_ids, (
+        "Expected MONDO:0018551 (patent urachus) as a subclass child A'"
+    )
+
+    aprime_node = next(e.node for e in subclass_b_edges if e.node.id == "MONDO:0018551")
+
+    # A' must carry has_phenotype edges reaching PhenotypicFeature nodes
+    hp_edges = [
+        e
+        for e in aprime_node.edges
+        if e.binding == "e0"
+        and e.direction == "out"
+        and e.predicate == "has_phenotype"
+    ]
+    assert hp_edges, (
+        "Expected has_phenotype edges on MONDO:0018551 with binding 'e0'"
+    )
+
+    phenotype_ids = {e.node.id for e in hp_edges}
+    # HP:0034267 and HP:0000010 are confirmed PhenotypicFeature nodes
+    assert phenotype_ids & {"HP:0034267", "HP:0000010"}, (
+        "Expected at least one of the known phenotype nodes (HP:0034267 or HP:0000010) "
+        "to be reached via Form B subclass expansion from MONDO:0018551"
+    )
+
+    await driver.close()
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_subclass_case3_cat_to_id_live_grpc() -> None:
+    """
+    Integration test: Case 3, Mirrored Form B subclass expansion — CAT → P → ID (gRPC).
+
+    Query:  CAT:BiologicalProcess → genetic_association → EFO:0004528
+    EFO:0004528 (mean corpuscular hemoglobin concentration) receives direct
+    genetic_association edges from several BiologicalProcess nodes including
+    GO:0031393 (found via Form A baseline). The Case 3 expansion additionally
+    surfaces GO:0051055 (negative regulation of lipid biosynthetic process)
+    because the intermediate GO:0031393 is a subclass_of GO:0051055.
+
+    With subclass expansion enabled (Case 3 Mirrored Form B):
+        INTERMEDIATE → P → B ; INTERMEDIATE → subclass_of → RESULT_N0(CAT)
+    the transpiler adds:
+        EFO:0004528 ← genetic_association ← GO:0031393
+        GO:0031393 → subclass_of → GO:0051055 (BiologicalProcess)
+
+    The result must surface EFO:0004528 as root (n1) with GO:0031393 as an
+    intermediate and GO:0051055 discoverable as the n0 node via the subclass
+    tail on GO:0031393. GO:0051055 must NOT appear in a query without
+    subclass expansion as it has no direct genetic_association to EFO:0004528.
+    """
+    qgraph_query: QueryGraphDict = qg(
+        {
+            "nodes": {
+                "n0": {"categories": ["biolink:BiologicalProcess"], "constraints": []},
+                "n1": {"ids": ["EFO:0004528"], "constraints": []},
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": ["biolink:genetic_association"],
+                    "attribute_constraints": [],
+                    "qualifier_constraints": [],
+                }
+            },
+        }
+    )
+
+    baseline_query_match: str = dedent("""
+    {
+        q0_node_n1(func: eq(vI_id, "EFO:0004528")) @cascade(vI_id, ~vI_object) {
+            expand(vI_Node)
+            in_edges_e0: ~vI_object @filter(eq(vI_predicate_ancestors, "genetic_association")) @cascade(vI_predicate, vI_subject) {
+                expand(vI_Edge) { vI_sources expand(vI_Source) }
+                node_n0: vI_subject @filter(eq(vI_category, "BiologicalProcess")) @cascade(vI_id) {
+                    expand(vI_Node)
+                }
+            }
+        }
+    }
+    """).strip()
+
+    dgraph_query_match: str = dedent("""
+    {
+        q0_node_n1(func: eq(vI_id, "EFO:0004528")) @cascade(vI_id) {
+            expand(vI_Node)
+            in_edges_e0: ~vI_object @filter(eq(vI_predicate_ancestors, "genetic_association")) @cascade(vI_predicate, vI_subject) {
+                expand(vI_Edge) { vI_sources expand(vI_Source) }
+                node_n0: vI_subject @filter(eq(vI_category, "BiologicalProcess")) @cascade(vI_id) {
+                    expand(vI_Node)
+                }
+            }
+            in_edges-subclassObjB_e0: ~vI_object @filter(eq(vI_predicate_ancestors, "genetic_association")) @cascade(vI_predicate, vI_subject) {
+                expand(vI_Edge) { vI_sources expand(vI_Source) }
+                node_intermediate: vI_subject @filter(has(vI_id)) @cascade(vI_id, ~vI_subject) {
+                    expand(vI_Node)
+                    out_edges-subclassObjB-tail_e0: ~vI_subject @filter(eq(vI_predicate_ancestors, "subclass_of")) @cascade(vI_predicate, vI_object) {
+                        expand(vI_Edge) { vI_sources expand(vI_Source) }
+                        node_n0: vI_object @filter(eq(vI_category, "BiologicalProcess")) @cascade(vI_id) {
+                            expand(vI_Node)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    """).strip()
+
+    driver = new_grpc_driver()
+    await driver.connect()
+    dgraph_schema_version = await driver.get_active_version()
+
+    # ── 1. Baseline: confirm GO:0051055 absent without subclass expansion ──
+    baseline_transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(
+        version=dgraph_schema_version,
+        enable_symmetric_edges=False,
+        enable_subclass_edges=False,
+    )
+    baseline_query: str = baseline_transpiler.convert_multihop_public(qgraph_query)
+    assert_query_equals(baseline_query, baseline_query_match)
+    assert "subclassObjB" not in baseline_query
+
+    baseline_result: dg_models.DgraphResponse = await driver.run_query(
+        baseline_query, transpiler=baseline_transpiler
+    )
+    assert isinstance(baseline_result, dg_models.DgraphResponse)
+    baseline_n1_nodes = baseline_result.data.get("q0", []) if baseline_result.data else []
+    # GO:0051055 must NOT be reachable directly
+    baseline_all_n0_ids: set[str] = set()
+    for root in baseline_n1_nodes:
+        for e in root.edges:
+            if e.binding == "e0":
+                baseline_all_n0_ids.add(e.node.id)
+    assert "GO:0051055" not in baseline_all_n0_ids, (
+        "GO:0051055 should not appear as a direct n0 result (it has no direct "
+        "genetic_association edge to EFO:0004528)"
+    )
+
+    # ── 2. Subclass expansion: GO:0051055 appears via Case 3 Mirrored Form B ──
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(
+        version=dgraph_schema_version,
+        enable_symmetric_edges=False,
+        enable_subclass_edges=True,
+    )
+    dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
+    assert_query_equals(dgraph_query, dgraph_query_match)
+    assert "in_edges-subclassObjB_e0" in dgraph_query, "Missing Case 3 ObjB alias"
+    assert "out_edges-subclassObjB-tail_e0" in dgraph_query, "Missing Case 3 ObjB tail alias"
+
+    result: dg_models.DgraphResponse = await driver.run_query(
+        dgraph_query, transpiler=transpiler
+    )
+    assert isinstance(result, dg_models.DgraphResponse)
+    assert result.data, "No data returned"
+    assert "q0" in result.data
+
+    n1_nodes = result.data["q0"]
+    assert len(n1_nodes) == 1, "Expected 1 root node (EFO:0004528)"
+
+    root_node = n1_nodes[0]
+    assert root_node.binding == "n1"
+    assert root_node.id == "EFO:0004528"
+    assert root_node.name == "mean corpuscular hemoglobin concentration"
+
+    # Case 3 Mirrored Form B: root receives an incoming P edge whose subject is
+    # INTERMEDIATE (GO:0031393), and INTERMEDIATE carries a subclass_of tail
+    # edge whose object is RESULT_N0 = GO:0051055.
+    intermediate_edges = [
+        e
+        for e in root_node.edges
+        if e.binding == "e0"
+        and e.direction == "in"
+        and e.predicate == "genetic_association"
+        and e.node.binding == "intermediate"
+    ]
+    assert intermediate_edges, (
+        "Expected incoming genetic_association edges (Case 3 ObjB) with an "
+        "intermediate node on the root EFO:0004528"
+    )
+
+    intermediate_ids = {e.node.id for e in intermediate_edges}
+    assert "GO:0031393" in intermediate_ids, (
+        "Expected GO:0031393 as the intermediate node in Case 3 ObjB expansion"
+    )
+
+    go031393_node = next(e.node for e in intermediate_edges if e.node.id == "GO:0031393")
+
+    # The intermediate must carry the subclass_of tail edge → GO:0051055
+    subclass_tail_edges = [
+        e
+        for e in go031393_node.edges
+        if e.binding == "e0" and e.direction == "out" and e.predicate == "subclass_of"
+    ]
+    assert subclass_tail_edges, (
+        "Expected outgoing subclass_of edge (Case 3 ObjB tail) on GO:0031393"
+    )
+
+    tail_n0_ids = {e.node.id for e in subclass_tail_edges}
+    assert "GO:0051055" in tail_n0_ids, (
+        "Expected GO:0051055 (negative regulation of lipid biosynthetic process) "
+        "as RESULT_N0 reached via Case 3 Mirrored Form B subclass expansion"
+    )
 
     await driver.close()
