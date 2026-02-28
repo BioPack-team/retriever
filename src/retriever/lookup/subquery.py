@@ -130,12 +130,12 @@ class SubqueryDispatcher(BatchedAction):
             f"Subquerying Tier 1 with batch of {len(payloads)} subqueries (originating from batch of {len(batch)})..."
         )
         query_driver = tier_manager.get_driver(1)
-        split = time.time()
-        logger.success(f"Got results in {math.ceil((split - start) * 1000)}ms")
         try:
             response_records = cast(
                 list[list[ESEdge]], await query_driver.run_query(payloads)
             )
+            split = time.time()
+            logger.success(f"Got results in {math.ceil((split - start) * 1000)}ms")
 
             results = dict[int, BackendResult]()
             for record, (subq, qgraph, transpiler) in zip(
