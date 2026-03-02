@@ -985,7 +985,7 @@ class QueryGraphExecutor:
             )
 
         self.job_log.debug(
-            f"Found and reformated dependents for subclass-derived {len(edges_to_fix)} edges."
+            f"Found and reformated dependents for {len(edges_to_fix)} subclass-derived edges."
         )
 
         self.insert_constructs(results, aux_graphs, edges_to_fix, construct_edges)
