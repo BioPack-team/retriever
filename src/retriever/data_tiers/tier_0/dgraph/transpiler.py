@@ -98,9 +98,9 @@ class DgraphTranspiler(Tier0Transpiler):
     PINNEDNESS_ADJ_WEIGHT: float = (
         0.1  # dampen adjacency contribution relative to the base ID selectivity
     )
-
-    # Sentinel prefix used in subclass form aliases for intermediate traversal nodes
-    _SUBCLASS_INTERMEDIATE_PREFIX = "intermediate"
+    SUBCLASS_INTERMEDIATE_PREFIX: str = (
+        "intermediate"  # Sentinel prefix used in subclass form aliases for intermediate traversal nodes
+    )
 
     FilterScalar: TypeAlias = str | int | float | bool  # noqa: UP040
     FilterValue: TypeAlias = FilterScalar | list[FilterScalar]  # noqa: UP040
@@ -1527,7 +1527,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
     def _is_subclass_intermediate_node(self, node: dg.Node) -> bool:
         """Return True if this node is a subclass traversal intermediate (not a real QNode)."""
-        return node.binding.startswith(self._SUBCLASS_INTERMEDIATE_PREFIX)
+        return node.binding.startswith(self.SUBCLASS_INTERMEDIATE_PREFIX)
 
     def _build_results(
         self,
