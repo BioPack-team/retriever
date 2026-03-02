@@ -79,19 +79,25 @@ class SubqueryDispatcher(BatchedAction):
             def return_result(
                 subq_result: tuple[KnowledgeGraphDict, list[LogEntryDict]],
             ) -> None:
-                self.subscriptions[subq_id].remove(return_result)
-                # Have to clean up or else memory leak since superpositions are MANY
-                if len(self.subscriptions[subq_id]) == 0:
-                    del self.subscriptions[subq_id]
+                try:
+                    self.subscriptions[subq_id].remove(return_result)
+                    # Have to clean up or else memory leak since superpositions are MANY
+                    if len(self.subscriptions[subq_id]) == 0:
+                        del self.subscriptions[subq_id]
 
-                end = time.time()
-                kg, logs = subq_result
-                job_log.debug(
-                    f"Subquery got {len(kg['edges'])} records as part of batched query in {math.ceil((end - start) * 1000)}ms"
-                )
-                logs.extend(job_log.get_logs())
+                    end = time.time()
+                    kg, logs = subq_result
+                    job_log.debug(
+                        f"Subquery got {len(kg['edges'])} records as part of batched query in {math.ceil((end - start) * 1000)}ms"
+                    )
+                    logs.extend(job_log.get_logs())
 
-                future.set_result(subq_result)
+                    if not future.cancelled():
+                        future.set_result(subq_result)
+                except Exception:
+                    job_log.exception(
+                        "Subquery result return failed for unknown reason."
+                    )
 
             if subq_id not in self.subscriptions:
                 self.subscriptions[subq_id] = []
