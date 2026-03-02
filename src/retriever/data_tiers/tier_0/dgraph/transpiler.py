@@ -99,6 +99,9 @@ class DgraphTranspiler(Tier0Transpiler):
         0.1  # dampen adjacency contribution relative to the base ID selectivity
     )
 
+    # Sentinel prefix used in subclass form aliases for intermediate traversal nodes
+    _SUBCLASS_INTERMEDIATE_PREFIX = "intermediate"
+
     FilterScalar: TypeAlias = str | int | float | bool  # noqa: UP040
     FilterValue: TypeAlias = FilterScalar | list[FilterScalar]  # noqa: UP040
     version: str | None
@@ -1522,17 +1525,44 @@ class DgraphTranspiler(Tier0Transpiler):
             self.k_agraph[qedge_id][subject_id][object_id] = list[EdgeIdentifier]()
         self.k_agraph[qedge_id][subject_id][object_id].append(edge_hash)
 
-    def _build_results(self, node: dg.Node, qg: QueryGraphDict) -> list[Partial]:
+    def _is_subclass_intermediate_node(self, node: dg.Node) -> bool:
+        """Return True if this node is a subclass traversal intermediate (not a real QNode)."""
+        return node.binding.startswith(self._SUBCLASS_INTERMEDIATE_PREFIX)
+
+    def _build_results(
+        self,
+        node: dg.Node,
+        qg: QueryGraphDict,
+        _ancestor_curie: str | None = None,
+    ) -> list[Partial]:
         """Recursively build results from dgraph response.
 
         Args:
-            node: Parsed node from Dgraph response (with bindings already restored to original IDs)
-            qg: The TRAPI query graph used in getting the response.
+            node: Parsed node from Dgraph response
+            qg: The TRAPI query graph
+            _ancestor_curie: CURIE of the nearest real (non-intermediate) ancestor node,
+                             used to correctly build TRAPI edges when skipping intermediates.
 
         Returns:
             List of partial results with original node/edge IDs
         """
         original_node_id = QNodeID(node.binding)
+
+        # Skip intermediate subclass traversal nodes.
+        # Pass the ancestor_curie down so child edges are built correctly.
+        if self._is_subclass_intermediate_node(node):
+            partials_from_children: list[Partial] = []
+            for edge in node.edges:
+                # Skip subclass_of edges entirely — traversal-only, not real QEdge results
+                if edge.predicate == "subclass_of":
+                    continue
+                partials_from_children.extend(
+                    self._build_results(edge.node, qg, _ancestor_curie=_ancestor_curie)
+                )
+            return partials_from_children
+
+        # This is a real QNode
+        real_curie = CURIE(node.id)
 
         if node.id not in self.kgraph["nodes"]:
             trapi_node = self._build_trapi_node(node)
@@ -1542,16 +1572,21 @@ class DgraphTranspiler(Tier0Transpiler):
             if not attributes_meet_contraints(constraints, attributes):
                 return []
 
-            self.kgraph["nodes"][CURIE(node.id)] = trapi_node
+            self.kgraph["nodes"][real_curie] = trapi_node
 
-        # If we hit a stop condition, return partial for the node
         if not len(node.edges):
-            return [Partial([(original_node_id, CURIE(node.id))], [])]
+            return [Partial([(original_node_id, real_curie)], [])]
 
         partials = {QEdgeID(edge.binding): list[Partial]() for edge in node.edges}
 
         for edge in node.edges:
             qedge_id = QEdgeID(edge.binding)
+
+            # Skip subclass_of edges — traversal-only
+            if edge.predicate == "subclass_of":
+                continue
+
+            # Build the TRAPI edge using the real node's CURIE (not an intermediate's)
             trapi_edge = self._build_trapi_edge(edge, node.id)
 
             constraints = qg["edges"][qedge_id].get("constraints", []) or []
@@ -1562,11 +1597,13 @@ class DgraphTranspiler(Tier0Transpiler):
 
             self._update_graphs(qedge_id, trapi_edge)
 
-            for partial in self._build_results(edge.node, qg):
+            for partial in self._build_results(
+                edge.node, qg, _ancestor_curie=node.id
+            ):
                 partials[qedge_id].append(
                     partial.combine(
                         Partial(
-                            [(original_node_id, CURIE(node.id))],
+                            [(original_node_id, real_curie)],
                             [(qedge_id, trapi_edge["subject"], trapi_edge["object"])],
                         )
                     )
