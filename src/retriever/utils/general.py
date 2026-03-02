@@ -138,19 +138,20 @@ class BatchedAction(AsyncDaemon, metaclass=Singleton):
                 for target, queue in self.action_queues.items():
                     now = time.time()
 
-                    if queue.qsize() > 0 and (
-                        target not in last_flush
-                        or now - last_flush[target] >= self.flush_time
-                    ):
-                        batch = [queue.get_nowait() for _ in range(queue.qsize())]
-                        last_flush[target] = now
-                    elif queue.qsize() < self.batch_size:
+                    should_flush = not (
+                        target in last_flush
+                        and now - last_flush[target] < self.flush_time
+                    )
+                    if queue.qsize() < self.batch_size and not should_flush:
                         continue
                     else:
                         batch = [
                             queue.get_nowait()
                             for _ in range(min(queue.qsize(), self.batch_size))
                         ]
+                        if should_flush:
+                            last_flush[target] = now
+
                     await getattr(self, target)(batch)
                 await asyncio.sleep(self.queue_delay)
 
