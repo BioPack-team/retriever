@@ -302,6 +302,7 @@ class ElasticSearchDriver(DatabaseDriver):
     @override
     async def get_subclass_mapping(
         self,
+        bypass_cache: bool = False,
     ) -> EntityToEntityMapping:
         """Get UBERGRAPH nodes mapping/adjacency list."""
-        return await get_ubergraph_info(self.es_connection)
+        return await get_ubergraph_info(self.es_connection, bypass_cache=bypass_cache)
