@@ -149,8 +149,7 @@ class ElasticSearchDriver(DatabaseDriver):
                 )
             else:
                 log.error(
-                    "Failed to clear Elasticsearch cache, response:",
-                    cache_clear_response,
+                    f"Failed to clear Elasticsearch cache, response: {cache_clear_response}"
                 )
 
                 raise RuntimeError(
