@@ -182,7 +182,7 @@ async def test_metadata_retrieval():
     except Exception:
         pytest.skip("skipping es driver connection test: cannot connect")
 
-    meta = await driver.get_metadata()
+    meta = await driver.get_metadata(bypass_cache=True)
 
     # make sure each index has metadata extracted
     indices = await get_t1_indices(driver.es_connection)
