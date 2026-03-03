@@ -176,7 +176,7 @@ class ElasticSearchDriver(DatabaseDriver):
             raise e
         except es_exceptions.ConnectionError:
             await self.connect()
-            return await self.run(query)
+            return await self.run(query, bypass_cache=bypass_cache)
         except es_exceptions.ApiError as e:
             log.exception("Elasticsearch query returned non-200 HTTP status")
             raise e
