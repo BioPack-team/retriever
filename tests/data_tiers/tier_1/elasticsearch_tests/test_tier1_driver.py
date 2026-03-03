@@ -169,8 +169,6 @@ async def test_valid_regex_query():
 
     for payload in qgraphs_with_valid_regex:
         hits: list[ESEdge] = await driver.run_query(payload)
-        print(len(hits))
-
 
 
 @pytest.mark.usefixtures("mock_elasticsearch_config")
