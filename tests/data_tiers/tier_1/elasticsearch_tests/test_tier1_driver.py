@@ -170,6 +170,8 @@ async def test_valid_regex_query():
     for payload in qgraphs_with_valid_regex:
         hits: list[ESEdge] = await driver.run_query(payload)
 
+    await driver.close()
+
 
 @pytest.mark.usefixtures("mock_elasticsearch_config")
 @pytest.mark.asyncio
@@ -198,6 +200,8 @@ async def test_metadata_retrieval():
 
     # assert len(nodes) == 23
 
+    await driver.close()
+
 
 @pytest.mark.usefixtures("mock_elasticsearch_config")
 @pytest.mark.asyncio
@@ -224,6 +228,8 @@ async def test_end_to_end(qgraph, expected_hits):
 
     assert len(hits) == expected_hits
 
+    await driver.close()
+
 
 @pytest.mark.usefixtures("mock_elasticsearch_config")
 @pytest.mark.asyncio
@@ -240,6 +246,8 @@ async def test_cache_bypass():
         pytest.skip("skipping es driver connection test: cannot connect")
 
     await driver.run_query(payload, bypass_cache=True)
+
+    await driver.close()
 
 
 
@@ -267,3 +275,5 @@ async def test_ubergraph_info_retrieval():
 
     # assert "mapping" in info
     assert len(info) == 122707
+
+    await driver.close()
