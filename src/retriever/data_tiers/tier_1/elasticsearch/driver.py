@@ -41,7 +41,7 @@ tracer = trace.get_tracer("lookup.execution.tracer")
 
 
 class ElasticSearchDriver(DatabaseDriver):
-    """An Elasticsesarch driver."""
+    """An Elasticsearch driver."""
 
     es_connection: AsyncElasticsearch | None = None
     _failed: bool = False
