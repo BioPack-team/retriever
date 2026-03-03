@@ -125,7 +125,7 @@ class ElasticSearchDriver(DatabaseDriver):
         self.es_connection = None
 
     async def run(
-        self, query: ESPayload | list[ESPayload]
+        self, query: ESPayload | list[ESPayload], bypass_cache: bool = False
     ) -> list[ESEdge] | list[list[ESEdge]]:
         """Execute query logic."""
         # Check ES connection instance
@@ -133,6 +133,29 @@ class ElasticSearchDriver(DatabaseDriver):
             raise RuntimeError(
                 "Must use ElasticSearchDriver.connect() before running queries."
             )
+
+        # clear cache if needed
+        if bypass_cache:
+            cache_clear_response = await self.es_connection.indices.clear_cache(
+                index=CONFIG.tier1.elasticsearch.index_name,
+            )
+
+            if (
+                cache_clear_response["_shards"]["successful"]
+                == cache_clear_response["_shards"]["total"]
+            ):
+                log.info(
+                    "Successfully cleared Elasticsearch cache to incoming queries."
+                )
+            else:
+                log.error(
+                    "Failed to clear Elasticsearch cache, response:",
+                    cache_clear_response,
+                )
+
+                raise RuntimeError(
+                    "Bypass_cache flag is set, but failed to clear Elasticsearch cache. See logs for details."
+                )
 
         try:
             # select query method based on incoming payload
@@ -183,7 +206,8 @@ class ElasticSearchDriver(DatabaseDriver):
                 attributes={"query_body": orjson.dumps(query).decode()},
             )
 
-        query_result = await self.run(query)
+        bypass_cache = kwargs.get("bypass_cache", False)
+        query_result = await self.run(query, bypass_cache)
         if otel_span is not None:
             otel_span.add_event("elasticsearch_query_end")
 

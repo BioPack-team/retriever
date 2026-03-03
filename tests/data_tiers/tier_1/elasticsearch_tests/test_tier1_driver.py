@@ -227,6 +227,24 @@ async def test_end_to_end(qgraph, expected_hits):
 
 @pytest.mark.usefixtures("mock_elasticsearch_config")
 @pytest.mark.asyncio
+async def test_cache_bypass():
+    transpiler = ElasticsearchTranspiler()
+    payload = _convert_triple(transpiler, DINGO_QGRAPH)
+
+    driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
+
+    try:
+        await driver.connect()
+        assert driver.es_connection is not None
+    except Exception:
+        pytest.skip("skipping es driver connection test: cannot connect")
+
+    await driver.run_query(payload, bypass_cache=True)
+
+
+
+@pytest.mark.usefixtures("mock_elasticsearch_config")
+@pytest.mark.asyncio
 async def test_ubergraph_info_retrieval():
     # --- MANUAL LOOP RESET ---
     # Since REDIS_CLIENT can retain stale connections/loop references from previous tests,
