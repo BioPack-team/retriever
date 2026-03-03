@@ -233,23 +233,36 @@ async def test_end_to_end(qgraph, expected_hits):
 
 @pytest.mark.usefixtures("mock_elasticsearch_config")
 @pytest.mark.asyncio
-async def test_cache_bypass():
+async def test_cache_bypass(monkeypatch: pytest.MonkeyPatch):
+    from unittest.mock import AsyncMock
+
     transpiler = ElasticsearchTranspiler()
     payload = _convert_triple(transpiler, DINGO_QGRAPH)
 
     driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
 
-    try:
-        await driver.connect()
-        assert driver.es_connection is not None
-    except Exception:
-        pytest.skip("skipping es driver connection test: cannot connect")
+    # Inject a mock ES connection so the test doesn't require a live ES instance
+    mock_es = AsyncMock()
+    mock_es.indices.clear_cache.return_value = {"_shards": {"successful": 1, "total": 1}}
+    driver.es_connection = mock_es
+
+    # Mock run_single_query to avoid actual ES queries
+    mock_run_single = AsyncMock(return_value=[])
+    monkeypatch.setattr(driver_mod, "run_single_query", mock_run_single)
 
     hits = await driver.run_query(payload, bypass_cache=True)
-    assert len(hits) == 8
+
+    mock_es.indices.clear_cache.assert_called_once_with(
+        index=driver_mod.CONFIG.tier1.elasticsearch.index_name
+    )
+    mock_run_single.assert_called_once_with(
+        es_connection=mock_es,
+        index_name=driver_mod.CONFIG.tier1.elasticsearch.index_name,
+        query=payload,
+    )
+    assert isinstance(hits, list)
 
     await driver.close()
-
 
 
 @pytest.mark.usefixtures("mock_elasticsearch_config")
