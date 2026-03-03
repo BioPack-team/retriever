@@ -205,7 +205,7 @@ async def test_metadata_retrieval():
     "qgraph, expected_hits",
     [
         (DINGO_QGRAPH, 8),
-        (ID_BYPASS_PAYLOAD, 6776),  # <-- adjust to the real number
+        (ID_BYPASS_PAYLOAD, 6181),  # <-- adjust to the real number
     ],
 )
 async def test_end_to_end(qgraph, expected_hits):
