@@ -110,37 +110,21 @@ class SubqueryDispatcher(BatchedAction):
         except asyncio.CancelledError:
             return KnowledgeGraphDict(nodes={}, edges={}), []
 
-    # TODO: split batch by job and run splits concurrently
-    async def batch_subquery(self, batch: list[SubqContext]) -> None:
-        """Produce query payloads and make them as a single batch query to the backend(s)."""
-        loggers = dict[int, TRAPILogger]()
-
-        query_mapping = list[tuple[SubqContext, QueryGraphDict, Transpiler]]()
-        payloads = list[Any]()
-        for subq in batch:
-            subq_id = hash((subq.job, subq.branch.superposition_id))
-            if subq_id not in loggers:
-                loggers[subq_id] = TRAPILogger(subq.job)
-
-            new_qgraphs, new_transpilers, new_payloads = self.make_payloads(
-                subq.branch, loggers[subq_id]
-            )
-            payloads.extend(new_payloads)
-            query_mapping.extend(
-                [
-                    (subq, qg, trans)
-                    for qg, trans in zip(new_qgraphs, new_transpilers, strict=True)
-                ]
-            )
-
+    async def handle_subquery_batch(
+        self,
+        payload_batch: list[Any],
+        query_mapping: list[tuple[SubqContext, QueryGraphDict, Transpiler]],
+        job_log: TRAPILogger,
+    ) -> None:
+        """Run a given subquery payload batch and transform the results, sending them to the callback."""
         start = time.time()
         logger.info(
-            f"Subquerying Tier 1 with batch of {len(payloads)} subqueries (originating from batch of {len(batch)})..."
+            f"Subquerying Tier 1 with batch of {len(payload_batch)} subqueries..."
         )
         query_driver = tier_manager.get_driver(1)
         try:
             response_records = cast(
-                list[list[ESEdge]], await query_driver.run_query(payloads)
+                list[list[ESEdge]], await query_driver.run_query(payload_batch)
             )
             split = time.time()
             logger.success(f"Got results in {math.ceil((split - start) * 1000)}ms")
@@ -158,7 +142,7 @@ class SubqueryDispatcher(BatchedAction):
                     try:
                         append_aggregator_source(edge, Infores("infores:retriever"))
                     except ValueError:
-                        loggers[subq_id].warning(
+                        job_log.warning(
                             f"Edge f{edge_id} has an invalid provenance chain."
                         )
 
@@ -187,21 +171,60 @@ class SubqueryDispatcher(BatchedAction):
 
             for subq_id, result in results.items():
                 for callback in self.subscriptions.get(subq_id, []):
-                    callback((result["knowledge_graph"], loggers[subq_id].get_logs()))
+                    callback((result["knowledge_graph"], job_log.get_logs()))
             end = time.time()
             logger.success(
                 f"Transformed results and sent to original callers in {math.ceil((end - split) * 1000)}ms"
             )
 
         except Exception as e:
-            for subq_id, job_log in loggers.items():
-                job_log.with_exception(
-                    "An unhandled error occurred in the query driver.", exception=e
-                )
+            job_log.with_exception(
+                "An unhandled error occurred in the query driver.", exception=e
+            )
+            for subq, _, _ in query_mapping:
+                subq_id = hash((subq.job, subq.branch.superposition_id))
                 for callback in self.subscriptions.get(subq_id, []):
                     callback(
                         (KnowledgeGraphDict(nodes={}, edges={}), job_log.get_logs())
                     )
+
+    async def batch_subquery(self, batch: list[SubqContext]) -> None:
+        """Produce query payloads and make them as a single batch query to the backend(s)."""
+        loggers = dict[str, TRAPILogger]()
+
+        query_mapping = dict[
+            str, list[tuple[SubqContext, QueryGraphDict, Transpiler]]
+        ]()
+        payloads = dict[str, list[Any]]()
+        for subq in batch:
+            if subq.job not in loggers:
+                loggers[subq.job] = TRAPILogger(subq.job)
+
+            new_qgraphs, new_transpilers, new_payloads = self.make_payloads(
+                subq.branch, loggers[subq.job]
+            )
+
+            # Separate payloads by job so queries can't time-contaminate each other
+            if subq.job not in payloads:
+                payloads[subq.job] = []
+                query_mapping[subq.job] = []
+            payloads[subq.job].extend(new_payloads)
+
+            query_mapping[subq.job].extend(
+                [
+                    (subq, qg, trans)
+                    for qg, trans in zip(new_qgraphs, new_transpilers, strict=True)
+                ]
+            )
+
+        for job, job_payloads in payloads.items():
+            self.tasks.append(
+                asyncio.create_task(
+                    self.handle_subquery_batch(
+                        job_payloads, query_mapping[job], loggers[job]
+                    )
+                )
+            )
 
     def make_payloads(
         self, branch: Branch, job_log: TRAPILogger
