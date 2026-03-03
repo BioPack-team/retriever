@@ -142,12 +142,15 @@ class BatchedAction(AsyncDaemon, metaclass=Singleton):
                         target in last_flush
                         and now - last_flush[target] < self.flush_time
                     )
-                    if queue.qsize() < self.batch_size and not should_flush:
+                    queue_size = queue.qsize()
+                    if queue_size == 0 or (
+                        queue_size < self.batch_size and not should_flush
+                    ):
                         continue
                     else:
                         batch = [
                             queue.get_nowait()
-                            for _ in range(min(queue.qsize(), self.batch_size))
+                            for _ in range(min(queue_size, self.batch_size))
                         ]
                         if should_flush:
                             last_flush[target] = now
