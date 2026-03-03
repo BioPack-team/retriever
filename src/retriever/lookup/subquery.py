@@ -51,8 +51,9 @@ class SubqueryDispatcher(BatchedAction):
 
     queue_delay: float = 0.025
     # Essentially should flush every interval
-    batch_size: int = 100
+    batch_size: int = 50
     flush_time: float = 0
+    multibatch: bool = True
 
     subscriptions: dict[
         int, list[Callable[[tuple[KnowledgeGraphDict, list[LogEntryDict]]], None]]
@@ -109,6 +110,7 @@ class SubqueryDispatcher(BatchedAction):
         except asyncio.CancelledError:
             return KnowledgeGraphDict(nodes={}, edges={}), []
 
+    # TODO: split batch by job and run splits concurrently
     async def batch_subquery(self, batch: list[SubqContext]) -> None:
         """Produce query payloads and make them as a single batch query to the backend(s)."""
         loggers = dict[int, TRAPILogger]()

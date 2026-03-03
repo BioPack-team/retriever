@@ -116,9 +116,12 @@ class AsyncDaemon(ABC, metaclass=Singleton):
 class BatchedAction(AsyncDaemon, metaclass=Singleton):
     """A base class for queuing and batching a number of different sink types."""
 
-    batch_size: int = 100
-    queue_delay: float = 0.1
-    flush_time: float = 1
+    batch_size: int = 100  # How many to batch together
+    queue_delay: float = 0.1  # How long between queue checks
+    flush_time: float = (
+        1  # How long until the queue should be flushed, even below batch size
+    )
+    multibatch: bool = False  # If true, drain the queue completely every interval and run all batches simultaneously
     action_queues: dict[str, asyncio.Queue[Any]]
 
     def __init__(self) -> None:
@@ -135,6 +138,9 @@ class BatchedAction(AsyncDaemon, metaclass=Singleton):
         last_flush: dict[str, float] = {}
         while True:
             try:
+                for task in self.tasks:  # Clean up finished batch tasks
+                    if task.cancelled() or task.done():
+                        self.tasks.remove(task)
                 for target, queue in self.action_queues.items():
                     now = time.time()
 
@@ -142,20 +148,30 @@ class BatchedAction(AsyncDaemon, metaclass=Singleton):
                         target in last_flush
                         and now - last_flush[target] < self.flush_time
                     )
+                    # Use a static batch size so as to not keep looping as new items
+                    # are queued
                     queue_size = queue.qsize()
                     if queue_size == 0 or (
                         queue_size < self.batch_size and not should_flush
                     ):
                         continue
-                    else:
-                        batch = [
-                            queue.get_nowait()
-                            for _ in range(min(queue_size, self.batch_size))
-                        ]
-                        if should_flush:
-                            last_flush[target] = now
 
-                    await getattr(self, target)(batch)
+                    batches = list[list[Any]]()
+
+                    while queue_size > 0:
+                        batch_size = min(queue_size, self.batch_size)
+                        batches.append([queue.get_nowait() for _ in range(batch_size)])
+                        queue_size -= batch_size
+                        if not self.multibatch:
+                            break
+
+                    if should_flush:
+                        last_flush[target] = now
+
+                    for batch in batches:
+                        self.tasks.append(
+                            asyncio.create_task(getattr(self, target)(batch))
+                        )
                 await asyncio.sleep(self.queue_delay)
 
             except asyncio.QueueEmpty:

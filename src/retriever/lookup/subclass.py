@@ -19,10 +19,11 @@ MAPPING_ID = "SubclassHashMap"
 class SubclassMapping(BatchedAction):
     """A redis-backed mapping from primary node CURIE to its ontological descendants."""
 
-    queue_delay: float = 0.05
+    queue_delay: float = 0.025
     # Essentially should flush every interval
     batch_size: int = 1000
     flush_time: float = 0
+    multibatch: bool = True
 
     is_leader: bool = False
     subscriptions: dict[CURIE, list[Callable[[list[CURIE]], None]]]
