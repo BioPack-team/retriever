@@ -245,7 +245,8 @@ async def test_cache_bypass():
     except Exception:
         pytest.skip("skipping es driver connection test: cannot connect")
 
-    await driver.run_query(payload, bypass_cache=True)
+    hits = await driver.run_query(payload, bypass_cache=True)
+    assert len(hits) == 8
 
     await driver.close()
 
