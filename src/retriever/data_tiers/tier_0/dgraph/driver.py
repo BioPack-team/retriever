@@ -578,6 +578,95 @@ class DgraphDriver(DatabaseDriver):
 
         return result
 
+    async def run_split_queries(
+        self,
+        main_query: str,
+        symmetric_queries: list[str],
+        subclassing_queries: list[str],
+        *,
+        transpiler: Any,
+        parallel: bool = False,
+    ) -> tuple[list[dg_models.Node], list[dg_models.Node]]:
+        """Execute split DQL queries and return two merged node lists.
+
+        Args:
+            main_query: The primary traversal DQL query string.
+            symmetric_queries: Per-symmetric-edge DQL query strings.
+            subclassing_queries: Per-subclassing-form DQL query strings.
+            transpiler: A :class:`DgraphTranspiler` instance used for ID mapping
+                inside each :meth:`run_query` call.
+            parallel: When ``True`` (default) all queries run concurrently via
+                :func:`asyncio.gather`.  When ``False`` they are executed one at
+                a time in order: main → each symmetric → each subclassing.
+                Sequential mode is useful for debugging or when the Dgraph
+                cluster cannot handle many concurrent transactions.
+
+        Returns:
+            A 2-tuple of:
+            - ``main_and_sym_nodes``: Merged :class:`dg_models.Node` list from
+              the main query plus all symmetric queries.
+            - ``subclassing_nodes``: Merged :class:`dg_models.Node` list from
+              all subclassing expansion queries.
+        """
+        log.trace(
+            f"Expanding split queries: parallel={parallel} | "
+            f"symmetric={len(symmetric_queries)} | subclassing={len(subclassing_queries)}"
+        )
+        log.trace(f"Main query: {main_query}")
+
+        all_main_sym: list[str] = [main_query] + symmetric_queries
+        all_queries: list[str] = all_main_sym + subclassing_queries
+
+        if parallel:
+            log.trace(main_query)
+            for i, q in enumerate(symmetric_queries):
+                log.trace(f"[symmetric {i}] {q}")
+            for i, q in enumerate(subclassing_queries):
+                log.trace(f"[subclass {i}] {q}")
+
+            raw_results: list[Any] = list(
+                await asyncio.gather(
+                    *[self.run_query(q, transpiler=transpiler) for q in all_queries],
+                    return_exceptions=True,
+                )
+            )
+        else:
+            raw_results = []
+            for i, q in enumerate(symmetric_queries):
+                try:
+                    log.trace(f"[symmetric {i}] {q}")
+                    raw_results.append(await self.run_query(q, transpiler=transpiler))
+                except Exception as exc:  # noqa: BLE001
+                    raw_results.append(exc)
+
+            for i, q in enumerate(subclassing_queries):
+                try:
+                    log.trace(f"[subclass {i}] {q}")
+                    raw_results.append(await self.run_query(q, transpiler=transpiler))
+                except Exception as exc:  # noqa: BLE001
+                    raw_results.append(exc)
+
+        main_sym_count = len(all_main_sym)
+        main_sym_raw = raw_results[:main_sym_count]
+        subclassing_raw = raw_results[main_sym_count:]
+
+        main_and_sym_nodes: list[dg_models.Node] = []
+        for i, res in enumerate(main_sym_raw):
+            if isinstance(res, BaseException):
+                query_label = "main" if i == 0 else f"symmetric[{i - 1}]"
+                log.warning(f"Split query {query_label} failed: {res}")
+            else:
+                main_and_sym_nodes.extend(res.data.get("q0", []))
+
+        subclassing_nodes: list[dg_models.Node] = []
+        for i, res in enumerate(subclassing_raw):
+            if isinstance(res, BaseException):
+                log.warning(f"Split query subclassing[{i}] failed: {res}")
+            else:
+                subclassing_nodes.extend(res.data.get("q0", []))
+
+        return main_and_sym_nodes, subclassing_nodes
+
     async def _run_grpc_query(
         self,
         query: str,

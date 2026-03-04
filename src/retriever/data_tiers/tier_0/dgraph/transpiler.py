@@ -1,7 +1,8 @@
 import itertools
 import math
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+import dataclasses
 from dataclasses import dataclass
 from typing import Any, Protocol, TypeAlias, override
 
@@ -337,6 +338,178 @@ class DgraphTranspiler(Tier0Transpiler):
             )
 
         return "{ " + main_block + subclassing_blocks + symmetric_blocks + "}"
+
+    # --- Split Query API ---
+
+    def build_split_queries(
+        self, qgraph: QueryGraphDict
+    ) -> tuple[str, list[str], list[str]]:
+        """Build separate, standalone DQL queries rather than one combined query.
+
+        Each symmetric edge and each subclassing expansion form is emitted as its
+        own ``{ ... }`` DQL query string.  Running them independently (in parallel)
+        allows partial failures to be isolated and keeps individual queries smaller.
+
+        Args:
+            qgraph: The TRAPI query graph to transpile.
+
+        Returns:
+            A 3-tuple of:
+            - ``main_query``: The primary traversal DQL query.
+            - ``symmetric_queries``: One DQL query per symmetric edge (may be empty).
+            - ``subclassing_queries``: One DQL query per subclassing expansion form
+              per eligible edge (may be empty).
+
+        Note:
+            Results from all three groups must be merged before calling
+            :meth:`convert_split_results`.  Main + symmetric results can be passed
+            directly; subclassing results will have their intermediate nodes
+            collapsed automatically inside ``convert_split_results``.
+        """
+        self._normalize_qgraph_ids(qgraph)
+        nodes = qgraph["nodes"]
+        edges = qgraph["edges"]
+        start_node_id = self._find_start_node(nodes, edges)
+
+        # Main query (also triggers _detect_symmetric_edges via _build_node_query)
+        main_block = self._build_node_query(start_node_id, nodes, edges, query_index=0)
+        main_query = "{ " + main_block + " }"
+
+        # One standalone query per symmetric edge
+        symmetric_queries: list[str] = []
+        if self.symmetric_root_enabled:
+            for block_str, n_id in self._iter_symmetric_query_strings(
+                nodes, edges, start_node_id, query_index=0
+            ):
+                symmetric_queries.append(
+                    self._make_standalone_query(block_str, query_index=0, normalized_node_id=n_id)
+                )
+
+        # One standalone query per subclassing expansion form
+        subclassing_queries: list[str] = []
+        if self.subclassing_enabled:
+            for block_str, n_id in self._iter_subclassing_query_strings(
+                nodes, edges, start_node_id, query_index=0
+            ):
+                subclassing_queries.append(
+                    self._make_standalone_query(block_str, query_index=0, normalized_node_id=n_id)
+                )
+
+        return main_query, symmetric_queries, subclassing_queries
+
+    def _make_standalone_query(
+        self, block_str: str, *, query_index: int, normalized_node_id: str
+    ) -> str:
+        """Wrap a root block string as a self-contained DQL query.
+
+        The block's custom name (e.g. ``q0subclassing_formB_e0_node_n0``) is
+        replaced with a standard ``q<N>_node_<id>`` alias so that
+        :class:`~retriever.data_tiers.tier_0.dgraph.result_models.DgraphResponse`
+        can parse the result into ``data["q<N>"]`` without any changes to the
+        existing parser.
+        """
+        paren_idx = block_str.index("(")
+        block_body = block_str[paren_idx:]
+        standard_alias = f"q{query_index}_node_{normalized_node_id}"
+        return "{ " + standard_alias + block_body + " }"
+
+    def _iter_subclassing_query_strings(
+        self,
+        nodes: Mapping[QNodeID, QNodeDict],
+        edges: Mapping[QEdgeID, QEdgeDict],
+        start_node_id: QNodeID,
+        query_index: int,
+    ) -> Iterator[tuple[str, str]]:
+        """Yield ``(block_str, normalized_root_node_id)`` for every subclassing form.
+
+        Mirrors the logic of :meth:`_build_subclassing_root_queries` but yields
+        each expansion form block individually rather than concatenating them.
+        """
+        for edge_id, edge in edges.items():
+            if self._is_subclass_of_predicate(edge):
+                continue
+
+            subject_node = nodes[edge["subject"]]
+            object_node = nodes[edge["object"]]
+            subject_has_ids = self._node_has_ids(subject_node)
+            object_has_ids = self._node_has_ids(object_node)
+            subject_cat_only = self._node_has_categories_only(subject_node)
+            object_cat_only = self._node_has_categories_only(object_node)
+
+            n_edge_id = self._get_normalized_edge_id(edge_id)
+            n_subject_id = self._get_normalized_node_id(edge["subject"])
+            n_object_id = self._get_normalized_node_id(edge["object"])
+
+            kwargs: dict = dict(
+                edge_id=edge_id,
+                edge=edge,
+                subject_node=subject_node,
+                object_node=object_node,
+                nodes=nodes,
+                edges=edges,
+                query_index=query_index,
+                normalized_edge_id=n_edge_id,
+                normalized_subject_id=n_subject_id,
+                normalized_object_id=n_object_id,
+            )
+
+            # Case 1: ID → P → ID  →  Forms B, C, D
+            if subject_has_ids and object_has_ids:
+                yield self._build_subclassing_form_b_id_to_id(**kwargs), n_subject_id
+                yield self._build_subclassing_form_c(**kwargs), n_subject_id
+                yield self._build_subclassing_form_d(**kwargs), n_subject_id
+
+            # Case 2: ID → P → CAT-only  →  Form B only
+            elif subject_has_ids and object_cat_only:
+                yield self._build_subclassing_form_b_id_to_cat(**kwargs), n_subject_id
+
+            # Case 3: CAT-only → P → ID  →  Embedded Form B from the main start node
+            elif subject_cat_only and object_has_ids:
+                n_start_id = self._get_normalized_node_id(start_node_id)
+                yield (
+                    self._build_subclassing_form_b_cat_to_id_embedded(
+                        start_node_id=start_node_id, **kwargs
+                    ),
+                    n_start_id,
+                )
+
+    def _iter_symmetric_query_strings(
+        self,
+        nodes: Mapping[QNodeID, QNodeDict],
+        edges: Mapping[QEdgeID, QEdgeDict],
+        start_node_id: QNodeID,
+        query_index: int,
+    ) -> Iterator[tuple[str, str]]:
+        """Yield ``(block_str, normalized_root_node_id)`` for every symmetric edge.
+
+        Mirrors the logic of :meth:`_build_symmetric_root_queries` but yields
+        each per-edge block individually rather than concatenating them.
+
+        Returns nothing if no symmetric edges were detected.
+        """
+        if not self._symmetric_edge_map:
+            return
+
+        n_start_id = self._get_normalized_node_id(start_node_id)
+        start_node = nodes[start_node_id]
+        start_filter = self._build_node_filter(start_node, primary=True)
+
+        for edge_id in self._symmetric_edge_map:
+            n_edge_id = self._get_normalized_edge_id(edge_id)
+            block_name = f"q{query_index}symmetric_{n_edge_id}_node_{n_start_id}"
+
+            self._symmetric_root_edge_id = edge_id
+            try:
+                q = f"{block_name}(func: {start_filter})"
+                q += self._build_node_cascade_clause(start_node_id, edges, {start_node_id})
+                q += " { "
+                q += self._add_standard_node_fields()
+                q += self._build_further_hops(start_node_id, nodes, edges, {start_node_id})
+                q += "} "
+            finally:
+                self._symmetric_root_edge_id = None
+
+            yield q, n_start_id
 
     def _find_start_node(
         self,
@@ -700,93 +873,95 @@ class DgraphTranspiler(Tier0Transpiler):
 
     def _add_standard_node_fields(self) -> str:
         """Generate standard node fields with versioned aliases."""
-        # return f"expand({self.prefix}Node) "
-        return f"""
-        {self.prefix}id
-        {self.prefix}name
-        {self.prefix}in_taxon
-        {self.prefix}information_content
-        {self.prefix}category
-        {self.prefix}inheritance
-        {self.prefix}provided_by
-        {self.prefix}description
-        {self.prefix}equivalent_identifiers
+        return f"expand({self.prefix}Node) "
+        # return f"""
+        # {self.prefix}id
+        # {self.prefix}name
+        # {self.prefix}in_taxon
+        # {self.prefix}information_content
+        # {self.prefix}category
+        # {self.prefix}inheritance
+        # {self.prefix}provided_by
+        # {self.prefix}description
+        # {self.prefix}equivalent_identifiers
 
-        {self.prefix}full_name
-        {self.prefix}symbol
-        {self.prefix}synonym
-        {self.prefix}xref
-        {self.prefix}taxon
+        # {self.prefix}full_name
+        # {self.prefix}symbol
+        # {self.prefix}synonym
+        # {self.prefix}xref
+        # {self.prefix}taxon
 
-        {self.prefix}chembl_availability_type
-        {self.prefix}chembl_black_box_warning
-        {self.prefix}chembl_natural_product
-        {self.prefix}chembl_prodrug
+        # {self.prefix}chembl_availability_type
+        # {self.prefix}chembl_black_box_warning
+        # {self.prefix}chembl_natural_product
+        # {self.prefix}chembl_prodrug
 
-        """
+        # """
+        # return f" {self.prefix}id {self.prefix}name {self.prefix}category {self.prefix}description "
 
     def _add_standard_edge_fields(self) -> str:
         """Generate standard edge fields with versioned aliases."""
-        # return f"expand({self.prefix}Edge) {{ {self.prefix}sources expand({self.prefix}Source) }} "
-        return f"""
-        {self.prefix}eid
-        {self.prefix}predicate
-        {self.prefix}predicate_ancestors
-        {self.prefix}agent_type
-        {self.prefix}knowledge_level
-        {self.prefix}publications
-        {self.prefix}source_inforeses
-        {self.prefix}subject_form_or_variant_qualifier
-        {self.prefix}qualified_predicate
-        {self.prefix}disease_context_qualifier
-        {self.prefix}frequency_qualifier
-        {self.prefix}onset_qualifier
-        {self.prefix}sex_qualifier
+        return f"expand({self.prefix}Edge) {{ {self.prefix}sources expand({self.prefix}Source) }} "
+        # return f"""
+        # {self.prefix}eid
+        # {self.prefix}predicate
+        # {self.prefix}predicate_ancestors
+        # {self.prefix}agent_type
+        # {self.prefix}knowledge_level
+        # {self.prefix}publications
+        # {self.prefix}source_inforeses
+        # {self.prefix}subject_form_or_variant_qualifier
+        # {self.prefix}qualified_predicate
+        # {self.prefix}disease_context_qualifier
+        # {self.prefix}frequency_qualifier
+        # {self.prefix}onset_qualifier
+        # {self.prefix}sex_qualifier
 
-        {self.prefix}anatomical_context_qualifier
-        {self.prefix}causal_mechanism_qualifier
-        {self.prefix}species_context_qualifier
-        {self.prefix}object_aspect_qualifier
-        {self.prefix}object_direction_qualifier
-        {self.prefix}subject_aspect_qualifier
-        {self.prefix}subject_direction_qualifier
-        {self.prefix}qualifier
+        # {self.prefix}anatomical_context_qualifier
+        # {self.prefix}causal_mechanism_qualifier
+        # {self.prefix}species_context_qualifier
+        # {self.prefix}object_aspect_qualifier
+        # {self.prefix}object_direction_qualifier
+        # {self.prefix}subject_aspect_qualifier
+        # {self.prefix}subject_direction_qualifier
+        # {self.prefix}qualifier
 
-        {self.prefix}FDA_regulatory_approvals
-        {self.prefix}clinical_approval_status
-        {self.prefix}max_research_phase
+        # {self.prefix}FDA_regulatory_approvals
+        # {self.prefix}clinical_approval_status
+        # {self.prefix}max_research_phase
 
-        {self.prefix}original_subject
-        {self.prefix}original_predicate
-        {self.prefix}original_object
-        {self.prefix}allelic_requirement
-        {self.prefix}update_date
-        {self.prefix}z_score
-        {self.prefix}p_value
-        {self.prefix}adjusted_p_value
-        {self.prefix}has_evidence
-        {self.prefix}has_confidence_score
-        {self.prefix}has_count
-        {self.prefix}has_total
-        {self.prefix}has_percentage
-        {self.prefix}has_quotient
-        {self.prefix}number_of_cases
-        {self.prefix}dgidb_evidence_score
-        {self.prefix}dgidb_interaction_score
-        {self.prefix}ecategory
+        # {self.prefix}original_subject
+        # {self.prefix}original_predicate
+        # {self.prefix}original_object
+        # {self.prefix}allelic_requirement
+        # {self.prefix}update_date
+        # {self.prefix}z_score
+        # {self.prefix}p_value
+        # {self.prefix}adjusted_p_value
+        # {self.prefix}has_evidence
+        # {self.prefix}has_confidence_score
+        # {self.prefix}has_count
+        # {self.prefix}has_total
+        # {self.prefix}has_percentage
+        # {self.prefix}has_quotient
+        # {self.prefix}number_of_cases
+        # {self.prefix}dgidb_evidence_score
+        # {self.prefix}dgidb_interaction_score
+        # {self.prefix}ecategory
 
-        {self.prefix}has_supporting_studies
+        # {self.prefix}has_supporting_studies
 
-        {self.prefix}sources {{
-            {self.prefix}source_id
-            {self.prefix}source_category
-            {self.prefix}resource_id
-            {self.prefix}resource_role
-            {self.prefix}upstream_resource_ids
-            {self.prefix}source_record_urls
-        }}
+        # {self.prefix}sources {{
+        #     {self.prefix}source_id
+        #     {self.prefix}source_category
+        #     {self.prefix}resource_id
+        #     {self.prefix}resource_role
+        #     {self.prefix}upstream_resource_ids
+        #     {self.prefix}source_record_urls
+        # }}
 
-        """
+        # """
+        # return f" {self.prefix}eid {self.prefix}predicate {self.prefix}predicate_ancestors {self.prefix}agent_type {self.prefix}ecategory "
 
     def _build_filter_clause(self, filters: list[str]) -> str:
         """Build filter clause from a list of filters."""
@@ -1527,6 +1702,122 @@ class DgraphTranspiler(Tier0Transpiler):
         q += "} } } } "
         return q
 
+    # --- Subclassing Result Flattening Methods ---
+
+    def _find_terminal_real_node(
+        self,
+        node: dg.Node,
+        qgraph: QueryGraphDict,
+        _depth: int = 0,
+    ) -> dg.Node | None:
+        """Return the first real (qgraph-bound) node reachable via subclass_of hops.
+
+        Starting from *node* (which may be an intermediate produced by a
+        subclassing query), the method follows any edges whose predicate contains
+        ``"subclass_of"`` until it finds a node whose :attr:`~dg.Node.binding`
+        matches a key in ``qgraph["nodes"]``.
+
+        Args:
+            node: Starting node (may be intermediate).
+            qgraph: The original TRAPI query graph used to identify real nodes.
+            _depth: Recursion guard (max 8 levels).
+
+        Returns:
+            The first real node found, or ``None`` if none is reachable.
+        """
+        if _depth > 8:
+            return None
+        if node.binding in qgraph["nodes"]:
+            return node
+        for edge in node.edges:
+            if "subclass_of" in edge.predicate:
+                found = self._find_terminal_real_node(edge.node, qgraph, _depth + 1)
+                if found is not None:
+                    return found
+        return None
+
+    def _flatten_subclassing_edges(
+        self,
+        edges: list[dg.Edge],
+        qgraph: QueryGraphDict,
+        _depth: int = 0,
+    ) -> list[dg.Edge]:
+        """Collapse intermediate subclassing nodes in an edge list.
+
+        Subclassing expansion queries introduce intermediate nodes (e.g. A' in
+        ``A→subclass_of→A'→P→B``).  These nodes are not in the query-graph and
+        would cause :meth:`_build_results` to crash.  This method rewrites the
+        edge list so that every edge points directly to a real (qgraph-bound)
+        target node:
+
+        * **Subclass_of hop → intermediate**: skip the hop; absorb its children
+          into the current level.
+        * **Predicate hop → intermediate**: keep the edge's predicate/sources/
+          qualifiers/attributes but replace the target with the real terminal
+          node found via :meth:`_find_terminal_real_node`.
+        * **Any hop → real node**: recurse into the target normally.
+
+        Args:
+            edges: Raw edge list from a parsed subclassing result node.
+            qgraph: The original TRAPI query graph.
+            _depth: Recursion guard (max 8 levels).
+
+        Returns:
+            Rewritten edge list whose every target is a real qgraph node.
+        """
+        if _depth > 8:
+            return []
+
+        result: list[dg.Edge] = []
+        for edge in edges:
+            target = edge.node
+            if target.binding in qgraph["nodes"]:
+                # Direct edge to a real node — recurse into the node's own edges
+                flattened_target = dataclasses.replace(
+                    target,
+                    edges=self._flatten_subclassing_edges(
+                        target.edges, qgraph, _depth + 1
+                    ),
+                )
+                result.append(dataclasses.replace(edge, node=flattened_target))
+            else:
+                # Intermediate node
+                if "subclass_of" in edge.predicate:
+                    # Subclass_of hop — skip it and absorb real edges from intermediate
+                    result.extend(
+                        self._flatten_subclassing_edges(
+                            target.edges, qgraph, _depth + 1
+                        )
+                    )
+                else:
+                    # Real predicate hop into an intermediate — find the terminal real node
+                    terminal = self._find_terminal_real_node(target, qgraph)
+                    if terminal is not None:
+                        result.append(dataclasses.replace(edge, node=terminal))
+
+        return result
+
+    def _flatten_subclassing_node(
+        self, node: dg.Node, qgraph: QueryGraphDict
+    ) -> dg.Node:
+        """Return *node* with all intermediate subclassing hops collapsed.
+
+        Applies :meth:`_flatten_subclassing_edges` to the node's top-level edge
+        list so that the result can be processed by the standard
+        :meth:`_build_results` pipeline without modifications.
+
+        Args:
+            node: A root-level node from a subclassing expansion query result.
+            qgraph: The original TRAPI query graph.
+
+        Returns:
+            A copy of *node* whose edges point only to real qgraph nodes.
+        """
+        return dataclasses.replace(
+            node,
+            edges=self._flatten_subclassing_edges(node.edges, qgraph),
+        )
+
     # --- Symmetric Root Query Methods ---
 
     def _build_symmetric_root_queries(
@@ -2084,6 +2375,92 @@ class DgraphTranspiler(Tier0Transpiler):
             logger.debug(f"Filtered to {len(results)} valid result paths")
 
         for node in results:
+            partials = self._build_results(node, qgraph)
+            partial_count += len(partials)
+            reconciled.update({hash(part): part for part in partials})
+
+        logger.debug(
+            f"Reconciled {partial_count} partials into {len(reconciled)} results."
+        )
+        trapi_results = [part.as_result(self.k_agraph) for part in reconciled.values()]
+
+        logger.info("Finished transforming records")
+        return BackendResult(
+            results=trapi_results,
+            knowledge_graph=self.kgraph,
+            auxiliary_graphs=dict[AuxGraphID, AuxiliaryGraphDict](),
+        )
+
+    def convert_split_results(
+        self,
+        qgraph: QueryGraphDict,
+        main_and_sym_nodes: list[dg.Node],
+        subclassing_nodes: list[dg.Node],
+    ) -> BackendResult:
+        """Convert results from split queries back to TRAPI.
+
+        This is the counterpart to :meth:`build_split_queries`.  It handles the
+        two conceptually different result sets that come back from parallel
+        query execution:
+
+        * **main_and_sym_nodes**: Root nodes from the main traversal query and
+          any per-symmetric-edge queries.  These have the same nested structure
+          as a regular ``convert_multihop`` response and are processed as-is
+          (after the symmetric OR-cascade filter is applied).
+
+        * **subclassing_nodes**: Root nodes from subclassing expansion queries
+          (Forms B, C, D and embedded Form B).  Their trees contain intermediate
+          nodes (A', B') that are not present in *qgraph*.  These are first
+          passed through :meth:`_flatten_subclassing_node` to collapse the
+          intermediate hops into direct ``A → predicate → B`` edges before
+          being fed into :meth:`_build_results`.
+
+        Args:
+            qgraph: The original TRAPI query graph.
+            main_and_sym_nodes: Merged node list from the main + symmetric queries.
+            subclassing_nodes: Merged node list from all subclassing expansion
+                queries.
+
+        Returns:
+            ``BackendResult`` with the combined TRAPI knowledge graph and results.
+        """
+        logger.info("Begin transforming records (split query mode)")
+
+        # Ensure normalization mappings exist
+        if not self._reverse_node_map or not self._reverse_edge_map:
+            self._normalize_qgraph_ids(qgraph)
+
+        self.k_agraph = {
+            QEdgeID(qedge_id): dict[CURIE, dict[CURIE, list[EdgeIdentifier]]]()
+            for qedge_id in qgraph["edges"]
+        }
+
+        # Apply symmetric cascade filter to main + symmetric nodes
+        if self._symmetric_edge_map:
+            logger.debug(
+                f"Applying symmetric cascade filter for {len(self._symmetric_edge_map)} edges"
+            )
+            main_and_sym_nodes = self._filter_cascaded_with_or(
+                main_and_sym_nodes, self._symmetric_edge_map
+            )
+            logger.debug(
+                f"Filtered to {len(main_and_sym_nodes)} valid main/symmetric paths"
+            )
+
+        # Flatten intermediate nodes from subclassing expansion results
+        flattened_subclassing: list[dg.Node] = [
+            self._flatten_subclassing_node(node, qgraph) for node in subclassing_nodes
+        ]
+        logger.debug(
+            f"Flattened {len(subclassing_nodes)} subclassing root nodes"
+        )
+
+        all_nodes = main_and_sym_nodes + flattened_subclassing
+
+        partial_count = 0
+        reconciled = dict[int, Partial]()
+
+        for node in all_nodes:
             partials = self._build_results(node, qgraph)
             partial_count += len(partials)
             reconciled.update({hash(part): part for part in partials})
