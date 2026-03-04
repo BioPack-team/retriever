@@ -11,6 +11,7 @@ from opentelemetry import trace
 from retriever.config.general import CONFIG
 from retriever.data_tiers.base_driver import DatabaseDriver
 from retriever.data_tiers.tier_1.elasticsearch.aggregating_querier import (
+    enforce_timestamp,
     run_batch_query,
     run_single_query,
 )
@@ -134,27 +135,8 @@ class ElasticSearchDriver(DatabaseDriver):
                 "Must use ElasticSearchDriver.connect() before running queries."
             )
 
-        # clear cache if needed
         if bypass_cache:
-            cache_clear_response = await self.es_connection.indices.clear_cache(
-                index=CONFIG.tier1.elasticsearch.index_name,
-            )
-
-            if (
-                cache_clear_response["_shards"]["successful"]
-                == cache_clear_response["_shards"]["total"]
-            ):
-                log.info(
-                    "Successfully cleared Elasticsearch cache to incoming queries."
-                )
-            else:
-                log.error(
-                    f"Failed to clear Elasticsearch cache, response: {cache_clear_response}"
-                )
-
-                raise RuntimeError(
-                    "Bypass_cache flag is set, but failed to clear Elasticsearch cache. See logs for details."
-                )
+            query = enforce_timestamp(query)
 
         try:
             # select query method based on incoming payload

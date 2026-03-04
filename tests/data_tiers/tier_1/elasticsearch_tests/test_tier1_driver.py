@@ -233,7 +233,82 @@ async def test_end_to_end(qgraph, expected_hits):
 
 @pytest.mark.usefixtures("mock_elasticsearch_config")
 @pytest.mark.asyncio
-async def test_cache_bypass(monkeypatch: pytest.MonkeyPatch):
+async def test_cache_bypass():
+    """Test bypass_cache=True with single payload - should apply enforce_timestamp.
+
+    Uses real ES connection to verify actual query execution behavior.
+    Compares results with and without bypass_cache to ensure timestamp filtering works.
+    """
+    transpiler = ElasticsearchTranspiler()
+    payload = _convert_triple(transpiler, DINGO_QGRAPH)
+
+    driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
+
+    try:
+        await driver.connect()
+        assert driver.es_connection is not None
+    except Exception:
+        pytest.skip("skipping bypass_cache test: cannot connect to elasticsearch")
+
+    # Execute query with bypass_cache=True (should enforce timestamp)
+    hits_with_bypass = await driver.run_query(payload, bypass_cache=True)
+
+    # Execute same query with bypass_cache=False (should not enforce timestamp)
+    hits_without_bypass = await driver.run_query(payload, bypass_cache=False)
+
+    # Both should return lists
+    assert isinstance(hits_with_bypass, list)
+    assert isinstance(hits_without_bypass, list)
+
+    # Results with bypass should be a subset or equal to results without bypass
+    # (since adding timestamp constraint can only reduce or maintain result count)
+    assert len(hits_with_bypass) == len(hits_without_bypass)
+
+    await driver.close()
+
+@pytest.mark.usefixtures("mock_elasticsearch_config")
+@pytest.mark.asyncio
+async def test_cache_bypass_batch_query():
+    """Test bypass_cache=True with batch payloads - should apply enforce_timestamp to each.
+
+    Uses real ES connection to verify batch query execution behavior.
+    Compares results with and without bypass_cache for batch processing.
+    """
+    transpiler = ElasticsearchTranspiler()
+    batch_payloads = _convert_batch_triple(transpiler, [DINGO_QGRAPH, ID_BYPASS_PAYLOAD])
+
+    driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
+
+    try:
+        await driver.connect()
+        assert driver.es_connection is not None
+    except Exception:
+        pytest.skip("skipping batch bypass_cache test: cannot connect to elasticsearch")
+
+    # Execute batch query with bypass_cache=True (should enforce timestamp on all)
+    hits_with_bypass: list[list[ESEdge]] = await driver.run_query(batch_payloads, bypass_cache=True)
+
+    # Execute same batch query with bypass_cache=False (should not enforce timestamp)
+    hits_without_bypass: list[list[ESEdge]] = await driver.run_query(batch_payloads, bypass_cache=False)
+
+    # Both should return list of lists with same structure
+    assert isinstance(hits_with_bypass, list)
+    assert isinstance(hits_without_bypass, list)
+    assert len(hits_with_bypass) == 2
+    assert len(hits_without_bypass) == 2
+
+    # Results should be identical since timestamp filtering should not affect these results
+    assert len(hits_with_bypass[0]) == len(hits_without_bypass[0])
+    assert len(hits_with_bypass[1]) == len(hits_without_bypass[1])
+
+    await driver.close()
+
+
+
+@pytest.mark.usefixtures("mock_elasticsearch_config")
+@pytest.mark.asyncio
+async def test_cache_bypass_timestamp_structure(monkeypatch: pytest.MonkeyPatch):
+    """Verify the timestamp structure is correctly added to queries when bypass_cache=True."""
     from unittest.mock import AsyncMock
 
     transpiler = ElasticsearchTranspiler()
@@ -241,26 +316,44 @@ async def test_cache_bypass(monkeypatch: pytest.MonkeyPatch):
 
     driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
 
-    # Inject a mock ES connection so the test doesn't require a live ES instance
+    # Inject a mock ES connection
     mock_es = AsyncMock()
-    mock_es.indices.clear_cache.return_value = {"_shards": {"successful": 1, "total": 1}}
     driver.es_connection = mock_es
 
-    # Mock run_single_query to avoid actual ES queries
-    mock_run_single = AsyncMock(return_value=[])
-    monkeypatch.setattr(driver_mod, "run_single_query", mock_run_single)
+    # Capture the actual query passed to run_single_query
+    captured_query = None
 
-    hits = await driver.run_query(payload, bypass_cache=True)
+    async def mock_run_single(es_connection, index_name, query):
+        nonlocal captured_query
+        captured_query = query
+        return []
 
-    mock_es.indices.clear_cache.assert_called_once_with(
-        index=driver_mod.CONFIG.tier1.elasticsearch.index_name
-    )
-    mock_run_single.assert_called_once_with(
-        es_connection=mock_es,
-        index_name=driver_mod.CONFIG.tier1.elasticsearch.index_name,
-        query=payload,
-    )
-    assert isinstance(hits, list)
+    mock_run_single_obj = AsyncMock(side_effect=mock_run_single)
+    monkeypatch.setattr(driver_mod, "run_single_query", mock_run_single_obj)
+
+    await driver.run_query(payload, bypass_cache=True)
+
+    # Verify timestamp was added to filters (proof that enforce_timestamp was called)
+    if captured_query is None:
+        pytest.fail("Query was not captured")
+
+    filters = captured_query["query"]["bool"].get("filter", [])
+
+    # Check that timestamp filter was added
+    timestamp_filter_found = False
+    for f in filters:
+        if isinstance(f, dict) and "bool" in f:
+            bool_filter = f["bool"]
+            if "should" in bool_filter:
+                should_clauses = bool_filter["should"]
+                # Check for timestamp range and null check clauses
+                has_range = any("range" in clause and "update_date" in clause.get("range", {}) for clause in should_clauses)
+                has_null_check = any("bool" in clause and "must_not" in clause.get("bool", {}) for clause in should_clauses)
+                if has_range and has_null_check:
+                    timestamp_filter_found = True
+                    break
+
+    assert timestamp_filter_found, "Timestamp filter not correctly added to query"
 
     await driver.close()
 

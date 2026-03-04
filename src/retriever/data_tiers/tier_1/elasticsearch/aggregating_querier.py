@@ -1,8 +1,11 @@
-from typing import Any, NotRequired
+from typing import Any, NotRequired, cast
 
 from elastic_transport import ObjectApiResponse
 from elasticsearch import AsyncElasticsearch
 
+from retriever.data_tiers.tier_1.elasticsearch.constraints.types.qualifier_types import (
+    ESTermClause,
+)
 from retriever.data_tiers.tier_1.elasticsearch.types import (
     ESDocument,
     ESEdge,
@@ -136,3 +139,39 @@ async def run_batch_query(
         current_query_indices = next_query_indices
 
     return results
+
+
+def add_timestamp_check_to_query(query: ESPayload) -> ESPayload:
+    """Add a timestamp check to an ES query to ensure data freshness."""
+    timestamp_payload = cast(
+        ESTermClause,
+        cast(
+            Any,
+            {
+                "bool": {
+                    "should": [
+                        {"range": {"update_date": {"lte": "now"}}},
+                        {"bool": {"must_not": {"exists": {"field": "update_date"}}}},
+                    ],
+                    "minimum_should_match": 1,
+                }
+            },
+        ),
+    )
+
+    filters = query["query"]["bool"].get("filter", [])
+    filters.append(timestamp_payload)
+
+    query["query"]["bool"]["filter"] = filters
+
+    return query
+
+
+def enforce_timestamp(
+    query: ESPayload | list[ESPayload],
+) -> ESPayload | list[ESPayload]:
+    """Enforce timestamp check on a query to ensure data freshness."""
+    if isinstance(query, list):
+        return [add_timestamp_check_to_query(q) for q in query]
+
+    return add_timestamp_check_to_query(query)
