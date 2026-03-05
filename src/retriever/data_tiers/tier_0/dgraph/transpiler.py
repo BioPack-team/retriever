@@ -539,8 +539,8 @@ class DgraphTranspiler(Tier0Transpiler):
             qset: Sequence[QualifierDict] = qc["qualifier_set"]
             and_filters: list[str] = []
             for q in qset:
-                qtype = str(q["qualifier_type_id"]).replace("biolink:", "")
-                qval = q["qualifier_value"]
+                qtype = biolink.rmprefix(q["qualifier_type_id"])
+                qval = biolink.rmprefix(q["qualifier_value"]) if "qualified_predicate" in qtype else q["qualifier_value"]
                 if not qtype or qval == "":
                     continue
                 field = self._v(qtype)
@@ -1139,7 +1139,7 @@ class DgraphTranspiler(Tier0Transpiler):
                     qualifier_type_id=QualifierTypeID(
                         biolink.ensure_prefix(qualifier_id)
                     ),
-                    qualifier_value=value,
+                    qualifier_value=biolink.ensure_prefix(value) if "qualified_predicate" in qualifier_id else value,
                 )
             )
 
