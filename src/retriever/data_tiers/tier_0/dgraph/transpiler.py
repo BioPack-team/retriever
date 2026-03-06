@@ -98,11 +98,18 @@ class DgraphTranspiler(Tier0Transpiler):
     PINNEDNESS_ADJ_WEIGHT: float = (
         0.1  # dampen adjacency contribution relative to the base ID selectivity
     )
+    SUBCLASS_INTERMEDIATE_PREFIX: str = (
+        "intermediate"  # Sentinel prefix used in subclass form aliases for intermediate traversal nodes
+    )
 
     FilterScalar: TypeAlias = str | int | float | bool  # noqa: UP040
     FilterValue: TypeAlias = FilterScalar | list[FilterScalar]  # noqa: UP040
     version: str | None
     prefix: str
+
+    # Feature flags
+    _symmetric_edges_enabled: bool
+    _subclass_edges_enabled: bool
 
     # Normalization mappings for injection prevention
     _node_id_map: dict[QNodeID, str]
@@ -110,17 +117,36 @@ class DgraphTranspiler(Tier0Transpiler):
     _reverse_node_map: dict[str, QNodeID]
     _reverse_edge_map: dict[str, QEdgeID]
 
-    def __init__(self, version: str | None = None) -> None:
+    def __init__(
+        self,
+        version: str | None = None,
+        enable_symmetric_edges: bool | None = None,
+        enable_subclass_edges: bool | None = None,
+    ) -> None:
         """Initialize a Transpiler instance.
 
         Args:
             version: An optional version string to prefix to all schema fields.
+            enable_symmetric_edges: Enable symmetric edge expansion. If None, uses config value.
+            enable_subclass_edges: Enable subclass edge expansion. If None, uses config value.
         """
         super().__init__()
         self.kgraph: KnowledgeGraphDict = KnowledgeGraphDict(nodes={}, edges={})
         self.k_agraph: KAdjacencyGraph
         self.version = version
         self.prefix = f"{version}_" if version else ""
+
+        # Load feature flags from config, but allow override via parameters
+        self._symmetric_edges_enabled = (
+            enable_symmetric_edges
+            if enable_symmetric_edges is not None
+            else CONFIG.tier0.dgraph.enable_symmetric_edges
+        )
+        self._subclass_edges_enabled = (
+            enable_subclass_edges
+            if enable_subclass_edges is not None
+            else CONFIG.tier0.dgraph.enable_subclass_edges
+        )
 
         # Initialize normalization mappings
         self._node_id_map = {}
@@ -129,6 +155,7 @@ class DgraphTranspiler(Tier0Transpiler):
         self._reverse_edge_map = {}
 
         self._symmetric_edge_map: dict[QEdgeID, tuple[str, str]] = {}
+        self._subclass_edge_map: dict[QEdgeID, list[str]] = {}
 
     def _v(self, field: str) -> str:
         """Return the versioned field name."""
@@ -139,6 +166,91 @@ class DgraphTranspiler(Tier0Transpiler):
         if self.version:
             return " ".join(f"{field}: {self._v(field)}" for field in fields) + " "
         return " ".join(fields) + " "
+
+    def _node_has_ids(self, node: QNodeDict) -> bool:
+        """Check if node has IDs specified."""
+        ids = node.get("ids")
+        return bool(ids and len(ids) > 0)
+
+    def _node_has_categories(self, node: QNodeDict) -> bool:
+        """Check if node has categories specified."""
+        cats = node.get("categories")
+        return bool(cats and len(cats) > 0)
+
+    def _is_subclass_predicate(self, predicates: Sequence[str] | None) -> bool:
+        """Return True if predicates contain biolink:subclass_of."""
+        if not predicates:
+            return False
+        return any(str(p).endswith("subclass_of") for p in predicates)
+
+    def _subclass_edge_filter(self) -> str:
+        """Filter clause for subclass_of edges only."""
+        return f'eq({self._v("predicate_ancestors")}, "subclass_of")'
+
+    def _detect_symmetric_and_subclass_edges(
+        self,
+        edges: Mapping[QEdgeID, QEdgeDict],
+        nodes: Mapping[QNodeID, QNodeDict],
+    ) -> None:
+        """Pre-detect all symmetric and subclass edges in the query graph.
+
+        This must be called before building the query to ensure cascade
+        clauses can correctly identify nodes with special edges.
+
+        Args:
+            edges: Dictionary of all edges in the query graph
+            nodes: Dictionary of all nodes in the query graph
+        """
+        self._symmetric_edge_map.clear()
+        self._subclass_edge_map.clear()
+
+        for edge_id, edge in edges.items():
+            predicates = edge.get("predicates") or []
+            is_symmetric = any(biolink.is_symmetric(str(pred)) for pred in predicates)
+            is_subclass = self._is_subclass_predicate(predicates)
+
+            if is_symmetric and self._symmetric_edges_enabled:
+                normalized_edge_id = self._get_normalized_edge_id(edge_id)
+                primary = f"in_edges_{normalized_edge_id}"
+                symmetric = f"out_edges-symmetric_{normalized_edge_id}"
+                self._symmetric_edge_map[edge_id] = (primary, symmetric)
+
+            # Detect subclass expansion cases (skip if edge itself is subclass_of)
+            if not is_subclass and self._subclass_edges_enabled:
+                source_id = edge["subject"]
+                target_id = edge["object"]
+                source_node = nodes[source_id]
+                target_node = nodes[target_id]
+
+                normalized_edge_id = self._get_normalized_edge_id(edge_id)
+                subclass_forms: list[str] = []
+
+                # Case 1: ID -> predicate -> ID
+                if self._node_has_ids(source_node) and self._node_has_ids(target_node):
+                    subclass_forms.extend(
+                        [
+                            f"in_edges-subclassB_{normalized_edge_id}",
+                            f"out_edges-subclassC_{normalized_edge_id}",
+                            f"in_edges-subclassD_{normalized_edge_id}",
+                        ]
+                    )
+                # Case 2: ID -> predicate -> CAT
+                elif (
+                    self._node_has_ids(source_node)
+                    and self._node_has_categories(target_node)
+                    and not self._node_has_ids(target_node)
+                ):
+                    subclass_forms.append(f"in_edges-subclassB_{normalized_edge_id}")
+                # Mirrored Case 2: CAT -> predicate -> ID
+                elif (
+                    self._node_has_ids(target_node)
+                    and self._node_has_categories(source_node)
+                    and not self._node_has_ids(source_node)
+                ):
+                    subclass_forms.append(f"in_edges-subclassObjB_{normalized_edge_id}")
+
+                if subclass_forms:
+                    self._subclass_edge_map[edge_id] = subclass_forms
 
     def _normalize_qgraph_ids(self, qgraph: QueryGraphDict) -> None:
         """Create normalized mappings for node and edge IDs to prevent injection attacks.
@@ -217,7 +329,10 @@ class DgraphTranspiler(Tier0Transpiler):
         return self._reverse_edge_map.get(normalized_id, QEdgeID(normalized_id))
 
     def _filter_cascaded_with_or(
-        self, nodes: list[dg.Node], symmetric_edges: dict[QEdgeID, tuple[str, str]]
+        self,
+        nodes: list[dg.Node],
+        symmetric_edges: dict[QEdgeID, tuple[str, str]],
+        subclass_edges: dict[QEdgeID, list[str]],
     ) -> list[dg.Node]:
         """Filter results to enforce cascade with OR logic between symmetric edge directions.
 
@@ -225,13 +340,16 @@ class DgraphTranspiler(Tier0Transpiler):
             nodes: Parsed Dgraph response nodes
             symmetric_edges: Map of edge IDs to their (primary, symmetric) field name pairs
                         e.g., {QEdgeID('e0'): ('in_edges_e0', 'out_edges-symmetric_e0')}
+            subclass_edges: Map of edge IDs to their subclass expansion field name lists
 
         Returns:
             Filtered list of nodes that satisfy cascade with OR logic
         """
 
         def validate_edge_path(
-            node: dg.Node, symmetric_map: Mapping[QEdgeID, tuple[str, str]]
+            node: dg.Node,
+            symmetric_map: Mapping[QEdgeID, tuple[str, str]],
+            subclass_map: Mapping[QEdgeID, list[str]],
         ) -> bool:
             """Recursively validate all edges in the path."""
             if not node.edges:
@@ -245,28 +363,31 @@ class DgraphTranspiler(Tier0Transpiler):
                     edges_by_qid[qid] = []
                 edges_by_qid[qid].append(edge)
 
-            # Check each edge group - must have at least one valid path
+            # Check each edge group
             for qid, edge_group in edges_by_qid.items():
-                if qid in symmetric_map:
-                    # For symmetric edges, check if at least one direction has valid nested paths
+                # For edges with OR logic (symmetric or subclass), at least one path must be valid
+                if qid in symmetric_map or qid in subclass_map:
                     has_valid = False
                     for edge in edge_group:
-                        if validate_edge_path(edge.node, symmetric_map):
+                        if validate_edge_path(edge.node, symmetric_map, subclass_map):
                             has_valid = True
                             break
                     if not has_valid:
                         return False
                 else:
-                    # For non-symmetric edges, all must be valid
+                    # For regular edges, all must be valid
                     for edge in edge_group:
-                        if not validate_edge_path(edge.node, symmetric_map):
+                        if not validate_edge_path(
+                            edge.node, symmetric_map, subclass_map
+                        ):
                             return False
 
             return True
 
-        # Filter top-level nodes
         filtered: list[dg.Node] = [
-            node for node in nodes if validate_edge_path(node, symmetric_edges)
+            node
+            for node in nodes
+            if validate_edge_path(node, symmetric_edges, subclass_edges)
         ]
 
         return filtered
@@ -773,41 +894,41 @@ class DgraphTranspiler(Tier0Transpiler):
     ) -> str:
         """Build a @cascade(...) clause for a node block.
 
-        Always require id. If this node is ONLY connected by symmetric edges
-        going to unvisited nodes, only require id (let post-processing handle the OR logic).
-        Otherwise, require reverse predicates (~subject, ~object) for
-        traversals to not-yet-visited nodes.
+        Always require id. Only require reverse predicates (~subject, ~object) for edges
+        that are NOT symmetric or subclass-expanded (those use OR logic in post-processing).
         """
         cascade_fields: list[str] = [self._v("id")]
 
         # Check outgoing edges (node as subject) to unvisited objects
-        has_non_symmetric_out = False
+        has_non_special_out = False
         for e_id, e in edges.items():
             if (
                 e["subject"] == node_id
                 and e["object"] not in visited
                 and e_id not in self._symmetric_edge_map
+                and e_id not in self._subclass_edge_map
             ):
-                has_non_symmetric_out = True
+                has_non_special_out = True
                 break
 
-        # Only require ~subject if there are non-symmetric outgoing edges
-        if has_non_symmetric_out:
+        # Only require ~subject if there are non-special outgoing edges
+        if has_non_special_out:
             cascade_fields.append(f"~{self._v('subject')}")
 
         # Check incoming edges (node as object) to unvisited subjects
-        has_non_symmetric_in = False
+        has_non_special_in = False
         for e_id, e in edges.items():
             if (
                 e["object"] == node_id
                 and e["subject"] not in visited
                 and e_id not in self._symmetric_edge_map
+                and e_id not in self._subclass_edge_map
             ):
-                has_non_symmetric_in = True
+                has_non_special_in = True
                 break
 
-        # Only require ~object if there are non-symmetric incoming edges
-        if has_non_symmetric_in:
+        # Only require ~object if there are non-special incoming edges
+        if has_non_special_in:
             cascade_fields.append(f"~{self._v('object')}")
 
         return f" @cascade({', '.join(cascade_fields)})"
@@ -855,8 +976,8 @@ class DgraphTranspiler(Tier0Transpiler):
         Returns:
             Query fragment string with normalized identifiers
         """
-        # Pre-detect symmetric edges before building any queries
-        self._detect_symmetric_edges(edges)
+        # Pre-detect symmetric AND subclass edges before building any queries
+        self._detect_symmetric_and_subclass_edges(edges, nodes)
 
         node = nodes[node_id]
 
@@ -907,6 +1028,9 @@ class DgraphTranspiler(Tier0Transpiler):
 
         # Check if this edge was already detected as symmetric
         is_symmetric = ctx.edge_id in self._symmetric_edge_map
+
+        # Check if this edge was already detected as subclass expansion
+        is_subclass = self._is_subclass_predicate(ctx.edge.get("predicates"))
 
         edge_filter = self._build_edge_filter(ctx.edge)
         filter_clause = f" @filter({edge_filter})" if edge_filter else ""
@@ -959,6 +1083,51 @@ class DgraphTranspiler(Tier0Transpiler):
                 edges=ctx.edges,
             )
             query += self._build_single_direction_traversal(reverse_ctx)
+
+        if ctx.edge_id in self._subclass_edge_map and not is_subclass:
+            source_id = ctx.edge["subject"]
+            target_id = ctx.edge["object"]
+            source_node = ctx.nodes[source_id]
+            target_node = ctx.nodes[target_id]
+
+            # Case 1: ID -> predicate -> ID (build all three forms regardless of direction)
+            if self._node_has_ids(source_node) and self._node_has_ids(target_node):
+                query += self._build_subclass_form_b(ctx, normalized_edge_id)
+                query += self._build_subclass_form_c(ctx, normalized_edge_id)
+                query += self._build_subclass_form_d(ctx, normalized_edge_id)
+
+            # Case 2: ID -> predicate -> CAT (only Form B, source must have IDs)
+            elif (
+                self._node_has_ids(source_node)
+                and self._node_has_categories(target_node)
+                and not self._node_has_ids(target_node)
+            ):
+                # Build Form B when we're at the ID node (source) traversing toward the CAT node
+                # This works regardless of which direction the pinnedness algorithm chose
+                if ctx.edge_direction == "out" and ctx.target_id == target_id:
+                    # Forward: at source (ID), going to object (CAT)
+                    query += self._build_subclass_form_b(ctx, normalized_edge_id)
+                elif ctx.edge_direction == "in" and ctx.target_id == source_id:
+                    # Backward: at object (CAT), going to subject (ID) - still need Form B
+                    query += self._build_subclass_form_b(ctx, normalized_edge_id)
+
+            # Mirrored Case 2: CAT -> predicate -> ID (only mirrored Form B, target must have IDs)
+            elif (
+                self._node_has_categories(source_node)
+                and not self._node_has_ids(source_node)
+                and self._node_has_ids(target_node)
+            ):
+                # Build mirrored Form B when we're at the ID node (target) looking back to CAT
+                if ctx.edge_direction == "out" and ctx.target_id == target_id:
+                    # Forward: at CAT (source), going to ID (object)
+                    query += self._build_subclass_object_case3_form_b(
+                        ctx, normalized_edge_id
+                    )
+                elif ctx.edge_direction == "in" and ctx.target_id == source_id:
+                    # Backward: at ID (object), going back to CAT (subject)
+                    query += self._build_subclass_object_case3_form_b(
+                        ctx, normalized_edge_id
+                    )
 
         return query
 
@@ -1045,6 +1214,119 @@ class DgraphTranspiler(Tier0Transpiler):
                 )
                 query += self._build_edge_traversal(ctx)
 
+        return query
+
+    def _build_subclass_form_b(self, ctx: EdgeTraversalContext, norm_eid: str) -> str:
+        """Form B: A' subclass_of→ A; A' → predicate1 → B."""
+        alias = f"in_edges-subclassB_{norm_eid}"
+        subclass_filter_clause = f" @filter({self._subclass_edge_filter()})"
+        query = f"{alias}: ~{self._v('object')}{subclass_filter_clause} @cascade({self._v('predicate')}, {self._v('subject')}) {{ "
+        query += self._add_standard_edge_fields()
+        mid_edge_alias = f"out_edges-subclassB-mid_{norm_eid}"
+        query += f"node_intermediate: {self._v('subject')} @filter(has({self._v('id')})) @cascade({self._v('id')}, ~{self._v('subject')}) {{ "
+        query += self._add_standard_node_fields()
+        pred_edge_filter = self._build_edge_filter(ctx.edge)
+        pred_filter_clause = f" @filter({pred_edge_filter})" if pred_edge_filter else ""
+        normalized_target_id = self._get_normalized_node_id(ctx.target_id)
+        query += f"{mid_edge_alias}: ~{self._v('subject')}{pred_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
+        query += self._add_standard_edge_fields()
+        query += f"node_{normalized_target_id}: {self._v('object')}"
+        target_filter = self._build_node_filter(ctx.target_node)
+        if target_filter:
+            query += f" @filter({target_filter})"
+        query += self._build_node_cascade_clause(
+            ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
+        )
+        query += " { " + self._add_standard_node_fields() + " } } } } "
+        return query
+
+    def _build_subclass_form_c(self, ctx: EdgeTraversalContext, norm_eid: str) -> str:
+        """Form C: A → predicate1 → B'; B' subclass_of→ B."""
+        alias = f"out_edges-subclassC_{norm_eid}"
+        pred_edge_filter = self._build_edge_filter(ctx.edge)
+        pred_filter_clause = f" @filter({pred_edge_filter})" if pred_edge_filter else ""
+        query = f"{alias}: ~{self._v('subject')}{pred_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
+        query += self._add_standard_edge_fields()
+        tail_edge_alias = f"out_edges-subclassC-tail_{norm_eid}"
+        query += f"node_intermediate: {self._v('object')} @filter(has({self._v('id')})) @cascade({self._v('id')}, ~{self._v('subject')}) {{ "
+        query += self._add_standard_node_fields()
+        subclass_filter_clause = f" @filter({self._subclass_edge_filter()})"
+        normalized_target_id = self._get_normalized_node_id(ctx.target_id)
+        query += f"{tail_edge_alias}: ~{self._v('subject')}{subclass_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
+        query += self._add_standard_edge_fields()
+        query += f"node_{normalized_target_id}: {self._v('object')} "
+        target_filter = self._build_node_filter(ctx.target_node)
+        if target_filter:
+            query += f" @filter({target_filter})"
+        query += self._build_node_cascade_clause(
+            ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
+        )
+        query += " { " + self._add_standard_node_fields() + " } } } } "
+        return query
+
+    def _build_subclass_form_d(self, ctx: EdgeTraversalContext, norm_eid: str) -> str:
+        """Form D: A' subclass_of→ A; A' → predicate1 → B'; B' subclass_of→ B."""
+        alias = f"in_edges-subclassD_{norm_eid}"
+        subclass_filter_clause = f" @filter({self._subclass_edge_filter()})"
+        query = f"{alias}: ~{self._v('object')}{subclass_filter_clause} @cascade({self._v('predicate')}, {self._v('subject')}) {{ "
+        query += self._add_standard_edge_fields()
+        mid_edge_alias = f"out_edges-subclassD-mid_{norm_eid}"
+        query += f"node_intermediate_A: {self._v('subject')} @filter(has({self._v('id')})) @cascade({self._v('id')}, ~{self._v('subject')}) {{ "
+        query += self._add_standard_node_fields()
+        pred_edge_filter = self._build_edge_filter(ctx.edge)
+        pred_filter_clause = f" @filter({pred_edge_filter})" if pred_edge_filter else ""
+        query += f"{mid_edge_alias}: ~{self._v('subject')}{pred_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
+        query += self._add_standard_edge_fields()
+        tail_edge_alias = f"out_edges-subclassD-tail_{norm_eid}"
+        query += f"node_intermediate_B: {self._v('object')} @filter(has({self._v('id')})) @cascade({self._v('id')}, ~{self._v('subject')}) {{ "
+        query += self._add_standard_node_fields()
+        normalized_target_id = self._get_normalized_node_id(ctx.target_id)
+        query += f"{tail_edge_alias}: ~{self._v('subject')}{subclass_filter_clause} @cascade({self._v('predicate')}, {self._v('object')}) {{ "
+        query += self._add_standard_edge_fields()
+        query += f"node_{normalized_target_id}: {self._v('object')} "
+        target_filter = self._build_node_filter(ctx.target_node)
+        if target_filter:
+            query += f" @filter({target_filter})"
+        query += self._build_node_cascade_clause(
+            ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
+        )
+        query += " { " + self._add_standard_node_fields() + " } } } } } } "
+        return query
+
+    def _build_subclass_object_case3_form_b(
+        self, ctx: EdgeTraversalContext, norm_eid: str
+    ) -> str:
+        """Mirrored Case 2 (CAT->P->ID)."""
+        alias = f"in_edges-subclassObjB_{norm_eid}"
+        pred_edge_filter = self._build_edge_filter(ctx.edge)
+        pred_filter_clause = f" @filter({pred_edge_filter})" if pred_edge_filter else ""
+        query = (
+            f"{alias}: ~{self._v('object')}{pred_filter_clause} "
+            f"@cascade({self._v('predicate')}, {self._v('subject')}) {{ "
+        )
+        query += self._add_standard_edge_fields()
+        query += (
+            f"node_intermediate: {self._v('subject')} "
+            f"@filter(has({self._v('id')})) "
+            f"@cascade({self._v('id')}, ~{self._v('subject')}) {{ "
+        )
+        query += self._add_standard_node_fields()
+        subclass_filter_clause = f" @filter({self._subclass_edge_filter()})"
+        tail_edge_alias = f"out_edges-subclassObjB-tail_{norm_eid}"
+        query += (
+            f"{tail_edge_alias}: ~{self._v('subject')}{subclass_filter_clause} "
+            f"@cascade({self._v('predicate')}, {self._v('object')}) {{ "
+        )
+        query += self._add_standard_edge_fields()
+        normalized_target_id = self._get_normalized_node_id(ctx.target_id)
+        query += f"node_{normalized_target_id}: {self._v('object')}"
+        target_filter = self._build_node_filter(ctx.target_node)
+        if target_filter:
+            query += f" @filter({target_filter})"
+        query += self._build_node_cascade_clause(
+            ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
+        )
+        query += " { " + self._add_standard_node_fields() + " } } } } "
         return query
 
     @override
@@ -1204,17 +1486,44 @@ class DgraphTranspiler(Tier0Transpiler):
             self.k_agraph[qedge_id][subject_id][object_id] = list[EdgeIdentifier]()
         self.k_agraph[qedge_id][subject_id][object_id].append(edge_hash)
 
-    def _build_results(self, node: dg.Node, qg: QueryGraphDict) -> list[Partial]:
+    def _is_subclass_intermediate_node(self, node: dg.Node) -> bool:
+        """Return True if this node is a subclass traversal intermediate (not a real QNode)."""
+        return node.binding.startswith(self.SUBCLASS_INTERMEDIATE_PREFIX)
+
+    def _build_results(
+        self,
+        node: dg.Node,
+        qg: QueryGraphDict,
+        _ancestor_curie: str | None = None,
+    ) -> list[Partial]:
         """Recursively build results from dgraph response.
 
         Args:
-            node: Parsed node from Dgraph response (with bindings already restored to original IDs)
-            qg: The TRAPI query graph used in getting the response.
+            node: Parsed node from Dgraph response
+            qg: The TRAPI query graph
+            _ancestor_curie: CURIE of the nearest real (non-intermediate) ancestor node,
+                             used to correctly build TRAPI edges when skipping intermediates.
 
         Returns:
             List of partial results with original node/edge IDs
         """
         original_node_id = QNodeID(node.binding)
+
+        # Skip intermediate subclass traversal nodes.
+        # Pass the ancestor_curie down so child edges are built correctly.
+        if self._is_subclass_intermediate_node(node):
+            partials_from_children: list[Partial] = []
+            for edge in node.edges:
+                # Skip subclass_of edges entirely — traversal-only, not real QEdge results
+                if edge.predicate == "subclass_of":
+                    continue
+                partials_from_children.extend(
+                    self._build_results(edge.node, qg, _ancestor_curie=_ancestor_curie)
+                )
+            return partials_from_children
+
+        # This is a real QNode
+        real_curie = CURIE(node.id)
 
         if node.id not in self.kgraph["nodes"]:
             trapi_node = self._build_trapi_node(node)
@@ -1224,16 +1533,21 @@ class DgraphTranspiler(Tier0Transpiler):
             if not attributes_meet_contraints(constraints, attributes):
                 return []
 
-            self.kgraph["nodes"][CURIE(node.id)] = trapi_node
+            self.kgraph["nodes"][real_curie] = trapi_node
 
-        # If we hit a stop condition, return partial for the node
         if not len(node.edges):
-            return [Partial([(original_node_id, CURIE(node.id))], [])]
+            return [Partial([(original_node_id, real_curie)], [])]
 
         partials = {QEdgeID(edge.binding): list[Partial]() for edge in node.edges}
 
         for edge in node.edges:
             qedge_id = QEdgeID(edge.binding)
+
+            # Skip subclass_of edges — traversal-only
+            if edge.predicate == "subclass_of":
+                continue
+
+            # Build the TRAPI edge using the real node's CURIE (not an intermediate's)
             trapi_edge = self._build_trapi_edge(edge, node.id)
 
             constraints = qg["edges"][qedge_id].get("constraints", []) or []
@@ -1244,11 +1558,13 @@ class DgraphTranspiler(Tier0Transpiler):
 
             self._update_graphs(qedge_id, trapi_edge)
 
-            for partial in self._build_results(edge.node, qg):
+            for partial in self._build_results(
+                edge.node, qg, _ancestor_curie=node.id
+            ):
                 partials[qedge_id].append(
                     partial.combine(
                         Partial(
-                            [(original_node_id, CURIE(node.id))],
+                            [(original_node_id, real_curie)],
                             [(qedge_id, trapi_edge["subject"], trapi_edge["object"])],
                         )
                     )
@@ -1296,12 +1612,15 @@ class DgraphTranspiler(Tier0Transpiler):
         partial_count = 0
         reconciled = dict[int, Partial]()
 
-        # Apply symmetric cascade filtering BEFORE building results
-        if self._symmetric_edge_map:
+        # Apply cascade filtering for both symmetric and subclass edges
+        if self._symmetric_edge_map or self._subclass_edge_map:
             logger.debug(
-                f"Applying symmetric cascade filter for {len(self._symmetric_edge_map)} edges"
+                f"Applying OR cascade filter for {len(self._symmetric_edge_map)} symmetric "
+                + f"and {len(self._subclass_edge_map)} subclass edges"
             )
-            results = self._filter_cascaded_with_or(results, self._symmetric_edge_map)
+            results = self._filter_cascaded_with_or(
+                results, self._symmetric_edge_map, self._subclass_edge_map
+            )
             logger.debug(f"Filtered to {len(results)} valid result paths")
 
         for node in results:

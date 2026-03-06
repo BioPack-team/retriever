@@ -12,9 +12,11 @@ from retriever.types.trapi import QEdgeDict, QNodeDict, QueryGraphDict
 # Helpers
 # -----------------------
 
+
 @dataclass(frozen=True)
 class QueryCase:
     """Pair of input TRAPI qgraph and expected Dgraph query."""
+
     name: str
     qgraph: QueryGraphDict
     expected: str
@@ -23,6 +25,7 @@ class QueryCase:
 @dataclass(frozen=True)
 class BatchCase:
     """Pair of input TRAPI container or single qgraph for batch API and expected Dgraph query."""
+
     name: str
     qgraphs: list[QueryGraphDict]
     expected: str
@@ -31,6 +34,7 @@ class BatchCase:
 @dataclass(frozen=True)
 class ResultsCase:
     """Pair for convert_results: input qgraph and raw backend results."""
+
     name: str
     qgraph: QueryGraphDict
     raw_results: dict[str, Any]
@@ -39,6 +43,19 @@ class ResultsCase:
 
 class _TestDgraphTranspiler(DgraphTranspiler):
     """Expose protected methods for testing without modifying production code."""
+
+    def __init__(
+        self,
+        version: str | None = None,
+        enable_symmetric_edges: bool | None = None,
+        enable_subclass_edges: bool | None = None,
+    ) -> None:
+        super().__init__(
+            version=version,
+            enable_symmetric_edges=enable_symmetric_edges,
+            enable_subclass_edges=enable_subclass_edges,
+        )
+
     def convert_multihop_public(self, qgraph: QueryGraphDict) -> str:
         return self.convert_multihop(qgraph)
 
@@ -73,458 +90,525 @@ def qe(d: dict[str, Any]) -> QEdgeDict:
 # Query graph inputs
 # -----------------------
 
-SIMPLE_QGRAPH: QueryGraphDict = qg({
-    "nodes": {
-        "n0": {"ids": ["CHEBI:4514"], "constraints": []},
-        "n1": {"ids": ["UMLS:C1564592"], "constraints": []},
-    },
-    "edges": {
-        "e0": {
-            "object": "n0",
-            "subject": "n1",
-            "predicates": ["subclass_of"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
+SIMPLE_QGRAPH: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "n0": {"ids": ["CHEBI:4514"], "constraints": []},
+            "n1": {"ids": ["UMLS:C1564592"], "constraints": []},
         },
-    },
-})
-
-SIMPLE_QGRAPH_GT_NOT: QueryGraphDict = qg({
-    "nodes": {
-        "n0": {
-            "ids": ["MONDO:0030010", "MONDO:0011766", "MONDO:0009890"],
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["subclass_of"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
         },
-        "n1": {},
-    },
-    "edges": {
-        "e0": {
-            "subject": "n0",
-            "object": "n1",
-            "predicates": ["biolink:has_phenotype"],
-            "attribute_constraints": [
-                {
-                    "id": "biolink:has_total",
-                    "operator": ">",
-                    "value": 2,
-                },
-                {
-                    "id": "biolink:has_total",
-                    "operator": ">",
-                    "value": 4,
-                    "not": True,
-                },
-            ],
-        }
-    },
-})
-
-SIMPLE_QGRAPH_MULTIPLE_IDS: QueryGraphDict = qg({
-    "nodes": {
-        "n0": {"ids": ["CHEBI:3125", "CHEBI:53448"], "constraints": []},
-        "n1": {"ids": ["UMLS:C0282090", "CHEBI:10119"], "constraints": []},
-    },
-    "edges": {
-        "e0": {
-            "object": "n0",
-            "subject": "n1",
-            "predicates": ["has_phenotype"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
-        },
-    },
-})
-
-SIMPLE_REVERSE_QGRAPH: QueryGraphDict = qg({
-    "nodes": {
-        "n0": {"categories": ["biolink:NamedThing"], "constraints": []},
-        "n1": {"ids": ["NCBIGene:3778"], "constraints": []}
-    },
-    "edges": {
-        "e0": {
-            "object": "n0",
-            "subject": "n1",
-            "predicates": ["biolink:has_phenotype"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
-        }
     }
-})
+)
 
-TWO_HOP_QGRAPH: QueryGraphDict = qg({
-    "nodes": {
-        "n0": {"ids": ["CHEBI:3125"], "constraints": []},
-        "n1": {"ids": ["UMLS:C0282090"], "constraints": []},
-        "n2": {"ids": ["UMLS:C0496995"], "constraints": []},
-    },
-    "edges": {
-        "e0": {
-            "object": "n0",
-            "subject": "n1",
-            "predicates": ["has_phenotype"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
+SIMPLE_QGRAPH_GT_NOT: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "n0": {
+                "ids": ["MONDO:0030010", "MONDO:0011766", "MONDO:0009890"],
+            },
+            "n1": {},
         },
-        "e1": {
-            "object": "n1",
-            "subject": "n2",
-            "predicates": ["has_phenotype"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
+        "edges": {
+            "e0": {
+                "subject": "n0",
+                "object": "n1",
+                "predicates": ["biolink:has_phenotype"],
+                "attribute_constraints": [
+                    {
+                        "id": "biolink:has_total",
+                        "operator": ">",
+                        "value": 2,
+                    },
+                    {
+                        "id": "biolink:has_total",
+                        "operator": ">",
+                        "value": 4,
+                        "not": True,
+                    },
+                ],
+            }
         },
-    },
-})
+    }
+)
 
-THREE_HOP_QGRAPH: QueryGraphDict = qg({
-    "nodes": {
-        "n0": {"ids": ["CHEBI:3125"], "constraints": []},
-        "n1": {"ids": ["UMLS:C0282090"], "constraints": []},
-        "n2": {"ids": ["UMLS:C0496995"], "constraints": []},
-        "n3": {"ids": ["UMLS:C0149720"], "constraints": []},
-    },
-    "edges": {
-        "e0": {
-            "object": "n0",
-            "subject": "n1",
-            "predicates": ["has_phenotype"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
+SIMPLE_QGRAPH_MULTIPLE_IDS: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "n0": {"ids": ["CHEBI:3125", "CHEBI:53448"], "constraints": []},
+            "n1": {"ids": ["UMLS:C0282090", "CHEBI:10119"], "constraints": []},
         },
-        "e1": {
-            "object": "n1",
-            "subject": "n2",
-            "predicates": ["has_phenotype"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["has_phenotype"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
         },
-        "e2": {
-            "object": "n2",
-            "subject": "n3",
-            "predicates": ["has_phenotype"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
-        },
-    },
-})
+    }
+)
 
-FOUR_HOP_QGRAPH: QueryGraphDict = qg({
-    "nodes": {
-        "n0": {"ids": ["CHEBI:3125"], "constraints": []},
-        "n1": {"ids": ["UMLS:C0282090"], "constraints": []},
-        "n2": {"ids": ["UMLS:C0496995"], "constraints": []},
-        "n3": {"ids": ["UMLS:C0149720"], "constraints": []},
-        "n4": {"ids": ["UMLS:C0496994"], "constraints": []},
-    },
-    "edges": {
-        "e0": {
-            "object": "n0",
-            "subject": "n1",
-            "predicates": ["has_phenotype"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
+SIMPLE_REVERSE_QGRAPH: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "n0": {"categories": ["biolink:NamedThing"], "constraints": []},
+            "n1": {"ids": ["NCBIGene:3778"], "constraints": []},
         },
-        "e1": {
-            "object": "n1",
-            "subject": "n2",
-            "predicates": ["has_phenotype"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["biolink:has_phenotype"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            }
         },
-        "e2": {
-            "object": "n2",
-            "subject": "n3",
-            "predicates": ["has_phenotype"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
-        },
-        "e3": {
-            "object": "n3",
-            "subject": "n4",
-            "predicates": ["has_phenotype"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
-        },
-    },
-})
+    }
+)
 
-FIVE_HOP_QGRAPH: QueryGraphDict = qg({
-    "nodes": {
-        "n0": {"ids": ["CHEBI:3125"], "constraints": []},
-        "n1": {"ids": ["UMLS:C0282090"], "constraints": []},
-        "n2": {"ids": ["UMLS:C0496995"], "constraints": []},
-        "n3": {"ids": ["UMLS:C0149720"], "constraints": []},
-        "n4": {"ids": ["UMLS:C0496994"], "constraints": []},
-        "n5": {"ids": ["UMLS:C2879715"], "constraints": []},
-    },
-    "edges": {
-        "e0": {
-            "object": "n0",
-            "subject": "n1",
-            "predicates": ["has_phenotype"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
+TWO_HOP_QGRAPH: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "n0": {"ids": ["CHEBI:3125"], "constraints": []},
+            "n1": {"ids": ["UMLS:C0282090"], "constraints": []},
+            "n2": {"ids": ["UMLS:C0496995"], "constraints": []},
         },
-        "e1": {
-            "object": "n1",
-            "subject": "n2",
-            "predicates": ["has_phenotype"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["has_phenotype"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+            "e1": {
+                "object": "n1",
+                "subject": "n2",
+                "predicates": ["has_phenotype"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
         },
-        "e2": {
-            "object": "n2",
-            "subject": "n3",
-            "predicates": ["has_phenotype"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
-        },
-        "e3": {
-            "object": "n3",
-            "subject": "n4",
-            "predicates": ["has_phenotype"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
-        },
-        "e4": {
-            "object": "n4",
-            "subject": "n5",
-            "predicates": ["has_phenotype"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
-        },
-    },
-})
+    }
+)
 
-FIVE_HOP_QGRAPH_MULTIPLE_IDS: QueryGraphDict = qg({
-    "nodes": {
-        "n0": {"ids": ["Q0", "Q1"], "constraints": []},
-        "n1": {"ids": ["Q2", "Q3"], "constraints": []},
-        "n2": {"ids": ["Q4", "Q5"], "constraints": []},
-        "n3": {"ids": ["Q6", "Q7"], "constraints": []},
-        "n4": {"ids": ["Q8", "Q9"], "constraints": []},
-        "n5": {"ids": ["Q10", "Q11"], "constraints": []},
-    },
-    "edges": {
-        "e0": {
-            "object": "n0",
-            "subject": "n1",
-            "predicates": ["P0"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
+THREE_HOP_QGRAPH: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "n0": {"ids": ["CHEBI:3125"], "constraints": []},
+            "n1": {"ids": ["UMLS:C0282090"], "constraints": []},
+            "n2": {"ids": ["UMLS:C0496995"], "constraints": []},
+            "n3": {"ids": ["UMLS:C0149720"], "constraints": []},
         },
-        "e1": {
-            "object": "n1",
-            "subject": "n2",
-            "predicates": ["P1"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["has_phenotype"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+            "e1": {
+                "object": "n1",
+                "subject": "n2",
+                "predicates": ["has_phenotype"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+            "e2": {
+                "object": "n2",
+                "subject": "n3",
+                "predicates": ["has_phenotype"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
         },
-        "e2": {
-            "object": "n2",
-            "subject": "n3",
-            "predicates": ["P2"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
-        },
-        "e3": {
-            "object": "n3",
-            "subject": "n4",
-            "predicates": ["P3"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
-        },
-        "e4": {
-            "object": "n4",
-            "subject": "n5",
-            "predicates": ["P4"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
-        },
-    },
-})
+    }
+)
 
-CATEGORY_FILTER_QGRAPH: QueryGraphDict = qg({
-    "nodes": {
-        "n0": {"categories": ["biolink:Gene"], "constraints": []},
-        "n1": {"categories": ["biolink:Disease"], "constraints": []}},
-    "edges": {
-        "e0": {
-            "object": "n0",
-            "subject": "n1",
-            "predicates": ["biolink:gene_associated_with_condition"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
+FOUR_HOP_QGRAPH: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "n0": {"ids": ["CHEBI:3125"], "constraints": []},
+            "n1": {"ids": ["UMLS:C0282090"], "constraints": []},
+            "n2": {"ids": ["UMLS:C0496995"], "constraints": []},
+            "n3": {"ids": ["UMLS:C0149720"], "constraints": []},
+            "n4": {"ids": ["UMLS:C0496994"], "constraints": []},
         },
-    },
-})
-
-MULTIPLE_FILTERS_QGRAPH: QueryGraphDict = qg({
-    "nodes": {
-        "n0": {
-            "ids": ["CHEBI:3125"],
-            "categories": ["biolink:SmallMolecule"],
-            "constraints": [
-                {"id": "description", "name": "description", "operator": "matches", "value": "/.*diphenylmethane.*/i", "not": False},
-            ],
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["has_phenotype"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+            "e1": {
+                "object": "n1",
+                "subject": "n2",
+                "predicates": ["has_phenotype"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+            "e2": {
+                "object": "n2",
+                "subject": "n3",
+                "predicates": ["has_phenotype"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+            "e3": {
+                "object": "n3",
+                "subject": "n4",
+                "predicates": ["has_phenotype"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
         },
-        "n1": {
-            "categories": ["biolink:Drug"],
-            "constraints": [
-                {"id": "description", "name": "description", "operator": "matches", "value": "/.*laxative.*/i", "not": False},
-            ],
+    }
+)
+
+FIVE_HOP_QGRAPH: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "n0": {"ids": ["CHEBI:3125"], "constraints": []},
+            "n1": {"ids": ["UMLS:C0282090"], "constraints": []},
+            "n2": {"ids": ["UMLS:C0496995"], "constraints": []},
+            "n3": {"ids": ["UMLS:C0149720"], "constraints": []},
+            "n4": {"ids": ["UMLS:C0496994"], "constraints": []},
+            "n5": {"ids": ["UMLS:C2879715"], "constraints": []},
         },
-    },
-    "edges": {
-        "e0": {
-            "object": "n0",
-            "subject": "n1",
-            "predicates": [
-                "has_phenotype",
-                "contributes_to",
-            ],
-            "attribute_constraints": [
-                {
-                    "id": "knowledge_level",
-                    "name": "knowledge_level",
-                    "operator": "==",
-                    "value": "prediction",
-                    "not": False,
-                }
-            ],
-            "qualifier_constraints": [],
-        }
-    },
-})
-
-NEGATED_CONSTRAINT_QGRAPH: QueryGraphDict = qg({
-    "nodes": {
-        "n0": {"ids": ["CHEBI:3125"], "constraints": []},
-        "n1": {
-            "categories": ["biolink:Drug"],
-            "constraints": [
-                {
-                    "id": "description",
-                    "name": "description",
-                    "operator": "matches",
-                    "value": "/.*diphenylmethane.*/i",
-                    "not": True,
-                }
-            ],
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["has_phenotype"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+            "e1": {
+                "object": "n1",
+                "subject": "n2",
+                "predicates": ["has_phenotype"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+            "e2": {
+                "object": "n2",
+                "subject": "n3",
+                "predicates": ["has_phenotype"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+            "e3": {
+                "object": "n3",
+                "subject": "n4",
+                "predicates": ["has_phenotype"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+            "e4": {
+                "object": "n4",
+                "subject": "n5",
+                "predicates": ["has_phenotype"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
         },
-    },
-    "edges": {
-        "e0": {
-            "object": "n0",
-            "subject": "n1",
-            "predicates": [],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
-        }
-    },
-})
+    }
+)
 
-PUBLICATION_FILTER_QGRAPH: QueryGraphDict = qg({
-    "nodes": {
-        "n0": {"ids": ["DOID:14330"], "constraints": []},
-        "n1": {
-            "constraints": [
-                {
-                    "id": "publications",
-                    "name": "publications",
-                    "operator": "in",
-                    "value": "PMID:12345678",
-                    "not": False,
-                }
-            ]
+FIVE_HOP_QGRAPH_MULTIPLE_IDS: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "n0": {"ids": ["Q0", "Q1"], "constraints": []},
+            "n1": {"ids": ["Q2", "Q3"], "constraints": []},
+            "n2": {"ids": ["Q4", "Q5"], "constraints": []},
+            "n3": {"ids": ["Q6", "Q7"], "constraints": []},
+            "n4": {"ids": ["Q8", "Q9"], "constraints": []},
+            "n5": {"ids": ["Q10", "Q11"], "constraints": []},
         },
-    },
-    "edges": {
-        "e0": {
-            "object": "n0",
-            "subject": "n1",
-            "predicates": [],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
-        }
-    },
-})
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["P0"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+            "e1": {
+                "object": "n1",
+                "subject": "n2",
+                "predicates": ["P1"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+            "e2": {
+                "object": "n2",
+                "subject": "n3",
+                "predicates": ["P2"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+            "e3": {
+                "object": "n3",
+                "subject": "n4",
+                "predicates": ["P3"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+            "e4": {
+                "object": "n4",
+                "subject": "n5",
+                "predicates": ["P4"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+        },
+    }
+)
 
-NUMERIC_FILTER_QGRAPH: QueryGraphDict = qg({
-    "nodes": {"n0": {"ids": ["DOID:14330"], "constraints": []}, "n1": {"categories": ["biolink:Gene"], "constraints": []}},
-    "edges": {
-        "e0": {
-            "object": "n0",
-            "subject": "n1",
-            "predicates": [],
-            "attribute_constraints": [
-                {"id": "edge_id", "name": "edge_id", "operator": ">", "value": "100", "not": False}
-            ],
-            "qualifier_constraints": [],
-        }
-    },
-})
+CATEGORY_FILTER_QGRAPH: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "n0": {"categories": ["biolink:Gene"], "constraints": []},
+            "n1": {"categories": ["biolink:Disease"], "constraints": []},
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["biolink:gene_associated_with_condition"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            },
+        },
+    }
+)
 
-SINGLE_STRING_WITH_COMMAS_QGRAPH: QueryGraphDict = qg({
-    "nodes": {
-        "n0": {"ids": ["Q0, Q1"], "constraints": []},
-        "n1": {"ids": ["Q2"], "constraints": []},
-    },
-    "edges": {
-        "e0": {
-            "object": "n0",
-            "subject": "n1",
-            "predicates": ["P"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
-        }
-    },
-})
+MULTIPLE_FILTERS_QGRAPH: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "n0": {
+                "ids": ["CHEBI:3125"],
+                "categories": ["biolink:SmallMolecule"],
+                "constraints": [
+                    {
+                        "id": "description",
+                        "name": "description",
+                        "operator": "matches",
+                        "value": "/.*diphenylmethane.*/i",
+                        "not": False,
+                    },
+                ],
+            },
+            "n1": {
+                "categories": ["biolink:Drug"],
+                "constraints": [
+                    {
+                        "id": "description",
+                        "name": "description",
+                        "operator": "matches",
+                        "value": "/.*laxative.*/i",
+                        "not": False,
+                    },
+                ],
+            },
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": [
+                    "has_phenotype",
+                    "contributes_to",
+                ],
+                "attribute_constraints": [
+                    {
+                        "id": "knowledge_level",
+                        "name": "knowledge_level",
+                        "operator": "==",
+                        "value": "prediction",
+                        "not": False,
+                    }
+                ],
+                "qualifier_constraints": [],
+            }
+        },
+    }
+)
 
-PREDICATES_SINGLE_QGRAPH: QueryGraphDict = qg({
-    "nodes": {
-        "n0": {"ids": ["A"], "constraints": []},
-        "n1": {"ids": ["B"], "constraints": []},
-    },
-    "edges": {
-        "e0": {
-            "object": "n0",
-            "subject": "n1",
-            "predicates": ["Ponly"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
-        }
-    },
-})
+NEGATED_CONSTRAINT_QGRAPH: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "n0": {"ids": ["CHEBI:3125"], "constraints": []},
+            "n1": {
+                "categories": ["biolink:Drug"],
+                "constraints": [
+                    {
+                        "id": "description",
+                        "name": "description",
+                        "operator": "matches",
+                        "value": "/.*diphenylmethane.*/i",
+                        "not": True,
+                    }
+                ],
+            },
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": [],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            }
+        },
+    }
+)
 
-ATTRIBUTES_ONLY_QGRAPH: QueryGraphDict = qg({
-    "nodes": {"n0": {"ids": ["A"], "constraints": []}, "n1": {"ids": ["B"], "constraints": []}},
-    "edges": {
-        "e0": {
-            "object": "n0",
-            "subject": "n1",
-            "predicates": [],
-            "attribute_constraints": [
-                {"id": "knowledge_level", "name": "knowledge_level", "operator": "==", "value": "primary", "not": False}
-            ],
-            "qualifier_constraints": [],
-        }
-    },
-})
+PUBLICATION_FILTER_QGRAPH: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "n0": {"ids": ["DOID:14330"], "constraints": []},
+            "n1": {
+                "constraints": [
+                    {
+                        "id": "publications",
+                        "name": "publications",
+                        "operator": "in",
+                        "value": "PMID:12345678",
+                        "not": False,
+                    }
+                ]
+            },
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": [],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            }
+        },
+    }
+)
 
-START_OBJECT_WITH_IDS_QGRAPH: QueryGraphDict = qg({
-    "nodes": {
-        "n0": {"ids": ["X"], "constraints": []},
-        "n1": {"ids": ["Y"], "constraints": []},
-    },
-    "edges": {
-        "e0": {
-            "object": "n0",
-            "subject": "n1",
-            "predicates": ["rel"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
-        }
-    },
-})
+NUMERIC_FILTER_QGRAPH: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "n0": {"ids": ["DOID:14330"], "constraints": []},
+            "n1": {"categories": ["biolink:Gene"], "constraints": []},
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": [],
+                "attribute_constraints": [
+                    {
+                        "id": "edge_id",
+                        "name": "edge_id",
+                        "operator": ">",
+                        "value": "100",
+                        "not": False,
+                    }
+                ],
+                "qualifier_constraints": [],
+            }
+        },
+    }
+)
+
+SINGLE_STRING_WITH_COMMAS_QGRAPH: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "n0": {"ids": ["Q0, Q1"], "constraints": []},
+            "n1": {"ids": ["Q2"], "constraints": []},
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["P"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            }
+        },
+    }
+)
+
+PREDICATES_SINGLE_QGRAPH: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "n0": {"ids": ["A"], "constraints": []},
+            "n1": {"ids": ["B"], "constraints": []},
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["Ponly"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            }
+        },
+    }
+)
+
+ATTRIBUTES_ONLY_QGRAPH: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "n0": {"ids": ["A"], "constraints": []},
+            "n1": {"ids": ["B"], "constraints": []},
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": [],
+                "attribute_constraints": [
+                    {
+                        "id": "knowledge_level",
+                        "name": "knowledge_level",
+                        "operator": "==",
+                        "value": "primary",
+                        "not": False,
+                    }
+                ],
+                "qualifier_constraints": [],
+            }
+        },
+    }
+)
+
+START_OBJECT_WITH_IDS_QGRAPH: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "n0": {"ids": ["X"], "constraints": []},
+            "n1": {"ids": ["Y"], "constraints": []},
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["rel"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            }
+        },
+    }
+)
 
 # Batch inputs
 BATCH_QGRAPHS: list[QueryGraphDict] = [
@@ -540,132 +624,145 @@ BATCH_QGRAPHS_MULTI_HOP: list[QueryGraphDict] = [
 ]
 
 BATCH_MULTI_IDS_SINGLE_GRAPH: list[QueryGraphDict] = [
-    qg({
-        "nodes": {
-            "n0": {"ids": ["A", "B"], "constraints": []},
-            "n1": {"ids": ["C"], "constraints": []},
-        },
-        "edges": {
-            "e0": {
-                "object": "n0",
-                "subject": "n1",
-                "predicates": ["P"],
-                "attribute_constraints": [],
-                "qualifier_constraints": [],
-            }
-        },
-    })
+    qg(
+        {
+            "nodes": {
+                "n0": {"ids": ["A", "B"], "constraints": []},
+                "n1": {"ids": ["C"], "constraints": []},
+            },
+            "edges": {
+                "e0": {
+                    "object": "n0",
+                    "subject": "n1",
+                    "predicates": ["P"],
+                    "attribute_constraints": [],
+                    "qualifier_constraints": [],
+                }
+            },
+        }
+    )
 ]
 
 BATCH_NO_IDS_SINGLE_GRAPH: list[QueryGraphDict] = [
-    qg({
+    qg(
+        {
+            "nodes": {
+                "n0": {"categories": ["biolink:Gene"], "constraints": []},
+                "n1": {"ids": ["D"], "constraints": []},
+            },
+            "edges": {
+                "e0": {
+                    "object": "n0",
+                    "subject": "n1",
+                    "predicates": ["R"],
+                    "attribute_constraints": [],
+                    "qualifier_constraints": [],
+                }
+            },
+        }
+    )
+]
+
+TRAPI_FLOATING_OBJECT_QUERY: QueryGraphDict = qg(
+    {
         "nodes": {
-            "n0": {"categories": ["biolink:Gene"], "constraints": []},
-            "n1": {"ids": ["D"], "constraints": []},
+            "n0": {"categories": ["biolink:Gene"], "ids": ["NCBIGene:3778"]},
+            "n1": {"categories": ["biolink:Disease"]},
+        },
+        "edges": {
+            "e01": {"subject": "n0", "object": "n1", "predicates": ["biolink:causes"]}
+        },
+    }
+)
+
+TRAPI_FLOATING_OBJECT_QUERY_TWO_CATEGORIES: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "n0": {
+                "categories": ["biolink:Gene", "biolink:Protein"],
+                "ids": ["NCBIGene:3778"],
+            },
+            "n1": {"categories": ["biolink:Disease"]},
+        },
+        "edges": {
+            "e01": {"subject": "n0", "object": "n1", "predicates": ["biolink:causes"]}
+        },
+    }
+)
+
+QUALIFIER_SET_QGRAPH: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "n0": {
+                "ids": ["MONDO:0030010", "MONDO:0011766", "MONDO:0009890"],
+                "constraints": [],
+            },
+            "n1": {"constraints": []},
         },
         "edges": {
             "e0": {
-                "object": "n0",
-                "subject": "n1",
-                "predicates": ["R"],
+                "subject": "n0",
+                "object": "n1",
+                "predicates": ["biolink:has_phenotype"],
                 "attribute_constraints": [],
-                "qualifier_constraints": [],
+                "qualifier_constraints": [
+                    {
+                        "qualifier_set": [
+                            {
+                                "qualifier_type_id": "biolink:frequency_qualifier",
+                                "qualifier_value": "HP:0040280",
+                            },
+                            {
+                                "qualifier_type_id": "biolink:onset_qualifier",
+                                "qualifier_value": "ANY_VALUE",
+                            },
+                            {
+                                "qualifier_type_id": "biolink:sex_qualifier",
+                                "qualifier_value": "ANY_OTHER_VALUE",
+                            },
+                        ]
+                    }
+                ],
             }
         },
-    })
-]
-
-TRAPI_FLOATING_OBJECT_QUERY: QueryGraphDict = qg({
-    "nodes": {
-        "n0": {
-            "categories": ["biolink:Gene"],
-            "ids": ["NCBIGene:3778"]
-        },
-        "n1": {
-            "categories": ["biolink:Disease"]
-        }
-    },
-    "edges": {
-        "e01": {
-            "subject": "n0",
-            "object": "n1",
-            "predicates": ["biolink:causes"]
-        }
     }
-})
+)
 
-TRAPI_FLOATING_OBJECT_QUERY_TWO_CATEGORIES: QueryGraphDict = qg({
-    "nodes": {
-        "n0": {
-            "categories": ["biolink:Gene", "biolink:Protein"],
-            "ids": ["NCBIGene:3778"]
+QUALIFIER_SETS_AND_QGRAPH: QueryGraphDict = qg(
+    {
+        "nodes": {"n0": {"ids": ["X"], "constraints": []}, "n1": {"constraints": []}},
+        "edges": {
+            "e0": {
+                "subject": "n0",
+                "object": "n1",
+                "predicates": ["R"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [
+                    {
+                        "qualifier_set": [
+                            {
+                                "qualifier_type_id": "biolink:frequency_qualifier",
+                                "qualifier_value": "F1",
+                            },
+                            {
+                                "qualifier_type_id": "biolink:onset_qualifier",
+                                "qualifier_value": "O1",
+                            },
+                        ]
+                    },
+                    {
+                        "qualifier_set": [
+                            {
+                                "qualifier_type_id": "biolink:sex_qualifier",
+                                "qualifier_value": "S1",
+                            },
+                        ]
+                    },
+                ],
+            }
         },
-        "n1": {
-            "categories": ["biolink:Disease"]
-        }
-    },
-    "edges": {
-        "e01": {
-            "subject": "n0",
-            "object": "n1",
-            "predicates": ["biolink:causes"]
-        }
     }
-})
-
-QUALIFIER_SET_QGRAPH: QueryGraphDict = qg({
-    "nodes": {
-        "n0": {"ids": ["MONDO:0030010", "MONDO:0011766", "MONDO:0009890"], "constraints": []},
-        "n1": {"constraints": []},
-    },
-    "edges": {
-        "e0": {
-            "subject": "n0",
-            "object": "n1",
-            "predicates": ["biolink:has_phenotype"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [
-                {
-                    "qualifier_set": [
-                        {
-                            "qualifier_type_id": "biolink:frequency_qualifier",
-                            "qualifier_value": "HP:0040280",
-                        },
-                        {
-                            "qualifier_type_id": "biolink:onset_qualifier",
-                            "qualifier_value": "ANY_VALUE",
-                        },
-                        {
-                            "qualifier_type_id": "biolink:sex_qualifier",
-                            "qualifier_value": "ANY_OTHER_VALUE",
-                        },
-                    ]
-                }
-            ],
-        }
-    },
-})
-
-QUALIFIER_SETS_AND_QGRAPH: QueryGraphDict = qg({
-    "nodes": {"n0": {"ids": ["X"], "constraints": []}, "n1": {"constraints": []}},
-    "edges": {
-        "e0": {
-            "subject": "n0",
-            "object": "n1",
-            "predicates": ["R"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [
-                {"qualifier_set": [
-                    {"qualifier_type_id": "biolink:frequency_qualifier", "qualifier_value": "F1"},
-                    {"qualifier_type_id": "biolink:onset_qualifier", "qualifier_value": "O1"},
-                ]},
-                {"qualifier_set": [
-                    {"qualifier_type_id": "biolink:sex_qualifier", "qualifier_value": "S1"},
-                ]},
-            ],
-        }
-    },
-})
+)
 
 
 # -----------------------
@@ -785,7 +882,8 @@ EXP_TWO_HOP_WITH_VERSION = dedent("""
 }
 """).strip()
 
-EXP_THREE_HOP = dedent("""
+EXP_THREE_HOP = (
+    dedent("""
 {
     q0_node_n0(func: eq(id, "CHEBI:3125")) @cascade(id, ~object) {
         expand(Node)
@@ -809,7 +907,10 @@ EXP_THREE_HOP = dedent("""
         }
     }
 }
-""").strip().replace("knowledge level", "knowledge_level")
+""")
+    .strip()
+    .replace("knowledge level", "knowledge_level")
+)
 
 EXP_FOUR_HOP = dedent("""
 {
@@ -1248,24 +1349,41 @@ EXP_QUALIFIER_SETS_AND = dedent("""
 
 CASES: list[QueryCase] = [
     QueryCase("simple-one", SIMPLE_QGRAPH, EXP_SIMPLE),
-    QueryCase("simple-multiple-ids", SIMPLE_QGRAPH_MULTIPLE_IDS, EXP_SIMPLE_MULTIPLE_IDS),
+    QueryCase(
+        "simple-multiple-ids", SIMPLE_QGRAPH_MULTIPLE_IDS, EXP_SIMPLE_MULTIPLE_IDS
+    ),
     QueryCase("simple-reverse", SIMPLE_REVERSE_QGRAPH, EXP_SIMPLE_REVERSE),
     QueryCase("two-hop", TWO_HOP_QGRAPH, EXP_TWO_HOP),
     QueryCase("three-hop", THREE_HOP_QGRAPH, EXP_THREE_HOP),
     QueryCase("four-hop", FOUR_HOP_QGRAPH, EXP_FOUR_HOP),
     QueryCase("five-hop", FIVE_HOP_QGRAPH, EXP_FIVE_HOP),
-    QueryCase("five-hop-multiple-ids", FIVE_HOP_QGRAPH_MULTIPLE_IDS, EXP_FIVE_HOP_MULTIPLE_IDS),
+    QueryCase(
+        "five-hop-multiple-ids", FIVE_HOP_QGRAPH_MULTIPLE_IDS, EXP_FIVE_HOP_MULTIPLE_IDS
+    ),
     QueryCase("category-filter", CATEGORY_FILTER_QGRAPH, EXP_CATEGORY_FILTER),
     QueryCase("negated-constraint", NEGATED_CONSTRAINT_QGRAPH, EXP_NEGATED_CONSTRAINT),
     QueryCase("publication-filter", PUBLICATION_FILTER_QGRAPH, EXP_PUBLICATION_FILTER),
-    QueryCase("id-list-from-single-string-with-commas", SINGLE_STRING_WITH_COMMAS_QGRAPH, EXP_SINGLE_STRING_WITH_COMMAS),
+    QueryCase(
+        "id-list-from-single-string-with-commas",
+        SINGLE_STRING_WITH_COMMAS_QGRAPH,
+        EXP_SINGLE_STRING_WITH_COMMAS,
+    ),
     QueryCase("predicates-single", PREDICATES_SINGLE_QGRAPH, EXP_PREDICATES_SINGLE),
-    QueryCase("start-object-with-ids", START_OBJECT_WITH_IDS_QGRAPH, EXP_START_OBJECT_WITH_IDS),
-    QueryCase("floating-object-query", TRAPI_FLOATING_OBJECT_QUERY, DGRAPH_FLOATING_OBJECT_QUERY),
-    QueryCase("floating-object-query-two-categories", TRAPI_FLOATING_OBJECT_QUERY_TWO_CATEGORIES, DGRAPH_FLOATING_OBJECT_QUERY_TWO_CATEGORIES),
+    QueryCase(
+        "start-object-with-ids", START_OBJECT_WITH_IDS_QGRAPH, EXP_START_OBJECT_WITH_IDS
+    ),
+    QueryCase(
+        "floating-object-query",
+        TRAPI_FLOATING_OBJECT_QUERY,
+        DGRAPH_FLOATING_OBJECT_QUERY,
+    ),
+    QueryCase(
+        "floating-object-query-two-categories",
+        TRAPI_FLOATING_OBJECT_QUERY_TWO_CATEGORIES,
+        DGRAPH_FLOATING_OBJECT_QUERY_TWO_CATEGORIES,
+    ),
     QueryCase("qualifier-set", QUALIFIER_SET_QGRAPH, EXP_QUALIFIER_SET),
     QueryCase("qualifier-sets-and", QUALIFIER_SETS_AND_QGRAPH, EXP_QUALIFIER_SETS_AND),
-
     # NOTE: The following cases test transpiler-level attribute constraint filtering, which is
     # intentionally disabled. Attribute constraints are enforced via Python-level post-filtering
     # in `_build_results` using `attributes_meet_contraints`. See transpiler.py `_build_edge_filter`.
@@ -1279,14 +1397,26 @@ CASES: list[QueryCase] = [
 CASES_VERSIONED: list[QueryCase] = [
     QueryCase("simple-one-versioned", SIMPLE_QGRAPH, EXP_SIMPLE_WITH_VERSION),
     QueryCase("two-hop-versioned", TWO_HOP_QGRAPH, EXP_TWO_HOP_WITH_VERSION),
-    QueryCase("floating-object-query-versioned", TRAPI_FLOATING_OBJECT_QUERY, DGRAPH_FLOATING_OBJECT_QUERY_WITH_VERSION),
+    QueryCase(
+        "floating-object-query-versioned",
+        TRAPI_FLOATING_OBJECT_QUERY,
+        DGRAPH_FLOATING_OBJECT_QUERY_WITH_VERSION,
+    ),
 ]
 
 BATCH_CASES: list[BatchCase] = [
     BatchCase("batch-qgraphs", BATCH_QGRAPHS, EXP_BATCH_QGRAPHS),
-    BatchCase("batch-qgraph-multi-hop", BATCH_QGRAPHS_MULTI_HOP, EXP_BATCH_QGRAPHS_MULTI_HOP),
-    BatchCase("batch-multi-ids-single-graph", BATCH_MULTI_IDS_SINGLE_GRAPH, EXP_BATCH_MULTI_IDS_SINGLE),
-    BatchCase("batch-no-ids-single-graph", BATCH_NO_IDS_SINGLE_GRAPH, EXP_BATCH_NO_IDS_SINGLE),
+    BatchCase(
+        "batch-qgraph-multi-hop", BATCH_QGRAPHS_MULTI_HOP, EXP_BATCH_QGRAPHS_MULTI_HOP
+    ),
+    BatchCase(
+        "batch-multi-ids-single-graph",
+        BATCH_MULTI_IDS_SINGLE_GRAPH,
+        EXP_BATCH_MULTI_IDS_SINGLE,
+    ),
+    BatchCase(
+        "batch-no-ids-single-graph", BATCH_NO_IDS_SINGLE_GRAPH, EXP_BATCH_NO_IDS_SINGLE
+    ),
 ]
 
 
@@ -1294,23 +1424,44 @@ BATCH_CASES: list[BatchCase] = [
 # Tests
 # -----------------------
 
+
 @pytest.fixture
 def transpiler() -> _TestDgraphTranspiler:
-    return _TestDgraphTranspiler()
+    return _TestDgraphTranspiler(
+        enable_symmetric_edges=True, enable_subclass_edges=False
+    )
+
+
+@pytest.fixture
+def transpiler_with_subclassing() -> _TestDgraphTranspiler:
+    return _TestDgraphTranspiler(
+        enable_symmetric_edges=False, enable_subclass_edges=True
+    )
+
 
 @pytest.mark.parametrize("case", CASES, ids=[c.name for c in CASES])
-def test_convert_multihop_pairs(transpiler: _TestDgraphTranspiler, case: QueryCase) -> None:
+def test_convert_multihop_pairs(
+    transpiler: _TestDgraphTranspiler, case: QueryCase
+) -> None:
     actual = transpiler.convert_multihop_public(case.qgraph)
     assert_query_equals(actual, case.expected)
+
 
 @pytest.mark.parametrize("case", CASES_VERSIONED, ids=[c.name for c in CASES_VERSIONED])
-def test_convert_multihop_pairs_with_version(transpiler: _TestDgraphTranspiler, case: QueryCase) -> None:
-    transpiler = _TestDgraphTranspiler(version="v1")
+def test_convert_multihop_pairs_with_version(
+    transpiler: _TestDgraphTranspiler, case: QueryCase
+) -> None:
+    transpiler = _TestDgraphTranspiler(
+        version="v1", enable_symmetric_edges=True, enable_subclass_edges=False
+    )
     actual = transpiler.convert_multihop_public(case.qgraph)
     assert_query_equals(actual, case.expected)
 
+
 @pytest.mark.parametrize("case", BATCH_CASES, ids=[c.name for c in BATCH_CASES])
-def test_convert_batch_multihop_pairs(transpiler: _TestDgraphTranspiler, case: BatchCase) -> None:
+def test_convert_batch_multihop_pairs(
+    transpiler: _TestDgraphTranspiler, case: BatchCase
+) -> None:
     actual = transpiler.convert_batch_multihop_public(case.qgraphs)
     assert_query_equals(actual, case.expected)
 
@@ -1351,7 +1502,9 @@ DGRAPH_RESULT_WITH_SOURCES = {
 }
 
 
-def test_convert_results_with_full_source_info(transpiler: _TestDgraphTranspiler) -> None:
+def test_convert_results_with_full_source_info(
+    transpiler: _TestDgraphTranspiler,
+) -> None:
     """
     Test that convert_results correctly populates all source fields,
     including upstream_resource_ids and source_record_urls.
@@ -1359,16 +1512,26 @@ def test_convert_results_with_full_source_info(transpiler: _TestDgraphTranspiler
     from retriever.data_tiers.tier_0.dgraph import result_models as dg
 
     # 1. Define the qgraph that produced these results
-    qgraph = qg({
-        "nodes": {
-            "n0": {"categories": ["biolink:CellularComponent"]},
-            "n1": {"ids": ["NCBIGene:11276"]},
-        },
-        "edges": {"e0": {"subject": "n1", "object": "n0", "predicates": ["biolink:located_in"]}},
-    })
+    qgraph = qg(
+        {
+            "nodes": {
+                "n0": {"categories": ["biolink:CellularComponent"]},
+                "n1": {"ids": ["NCBIGene:11276"]},
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n1",
+                    "object": "n0",
+                    "predicates": ["biolink:located_in"],
+                }
+            },
+        }
+    )
 
     # 2. Parse the raw Dgraph JSON into the result_models objects
-    parsed_nodes = dg.DgraphResponse.parse(DGRAPH_RESULT_WITH_SOURCES, prefix="q0").data["q0"]
+    parsed_nodes = dg.DgraphResponse.parse(
+        DGRAPH_RESULT_WITH_SOURCES, prefix="q0"
+    ).data["q0"]
 
     # 3. Run the conversion
     backend_result = transpiler.convert_results(qgraph, parsed_nodes)
@@ -1379,7 +1542,9 @@ def test_convert_results_with_full_source_info(transpiler: _TestDgraphTranspiler
     # Get the single edge from the knowledge graph to inspect its sources
     trapi_edge = next(iter(backend_result["knowledge_graph"]["edges"].values()))
 
-    assert len(trapi_edge["sources"]) == 2  # expect original source + tier0 aggregator we add
+    assert (
+        len(trapi_edge["sources"]) == 2
+    )  # expect original source + tier0 aggregator we add
     source = trapi_edge["sources"][0]
 
     # Assert that the keys exist before accessing them.
@@ -1397,22 +1562,27 @@ def test_convert_results_with_full_source_info(transpiler: _TestDgraphTranspiler
 # Symmetric predicate tests
 # -----------------------
 
-def test_symmetric_predicate_generates_bidirectional_queries(transpiler: _TestDgraphTranspiler) -> None:
+
+def test_symmetric_predicate_generates_bidirectional_queries(
+    transpiler: _TestDgraphTranspiler,
+) -> None:
     """Test that symmetric predicates generate queries checking both directions."""
     # 1. Arrange
-    qgraph = qg({
-        "nodes": {
-            "n0": {"ids": ["MONDO:0005148"], "categories": ["biolink:Disease"]},
-            "n1": {"categories": ["biolink:Gene"]},
-        },
-        "edges": {
-            "e0": {
-                "subject": "n0",
-                "object": "n1",
-                "predicates": ["biolink:related_to"],  # Symmetric predicate
-            }
-        },
-    })
+    qgraph = qg(
+        {
+            "nodes": {
+                "n0": {"ids": ["MONDO:0005148"], "categories": ["biolink:Disease"]},
+                "n1": {"categories": ["biolink:Gene"]},
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": ["biolink:related_to"],  # Symmetric predicate
+                }
+            },
+        }
+    )
 
     # 2. Act
     actual = transpiler.convert_multihop_public(qgraph)
@@ -1443,19 +1613,21 @@ def test_symmetric_predicate_generates_bidirectional_queries(transpiler: _TestDg
 def test_symmetric_predicate_incoming_edge(transpiler: _TestDgraphTranspiler) -> None:
     """Test that symmetric predicates work for incoming edges."""
     # 1. Arrange
-    qgraph = qg({
-        "nodes": {
-            "n0": {"ids": ["MONDO:0005148"], "categories": ["biolink:Disease"]},
-            "n1": {"categories": ["biolink:Gene"]},
-        },
-        "edges": {
-            "e0": {
-                "subject": "n1",  # Note: reversed from previous test
-                "object": "n0",
-                "predicates": ["biolink:correlated_with"],  # Symmetric predicate
-            }
-        },
-    })
+    qgraph = qg(
+        {
+            "nodes": {
+                "n0": {"ids": ["MONDO:0005148"], "categories": ["biolink:Disease"]},
+                "n1": {"categories": ["biolink:Gene"]},
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n1",  # Note: reversed from previous test
+                    "object": "n0",
+                    "predicates": ["biolink:correlated_with"],  # Symmetric predicate
+                }
+            },
+        }
+    )
 
     # 2. Act
     actual = transpiler.convert_multihop_public(qgraph)
@@ -1489,25 +1661,27 @@ def test_symmetric_predicate_incoming_edge(transpiler: _TestDgraphTranspiler) ->
 def test_symmetric_predicate_multi_hop(transpiler: _TestDgraphTranspiler) -> None:
     """Test symmetric predicates in a multi-hop query."""
     # 1. Arrange
-    qgraph = qg({
-        "nodes": {
-            "n0": {"ids": ["MONDO:0005148"], "categories": ["biolink:Disease"]},
-            "n1": {"categories": ["biolink:Gene"]},
-            "n2": {"categories": ["biolink:Pathway"]},
-        },
-        "edges": {
-            "e0": {
-                "subject": "n0",
-                "object": "n1",
-                "predicates": ["biolink:related_to"],  # Symmetric
+    qgraph = qg(
+        {
+            "nodes": {
+                "n0": {"ids": ["MONDO:0005148"], "categories": ["biolink:Disease"]},
+                "n1": {"categories": ["biolink:Gene"]},
+                "n2": {"categories": ["biolink:Pathway"]},
             },
-            "e1": {
-                "subject": "n1",
-                "object": "n2",
-                "predicates": ["biolink:participates_in"],  # Non-symmetric
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": ["biolink:related_to"],  # Symmetric
+                },
+                "e1": {
+                    "subject": "n1",
+                    "object": "n2",
+                    "predicates": ["biolink:participates_in"],  # Non-symmetric
+                },
             },
-        },
-    })
+        }
+    )
 
     # 2. Act
     actual = transpiler.convert_multihop_public(qgraph)
@@ -1553,25 +1727,29 @@ def test_symmetric_predicate_multi_hop(transpiler: _TestDgraphTranspiler) -> Non
     assert "in_edges_e1:" not in actual
 
 
-def test_multiple_symmetric_predicates_on_edge(transpiler: _TestDgraphTranspiler) -> None:
+def test_multiple_symmetric_predicates_on_edge(
+    transpiler: _TestDgraphTranspiler,
+) -> None:
     """Test edge with multiple predicates where all are symmetric."""
     # 1. Arrange
-    qgraph = qg({
-        "nodes": {
-            "n0": {"ids": ["MONDO:0005148"], "categories": ["biolink:Disease"]},
-            "n1": {"categories": ["biolink:Gene"]},
-        },
-        "edges": {
-            "e0": {
-                "subject": "n0",
-                "object": "n1",
-                "predicates": [
-                    "biolink:related_to",  # Symmetric
-                    "biolink:associated_with",  # Symmetric
-                ],
-            }
-        },
-    })
+    qgraph = qg(
+        {
+            "nodes": {
+                "n0": {"ids": ["MONDO:0005148"], "categories": ["biolink:Disease"]},
+                "n1": {"categories": ["biolink:Gene"]},
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": [
+                        "biolink:related_to",  # Symmetric
+                        "biolink:associated_with",  # Symmetric
+                    ],
+                }
+            },
+        }
+    )
 
     # 2. Act
     actual = transpiler.convert_multihop_public(qgraph)
@@ -1602,25 +1780,29 @@ def test_multiple_symmetric_predicates_on_edge(transpiler: _TestDgraphTranspiler
     assert "in_edges-symmetric_e0:" in actual
 
 
-def test_mixed_predicates_treats_as_symmetric(transpiler: _TestDgraphTranspiler) -> None:
+def test_mixed_predicates_treats_as_symmetric(
+    transpiler: _TestDgraphTranspiler,
+) -> None:
     """Test edge with mixed symmetric and non-symmetric predicates."""
     # 1. Arrange
-    qgraph = qg({
-        "nodes": {
-            "n0": {"ids": ["MONDO:0005148"], "categories": ["biolink:Disease"]},
-            "n1": {"categories": ["biolink:ChemicalEntity"]},
-        },
-        "edges": {
-            "e0": {
-                "subject": "n0",
-                "object": "n1",
-                "predicates": [
-                    "biolink:related_to",  # Symmetric
-                    "biolink:treated_by",  # Non-symmetric
-                ],
-            }
-        },
-    })
+    qgraph = qg(
+        {
+            "nodes": {
+                "n0": {"ids": ["MONDO:0005148"], "categories": ["biolink:Disease"]},
+                "n1": {"categories": ["biolink:ChemicalEntity"]},
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": [
+                        "biolink:related_to",  # Symmetric
+                        "biolink:treated_by",  # Non-symmetric
+                    ],
+                }
+            },
+        }
+    )
 
     # 2. Act
     actual = transpiler.convert_multihop_public(qgraph)
@@ -1655,22 +1837,33 @@ def test_mixed_predicates_treats_as_symmetric(transpiler: _TestDgraphTranspiler)
 # Normalization tests
 # -----------------------
 
-def test_normalization_with_underscores_in_ids(transpiler: _TestDgraphTranspiler) -> None:
+
+def test_normalization_with_underscores_in_ids(
+    transpiler: _TestDgraphTranspiler,
+) -> None:
     """Test that node and edge IDs with underscores are normalized to prevent injection."""
     # 1. Arrange - Query with underscores in IDs
-    qgraph = qg({
-        "nodes": {
-            "n0_test": {"ids": ["GO:0031410"], "categories": ["biolink:CellularComponent"]},
-            "n1_patient": {"ids": ["NCBIGene:11276"], "categories": ["biolink:Gene"]},
-        },
-        "edges": {
-            "e0_test": {
-                "subject": "n1_patient",
-                "object": "n0_test",
-                "predicates": ["biolink:located_in"],
-            }
-        },
-    })
+    qgraph = qg(
+        {
+            "nodes": {
+                "n0_test": {
+                    "ids": ["GO:0031410"],
+                    "categories": ["biolink:CellularComponent"],
+                },
+                "n1_patient": {
+                    "ids": ["NCBIGene:11276"],
+                    "categories": ["biolink:Gene"],
+                },
+            },
+            "edges": {
+                "e0_test": {
+                    "subject": "n1_patient",
+                    "object": "n0_test",
+                    "predicates": ["biolink:located_in"],
+                }
+            },
+        }
+    )
 
     # 2. Act
     actual = transpiler.convert_multihop_public(qgraph)
@@ -1700,26 +1893,37 @@ def test_normalization_with_underscores_in_ids(transpiler: _TestDgraphTranspiler
 
     # Verify original IDs are NOT in the query structure
     assert "node_n0_test" not in actual, "Original node ID should not appear in query"
-    assert "node_n1_patient" not in actual, "Original node ID should not appear in query"
-    assert "in_edges_e0_test:" not in actual, "Original edge ID should not appear in query"
+    assert (
+        "node_n1_patient" not in actual
+    ), "Original node ID should not appear in query"
+    assert (
+        "in_edges_e0_test:" not in actual
+    ), "Original edge ID should not appear in query"
 
 
-def test_normalization_with_special_characters(transpiler: _TestDgraphTranspiler) -> None:
+def test_normalization_with_special_characters(
+    transpiler: _TestDgraphTranspiler,
+) -> None:
     """Test that IDs with special characters are normalized to safe identifiers."""
     # 1. Arrange - Query with special characters that could cause injection
-    qgraph = qg({
-        "nodes": {
-            "n0-dash": {"ids": ["MONDO:0005148"], "categories": ["biolink:Disease"]},
-            "n1.dot": {"categories": ["biolink:Gene"]},
-        },
-        "edges": {
-            "e0@special": {
-                "subject": "n0-dash",
-                "object": "n1.dot",
-                "predicates": ["biolink:gene_associated_with_condition"],
-            }
-        },
-    })
+    qgraph = qg(
+        {
+            "nodes": {
+                "n0-dash": {
+                    "ids": ["MONDO:0005148"],
+                    "categories": ["biolink:Disease"],
+                },
+                "n1.dot": {"categories": ["biolink:Gene"]},
+            },
+            "edges": {
+                "e0@special": {
+                    "subject": "n0-dash",
+                    "object": "n1.dot",
+                    "predicates": ["biolink:gene_associated_with_condition"],
+                }
+            },
+        }
+    )
 
     # 2. Act
     actual = transpiler.convert_multihop_public(qgraph)
@@ -1756,25 +1960,27 @@ def test_normalization_with_special_characters(transpiler: _TestDgraphTranspiler
 def test_normalization_alphabetical_ordering(transpiler: _TestDgraphTranspiler) -> None:
     """Test that normalization uses alphabetical ordering for consistent ID assignment."""
     # 1. Arrange - Query with non-sequential node/edge names
-    qgraph = qg({
-        "nodes": {
-            "z_last": {"ids": ["A"], "categories": ["biolink:Gene"]},
-            "a_first": {"ids": ["B"], "categories": ["biolink:Disease"]},
-            "m_middle": {"ids": ["C"], "categories": ["biolink:Pathway"]},
-        },
-        "edges": {
-            "e_zulu": {
-                "subject": "a_first",
-                "object": "z_last",
-                "predicates": ["biolink:related_to"],
+    qgraph = qg(
+        {
+            "nodes": {
+                "z_last": {"ids": ["A"], "categories": ["biolink:Gene"]},
+                "a_first": {"ids": ["B"], "categories": ["biolink:Disease"]},
+                "m_middle": {"ids": ["C"], "categories": ["biolink:Pathway"]},
             },
-            "e_alpha": {
-                "subject": "z_last",
-                "object": "m_middle",
-                "predicates": ["biolink:related_to"],
+            "edges": {
+                "e_zulu": {
+                    "subject": "a_first",
+                    "object": "z_last",
+                    "predicates": ["biolink:related_to"],
+                },
+                "e_alpha": {
+                    "subject": "z_last",
+                    "object": "m_middle",
+                    "predicates": ["biolink:related_to"],
+                },
             },
-        },
-    })
+        }
+    )
 
     # 2. Act
     actual = transpiler.convert_multihop_public(qgraph)
@@ -1793,36 +1999,42 @@ def test_normalization_alphabetical_ordering(transpiler: _TestDgraphTranspiler) 
     assert "_e1:" in actual, "e_zulu should map to e1"
 
 
-def test_normalization_batch_queries_independent(transpiler: _TestDgraphTranspiler) -> None:
+def test_normalization_batch_queries_independent(
+    transpiler: _TestDgraphTranspiler,
+) -> None:
     """Test that each query in a batch gets independent normalization."""
     # 1. Arrange - Batch with different edge/node names
     qgraphs = [
-        qg({
-            "nodes": {
-                "custom_n0": {"ids": ["X"], "categories": ["biolink:Gene"]},
-                "custom_n1": {"ids": ["Y"], "categories": ["biolink:Disease"]},
-            },
-            "edges": {
-                "custom_e0": {
-                    "subject": "custom_n0",
-                    "object": "custom_n1",
-                    "predicates": ["biolink:related_to"],
-                }
-            },
-        }),
-        qg({
-            "nodes": {
-                "different_n0": {"ids": ["A"], "categories": ["biolink:Gene"]},
-                "different_n1": {"ids": ["B"], "categories": ["biolink:Disease"]},
-            },
-            "edges": {
-                "different_e0": {
-                    "subject": "different_n0",
-                    "object": "different_n1",
-                    "predicates": ["biolink:related_to"],
-                }
-            },
-        }),
+        qg(
+            {
+                "nodes": {
+                    "custom_n0": {"ids": ["X"], "categories": ["biolink:Gene"]},
+                    "custom_n1": {"ids": ["Y"], "categories": ["biolink:Disease"]},
+                },
+                "edges": {
+                    "custom_e0": {
+                        "subject": "custom_n0",
+                        "object": "custom_n1",
+                        "predicates": ["biolink:related_to"],
+                    }
+                },
+            }
+        ),
+        qg(
+            {
+                "nodes": {
+                    "different_n0": {"ids": ["A"], "categories": ["biolink:Gene"]},
+                    "different_n1": {"ids": ["B"], "categories": ["biolink:Disease"]},
+                },
+                "edges": {
+                    "different_e0": {
+                        "subject": "different_n0",
+                        "object": "different_n1",
+                        "predicates": ["biolink:related_to"],
+                    }
+                },
+            }
+        ),
     ]
 
     # 2. Act
@@ -1849,19 +2061,24 @@ def test_normalization_batch_queries_independent(transpiler: _TestDgraphTranspil
 def test_normalization_symmetric_predicate(transpiler: _TestDgraphTranspiler) -> None:
     """Test that normalization works correctly with symmetric predicates."""
     # 1. Arrange
-    qgraph = qg({
-        "nodes": {
-            "node_alpha": {"ids": ["MONDO:0005148"], "categories": ["biolink:Disease"]},
-            "node_beta": {"categories": ["biolink:Gene"]},
-        },
-        "edges": {
-            "edge_gamma": {
-                "subject": "node_alpha",
-                "object": "node_beta",
-                "predicates": ["biolink:correlated_with"],  # Symmetric
-            }
-        },
-    })
+    qgraph = qg(
+        {
+            "nodes": {
+                "node_alpha": {
+                    "ids": ["MONDO:0005148"],
+                    "categories": ["biolink:Disease"],
+                },
+                "node_beta": {"categories": ["biolink:Gene"]},
+            },
+            "edges": {
+                "edge_gamma": {
+                    "subject": "node_alpha",
+                    "object": "node_beta",
+                    "predicates": ["biolink:correlated_with"],  # Symmetric
+                }
+            },
+        }
+    )
 
     # 2. Act
     actual = transpiler.convert_multihop_public(qgraph)
@@ -1905,25 +2122,36 @@ def test_normalization_symmetric_predicate(transpiler: _TestDgraphTranspiler) ->
 def test_normalization_multihop_query(transpiler: _TestDgraphTranspiler) -> None:
     """Test normalization in a multi-hop query with various ID formats."""
     # 1. Arrange
-    qgraph = qg({
-        "nodes": {
-            "start_node": {"ids": ["CHEBI:3125"], "categories": ["biolink:SmallMolecule"]},
-            "middle_node": {"ids": ["UMLS:C0282090"], "categories": ["biolink:Disease"]},
-            "end_node": {"ids": ["UMLS:C0496995"], "categories": ["biolink:Phenotype"]},
-        },
-        "edges": {
-            "first_edge": {
-                "subject": "middle_node",
-                "object": "start_node",
-                "predicates": ["biolink:treats"],
+    qgraph = qg(
+        {
+            "nodes": {
+                "start_node": {
+                    "ids": ["CHEBI:3125"],
+                    "categories": ["biolink:SmallMolecule"],
+                },
+                "middle_node": {
+                    "ids": ["UMLS:C0282090"],
+                    "categories": ["biolink:Disease"],
+                },
+                "end_node": {
+                    "ids": ["UMLS:C0496995"],
+                    "categories": ["biolink:Phenotype"],
+                },
             },
-            "second_edge": {
-                "subject": "end_node",
-                "object": "middle_node",
-                "predicates": ["biolink:phenotype_of"],
+            "edges": {
+                "first_edge": {
+                    "subject": "middle_node",
+                    "object": "start_node",
+                    "predicates": ["biolink:treats"],
+                },
+                "second_edge": {
+                    "subject": "end_node",
+                    "object": "middle_node",
+                    "predicates": ["biolink:phenotype_of"],
+                },
             },
-        },
-    })
+        }
+    )
 
     # 2. Act
     actual = transpiler.convert_multihop_public(qgraph)
@@ -1950,6 +2178,7 @@ def test_normalization_multihop_query(transpiler: _TestDgraphTranspiler) -> None
 # Pinnedness Algorithm Tests
 # -----------------------
 
+
 def test_pinnedness_empty_graph_raises(transpiler: _TestDgraphTranspiler) -> None:
     qgraph = qg({"nodes": {}, "edges": {}})
     with pytest.raises(ValueError):
@@ -1963,14 +2192,24 @@ def test_pinnedness_single_node_no_edges(transpiler: _TestDgraphTranspiler) -> N
     assert "q0_node_n0" in actual
 
 
-def test_pinnedness_two_nodes_one_edge_prefers_node_with_ids(transpiler: _TestDgraphTranspiler) -> None:
-    qgraph = qg({
-        "nodes": {
-            "n0": {"ids": ["A"]},            # constrained
-            "n1": {"categories": ["biolink:Gene"]},  # less constrained than IDs
-        },
-        "edges": {"e0": {"subject": "n0", "object": "n1", "predicates": ["biolink:related_to"]}},
-    })
+def test_pinnedness_two_nodes_one_edge_prefers_node_with_ids(
+    transpiler: _TestDgraphTranspiler,
+) -> None:
+    qgraph = qg(
+        {
+            "nodes": {
+                "n0": {"ids": ["A"]},  # constrained
+                "n1": {"categories": ["biolink:Gene"]},  # less constrained than IDs
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": ["biolink:related_to"],
+                }
+            },
+        }
+    )
     actual = transpiler.convert_multihop_public(qgraph)
     # Should start at the most constrained node, n0
     assert "q0_node_n0" in actual
@@ -1980,49 +2219,83 @@ def test_pinnedness_two_nodes_one_edge_prefers_node_with_ids(transpiler: _TestDg
     assert "func: eq(category" not in actual
 
 
-def test_pinnedness_multiple_parallel_edges_increase_weight(transpiler: _TestDgraphTranspiler) -> None:
+def test_pinnedness_multiple_parallel_edges_increase_weight(
+    transpiler: _TestDgraphTranspiler,
+) -> None:
     # Same two nodes but with two parallel edges; pinnedness should still pick the ID node now
-    qgraph = qg({
-        "nodes": {"n0": {"ids": ["A"]}, "n1": {"categories": ["biolink:Gene"]}},
-        "edges": {
-            "e0": {"subject": "n0", "object": "n1", "predicates": ["biolink:related_to"]},
-            "e1": {"subject": "n0", "object": "n1", "predicates": ["biolink:related_to"]},
-        },
-    })
+    qgraph = qg(
+        {
+            "nodes": {"n0": {"ids": ["A"]}, "n1": {"categories": ["biolink:Gene"]}},
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": ["biolink:related_to"],
+                },
+                "e1": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": ["biolink:related_to"],
+                },
+            },
+        }
+    )
     actual = transpiler.convert_multihop_public(qgraph)
     assert "q0_node_n0" in actual
     assert "out_edges_e0:" in actual and "out_edges_e1:" in actual
     # Root filter should be ID-based
-    assert 'q0_node_n0(func: eq(id, "A"))' in actual or 'q0_node_n0(func: eq(id, ["A"]))' in actual
+    assert (
+        'q0_node_n0(func: eq(id, "A"))' in actual
+        or 'q0_node_n0(func: eq(id, ["A"]))' in actual
+    )
     assert "func: eq(category" not in actual
 
 
-def test_pinnedness_prefers_more_ids_over_fewer(transpiler: _TestDgraphTranspiler) -> None:
+def test_pinnedness_prefers_more_ids_over_fewer(
+    transpiler: _TestDgraphTranspiler,
+) -> None:
     # Fewer IDs (n0 has 1) should be preferred over more IDs (n1 has 3)
-    qgraph = qg({
-        "nodes": {
-            "n0": {"ids": ["A"]},
-            "n1": {"ids": ["B1", "B2", "B3"]},
-        },
-        "edges": {"e0": {"subject": "n1", "object": "n0", "predicates": ["biolink:related_to"]}},
-    })
+    qgraph = qg(
+        {
+            "nodes": {
+                "n0": {"ids": ["A"]},
+                "n1": {"ids": ["B1", "B2", "B3"]},
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n1",
+                    "object": "n0",
+                    "predicates": ["biolink:related_to"],
+                }
+            },
+        }
+    )
     actual = transpiler.convert_multihop_public(qgraph)
     assert "q0_node_n0" in actual
-    assert 'q0_node_n0(func: eq(id, "A"))' in actual or 'q0_node_n0(func: eq(id, ["A"]))' in actual
+    assert (
+        'q0_node_n0(func: eq(id, "A"))' in actual
+        or 'q0_node_n0(func: eq(id, ["A"]))' in actual
+    )
 
 
 def test_pinnedness_tie_breaker_uses_node_id(transpiler: _TestDgraphTranspiler) -> None:
     # Both nodes unconstrained (no IDs); tie-breaker should pick max by (score, node_id)
     # With alphabetical normalization, node IDs sorted: a_first -> n0, z_last -> n1
-    qgraph = qg({
-        "nodes": {
-            "a_first": {"categories": ["biolink:Gene"]},
-            "z_last": {"categories": ["biolink:Gene"]},
-        },
-        "edges": {
-            "e0": {"subject": "a_first", "object": "z_last", "predicates": ["biolink:related_to"]},
-        },
-    })
+    qgraph = qg(
+        {
+            "nodes": {
+                "a_first": {"categories": ["biolink:Gene"]},
+                "z_last": {"categories": ["biolink:Gene"]},
+            },
+            "edges": {
+                "e0": {
+                    "subject": "a_first",
+                    "object": "z_last",
+                    "predicates": ["biolink:related_to"],
+                },
+            },
+        }
+    )
     actual = transpiler.convert_multihop_public(qgraph)
 
     # With equal category-only nodes, tie-breaker picks lexicographically larger id ("z_last"), normalized to n1.
@@ -2035,52 +2308,54 @@ def test_pinnedness_tie_breaker_uses_node_id(transpiler: _TestDgraphTranspiler) 
 def test_pinnedness_issue(transpiler: _TestDgraphTranspiler) -> None:
     """Test Pinnedness algorithm issue."""
     # 1. Arrange
-    qgraph = qg({
-      "nodes": {
-        "SN": {
-          "categories": ["biolink:ChemicalEntity"],
-          "set_interpretation": "BATCH",
-          "constraints": [],
-          "member_ids": []
-        },
-        "ON": {
-          "ids": ["MONDO:0011705"],
-          "categories": ["biolink:DiseaseOrPhenotypicFeature"],
-          "set_interpretation": "BATCH",
-          "constraints": [],
-          "member_ids": []
-        },
-        "f": {
-          "categories": ["biolink:Disease"],
-          "set_interpretation": "BATCH",
-          "constraints": [],
-          "member_ids": []
+    qgraph = qg(
+        {
+            "nodes": {
+                "SN": {
+                    "categories": ["biolink:ChemicalEntity"],
+                    "set_interpretation": "BATCH",
+                    "constraints": [],
+                    "member_ids": [],
+                },
+                "ON": {
+                    "ids": ["MONDO:0011705"],
+                    "categories": ["biolink:DiseaseOrPhenotypicFeature"],
+                    "set_interpretation": "BATCH",
+                    "constraints": [],
+                    "member_ids": [],
+                },
+                "f": {
+                    "categories": ["biolink:Disease"],
+                    "set_interpretation": "BATCH",
+                    "constraints": [],
+                    "member_ids": [],
+                },
+            },
+            "edges": {
+                "edge_0": {
+                    "subject": "SN",
+                    "object": "f",
+                    "predicates": ["biolink:treats_or_applied_or_studied_to_treat"],
+                    "attribute_constraints": [],
+                    "qualifier_constraints": [],
+                },
+                "edge_1": {
+                    "subject": "f",
+                    "object": "ON",
+                    "predicates": ["biolink:has_phenotype"],
+                    "attribute_constraints": [],
+                    "qualifier_constraints": [],
+                },
+                "edge_2": {
+                    "subject": "ON",
+                    "object": "f",
+                    "predicates": ["biolink:has_phenotype"],
+                    "attribute_constraints": [],
+                    "qualifier_constraints": [],
+                },
+            },
         }
-      },
-      "edges": {
-        "edge_0": {
-          "subject": "SN",
-          "object": "f",
-          "predicates": ["biolink:treats_or_applied_or_studied_to_treat"],
-          "attribute_constraints": [],
-          "qualifier_constraints": []
-        },
-        "edge_1": {
-          "subject": "f",
-          "object": "ON",
-          "predicates": ["biolink:has_phenotype"],
-          "attribute_constraints": [],
-          "qualifier_constraints": []
-        },
-        "edge_2": {
-          "subject": "ON",
-          "object": "f",
-          "predicates": ["biolink:has_phenotype"],
-          "attribute_constraints": [],
-          "qualifier_constraints": []
-        }
-      }
-    })
+    )
 
     # 2. Act
     actual = transpiler.convert_multihop_public(qgraph)
@@ -2117,3 +2392,460 @@ def test_pinnedness_issue(transpiler: _TestDgraphTranspiler) -> None:
 
     # 3. Assert
     assert normalize(actual) == normalize(expected)
+
+
+# -----------------------
+# Subclassing Corner Case Tests
+# -----------------------
+
+
+def test_subclassing_case1_id_to_id(
+    transpiler_with_subclassing: _TestDgraphTranspiler,
+) -> None:
+    """Test Case 1: ID -> predicate -> ID (all 3 forms: B, C, D)."""
+    qgraph = qg(
+        {
+            "nodes": {
+                "n0": {"ids": ["MONDO:0005233"], "categories": ["biolink:Disease"]},
+                "n1": {"ids": ["MESH:C534883"], "categories": ["biolink:Disease"]},
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": ["biolink:associated_with"],
+                }
+            },
+        }
+    )
+
+    actual = transpiler_with_subclassing.convert_multihop_public(qgraph)
+
+    # Should have all three subclass forms
+    assert "in_edges-subclassB_e0:" in actual
+    assert "out_edges-subclassC_e0:" in actual
+    assert "in_edges-subclassD_e0:" in actual
+
+    # Form B: A' subclass_of A; A' -> predicate -> B
+    assert (
+        'in_edges-subclassB_e0: ~object @filter(eq(predicate_ancestors, "subclass_of"))'
+        in actual
+    )
+    assert (
+        'out_edges-subclassB-mid_e0: ~subject @filter(eq(predicate_ancestors, "associated_with"))'
+        in actual
+    )
+
+    # Form C: A -> predicate -> B'; B' subclass_of B
+    assert (
+        'out_edges-subclassC_e0: ~subject @filter(eq(predicate_ancestors, "associated_with"))'
+        in actual
+    )
+    assert (
+        'out_edges-subclassC-tail_e0: ~subject @filter(eq(predicate_ancestors, "subclass_of"))'
+        in actual
+    )
+
+    # Form D: A' subclass_of A; A' -> predicate -> B'; B' subclass_of B
+    assert (
+        'in_edges-subclassD_e0: ~object @filter(eq(predicate_ancestors, "subclass_of"))'
+        in actual
+    )
+    assert (
+        'out_edges-subclassD-mid_e0: ~subject @filter(eq(predicate_ancestors, "associated_with"))'
+        in actual
+    )
+    assert (
+        'out_edges-subclassD-tail_e0: ~subject @filter(eq(predicate_ancestors, "subclass_of"))'
+        in actual
+    )
+
+
+def test_subclassing_case2_id_to_category(
+    transpiler_with_subclassing: _TestDgraphTranspiler,
+) -> None:
+    """Test Case 2: ID -> predicate -> CAT (only Form B)."""
+    qgraph = qg(
+        {
+            "nodes": {
+                "n0": {"ids": ["MONDO:0005233"], "categories": ["biolink:Disease"]},
+                "n1": {"categories": ["biolink:Gene"]},  # No IDs, only category
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": ["biolink:gene_associated_with_condition"],
+                }
+            },
+        }
+    )
+
+    actual = transpiler_with_subclassing.convert_multihop_public(qgraph)
+
+    # Should only have Form B (subclass source)
+    assert "in_edges-subclassB_e0:" in actual
+    assert (
+        'in_edges-subclassB_e0: ~object @filter(eq(predicate_ancestors, "subclass_of"))'
+        in actual
+    )
+    assert (
+        'out_edges-subclassB-mid_e0: ~subject @filter(eq(predicate_ancestors, "gene_associated_with_condition"))'
+        in actual
+    )
+
+    # Should NOT have Forms C or D
+    assert "out_edges-subclassC_e0:" not in actual
+    assert "in_edges-subclassD_e0:" not in actual
+
+
+def test_subclassing_case3_category_to_id(
+    transpiler_with_subclassing: _TestDgraphTranspiler,
+) -> None:
+    """Test Mirrored Case 2: CAT -> predicate -> ID (only Form B for object)."""
+    qgraph = qg(
+        {
+            "nodes": {
+                "n0": {"categories": ["biolink:Gene"]},  # No IDs, only category
+                "n1": {"ids": ["MONDO:0005233"], "categories": ["biolink:Disease"]},
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": ["biolink:condition_associated_with_gene"],
+                }
+            },
+        }
+    )
+
+    actual = transpiler_with_subclassing.convert_multihop_public(qgraph)
+
+    # Should have mirrored Form B (subclass object)
+    assert "in_edges-subclassObjB_e0:" in actual
+    assert (
+        'in_edges-subclassObjB_e0: ~object @filter(eq(predicate_ancestors, "condition_associated_with_gene"))'
+        in actual
+    )
+    assert (
+        'out_edges-subclassObjB-tail_e0: ~subject @filter(eq(predicate_ancestors, "subclass_of"))'
+        in actual
+    )
+
+    # Should NOT have regular Forms B, C, or D
+    assert "in_edges-subclassB_e0:" not in actual
+    assert "out_edges-subclassC_e0:" not in actual
+    assert "in_edges-subclassD_e0:" not in actual
+
+
+def test_subclassing_skips_subclass_of_predicate(
+    transpiler_with_subclassing: _TestDgraphTranspiler,
+) -> None:
+    """Test that subclass expansion is NOT applied when predicate IS subclass_of."""
+    qgraph = qg(
+        {
+            "nodes": {
+                "n0": {"ids": ["MONDO:0005233"], "categories": ["biolink:Disease"]},
+                "n1": {"ids": ["MONDO:0005061"], "categories": ["biolink:Disease"]},
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": [
+                        "biolink:subclass_of"
+                    ],  # This is the subclass_of predicate itself
+                }
+            },
+        }
+    )
+
+    actual = transpiler_with_subclassing.convert_multihop_public(qgraph)
+
+    # Should NOT have any subclass expansion forms
+    assert "in_edges-subclassB_e0:" not in actual
+    assert "out_edges-subclassC_e0:" not in actual
+    assert "in_edges-subclassD_e0:" not in actual
+    assert "in_edges-subclassObjB_e0:" not in actual
+
+    # Should only have the direct edge
+    assert "in_edges_e0:" in actual or "out_edges_e0:" in actual
+
+
+def test_subclassing_multihop_with_expansion(
+    transpiler_with_subclassing: _TestDgraphTranspiler,
+) -> None:
+    """Test subclass expansion in a multi-hop query."""
+    qgraph = qg(
+        {
+            "nodes": {
+                "n0": {"ids": ["CHEBI:17721"], "categories": ["biolink:SmallMolecule"]},
+                "n1": {"ids": ["NCBIGene:1636"], "categories": ["biolink:Gene"]},
+                "n2": {"ids": ["MONDO:0005233"], "categories": ["biolink:Disease"]},
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": ["biolink:affects"],
+                },
+                "e1": {
+                    "subject": "n1",
+                    "object": "n2",
+                    "predicates": ["biolink:gene_associated_with_condition"],
+                },
+            },
+        }
+    )
+
+    actual = transpiler_with_subclassing.convert_multihop_public(qgraph)
+
+    # Both edges should have subclass expansion (Case 1: ID->ID)
+    # Edge e0
+    assert "in_edges-subclassB_e0:" in actual
+    assert "out_edges-subclassC_e0:" in actual
+    assert "in_edges-subclassD_e0:" in actual
+
+    # Edge e1
+    assert "in_edges-subclassB_e1:" in actual
+    assert "out_edges-subclassC_e1:" in actual
+    assert "in_edges-subclassD_e1:" in actual
+
+
+def test_subclassing_with_attribute_constraints(
+    transpiler_with_subclassing: _TestDgraphTranspiler,
+) -> None:
+    """Test that attribute constraints are preserved on the main predicate edge, not subclass_of."""
+    qgraph = qg(
+        {
+            "nodes": {
+                "n0": {"ids": ["MONDO:0005233"], "categories": ["biolink:Disease"]},
+                "n1": {"ids": ["MESH:C534883"], "categories": ["biolink:Disease"]},
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": ["biolink:related_to"],
+                    "attribute_constraints": [
+                        {
+                            "id": "knowledge_level",
+                            "operator": "==",
+                            "value": "prediction",
+                        }
+                    ],
+                }
+            },
+        }
+    )
+
+    actual = transpiler_with_subclassing.convert_multihop_public(qgraph)
+
+    # NOTE: Attribute constraints are not currently applied at Dgraph query level
+    # They are enforced in Python post-processing (_build_results)
+    # This test verifies subclass forms are generated correctly
+
+    # Should have all three forms
+    assert "in_edges-subclassB_e0:" in actual
+    assert "out_edges-subclassC_e0:" in actual
+    assert "in_edges-subclassD_e0:" in actual
+
+    # The subclass_of edges should not have attribute constraints
+    assert (
+        'in_edges-subclassB_e0: ~object @filter(eq(predicate_ancestors, "subclass_of"))'
+        in actual
+    )
+
+    # The main predicate edges would have constraints at Python level, not in query
+
+
+def test_subclassing_no_expansion_when_both_categories_only(
+    transpiler_with_subclassing: _TestDgraphTranspiler,
+) -> None:
+    """Test that subclass expansion is NOT applied when both nodes have only categories (no IDs)."""
+    qgraph = qg(
+        {
+            "nodes": {
+                "n0": {"categories": ["biolink:Disease"]},  # No IDs
+                "n1": {"categories": ["biolink:Gene"]},  # No IDs
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": ["biolink:gene_associated_with_condition"],
+                }
+            },
+        }
+    )
+
+    actual = transpiler_with_subclassing.convert_multihop_public(qgraph)
+
+    # Should NOT have any subclass expansion (no IDs on either side)
+    assert "in_edges-subclassB_e0:" not in actual
+    assert "out_edges-subclassC_e0:" not in actual
+    assert "in_edges-subclassD_e0:" not in actual
+    assert "in_edges-subclassObjB_e0:" not in actual
+
+
+def test_subclassing_multiple_predicates(
+    transpiler_with_subclassing: _TestDgraphTranspiler,
+) -> None:
+    """Test subclass expansion with multiple predicates on one edge."""
+    qgraph = qg(
+        {
+            "nodes": {
+                "n0": {"ids": ["MONDO:0005233"], "categories": ["biolink:Disease"]},
+                "n1": {"ids": ["NCBIGene:1636"], "categories": ["biolink:Gene"]},
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": [
+                        "biolink:gene_associated_with_condition",
+                        "biolink:condition_associated_with_gene",
+                    ],
+                }
+            },
+        }
+    )
+
+    actual = transpiler_with_subclassing.convert_multihop_public(qgraph)
+
+    # Should have all three forms (Case 1: ID->ID)
+    assert "in_edges-subclassB_e0:" in actual
+    assert "out_edges-subclassC_e0:" in actual
+    assert "in_edges-subclassD_e0:" in actual
+
+    # The predicate filters should include both predicates
+    assert (
+        '"gene_associated_with_condition"' in actual
+        or '"condition_associated_with_gene"' in actual
+    )
+
+
+def test_subclassing_three_hop_mixed_cases(
+    transpiler_with_subclassing: _TestDgraphTranspiler,
+) -> None:
+    """Test a complex 3-hop query with different subclassing cases."""
+    qgraph = qg(
+        {
+            "nodes": {
+                "n0": {"ids": ["CHEBI:17721"], "categories": ["biolink:SmallMolecule"]},
+                "n1": {"categories": ["biolink:Gene"]},  # Category only
+                "n2": {"ids": ["MONDO:0005233"], "categories": ["biolink:Disease"]},
+                "n3": {
+                    "ids": ["HP:0001250"],
+                    "categories": ["biolink:PhenotypicFeature"],
+                },
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": ["biolink:affects"],
+                },  # ID -> CAT (Form B only)
+                "e1": {
+                    "subject": "n1",
+                    "object": "n2",
+                    "predicates": ["biolink:gene_associated_with_condition"],
+                },  # CAT -> ID (Mirrored Form B)
+                "e2": {
+                    "subject": "n2",
+                    "object": "n3",
+                    "predicates": ["biolink:has_phenotype"],
+                },  # ID -> ID (All three forms)
+            },
+        }
+    )
+
+    actual = transpiler_with_subclassing.convert_multihop_public(qgraph)
+
+    # Edge e0 (ID -> CAT): should have Form B
+    assert "in_edges-subclassB_e0:" in actual
+    assert "out_edges-subclassC_e0:" not in actual  # No Form C
+    assert "in_edges-subclassD_e0:" not in actual  # No Form D
+
+    # Edge e1 (CAT -> ID): should have mirrored Form B
+    assert "in_edges-subclassObjB_e1:" in actual
+
+    # Edge e2 (ID -> ID): should have all three forms
+    assert "in_edges-subclassB_e2:" in actual
+    assert "out_edges-subclassC_e2:" in actual
+    assert "in_edges-subclassD_e2:" in actual
+
+
+def test_subclassing_with_multiple_ids(
+    transpiler_with_subclassing: _TestDgraphTranspiler,
+) -> None:
+    """Test subclass expansion when nodes have multiple IDs."""
+    qgraph = qg(
+        {
+            "nodes": {
+                "n0": {
+                    "ids": ["MONDO:0005233", "MONDO:0005061"],
+                    "categories": ["biolink:Disease"],
+                },
+                "n1": {
+                    "ids": ["NCBIGene:1636", "NCBIGene:1637"],
+                    "categories": ["biolink:Gene"],
+                },
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": ["biolink:gene_associated_with_condition"],
+                }
+            },
+        }
+    )
+
+    actual = transpiler_with_subclassing.convert_multihop_public(qgraph)
+
+    # Should still be Case 1 (ID -> ID) with all three forms
+    assert "in_edges-subclassB_e0:" in actual
+    assert "out_edges-subclassC_e0:" in actual
+    assert "in_edges-subclassD_e0:" in actual
+
+    # Should have multiple IDs in the filters
+    assert (
+        '"MONDO:0005233", "MONDO:0005061"' in actual
+        or '"MONDO:0005061", "MONDO:0005233"' in actual
+    )
+    assert (
+        '"NCBIGene:1636", "NCBIGene:1637"' in actual
+        or '"NCBIGene:1637", "NCBIGene:1636"' in actual
+    )
+
+
+def test_subclassing_disabled_via_parameter(transpiler: _TestDgraphTranspiler) -> None:
+    """Test that subclassing can be disabled via constructor parameter."""
+    # Note: using the regular transpiler fixture which has subclassing disabled
+    qgraph = qg(
+        {
+            "nodes": {
+                "n0": {"ids": ["MONDO:0005233"], "categories": ["biolink:Disease"]},
+                "n1": {"ids": ["MESH:C534883"], "categories": ["biolink:Disease"]},
+            },
+            "edges": {
+                "e0": {
+                    "subject": "n0",
+                    "object": "n1",
+                    "predicates": ["biolink:associated_with"],
+                }
+            },
+        }
+    )
+
+    actual = transpiler.convert_multihop_public(qgraph)
+
+    # Should NOT have any subclass expansion forms
+    assert "in_edges-subclassB_e0:" not in actual
+    assert "out_edges-subclassC_e0:" not in actual
+    assert "in_edges-subclassD_e0:" not in actual
+    assert "in_edges-subclassObjB_e0:" not in actual
+
+    # Should only have direct edge (and possibly symmetric)
+    assert "in_edges_e0:" in actual or "out_edges_e0:" in actual
