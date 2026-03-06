@@ -11,6 +11,7 @@ from opentelemetry import trace
 from retriever.config.general import CONFIG
 from retriever.data_tiers.base_driver import DatabaseDriver
 from retriever.data_tiers.tier_1.elasticsearch.aggregating_querier import (
+    enforce_timestamp,
     run_batch_query,
     run_single_query,
 )
@@ -41,7 +42,7 @@ tracer = trace.get_tracer("lookup.execution.tracer")
 
 
 class ElasticSearchDriver(DatabaseDriver):
-    """An Elasticsesarch driver."""
+    """An Elasticsearch driver."""
 
     es_connection: AsyncElasticsearch | None = None
     _failed: bool = False
@@ -125,7 +126,7 @@ class ElasticSearchDriver(DatabaseDriver):
         self.es_connection = None
 
     async def run(
-        self, query: ESPayload | list[ESPayload]
+        self, query: ESPayload | list[ESPayload], bypass_cache: bool = False
     ) -> list[ESEdge] | list[list[ESEdge]]:
         """Execute query logic."""
         # Check ES connection instance
@@ -133,6 +134,9 @@ class ElasticSearchDriver(DatabaseDriver):
             raise RuntimeError(
                 "Must use ElasticSearchDriver.connect() before running queries."
             )
+
+        if bypass_cache:
+            query = enforce_timestamp(query)
 
         try:
             # select query method based on incoming payload
@@ -153,7 +157,7 @@ class ElasticSearchDriver(DatabaseDriver):
             raise e
         except es_exceptions.ConnectionError:
             await self.connect()
-            return await self.run(query)
+            return await self.run(query, bypass_cache=bypass_cache)
         except es_exceptions.ApiError as e:
             log.exception("Elasticsearch query returned non-200 HTTP status")
             raise e
@@ -183,7 +187,8 @@ class ElasticSearchDriver(DatabaseDriver):
                 attributes={"query_body": orjson.dumps(query).decode()},
             )
 
-        query_result = await self.run(query)
+        bypass_cache = kwargs.get("bypass_cache", False)
+        query_result = await self.run(query, bypass_cache)
         if otel_span is not None:
             otel_span.add_event("elasticsearch_query_end")
 
@@ -302,6 +307,7 @@ class ElasticSearchDriver(DatabaseDriver):
     @override
     async def get_subclass_mapping(
         self,
+        bypass_cache: bool = False,
     ) -> EntityToEntityMapping:
         """Get UBERGRAPH nodes mapping/adjacency list."""
-        return await get_ubergraph_info(self.es_connection)
+        return await get_ubergraph_info(self.es_connection, bypass_cache=bypass_cache)

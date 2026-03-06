@@ -283,15 +283,20 @@ def from_ubergraph_info(info: EntityToEntityMapping) -> T1MetaData:
 
 
 async def get_ubergraph_info(
-    es_connection: AsyncElasticsearch | None, retries: int = 0
+    es_connection: AsyncElasticsearch | None,
+    retries: int = 0,
+    bypass_cache: bool = False,
 ) -> EntityToEntityMapping:
     """Assemble ubergraph related info from ES."""
     ubergraph_info_cache_key = "TIER1_UBERGRAPH_INFO"
 
-    cached_info = await read_metadata_cache(ubergraph_info_cache_key)
+    if not bypass_cache:
+        cached_info = await read_metadata_cache(ubergraph_info_cache_key)
 
-    if cached_info is not None:
-        return to_ubergraph_info(cached_info)
+        if cached_info is not None:
+            return to_ubergraph_info(cached_info)
+    else:
+        log.info("cache bypassed for ubergraph info retrieval")
 
     try:
         if es_connection is None:
@@ -302,7 +307,7 @@ async def get_ubergraph_info(
         await save_metadata_cache(
             ubergraph_info_cache_key, from_ubergraph_info(cached_info)
         )
-        log.success("ubergraph info saved!")
+        log.success("ubergraph info saved to cache!")
     except ValueError as e:
         # if exceeds retries or ES connection is invalid, return None
         if retries == RETRY_LIMIT:
@@ -313,7 +318,7 @@ async def get_ubergraph_info(
             raise ValueError(
                 "Failed to retrieve UBERGRAPH info from Elasticsearch due to invalid ES connection."
             ) from e
-        return await get_ubergraph_info(es_connection, retries + 1)
+        return await get_ubergraph_info(es_connection, retries + 1, bypass_cache)
 
     log.success("ubergraph info retrieved!")
     return cached_info
