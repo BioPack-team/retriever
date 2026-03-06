@@ -874,94 +874,10 @@ class DgraphTranspiler(Tier0Transpiler):
     def _add_standard_node_fields(self) -> str:
         """Generate standard node fields with versioned aliases."""
         return f"expand({self.prefix}Node) "
-        # return f"""
-        # {self.prefix}id
-        # {self.prefix}name
-        # {self.prefix}in_taxon
-        # {self.prefix}information_content
-        # {self.prefix}category
-        # {self.prefix}inheritance
-        # {self.prefix}provided_by
-        # {self.prefix}description
-        # {self.prefix}equivalent_identifiers
-
-        # {self.prefix}full_name
-        # {self.prefix}symbol
-        # {self.prefix}synonym
-        # {self.prefix}xref
-        # {self.prefix}taxon
-
-        # {self.prefix}chembl_availability_type
-        # {self.prefix}chembl_black_box_warning
-        # {self.prefix}chembl_natural_product
-        # {self.prefix}chembl_prodrug
-
-        # """
-        # return f" {self.prefix}id {self.prefix}name {self.prefix}category {self.prefix}description "
 
     def _add_standard_edge_fields(self) -> str:
         """Generate standard edge fields with versioned aliases."""
         return f"expand({self.prefix}Edge) {{ {self.prefix}sources expand({self.prefix}Source) }} "
-        # return f"""
-        # {self.prefix}eid
-        # {self.prefix}predicate
-        # {self.prefix}predicate_ancestors
-        # {self.prefix}agent_type
-        # {self.prefix}knowledge_level
-        # {self.prefix}publications
-        # {self.prefix}source_inforeses
-        # {self.prefix}subject_form_or_variant_qualifier
-        # {self.prefix}qualified_predicate
-        # {self.prefix}disease_context_qualifier
-        # {self.prefix}frequency_qualifier
-        # {self.prefix}onset_qualifier
-        # {self.prefix}sex_qualifier
-
-        # {self.prefix}anatomical_context_qualifier
-        # {self.prefix}causal_mechanism_qualifier
-        # {self.prefix}species_context_qualifier
-        # {self.prefix}object_aspect_qualifier
-        # {self.prefix}object_direction_qualifier
-        # {self.prefix}subject_aspect_qualifier
-        # {self.prefix}subject_direction_qualifier
-        # {self.prefix}qualifier
-
-        # {self.prefix}FDA_regulatory_approvals
-        # {self.prefix}clinical_approval_status
-        # {self.prefix}max_research_phase
-
-        # {self.prefix}original_subject
-        # {self.prefix}original_predicate
-        # {self.prefix}original_object
-        # {self.prefix}allelic_requirement
-        # {self.prefix}update_date
-        # {self.prefix}z_score
-        # {self.prefix}p_value
-        # {self.prefix}adjusted_p_value
-        # {self.prefix}has_evidence
-        # {self.prefix}has_confidence_score
-        # {self.prefix}has_count
-        # {self.prefix}has_total
-        # {self.prefix}has_percentage
-        # {self.prefix}has_quotient
-        # {self.prefix}number_of_cases
-        # {self.prefix}dgidb_evidence_score
-        # {self.prefix}dgidb_interaction_score
-        # {self.prefix}ecategory
-
-        # {self.prefix}has_supporting_studies
-
-        # {self.prefix}sources {{
-        #     {self.prefix}source_id
-        #     {self.prefix}source_category
-        #     {self.prefix}resource_id
-        #     {self.prefix}resource_role
-        #     {self.prefix}upstream_resource_ids
-        #     {self.prefix}source_record_urls
-        # }}
-
-        # """
-        # return f" {self.prefix}eid {self.prefix}predicate {self.prefix}predicate_ancestors {self.prefix}agent_type {self.prefix}ecategory "
 
     def _build_filter_clause(self, filters: list[str]) -> str:
         """Build filter clause from a list of filters."""
@@ -1065,11 +981,12 @@ class DgraphTranspiler(Tier0Transpiler):
         # Check outgoing edges (node as subject) to unvisited objects.
         # - Normal edges add ~vJ_subject to cascade.
         # - CAT→ID embedded subclassing edges add ~vJ_object (traversal is reversed).
-        # - Symmetric root edges are excluded (they contribute neither direction; the
-        #   node only needs vJ_id because the reverse traversal is enforced by the
-        #   edge's own @cascade clause).
+        # - Symmetric root edges traverse the *reverse* direction (~vJ_object) in their
+        #   standalone query, so intermediate nodes must include ~vJ_object in @cascade
+        #   to enforce that the node actually participates in that reversed traversal.
         has_relevant_out = False
         has_relevant_out_subclassing = False
+        has_symmetric_root_out = False
         for e_id, e in edges.items():
             if (
                 e["subject"] == node_id
@@ -1078,26 +995,34 @@ class DgraphTranspiler(Tier0Transpiler):
             ):
                 if e_id == self._subclassing_cat_to_id_edge_id:
                     has_relevant_out_subclassing = True
-                elif e_id != self._symmetric_root_edge_id:
+                elif e_id == self._symmetric_root_edge_id:
+                    # Symmetric expansion for this edge traverses ~vJ_object, not
+                    # ~vJ_subject, so the node cascade must reflect that.
+                    has_symmetric_root_out = True
+                else:
                     has_relevant_out = True
 
         if has_relevant_out:
             cascade_fields.append(f"~{self._v('subject')}")
-        if has_relevant_out_subclassing:
-            cascade_fields.append(f"~{self._v('object')}")
+
+        # All cases that require ~vJ_object in cascade (deduplicated):
+        #   - CAT→ID embedded subclassing edges (traversal is reversed)
+        #   - Symmetric root outgoing edges (reverse direction uses ~vJ_object)
+        #   - Incoming edges (node as object, subject is unvisited)
+        needs_object_cascade = has_relevant_out_subclassing or has_symmetric_root_out
 
         # Check incoming edges (node as object) to unvisited subjects
-        has_relevant_in = False
-        for e_id, e in edges.items():
-            if (
-                e["object"] == node_id
-                and e["subject"] not in visited
-                and _include_edge(e_id)
-            ):
-                has_relevant_in = True
-                break
+        if not needs_object_cascade:
+            for e_id, e in edges.items():
+                if (
+                    e["object"] == node_id
+                    and e["subject"] not in visited
+                    and _include_edge(e_id)
+                ):
+                    needs_object_cascade = True
+                    break
 
-        if has_relevant_in:
+        if needs_object_cascade:
             cascade_fields.append(f"~{self._v('object')}")
 
         return f" @cascade({', '.join(cascade_fields)})"
