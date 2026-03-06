@@ -612,8 +612,6 @@ class DgraphDriver(DatabaseDriver):
             f"Expanding split queries: parallel={parallel} | "
             f"symmetric={len(symmetric_queries)} | subclassing={len(subclassing_queries)}"
         )
-        log.trace(f"Main query: {main_query}")
-
         all_main_sym: list[str] = [main_query] + symmetric_queries
         all_queries: list[str] = all_main_sym + subclassing_queries
 
@@ -632,9 +630,10 @@ class DgraphDriver(DatabaseDriver):
             )
         else:
             raw_results = []
-            for i, q in enumerate(symmetric_queries):
+            for i, q in enumerate(all_main_sym):
+                query_label = "main" if i == 0 else f"symmetric[{i - 1}]"
                 try:
-                    log.trace(f"[symmetric {i}] {q}")
+                    log.trace(f"[{query_label}] {q}")
                     raw_results.append(await self.run_query(q, transpiler=transpiler))
                 except Exception as exc:  # noqa: BLE001
                     raw_results.append(exc)
