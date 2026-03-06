@@ -346,7 +346,9 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                 qualifiers.append(
                     QualifierDict(
                         qualifier_type_id=QualifierTypeID(biolink.ensure_prefix(qtype)),
-                        qualifier_value=qval,
+                        qualifier_value=qval
+                        if "qualified_predicate" not in qtype
+                        else biolink.ensure_prefix(qval),
                     )
                 )
 
