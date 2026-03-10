@@ -783,6 +783,11 @@ class QueryGraphExecutor:
                     resource_role="aggregator_knowledge_source",
                     upstream_resource_ids=["infores:ubergraph"],
                 ),
+                RetrievalSourceDict(
+                    resource_id="infores:retriever",
+                    resource_role="aggregator_knowledge_source",
+                    upstream_resource_ids=[CONFIG.tier1.backend_infores],
+                ),
             ],
             attributes=[
                 AttributeDict(
