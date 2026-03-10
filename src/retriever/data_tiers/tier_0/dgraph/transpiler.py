@@ -1590,7 +1590,7 @@ class DgraphTranspiler(Tier0Transpiler):
             self.kgraph["nodes"][real_curie] = trapi_node
 
         normal_end_node = len(node.edges) == 0
-        subclass_end_node = node.is_intermediate and all(
+        subclass_end_node = node.is_subclass_of_expansion and all(
             edge.predicate == "subclass_of" and len(edge.node.edges) == 0
             for edge in node.edges
         )
