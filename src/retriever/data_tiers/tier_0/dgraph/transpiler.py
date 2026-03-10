@@ -98,9 +98,6 @@ class DgraphTranspiler(Tier0Transpiler):
     PINNEDNESS_ADJ_WEIGHT: float = (
         0.1  # dampen adjacency contribution relative to the base ID selectivity
     )
-    SUBCLASS_INTERMEDIATE_PREFIX: str = (
-        "intermediate"  # Sentinel prefix used in subclass form aliases for intermediate traversal nodes
-    )
 
     FilterScalar: TypeAlias = str | int | float | bool  # noqa: UP040
     FilterValue: TypeAlias = FilterScalar | list[FilterScalar]  # noqa: UP040
@@ -1255,10 +1252,6 @@ class DgraphTranspiler(Tier0Transpiler):
 
         return query
 
-    def _is_subclass_intermediate_node(self, node: dg.Node) -> bool:
-        """Return True if this node is a subclass traversal intermediate (not a real QNode)."""
-        return node.is_intermediate
-
     def _build_subclass_form_b(self, ctx: EdgeTraversalContext, norm_eid: str) -> str:
         """Form B: A' subclass_of→ A; A' → predicate1 → B."""
         # The intermediate node is on the subject side (in_edges), so it shares
@@ -1554,10 +1547,6 @@ class DgraphTranspiler(Tier0Transpiler):
             self.k_agraph[qedge_id][subject_id][object_id] = list[EdgeIdentifier]()
         self.k_agraph[qedge_id][subject_id][object_id].append(edge_hash)
 
-    def _is_subclass_intermediate_node(self, node: dg.Node) -> bool:
-        """Return True if this node is a subclass traversal intermediate (not a real QNode)."""
-        return node.binding.startswith(self.SUBCLASS_INTERMEDIATE_PREFIX)
-
     def _build_results(
         self,
         node: dg.Node,
@@ -1579,7 +1568,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
         # Skip intermediate subclass traversal nodes.
         # Pass the ancestor_curie down so child edges are built correctly.
-        if self._is_subclass_intermediate_node(node):
+        if node.is_intermediate:
             partials_from_children: list[Partial] = []
             for edge in node.edges:
                 # Skip subclass_of edges entirely — traversal-only, not real QEdge results
@@ -1626,9 +1615,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
             self._update_graphs(qedge_id, trapi_edge)
 
-            for partial in self._build_results(
-                edge.node, qg, _ancestor_curie=node.id
-            ):
+            for partial in self._build_results(edge.node, qg, _ancestor_curie=node.id):
                 partials[qedge_id].append(
                     partial.combine(
                         Partial(
