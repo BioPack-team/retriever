@@ -47,6 +47,7 @@ from retriever.utils import biolink
 from retriever.utils.general import EmptyIteratorError, merge_iterators
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.trapi import (
+    edge_primary_knowledge_source,
     hash_edge,
     hash_hex,
     hash_qualifier_set,
@@ -850,7 +851,7 @@ class QueryGraphExecutor:
         self, edge_key: SourcelessEdgeKey, edge: EdgeDict
     ) -> EdgeDict:
         """Build a Retriever-constructed edge which asserts the subclass-driven knowledge."""
-        return EdgeDict(
+        construct_edge = EdgeDict(
             subject=edge_key[0],
             object=edge_key[3],
             predicate=edge["predicate"],
@@ -875,9 +876,28 @@ class QueryGraphExecutor:
                 RetrievalSourceDict(
                     resource_id="infores:retriever",
                     resource_role="primary_knowledge_source",
+                    upstream_resource_ids=["infores:ubergraph"],
+                ),
+                RetrievalSourceDict(
+                    resource_id="infores:ubergraph",
+                    resource_role="supporting_data_source",
                 ),
             ],
         )
+
+        if edge_source := edge_primary_knowledge_source(edge):
+            construct_edge["sources"].append(
+                RetrievalSourceDict(
+                    resource_id=edge_source["resource_id"],
+                    resource_role="supporting_data_source",
+                )
+            )
+            # Access by index because it's known
+            (
+                construct_edge["sources"][0].get("upstream_resource_ids", []) or []
+            ).append(edge_source["resource_id"])
+
+        return construct_edge
 
     def insert_constructs(
         self,
@@ -980,8 +1000,31 @@ class QueryGraphExecutor:
                 support_graphs[edge_key] = support_graph_id, set()
             support_graphs[edge_key][1].update(support_graph)
 
-            # Don't build redundant construct edges
+            # Don't build redundant construct edges, just append the supporting source
             if edge_key in construct_edges:
+                if edge_source := edge_primary_knowledge_source(edge):
+                    construct_edge = construct_edges[edge_key][1]
+                    if edge_source["resource_id"] not in (
+                        construct_edge["sources"][0].get("upstream_resource_ids", [])
+                        or []
+                    ):
+                        construct_edge["sources"].append(
+                            RetrievalSourceDict(
+                                resource_id=edge_source["resource_id"],
+                                resource_role="supporting_data_source",
+                            )
+                        )
+                        construct_edge["sources"][0]["upstream_resource_ids"] = list(
+                            {
+                                *(
+                                    construct_edge["sources"][0].get(
+                                        "upstream_resource_ids", []
+                                    )
+                                    or []
+                                ),
+                                edge_source["resource_id"],
+                            }
+                        )
                 continue
 
             construct_edges[edge_key] = (
