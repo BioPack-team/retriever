@@ -1512,33 +1512,17 @@ class DgraphTranspiler(Tier0Transpiler):
         self,
         node: dg.Node,
         qg: QueryGraphDict,
-        _ancestor_curie: str | None = None,
     ) -> list[Partial]:
         """Recursively build results from dgraph response.
 
         Args:
             node: Parsed node from Dgraph response
             qg: The TRAPI query graph
-            _ancestor_curie: CURIE of the nearest real (non-intermediate) ancestor node,
-                             used to correctly build TRAPI edges when skipping intermediates.
 
         Returns:
             List of partial results with original node/edge IDs
         """
         original_node_id = QNodeID(node.binding)
-
-        # Skip intermediate subclass traversal nodes.
-        # Pass the ancestor_curie down so child edges are built correctly.
-        if node.is_intermediate:
-            partials_from_children: list[Partial] = []
-            for edge in node.edges:
-                # Skip subclass_of edges entirely — traversal-only, not real QEdge results
-                if edge.predicate == "subclass_of":
-                    continue
-                partials_from_children.extend(
-                    self._build_results(edge.node, qg, _ancestor_curie=_ancestor_curie)
-                )
-            return partials_from_children
 
         # This is a real QNode
         real_curie = CURIE(node.id)
@@ -1553,17 +1537,21 @@ class DgraphTranspiler(Tier0Transpiler):
 
             self.kgraph["nodes"][real_curie] = trapi_node
 
-        if not len(node.edges):
+        normal_end_node = len(node.edges) == 0
+        subclass_end_node = node.is_intermediate and all(
+            edge.predicate == "subclass_of" and len(edge.node.edges) == 0
+            for edge in node.edges
+        )
+
+        if normal_end_node or subclass_end_node:
             return [Partial([(original_node_id, real_curie)], [])]
 
         partials = {QEdgeID(edge.binding): list[Partial]() for edge in node.edges}
 
-        for edge in node.edges:
+        next_edges = list(node.edges)
+        while len(next_edges) > 0:
+            edge = next_edges.pop()
             qedge_id = QEdgeID(edge.binding)
-
-            # Skip subclass_of edges — traversal-only
-            if edge.predicate == "subclass_of":
-                continue
 
             # Build the TRAPI edge using the real node's CURIE (not an intermediate's)
             trapi_edge = self._build_trapi_edge(edge, node.id)
@@ -1576,7 +1564,13 @@ class DgraphTranspiler(Tier0Transpiler):
 
             self._update_graphs(qedge_id, trapi_edge)
 
-            for partial in self._build_results(edge.node, qg, _ancestor_curie=node.id):
+            # Skip subclass edges, FIX: this should be more specific than just the predicate
+            if edge.predicate == "subclass_of":
+                logger.debug("skipped subclass edge!")
+                next_edges.extend(edge.node.edges)
+                continue
+
+            for partial in self._build_results(edge.node, qg):
                 partials[qedge_id].append(
                     partial.combine(
                         Partial(
