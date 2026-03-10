@@ -93,6 +93,7 @@ class Edge:
     id: str | None = None
     qualifiers: dict[str, str]
     attributes: dict[str, Any]
+    is_subclass_of_expansion: bool = False
 
     @classmethod
     def from_dict(  # noqa: PLR0913
@@ -103,6 +104,7 @@ class Edge:
         prefix: str | None = None,
         edge_id_map: Mapping[str, str] | None = None,
         node_id_map: Mapping[str, str] | None = None,
+        is_subclass_of_expansion: bool = False,
     ) -> Self:
         """Parse an edge mapping into an Edge dataclass (handles versioned keys).
 
@@ -113,6 +115,7 @@ class Edge:
             prefix: Schema version prefix (e.g., 'vC_'), or None for no prefix
             edge_id_map: Optional mapping from normalized edge IDs to original IDs
             node_id_map: Optional mapping from normalized node IDs to original IDs
+            is_subclass_of_expansion: Whether the edge is a subclass_of expansion
 
         Returns:
             Parsed Edge instance with connected node
@@ -133,11 +136,16 @@ class Edge:
         # Strip the leading "node_" prefix to get the binding portion
         raw_node_binding = raw_node_key[len("node_"):] if raw_node_key else ""
 
-        is_intermediate = raw_node_binding.startswith("intermediate_")
+        # An edge is part of the subclass expansion if:
+        # 1. Its target node is an intermediate (key like "node_intermediate_n1")
+        # 2. Its own predicate is "subclass_of" (the tail hop)
+        node_is_subclass_of_expansion = raw_node_binding.startswith("intermediate_")
+        edge_predicate = str(norm.get("predicate", ""))
+        edge_is_subclass_of_expansion = node_is_subclass_of_expansion or edge_predicate == "subclass_of"
 
         # Strip the "intermediate_" prefix so the binding is just the node alias (e.g. "n1")
         # For regular nodes, convert using node_id_map as usual.
-        if is_intermediate:
+        if node_is_subclass_of_expansion:
             clean_binding = raw_node_binding[len("intermediate_"):]
             node_binding = node_id_map.get(clean_binding, clean_binding) if node_id_map else clean_binding
         else:
@@ -189,12 +197,13 @@ class Edge:
                 prefix=prefix,
                 edge_id_map=edge_id_map,
                 node_id_map=node_id_map,
-                is_intermediate=is_intermediate,
+                is_subclass_of_expansion=node_is_subclass_of_expansion,
             ),
             sources=parsed_sources,
             id=str(norm["eid"]) if "eid" in norm else None,
             attributes=attributes,
             qualifiers=qualifiers,
+            is_subclass_of_expansion=edge_is_subclass_of_expansion,
         )
 
 
@@ -208,7 +217,7 @@ class Node:
     edges: list[Edge] = field(default_factory=list)
     category: list[str] = field(default_factory=list)
     attributes: dict[str, Any]
-    is_intermediate: bool = False
+    is_subclass_of_expansion: bool = False
 
     @classmethod
     def from_dict(
@@ -219,7 +228,7 @@ class Node:
         prefix: str | None = None,
         edge_id_map: Mapping[str, str] | None = None,
         node_id_map: Mapping[str, str] | None = None,
-        is_intermediate: bool = False,
+        is_subclass_of_expansion: bool = False,
     ) -> Self:
         """Parse a node mapping into a Node dataclass (handles versioned keys).
 
@@ -229,7 +238,7 @@ class Node:
             prefix: Schema version prefix (e.g., 'vC_'), or None for no prefix
             edge_id_map: Optional mapping from normalized edge IDs to original IDs
             node_id_map: Optional mapping from normalized node IDs to original IDs
-            is_intermediate: Whether the node is an intermediate node
+            is_subclass_of_expansion: Whether the node is an intermediate node
 
         Returns:
             Parsed Node instance with edges having original bindings
@@ -319,7 +328,7 @@ class Node:
             edges=edges,
             category=_to_str_list(norm.get("category")),
             attributes=attributes,
-            is_intermediate=is_intermediate,
+            is_subclass_of_expansion=is_subclass_of_expansion,
         )
 
 

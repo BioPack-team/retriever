@@ -1524,6 +1524,19 @@ class DgraphTranspiler(Tier0Transpiler):
         """
         original_node_id = QNodeID(node.binding)
 
+        # Skip intermediate subclass traversal nodes.
+        # Pass the ancestor_curie down so child edges are built correctly.
+        if node.is_subclass_of_expansion:
+            partials_from_children: list[Partial] = []
+            for edge in node.edges:
+                # Skip subclass_of edges entirely — traversal-only, not real QEdge results
+                if edge.predicate == "subclass_of":
+                    continue
+                partials_from_children.extend(
+                    self._build_results(edge.node, qg, _ancestor_curie=_ancestor_curie)
+                )
+            return partials_from_children
+
         # This is a real QNode
         real_curie = CURIE(node.id)
 
