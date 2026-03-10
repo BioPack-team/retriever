@@ -123,16 +123,27 @@ class Edge:
             (v for k, v in norm.items() if k.startswith("node_")),
             cast(Mapping[str, Any], {}),
         )
-        normalized_node_binding = next(
-            (k.split("_", 1)[1] for k in norm if k.startswith("node_")), ""
-        )
 
-        # Convert node binding back to original ID
-        node_binding = (
-            node_id_map.get(normalized_node_binding, normalized_node_binding)
-            if node_id_map
-            else normalized_node_binding
-        )
+        # Extract the node binding from keys like:
+        #   "node_n1"            -> binding = "n1"         (regular node)
+        #   "node_intermediate_n1" -> binding = "intermediate_n1"  (intermediate, forward)
+        #   "node_intermediate_n0" -> binding = "intermediate_n0"  (intermediate, backward)
+        #   "node_intermediate_A"  -> binding = "intermediate_A"   (form D intermediate)
+        raw_node_key = next((k for k in norm if k.startswith("node_")), "")
+        # Strip the leading "node_" prefix to get the binding portion
+        raw_node_binding = raw_node_key[len("node_"):] if raw_node_key else ""
+
+        # For regular (non-intermediate) nodes, convert using node_id_map.
+        # Intermediate bindings (e.g. "intermediate_n1") are kept as-is since they
+        # are not real QNode IDs and have no entry in node_id_map.
+        if raw_node_binding.startswith("intermediate"):
+            node_binding = raw_node_binding
+        else:
+            node_binding = (
+                node_id_map.get(raw_node_binding, raw_node_binding)
+                if node_id_map
+                else raw_node_binding
+            )
 
         # --- Parse sources ---
         sources_val = norm.get("sources")
@@ -194,6 +205,7 @@ class Node:
     edges: list[Edge] = field(default_factory=list)
     category: list[str] = field(default_factory=list)
     attributes: dict[str, Any]
+    is_intermediate: bool = False
 
     @classmethod
     def from_dict(
@@ -218,6 +230,10 @@ class Node:
             Parsed Node instance with edges having original bindings
         """
         norm = _strip_prefix(data, prefix)
+
+        # Determine if this node is a subclass intermediate node.
+        # Intermediate nodes have bindings like "intermediate_n1" or "intermediate_A" / "intermediate_B".
+        is_intermediate = binding.startswith("intermediate")
 
         edges: list[Edge] = []
         attributes = dict[str, Any]()
@@ -302,6 +318,7 @@ class Node:
             edges=edges,
             category=_to_str_list(norm.get("category")),
             attributes=attributes,
+            is_intermediate=is_intermediate,
         )
 
 
