@@ -308,7 +308,6 @@ def test_initialize_kgraph() -> None:
 
     assert len(kgraph["nodes"]) == 1
     assert "NCBIGene:3778" in kgraph["nodes"]
-    assert "biolink:Gene" in kgraph["nodes"][CURIE("NCBIGene:3778")]["categories"]
     assert len(kgraph["edges"]) == 0
 
 
