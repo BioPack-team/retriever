@@ -51,7 +51,7 @@ class SubqueryDispatcher(BatchedAction):
 
     queue_delay: float = 0.025
     # Essentially should flush every interval
-    batch_size: int = 50
+    batch_size: int = 10
     flush_time: float = 0
     multibatch: bool = True
 
