@@ -66,10 +66,12 @@ pipeline {
             steps {
                 script {
                     configFileProvider([
-                        configFile(fileId: 'values-retriever-ci.yaml', targetLocation: 'values-ncats.yaml')
+                        configFile(fileId: 'values-retriever-ci.yaml', targetLocation: 'values-ncats.yaml'),
+                        configFile(fileId: 'prepare.sh', targetLocation: 'prepare.sh')
                     ]){
                         sh '''
                         aws --region ${AWS_REGION} eks update-kubeconfig --name ${KUBERNETES_BLUE_CLUSTER_NAME}
+                        /bin/bash prepare.sh
                         cd translator-ops/ops/retriever/
                         /bin/bash deploy.sh
                         '''
