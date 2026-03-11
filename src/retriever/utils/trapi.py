@@ -15,7 +15,6 @@ from retriever.types.trapi import (
     AttributeDict,
     AuxGraphID,
     AuxiliaryGraphDict,
-    BiolinkEntity,
     EdgeDict,
     EdgeIdentifier,
     Infores,
@@ -46,7 +45,7 @@ def initialize_kgraph(qgraph: QueryGraphDict | QueryGraph) -> KnowledgeGraphDict
                 continue
             for curie in qnode.ids:
                 kgraph["nodes"][CURIE(curie)] = NodeDict(
-                    categories=[BiolinkEntity(cat) for cat in (qnode.categories or [])],
+                    categories=[],
                     attributes=[],
                 )
     else:
@@ -55,10 +54,7 @@ def initialize_kgraph(qgraph: QueryGraphDict | QueryGraph) -> KnowledgeGraphDict
                 continue
             for curie in qnode["ids"]:
                 kgraph["nodes"][CURIE(curie)] = NodeDict(
-                    categories=[
-                        BiolinkEntity(cat)
-                        for cat in (qnode.get("categories", []) or [])
-                    ],
+                    categories=[],
                     attributes=[],
                 )
     return kgraph
