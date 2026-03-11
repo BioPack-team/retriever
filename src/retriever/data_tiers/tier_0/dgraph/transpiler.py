@@ -1243,7 +1243,7 @@ class DgraphTranspiler(Tier0Transpiler):
         query += self._build_node_cascade_clause(
             ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
         )
-        query += " { " + self._add_standard_node_fields() + " } } } } "
+        query += " { " + self._add_standard_node_fields() + self._build_further_hops(ctx.target_id, ctx.nodes, ctx.edges, ctx.visited | {ctx.target_id}) + " } } } } "
         return query
 
     def _build_subclass_form_c(self, ctx: EdgeTraversalContext, norm_eid: str) -> str:
@@ -1271,7 +1271,7 @@ class DgraphTranspiler(Tier0Transpiler):
         query += self._build_node_cascade_clause(
             ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
         )
-        query += " { " + self._add_standard_node_fields() + " } } } } "
+        query += " { " + self._add_standard_node_fields() + self._build_further_hops(ctx.target_id, ctx.nodes, ctx.edges, ctx.visited | {ctx.target_id}) + " } } } } "
         return query
 
     def _build_subclass_form_d(self, ctx: EdgeTraversalContext, norm_eid: str) -> str:
@@ -1306,7 +1306,7 @@ class DgraphTranspiler(Tier0Transpiler):
         query += self._build_node_cascade_clause(
             ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
         )
-        query += " { " + self._add_standard_node_fields() + " } } } } } } "
+        query += " { " + self._add_standard_node_fields() + self._build_further_hops(ctx.target_id, ctx.nodes, ctx.edges, ctx.visited | {ctx.target_id}) + " } } } } } } "
         return query
 
     def _build_subclass_object_case3_form_b(
@@ -1348,7 +1348,7 @@ class DgraphTranspiler(Tier0Transpiler):
         query += self._build_node_cascade_clause(
             ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
         )
-        query += " { " + self._add_standard_node_fields() + " } } } } "
+        query += " { " + self._add_standard_node_fields() + self._build_further_hops(ctx.target_id, ctx.nodes, ctx.edges, ctx.visited | {ctx.target_id}) + " } } } } "
         return query
 
     @override
