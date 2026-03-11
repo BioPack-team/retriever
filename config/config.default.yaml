@@ -30,7 +30,7 @@ job: callback:
     retries: 3  # Number of times to retry obtaining DINGO metadata.
     acquire_timeout: 30  # Time in seconds until a metadata call should time out, set to -1 to disable.
     timeout: 10  # Time in seconds before a job should time out, set to -1 to disable.
-    build_time: -1  # Time in seconds before MetaKG should be rebuilt. Set to -1 to only build at start.
+    build_time: 3600  # Time in seconds before MetaKG should be rebuilt. Set to -1 to only build at start.
   ttl: 2592000  # Time in seconds for job state to remain after it was last touched
   ttl_max: 31536000  # Time in seconds after which job state is cleared, regardless of last touch
 log:

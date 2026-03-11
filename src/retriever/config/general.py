@@ -164,7 +164,7 @@ class MetaKGSettings(BaseModel):
         Field(
             description="Time in seconds before MetaKG should be rebuilt. Set to -1 to only build at start."
         ),
-    ] = -1
+    ] = 3600
 
 
 class JobSettings(BaseModel):
