@@ -45,15 +45,17 @@ pipeline {
            when { expression { return env.BUILD == 'true' }}
             steps {
                 script {
-                    sh '''#!/bin/bash
+                    sh """#!/bin/bash
                     echo "Building Docker image for retriever..."
-                    aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin 853771734544.dkr.ecr.us-east-1.amazonaws.com
                     docker build -t retriever:${BUILD_VERSION} .
                     docker tag retriever:${BUILD_VERSION} ${IMAGE_NAME}:${BUILD_VERSION}
                     docker tag retriever:${BUILD_VERSION} ${IMAGE_NAME}:latest
+                    
+                    echo "Logging into ECR and pushing images..."
+                    aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 853771734544.dkr.ecr.us-east-1.amazonaws.com
                     docker push ${IMAGE_NAME}:${BUILD_VERSION}
                     docker push ${IMAGE_NAME}:latest
-                    '''
+                    """
                 }
             }
         }
