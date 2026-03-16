@@ -6,10 +6,15 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Annotated, Literal
 
+import git
 import yaml
 from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import ORJSONResponse, Response, StreamingResponse
+from fastapi.responses import (
+    ORJSONResponse,
+    Response,
+    StreamingResponse,
+)
 from reasoner_pydantic import AsyncQueryStatusResponse as TRAPIAsyncQueryStatusResponse
 
 from retriever.config.general import CONFIG
@@ -371,3 +376,20 @@ async def logs(  # noqa: PLR0913 Can't reduce args due to FastAPI endpoint forma
         logs,
         media_type="application/json" if fmt != "flat" else "text/plain",
     )
+
+
+@app.get(
+    "/config",
+    tags=["metadata"],
+    response_description=OPENAPI_CONFIG.response_descriptions.config.get("200", ""),
+)
+async def config() -> ORJSONResponse:
+    """Get the current config of the server."""
+    sha = git.Repo(search_parent_directories=True).head.object.hexsha
+    config = yaml.safe_load(CONFIG.model_dump_json())
+    config["retriever_version"] = sha
+    config["retriever_version_link"] = (
+        f"https://github.com/BioPack-team/retriever/tree/{sha}"
+    )
+
+    return ORJSONResponse(config)

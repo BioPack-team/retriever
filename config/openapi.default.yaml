@@ -81,6 +81,8 @@ response_descriptions:
   logs:
     '200': Logs in either flat or structured JSON format.
     '404': Indicates this service is disabled by config.
+  config:
+    '200': The present config of the server, with secrets removed.
 servers:
   - description: DOGSURF AWS Dev instance
     url: https://dev.retriever.biothings.io/

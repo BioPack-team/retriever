@@ -80,9 +80,6 @@ class MongoSettings(BaseModel):
     shutdown_timeout: Annotated[
         int, Field(description="Time in seconds to wait for serialize task to finish.")
     ] = 3
-    flood_batch_size: Annotated[
-        int, Field(description=" Batch size for basic mongo inserts.")
-    ] = 1000
 
 
 class TelemetrySettings(BaseModel):
@@ -191,9 +188,9 @@ class LogSettings(BaseModel):
     """Settings for log handling."""
 
     log_to_mongo: Annotated[bool, Field(description="Persist logs in MongoDB.")] = True
-    ttl: Annotated[int, Field(description="Time in seconds for a log to persist.")] = (
-        1_209_600
-    )
+    mongo_ttl: Annotated[
+        int, Field(description="Time in seconds for a log to persist.")
+    ] = 1_209_600
 
 
 def uppercase(value: str) -> str:
@@ -235,23 +232,6 @@ class Tier1Settings(BaseModel):
             description="Write out TRAPI and translated queries to a file in jsonl format."
         ),
     ] = False
-
-
-class Neo4jSettings(BaseModel):
-    """Settings for the Tier 0 Neo4j interface."""
-
-    query_timeout: Annotated[
-        int, Field(description="Time in seconds before a neo4j query should time out.")
-    ] = 3600
-    connect_retries: Annotated[
-        int,
-        Field(description="Number of retries before declaring a connection failure."),
-    ] = 5
-    host: str = ""
-    bolt_port: int = 7687
-    username: str = ""
-    password: SecretStr = SecretStr("")
-    database_name: str = "neo4j"
 
 
 class DgraphSettings(BaseModel):
@@ -304,7 +284,6 @@ class Tier0Settings(BaseModel):
 
     backend: str = "dgraph"
     backend_infores: str = "infores:dogpark-tier0"
-    neo4j: Neo4jSettings = Neo4jSettings()
     dgraph: DgraphSettings = DgraphSettings()
     dump_queries: Annotated[
         bool,

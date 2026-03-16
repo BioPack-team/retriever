@@ -35,7 +35,7 @@ job: callback:
   ttl_max: 31536000  # Time in seconds after which job state is cleared, regardless of last touch
 log:
   log_to_mongo: true  # Persist logs in MongoDB.
-  ttl: 1209600  # Time in seconds for a log to persist.
+  mongo_ttl: 1209600  # Time in seconds for a log to persist.
 redis:
   host: localhost
   port: 6379
@@ -52,18 +52,9 @@ mongo:
   authsource:
   attempts: 3  # Number of attempts to accomplish operation before considering it failed.
   shutdown_timeout: 3  # Time in seconds to wait for serialize task to finish.
-  flood_batch_size: 1000  #  Batch size for basic mongo inserts.
 tier0:
   backend: dgraph
   backend_infores: infores:dogpark-tier0
-  neo4j:
-    query_timeout: 3600  # Time in seconds before a neo4j query should time out.
-    connect_retries: 5  # Number of retries before declaring a connection failure.
-    host: ''
-    bolt_port: 7687
-    username: ''
-    password: ''
-    database_name: neo4j
   dgraph:
     host: localhost
     http_port: 8080

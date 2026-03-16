@@ -88,7 +88,7 @@ class MongoClient(metaclass=Singleton):
 
         log_collection = self.get_log_collection()
         await log_collection.create_index(
-            {"time": 1}, background=True, expireAfterSeconds=CONFIG.log.ttl
+            {"time": 1}, background=True, expireAfterSeconds=CONFIG.log.mongo_ttl
         )
 
     async def batch_write(

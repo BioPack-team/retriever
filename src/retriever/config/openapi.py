@@ -134,6 +134,9 @@ class ResponseDescriptions(BaseModel):
         "200": "Logs in either flat or structured JSON format.",
         "404": "Indicates this service is disabled by config.",
     }
+    config: dict[str, str] = {
+        "200": "The present config of the server, with secrets removed."
+    }
 
 
 class ServerConfig(CommentedSettings):
