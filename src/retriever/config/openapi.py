@@ -21,7 +21,7 @@ class ContactInfo(BaseModel):
     """Contact information for the API maintainer."""
 
     email: EmailStr = "jcallaghan@scripps.edu"
-    name: str = "Jackson Callaghan"
+    name: str = "Willow Callaghan"
     url: str = "https://github.com/tokebe"
     x_id: Annotated[str, Field(serialization_alias="x-id")] = "tokebe"
     x_role: Annotated[str, Field(serialization_alias="x-role")] = (
@@ -187,7 +187,12 @@ class OpenAPIConfig(CommentedSettings):
                 description="DOGSURF AWS Dev instance",
                 url="https://dev.retriever.biothings.io/",
                 x_maturity="development",
-            )
+            ),
+            ServerConfig(
+                description="Translator CI instance",
+                url="https://retriever.ci.transltr.io/",
+                x_maturity="staging",
+            ),
         ]
     )
 

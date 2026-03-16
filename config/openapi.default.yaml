@@ -8,7 +8,7 @@ version: 0.0.1
 title: Retriever
 contact:
   email: jcallaghan@scripps.edu
-  name: Jackson Callaghan
+  name: Willow Callaghan
   url: https://github.com/tokebe
   x_id: tokebe
   x_role: responsible developer
@@ -86,3 +86,6 @@ servers:
   - description: DOGSURF AWS Dev instance
     url: https://dev.retriever.biothings.io/
     x_maturity: development
+  - description: Translator CI instance
+    url: https://retriever.ci.transltr.io/
+    x_maturity: staging
