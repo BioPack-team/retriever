@@ -177,9 +177,7 @@ class OpenAPIConfig(CommentedSettings):
             description="Note that fields usually named with - instead use _ (e.g. x-translator -> x_translator).",
         ),
     ] = XTranslator()
-    x_trapi: XTrapi = Field(
-        default_factory=lambda: XTrapi(), serialization_alias="x-trapi"
-    )
+    x_trapi: XTrapi = Field(default_factory=XTrapi, serialization_alias="x-trapi")
     response_descriptions: ResponseDescriptions = ResponseDescriptions()
     servers: list[ServerConfig] = Field(
         default_factory=lambda: [
