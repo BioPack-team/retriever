@@ -385,11 +385,14 @@ async def logs(  # noqa: PLR0913 Can't reduce args due to FastAPI endpoint forma
 )
 async def config() -> ORJSONResponse:
     """Get the current config of the server."""
-    sha = git.Repo(search_parent_directories=True).head.object.hexsha
     config = yaml.safe_load(CONFIG.model_dump_json())
-    config["retriever_version"] = sha
-    config["retriever_version_link"] = (
-        f"https://github.com/BioPack-team/retriever/tree/{sha}"
-    )
+    try:
+        sha = git.Repo(search_parent_directories=True).head.object.hexsha
+        config["retriever_version"] = sha
+        config["retriever_version_link"] = (
+            f"https://github.com/BioPack-team/retriever/tree/{sha}"
+        )
+    except Exception:
+        pass
 
     return ORJSONResponse(config)
