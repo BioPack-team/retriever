@@ -32,6 +32,7 @@ class _TestDgraphTranspiler(DgraphTranspiler):
         nodes: list[Any],
         qgraph: QueryGraphDict,
     ) -> list[Any]:
+        self._normalize_qgraph_ids(qgraph)
         return self._filter_cascaded_with_or(nodes, qgraph)
 
 
@@ -523,8 +524,6 @@ CASES: list[QueryCase] = [
 
 @pytest.mark.parametrize("case", CASES, ids=[c.name for c in CASES])
 def test_cascade_with_or(transpiler: _TestDgraphTranspiler, case: QueryCase) -> None:
-    transpiler._normalize_qgraph_ids(case.qgraph)
-
     nodes = _parse_filter_cascade_response(case.expected_dgraph_response)
 
     expected_nodes = _parse_filter_cascade_response(
