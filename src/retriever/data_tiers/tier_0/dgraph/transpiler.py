@@ -217,56 +217,88 @@ class DgraphTranspiler(Tier0Transpiler):
         return self._reverse_edge_map.get(normalized_id, QEdgeID(normalized_id))
 
     def _filter_cascaded_with_or(
-        self, nodes: list[dg.Node], symmetric_edges: dict[QEdgeID, tuple[str, str]]
+        self,
+        nodes: list[dg.Node],
+        qgraph: QueryGraphDict,
     ) -> list[dg.Node]:
-        """Filter results to enforce cascade with OR logic between symmetric edge directions.
+        """Filter results to enforce cascade with OR logic between symmetric edge directions,
+        and ensure all required path hops are present. Since Dgraph doesn't natively support
+        this logic, we implement it as a post-processing step on the raw results.
 
         Args:
             nodes: Parsed Dgraph response nodes
-            symmetric_edges: Map of edge IDs to their (primary, symmetric) field name pairs
-                        e.g., {QEdgeID('e0'): ('in_edges_e0', 'out_edges-symmetric_e0')}
+            qgraph: The TRAPI query graph used to validate path completeness
 
         Returns:
-            Filtered list of nodes that satisfy cascade with OR logic
+            Filtered list of nodes that satisfy cascade with OR logic and full path requirements
         """
 
         def validate_edge_path(
-            node: dg.Node, symmetric_map: Mapping[QEdgeID, tuple[str, str]]
+            node: dg.Node,
+            parent_qnode_id: QNodeID | None,
         ) -> bool:
-            """Recursively validate all edges in the path."""
-            if not node.edges:
-                return True
+            """Recursively validate and prune edges that do not lead to a complete path."""
+            qnode_id = QNodeID(node.binding)
 
-            # Group edges by their query edge ID
-            edges_by_qid: dict[QEdgeID, list[dg.Edge]] = {}
-            for edge in node.edges:
-                qid = QEdgeID(edge.binding)
-                if qid not in edges_by_qid:
-                    edges_by_qid[qid] = []
-                edges_by_qid[qid].append(edge)
-
-            # Check each edge group - must have at least one valid path
-            for qid, edge_group in edges_by_qid.items():
-                if qid in symmetric_map:
-                    # For symmetric edges, check if at least one direction has valid nested paths
-                    has_valid = False
-                    for edge in edge_group:
-                        if validate_edge_path(edge.node, symmetric_map):
-                            has_valid = True
-                            break
-                    if not has_valid:
-                        return False
+            # Compute required forward edges: all query edges involving this node,
+            # minus the edge that leads back to the parent (already satisfied).
+            required_qedge_ids: set[QEdgeID] = set()
+            for eid, edge in qgraph["edges"].items():
+                if edge["subject"] == qnode_id:
+                    other = QNodeID(edge["object"])
+                elif edge["object"] == qnode_id:
+                    other = QNodeID(edge["subject"])
                 else:
-                    # For non-symmetric edges, all must be valid
-                    for edge in edge_group:
-                        if not validate_edge_path(edge.node, symmetric_map):
-                            return False
+                    continue
+                if other != parent_qnode_id:
+                    required_qedge_ids.add(eid)
+
+            if not node.edges:
+                # Valid as a leaf only if no further connections are required
+                return len(required_qedge_ids) == 0
+
+            # Group edges by their query edge ID.
+            # Both the primary and symmetric directions of a symmetric edge share the same
+            # binding (e.g. out_edges_e1 and in_edges-symmetric_e1 both bind to "e1"),
+            # so they land in the same bucket here.
+            edges_by_qid: dict[QEdgeID, list[dg.Edge]] = defaultdict(list)
+            for edge in node.edges:
+                edges_by_qid[QEdgeID(edge.binding)].append(edge)
+
+            pruned_edges: list[dg.Edge] = []
+
+            # Validate the full AND/OR condition derived from the query graph:
+            #
+            #   AND across required edge IDs  — every required hop must be satisfied
+            #   OR  within each edge group    — for symmetric edges, either the primary
+            #                                   direction (out_edges_eN) or the reverse
+            #                                   direction (in_edges-symmetric_eN) suffices
+            #
+            # Example for a 3-hop query:
+            #   node_n0 AND out_edges_e0 AND node_n2
+            #     AND ( (out_edges_e1 AND node_n1) OR (in_edges-symmetric_e1 AND node_n1) )
+            for req_eid in required_qedge_ids:
+                if req_eid not in edges_by_qid:
+                    # Required edge is entirely absent from the response
+                    return False
+                valid_edges = [
+                    edge
+                    for edge in edges_by_qid[req_eid]
+                    if validate_edge_path(edge.node, qnode_id)
+                ]
+                if not valid_edges:
+                    # No direction within this edge group leads to a complete path
+                    return False
+                pruned_edges.extend(valid_edges)
+
+            # Keep only edges that participate in at least one complete descendant path.
+            node.edges[:] = pruned_edges
 
             return True
 
-        # Filter top-level nodes
+        # Filter top-level nodes (they have no parent)
         filtered: list[dg.Node] = [
-            node for node in nodes if validate_edge_path(node, symmetric_edges)
+            node for node in nodes if validate_edge_path(node, None)
         ]
 
         return filtered
@@ -1301,7 +1333,7 @@ class DgraphTranspiler(Tier0Transpiler):
             logger.debug(
                 f"Applying symmetric cascade filter for {len(self._symmetric_edge_map)} edges"
             )
-            results = self._filter_cascaded_with_or(results, self._symmetric_edge_map)
+            results = self._filter_cascaded_with_or(results, qgraph)
             logger.debug(f"Filtered to {len(results)} valid result paths")
 
         for node in results:
