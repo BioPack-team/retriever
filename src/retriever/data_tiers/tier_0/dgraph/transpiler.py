@@ -221,8 +221,9 @@ class DgraphTranspiler(Tier0Transpiler):
         nodes: list[dg.Node],
         qgraph: QueryGraphDict,
     ) -> list[dg.Node]:
-        """Filter results to enforce cascade with OR logic between symmetric edge directions,
-        and ensure all required path hops are present. Since Dgraph doesn't natively support
+        """Filter results to enforce cascade with OR logic between symmetric edge directions.
+
+        Ensure all required path hops are present. Since Dgraph doesn't natively support
         this logic, we implement it as a post-processing step on the raw results.
 
         Args:
