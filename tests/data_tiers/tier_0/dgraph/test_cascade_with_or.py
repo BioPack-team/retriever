@@ -506,6 +506,118 @@ SAMPLE_03_EXPECTED_AFTER_CASCADE_OR = dedent("""
 }
 """).strip()
 
+# Sample 04
+# Reverse-order variant:
+#   n0 <-[e0]- n2 -[e1 symmetric]-> n1
+#
+# Intended pruning logic:
+#   node_n0 AND in_edges_e0 AND node_n2
+#     AND ( (out_edges_e1 AND node_n1) OR (in_edges-symmetric_e1 AND node_n1) )
+
+SAMPLE_04_QGRAPH: QueryGraphDict = qg({
+    "nodes": {
+        "n0": {"ids": ["A"]},
+        "n1": {"ids": ["B"]},
+        "n2": {"categories": ["biolink:Gene"]},
+    },
+    "edges": {
+        "e0": {
+            "subject": "n2",
+            "object": "n0",
+            "predicates": ["biolink:affects"],
+        },
+        "e1": {
+            "subject": "n2",
+            "object": "n1",
+            "predicates": ["biolink:related_to"],  # symmetric predicate
+        },
+    },
+})
+
+SAMPLE_04_EXPECTED_DGRAPH_RESPONSE = dedent("""
+{
+    "data": {
+        "q0_node_n0": [
+            {
+                "vL_id": "A",
+                "in_edges_e0": [
+                    {
+                        "vL_predicate": "affects",
+                        "node_n2": {
+                            "vL_id": "X1"
+                        }
+                    },
+                    {
+                        "vL_predicate": "affects",
+                        "node_n2": {
+                            "vL_id": "X2",
+                            "out_edges_e1": [
+                                {
+                                    "vL_predicate": "related_to",
+                                    "node_n1": {
+                                        "vL_id": "B"
+                                    }
+                                }
+                            ],
+                            "in_edges-symmetric_e1": [
+                                {
+                                    "vL_predicate": "related_to",
+                                    "node_n1": {
+                                        "vL_id": "B"
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "vL_predicate": "affects",
+                        "node_n2": {
+                            "vL_id": "X3"
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+}
+""").strip()
+
+SAMPLE_04_EXPECTED_AFTER_CASCADE_OR = dedent("""
+{
+    "data": {
+        "q0_node_n0": [
+            {
+                "vL_id": "A",
+                "in_edges_e0": [
+                    {
+                        "vL_predicate": "affects",
+                        "node_n2": {
+                            "vL_id": "X2",
+                            "out_edges_e1": [
+                                {
+                                    "vL_predicate": "related_to",
+                                    "node_n1": {
+                                        "vL_id": "B"
+                                    }
+                                }
+                            ],
+                            "in_edges-symmetric_e1": [
+                                {
+                                    "vL_predicate": "related_to",
+                                    "node_n1": {
+                                        "vL_id": "B"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+}
+""").strip()
+
 
 # -----------------------
 # Case pairs
@@ -515,6 +627,7 @@ CASES: list[QueryCase] = [
     QueryCase("sample-one", SAMPLE_01_QGRAPH, SAMPLE_01_EXPECTED_DGRAPH_RESPONSE, SAMPLE_01_EXPECTED_AFTER_CASCADE_OR),
     QueryCase("sample-two", SAMPLE_02_QGRAPH, SAMPLE_02_EXPECTED_DGRAPH_RESPONSE, SAMPLE_02_EXPECTED_AFTER_CASCADE_OR),
     QueryCase("sample-three", SAMPLE_03_QGRAPH, SAMPLE_03_EXPECTED_DGRAPH_RESPONSE, SAMPLE_03_EXPECTED_AFTER_CASCADE_OR),
+    QueryCase("sample-four", SAMPLE_04_QGRAPH, SAMPLE_04_EXPECTED_DGRAPH_RESPONSE, SAMPLE_04_EXPECTED_AFTER_CASCADE_OR),
 ]
 
 
