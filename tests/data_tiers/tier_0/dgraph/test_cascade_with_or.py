@@ -8,7 +8,7 @@ import pytest
 
 from retriever.data_tiers.tier_0.dgraph import result_models as dg
 from retriever.data_tiers.tier_0.dgraph.transpiler import DgraphTranspiler
-from retriever.types.trapi import QEdgeID, QueryGraphDict
+from retriever.types.trapi import QueryGraphDict
 
 
 # -----------------------
@@ -74,11 +74,10 @@ def _parse_filter_cascade_response(
 #   NCBIGene:3162  — has out_edges_e1 → MONDO:0005147         → complete path ✓
 #   NCBIGene:7852  — no out_edges_e1 or in_edges-symmetric_e1 → incomplete path
 #
-# _filter_cascaded_with_or must keep CHEBI:6801 (it has ≥1 complete path) and
-# filter out root nodes that have no complete path at all.
-#
-#
-# node_n0 AND out_edges_e0 AND node_n2 AND ( (out_edges_e1 AND node_n1) OR (in_edges-symmetric_e1 AND node_n1) )
+# Intended pruning logic:
+#   node_n0 AND out_edges_e0 AND node_n2
+#     AND ( (out_edges_e1 AND node_n1) OR (in_edges-symmetric_e1 AND node_n1) )
+
 SAMPLE_01_QGRAPH: QueryGraphDict = qg({
     "nodes": {
         "n0": {"ids": ["CHEBI:6801"]},
@@ -211,6 +210,13 @@ SAMPLE_01_EXPECTED_AFTER_CASCADE_OR = dedent("""
 """).strip()
 
 # Sample 02
+# Two-hop query with one symmetric hop:
+#   n0 -[e0]-> n2 -[e1 symmetric]-> n1
+#
+# Intended pruning logic:
+#   node_n0 AND out_edges_e0 AND node_n2
+#     AND ( (out_edges_e1 AND node_n1) OR (in_edges-symmetric_e1 AND node_n1) )
+
 SAMPLE_02_QGRAPH: QueryGraphDict = qg({
     "nodes": {
         "n0": {"ids": ["A"]},
@@ -315,6 +321,190 @@ SAMPLE_02_EXPECTED_AFTER_CASCADE_OR = dedent("""
 }
 """).strip()
 
+# Sample 03
+# Five-hop query:
+#   n0 -[e0]-> n2 -[e1 symmetric]-> n3 -[e2 symmetric]-> n4
+#      -[e3 symmetric]-> n5 -[e4]-> n1
+#
+# Intended pruning logic:
+#   node_n0 AND out_edges_e0 AND node_n2
+#     AND ( (out_edges_e1 AND node_n3) OR (in_edges-symmetric_e1 AND node_n3) )
+#     AND ( (out_edges_e2 AND node_n4) OR (in_edges-symmetric_e2 AND node_n4) )
+#     AND ( (out_edges_e3 AND node_n5) OR (in_edges-symmetric_e3 AND node_n5) )
+#     AND ( out_edges_e4 AND node_n1 )
+
+SAMPLE_03_QGRAPH: QueryGraphDict = qg({
+    "nodes": {
+        "n0": {"ids": ["A"]},
+        "n1": {"ids": ["B"]},
+        "n2": {"categories": ["biolink:Gene"]},
+        "n3": {"categories": ["biolink:Gene"]},
+        "n4": {"categories": ["biolink:Gene"]},
+        "n5": {"categories": ["biolink:Gene"]},
+    },
+    "edges": {
+        "e0": {
+            "subject": "n0",
+            "object": "n2",
+            "predicates": ["biolink:affects"],
+        },
+        "e1": {
+            "subject": "n2",
+            "object": "n3",
+            "predicates": ["biolink:related_to"],
+        },
+        "e2": {
+            "subject": "n3",
+            "object": "n4",
+            "predicates": ["biolink:related_to"],
+        },
+        "e3": {
+            "subject": "n4",
+            "object": "n5",
+            "predicates": ["biolink:related_to"],
+        },
+        "e4": {
+            "subject": "n5",
+            "object": "n1",
+            "predicates": ["biolink:affects"],
+        },
+    },
+})
+
+SAMPLE_03_EXPECTED_DGRAPH_RESPONSE = dedent("""
+{
+    "data": {
+        "q0_node_n0": [
+            {
+                "vL_id": "A",
+                "out_edges_e0": [
+                    {
+                        "vL_predicate": "affects",
+                        "node_n2": {
+                            "vL_id": "X2"
+                        }
+                    },
+                    {
+                        "vL_predicate": "affects",
+                        "node_n2": {
+                            "vL_id": "X2",
+                            "out_edges_e1": [
+                                {
+                                    "vL_predicate": "affects",
+                                    "node_n3": {
+                                        "vL_id": "X3"
+                                    }
+                                }
+                            ],
+                            "in_edges-symmetric_e1": [
+                                {
+                                    "vL_predicate": "affects",
+                                    "node_n3": {
+                                        "vL_id": "X3",
+                                        "out_edges_e2": [
+                                            {
+                                                "vL_predicate": "affects",
+                                                "node_n4": {
+                                                    "vL_id": "X4"
+                                                }
+                                            }
+                                        ],
+                                        "in_edges-symmetric_e2": [
+                                            {
+                                                "vL_predicate": "affects",
+                                                "node_n4": {
+                                                    "vL_id": "X4",
+                                                    "out_edges_e3": [
+                                                        {
+                                                            "vL_predicate": "affects",
+                                                            "node_n5": {
+                                                                "vL_id": "X5"
+                                                            }
+                                                        }
+                                                    ],
+                                                    "in_edges-symmetric_e3": [
+                                                        {
+                                                            "vL_predicate": "affects",
+                                                            "node_n5": {
+                                                                "vL_id": "X5",
+                                                                "out_edges_e4": [
+                                                                    {
+                                                                        "vL_predicate": "affects",
+                                                                        "node_n1": {
+                                                                            "vL_id": "B"
+                                                                        }
+                                                                    }
+                                                                ]
+                                                            }
+                                                        }
+                                                    ]
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+}
+""").strip()
+
+SAMPLE_03_EXPECTED_AFTER_CASCADE_OR = dedent("""
+{
+    "data": {
+        "q0_node_n0": [
+            {
+                "vL_id": "A",
+                "out_edges_e0": [
+                    {
+                        "vL_predicate": "affects",
+                        "node_n2": {
+                            "vL_id": "X2",
+                            "in_edges-symmetric_e1": [
+                                {
+                                    "vL_predicate": "affects",
+                                    "node_n3": {
+                                        "vL_id": "X3",
+                                        "in_edges-symmetric_e2": [
+                                            {
+                                                "vL_predicate": "affects",
+                                                "node_n4": {
+                                                    "vL_id": "X4",
+                                                    "in_edges-symmetric_e3": [
+                                                        {
+                                                            "vL_predicate": "affects",
+                                                            "node_n5": {
+                                                                "vL_id": "X5",
+                                                                "out_edges_e4": [
+                                                                    {
+                                                                        "vL_predicate": "affects",
+                                                                        "node_n1": {
+                                                                            "vL_id": "B"
+                                                                        }
+                                                                    }
+                                                                ]
+                                                            }
+                                                        }
+                                                    ]
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+}
+""").strip()
+
 
 # -----------------------
 # Case pairs
@@ -323,6 +513,7 @@ SAMPLE_02_EXPECTED_AFTER_CASCADE_OR = dedent("""
 CASES: list[QueryCase] = [
     QueryCase("sample-one", SAMPLE_01_QGRAPH, SAMPLE_01_EXPECTED_DGRAPH_RESPONSE, SAMPLE_01_EXPECTED_AFTER_CASCADE_OR),
     QueryCase("sample-two", SAMPLE_02_QGRAPH, SAMPLE_02_EXPECTED_DGRAPH_RESPONSE, SAMPLE_02_EXPECTED_AFTER_CASCADE_OR),
+    QueryCase("sample-three", SAMPLE_03_QGRAPH, SAMPLE_03_EXPECTED_DGRAPH_RESPONSE, SAMPLE_03_EXPECTED_AFTER_CASCADE_OR),
 ]
 
 
