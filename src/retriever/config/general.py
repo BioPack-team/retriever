@@ -272,6 +272,18 @@ class DgraphSettings(BaseModel):
             description="gRPC max receive message length in bytes (-1 for unlimited).",
         ),
     ] = -1
+    enable_symmetric_edges: Annotated[
+        bool,
+        Field(
+            description="Enable symmetric edge expansion.",
+        ),
+    ] = True
+    enable_subclass_edges: Annotated[
+        bool,
+        Field(
+            description="Enable subclass edge expansion.",
+        ),
+    ] = True
 
     @property
     def http_endpoint(self) -> str:
