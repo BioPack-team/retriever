@@ -293,48 +293,6 @@ class SubqueryDispatcher(BatchedAction):
 
         return qgraphs, transpilers, queries
 
-    async def run_queries(
-        self,
-        qgraphs: list[QueryGraphDict],
-        transpilers: list[Transpiler],
-        query_payloads: list[Any],
-        job_log: TRAPILogger,
-    ) -> list[BackendResult]:
-        """Given a set of query payloads, run them and combine their results."""
-        query_driver = tier_manager.get_driver(1)
-
-        subqueries = [
-            asyncio.create_task(query_driver.run_query(payload))
-            for payload in query_payloads
-        ]
-
-        response_records = await asyncio.gather(*subqueries, return_exceptions=True)
-        results = list[BackendResult]()
-        for i, record in enumerate(response_records):
-            if isinstance(record, Exception):
-                job_log.with_exception(
-                    "An unhandled error occurred in the query driver.", exception=record
-                )
-                continue
-            result = transpilers[i].convert_results(qgraphs[i], record)
-
-            # Add Retriever to the provenance chain
-            for edge_id, edge in result["knowledge_graph"]["edges"].items():
-                try:
-                    append_aggregator_source(edge, Infores("infores:retriever"))
-                except ValueError:
-                    job_log.warning(f"Edge f{edge_id} has an invalid provenance chain.")
-
-            results.append(result)
-
-        # Have to do this for each
-        for result in results:
-            normalize_kgraph(
-                result["knowledge_graph"], result["results"], result["auxiliary_graphs"]
-            )
-
-        return results
-
     @staticmethod
     async def get_subgraph(
         branch: Branch,
