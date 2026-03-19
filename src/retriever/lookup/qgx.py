@@ -222,7 +222,8 @@ class QueryGraphExecutor:
             )
 
             # TODO: cleanup (set_interpretation)
-            self.solve_subclass_edges(self.kgraph, results, self.aux_graphs)
+            if len(results) > 0:
+                self.solve_subclass_edges(self.kgraph, results, self.aux_graphs)
 
             return LookupArtifacts(
                 results, self.kgraph, self.aux_graphs, self.job_log.get_logs()
@@ -272,6 +273,14 @@ class QueryGraphExecutor:
         new_curies = set[CURIE](curies)
         for curie in curies:
             descendants = await SUBCLASS_MAPPING.get(curie)
+
+            if len(descendants) > CONFIG.job.lookup.subclass_cutoff:
+                self.job_log.error(
+                    f"Qnode `{qnode_id}` curie {curie} found {len(descendants)} descendants, exceeding cutoff of {CONFIG.job.lookup.subclass_cutoff}. For stability, your query terminates."
+                )
+                self.terminate = True
+                return []
+
             if not descendants:
                 self.job_log.trace(
                     f"Found no descendants for {curie} on QNode {qnode_id}"

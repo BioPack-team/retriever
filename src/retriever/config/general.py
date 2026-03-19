@@ -136,6 +136,12 @@ class LookupSettings(BaseModel):
     implicit_subclassing: Annotated[
         bool, Field(description="Whether or not to answer via subclasses.")
     ] = True
+    subclass_cutoff: Annotated[
+        int,
+        Field(
+            description="Maximum number of subclass descendants found for a given node before failing a query."
+        ),
+    ] = 1000
 
 
 class MetaKGSettings(BaseModel):
