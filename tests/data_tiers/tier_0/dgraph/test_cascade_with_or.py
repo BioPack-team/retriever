@@ -10,7 +10,6 @@ from retriever.data_tiers.tier_0.dgraph import result_models as dg
 from retriever.data_tiers.tier_0.dgraph.transpiler import DgraphTranspiler
 from retriever.types.trapi import QueryGraphDict
 
-
 # -----------------------
 # Helpers
 # -----------------------
@@ -65,6 +64,107 @@ def _parse_filter_cascade_response(
 # -----------------------
 # Query graph inputs
 # -----------------------
+
+# Sample 00: A 2-hop query with a symmetric edge and qualifiers on both edges. The Dgraph response contains 4 candidate e0 branches, but none forms a complete path to n1, so everything should be pruned.
+# The Dgraph response from the example query:
+#   CHEBI:6801 -[e0:affects]-> n2 (Gene) -[e1:related_to, symmetric]-> MONDO:0005147
+#
+# Four candidate e0 branches are returned by Dgraph:
+#   branch 1         — missing node_n2 entirely                    -> incomplete path
+#   NCBIGene:3162    — has out_edges_e1, but no node_n1            -> incomplete path
+#   NCBIGene:7852    — no out_edges_e1 or in_edges-symmetric_e1    -> incomplete path
+#   NCBIGene:9451    — has out_edges_e1, but no node_n1            -> incomplete path
+#
+# Intended pruning logic:
+#   node_n0 AND out_edges_e0 AND node_n2
+#     AND ( (out_edges_e1 AND node_n1) OR (in_edges-symmetric_e1 AND node_n1) )
+
+SAMPLE_00_QGRAPH: QueryGraphDict = qg({
+    "nodes": {
+        "n0": {"ids": ["CHEBI:6801"]},
+        "n1": {"ids": ["MONDO:0005147"]},
+        "n2": {"categories": ["biolink:Gene"]},
+    },
+    "edges": {
+        "e0": {
+            "subject": "n0",
+            "object": "n2",
+            "predicates": ["biolink:affects"],
+            "qualifier_constraints": [
+                {
+                    "qualifier_set": [
+                        {"qualifier_type_id": "biolink:object_direction_qualifier", "qualifier_value": "decreased"},
+                        {"qualifier_type_id": "biolink:object_aspect_qualifier", "qualifier_value": "activity_or_abundance"},
+                    ]
+                }
+            ],
+        },
+        "e1": {
+            "subject": "n2",
+            "object": "n1",
+            "predicates": ["biolink:related_to"],  # symmetric predicate
+            "qualifier_constraints": [
+                {
+                    "qualifier_set": [
+                        {"qualifier_type_id": "biolink:subject_form_or_variant_qualifier", "qualifier_value": "loss_of_function_variant_form"},
+                    ]
+                }
+            ],
+        },
+    },
+})
+
+SAMPLE_00_EXPECTED_DGRAPH_RESPONSE = dedent("""
+{
+    "data": {
+        "q0_node_n0": [
+            {
+                "vL_id": "CHEBI:6801",
+                "out_edges_e0": [
+                    {
+                        "vL_predicate": "affects"
+                    },
+                    {
+                        "vL_predicate": "affects",
+                        "node_n2": {
+                            "vL_id": "NCBIGene:3162",
+                            "out_edges_e1": [
+                                {
+                                    "vL_predicate": "affects"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "vL_predicate": "affects",
+                        "node_n2": {
+                            "vL_id": "NCBIGene:7852"
+                        }
+                    },
+                    {
+                        "vL_predicate": "affects",
+                        "node_n2": {
+                            "vL_id": "NCBIGene:9451",
+                            "out_edges_e1": [
+                                {
+                                    "vL_predicate": "affects"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+}
+""").strip()
+
+SAMPLE_00_EXPECTED_AFTER_CASCADE_OR = dedent("""
+{
+    "data": {
+    }
+}
+""").strip()
 
 # Sample 01: A 2-hop query with a symmetric edge and qualifiers on both edges. The Dgraph response contains 3 candidate n2 nodes, but only one has the e1 hop to n1. After cascading with OR, only the complete path should remain.
 # The Dgraph response from the example query:
@@ -931,6 +1031,7 @@ SAMPLE_07_EXPECTED_AFTER_CASCADE_OR = dedent("""
 # -----------------------
 
 CASES: list[QueryCase] = [
+    QueryCase("sample-zero", SAMPLE_00_QGRAPH, SAMPLE_00_EXPECTED_DGRAPH_RESPONSE, SAMPLE_00_EXPECTED_AFTER_CASCADE_OR),
     QueryCase("sample-one", SAMPLE_01_QGRAPH, SAMPLE_01_EXPECTED_DGRAPH_RESPONSE, SAMPLE_01_EXPECTED_AFTER_CASCADE_OR),
     QueryCase("sample-two", SAMPLE_02_QGRAPH, SAMPLE_02_EXPECTED_DGRAPH_RESPONSE, SAMPLE_02_EXPECTED_AFTER_CASCADE_OR),
     QueryCase("sample-three", SAMPLE_03_QGRAPH, SAMPLE_03_EXPECTED_DGRAPH_RESPONSE, SAMPLE_03_EXPECTED_AFTER_CASCADE_OR),

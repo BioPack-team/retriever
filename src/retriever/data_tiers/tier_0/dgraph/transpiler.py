@@ -241,6 +241,10 @@ class DgraphTranspiler(Tier0Transpiler):
             """Recursively validate and prune edges that do not lead to a complete path."""
             qnode_id = QNodeID(node.binding)
 
+            # Reject malformed parsed nodes.
+            if qnode_id not in qgraph["nodes"] or not node.id:
+                return False
+
             # Compute required forward edges: all query edges involving this node,
             # minus the edge that leads back to the parent (already satisfied).
             required_qedge_ids: set[QEdgeID] = set()
@@ -272,21 +276,32 @@ class DgraphTranspiler(Tier0Transpiler):
             #
             #   AND across required edge IDs  — every required hop must be satisfied
             #   OR  within each edge group    — for symmetric edges, either the primary
-            #                                   direction (out_edges_eN) or the reverse
-            #                                   direction (in_edges-symmetric_eN) suffices
+            #                                   direction (out_edges_eN/in_edges_eN) or the reverse
+            #                                   direction (in_edges-symmetric_eN/out_edges-symmetric_eN) suffices
             #
-            # Example for a 3-hop query:
+            # Example: representation of a 2-hop TRAPI query with one symmetric edge (e1):
             #   node_n0 AND out_edges_e0 AND node_n2
             #     AND ( (out_edges_e1 AND node_n1) OR (in_edges-symmetric_e1 AND node_n1) )
+            #
+            # Example: representation of the same TRAPI query
+            #   n0 AND e0 AND n2 AND e1 AND n1
+            #
             for req_eid in required_qedge_ids:
-                if req_eid not in edges_by_qid:
-                    # Required edge is entirely absent from the response
-                    return False
+                qedge = qgraph["edges"][req_eid]
+                expected_child_qnode_id = (
+                    QNodeID(qedge["object"])
+                    if qedge["subject"] == qnode_id
+                    else QNodeID(qedge["subject"])
+                )
+
                 valid_edges = [
                     edge
-                    for edge in edges_by_qid[req_eid]
-                    if validate_edge_path(edge.node, qnode_id)
+                    for edge in edges_by_qid.get(req_eid, [])
+                    if QNodeID(edge.node.binding) == expected_child_qnode_id
+                    and bool(edge.node.id)
+                    and validate_edge_path(edge.node, qnode_id)
                 ]
+
                 if not valid_edges:
                     # No direction within this edge group leads to a complete path
                     return False
