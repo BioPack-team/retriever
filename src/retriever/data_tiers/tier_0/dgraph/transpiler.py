@@ -144,6 +144,10 @@ class DgraphTranspiler(Tier0Transpiler):
     _reverse_node_map: dict[str, QNodeID]
     _reverse_edge_map: dict[str, QEdgeID]
 
+    # =========================================================================
+    # Construction and Shared State
+    # =========================================================================
+
     def __init__(
         self,
         version: str | None = None,
@@ -185,6 +189,10 @@ class DgraphTranspiler(Tier0Transpiler):
         self._subclass_edge_map: dict[QEdgeID, list[str]] = {}
         self._query_plan: NodePlan | None = None
 
+    # =========================================================================
+    # Identifier and Alias Helpers
+    # =========================================================================
+
     def _v(self, field: str) -> str:
         """Return the versioned field name."""
         return f"{self.prefix}{field}"
@@ -214,6 +222,10 @@ class DgraphTranspiler(Tier0Transpiler):
     def _subclass_edge_filter(self) -> str:
         """Filter clause for subclass_of edges only."""
         return f'eq({self._v("predicate_ancestors")}, "subclass_of")'
+
+    # =========================================================================
+    # Query Graph Analysis and Special-Edge Detection
+    # =========================================================================
 
     def _detect_symmetric_and_subclass_edges(
         self,
@@ -279,6 +291,10 @@ class DgraphTranspiler(Tier0Transpiler):
 
                 if subclass_forms:
                     self._subclass_edge_map[edge_id] = subclass_forms
+
+    # =========================================================================
+    # Query Graph Normalization
+    # =========================================================================
 
     def _normalize_qgraph_ids(self, qgraph: QueryGraphDict) -> None:
         """Create normalized mappings for node and edge IDs to prevent injection attacks.
@@ -355,6 +371,10 @@ class DgraphTranspiler(Tier0Transpiler):
             The original edge ID from the query graph
         """
         return self._reverse_edge_map.get(normalized_id, QEdgeID(normalized_id))
+
+    # =========================================================================
+    # Result-Path Validation
+    # =========================================================================
 
     def _filter_cascaded_with_or(
         self,
@@ -486,6 +506,10 @@ class DgraphTranspiler(Tier0Transpiler):
 
         return [node for node in nodes if match_node_plan(node, plan)]
 
+    # =========================================================================
+    # Public Transpiler Entrypoints
+    # =========================================================================
+
     @override
     def process_qgraph(
         self, qgraph: QueryGraphDict, *additional_qgraphs: QueryGraphDict
@@ -535,6 +559,10 @@ class DgraphTranspiler(Tier0Transpiler):
 
         return "{ " + query + " }"
 
+    # =========================================================================
+    # Start-Node Selection
+    # =========================================================================
+
     def _find_start_node(
         self,
         nodes: Mapping[QNodeID, QNodeDict],
@@ -560,7 +588,9 @@ class DgraphTranspiler(Tier0Transpiler):
             pinnedness_scores, key=lambda nid: (pinnedness_scores[nid], -ord(nid[-1]))
         )
 
-    # --- Pinnedness Algorithm Methods ---
+    # =========================================================================
+    # Start-Node Scoring (Pinnedness Algorithm)
+    # =========================================================================
 
     def _get_adjacency_matrix(
         self, qgraph: QueryGraphDict
@@ -642,7 +672,9 @@ class DgraphTranspiler(Tier0Transpiler):
         # Pinnedness is negative expected log-N so smaller expected set -> larger pinnedness
         return -self._compute_log_expected_n(adjacency_mat, num_ids, qnode_id)
 
-    # --- Nodes and Edges Methods ---
+    # =========================================================================
+    # Filter Compilation
+    # =========================================================================
 
     def _build_node_filter(self, node: QNodeDict, *, primary: bool = False) -> str:
         """Build a filter expression for a node based on its properties.
@@ -986,6 +1018,10 @@ class DgraphTranspiler(Tier0Transpiler):
 
         return query
 
+    # =========================================================================
+    # Traversal Constraints
+    # =========================================================================
+
     def _build_node_cascade_clause(
         self,
         node_id: QNodeID,
@@ -1057,6 +1093,10 @@ class DgraphTranspiler(Tier0Transpiler):
                 primary = f"in_edges_{normalized_edge_id}"
                 symmetric = f"out_edges-symmetric_{normalized_edge_id}"
                 self._symmetric_edge_map[edge_id] = (primary, symmetric)
+
+    # =========================================================================
+    # Query Planning
+    # =========================================================================
 
     def _build_node_plan(
         self,
@@ -1291,6 +1331,10 @@ class DgraphTranspiler(Tier0Transpiler):
                 )
 
         return branches
+
+    # =========================================================================
+    # DQL Emission
+    # =========================================================================
 
     def _build_node_query(
         self,
@@ -1550,6 +1594,10 @@ class DgraphTranspiler(Tier0Transpiler):
 
         return query
 
+    # =========================================================================
+    # Subclass Expansion Emitters
+    # =========================================================================
+
     def _build_subclass_form_b(self, ctx: EdgeTraversalContext, norm_eid: str) -> str:
         """Form B: A' subclass_of→ A; A' → predicate1 → B."""
         # The intermediate node is on the subject side (in_edges), so it shares
@@ -1715,6 +1763,10 @@ class DgraphTranspiler(Tier0Transpiler):
 
         # Combine all queries into one batch query
         return "{ " + " ".join(blocks) + " }"
+
+    # =========================================================================
+    # TRAPI Translation and Result Assembly
+    # =========================================================================
 
     def _build_trapi_node(self, node: dg.Node) -> NodeDict:
         """Convert a Dgraph Node to a TRAPI NodeDict."""
@@ -1930,6 +1982,10 @@ class DgraphTranspiler(Tier0Transpiler):
             if reconcile_attempt is not None:
                 reconciled.append(reconcile_attempt)
         return reconciled
+
+    # =========================================================================
+    # Result Conversion Entrypoint
+    # =========================================================================
 
     @override
     def convert_results(
