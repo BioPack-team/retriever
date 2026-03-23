@@ -3,7 +3,7 @@ import math
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Protocol, TypeAlias, cast, override
+from typing import Any, Protocol, TypeAlias, override
 
 import orjson
 from loguru import logger
@@ -395,7 +395,7 @@ class DgraphTranspiler(Tier0Transpiler):
         """
 
         if isinstance(plan, dict):
-            qgraph = cast(QueryGraphDict, plan)
+            qgraph = plan
             if not self._reverse_node_map or not self._reverse_edge_map:
                 self._normalize_qgraph_ids(qgraph)
 
@@ -1109,7 +1109,7 @@ class DgraphTranspiler(Tier0Transpiler):
         node_alias: str | None = None,
     ) -> NodePlan:
         """Build the traversal plan for a node and its descendants."""
-        current_visited = set() if visited is None else set(visited)
+        current_visited: set[QNodeID] = set() if visited is None else set(visited)
         normalized_node_id = self._get_normalized_node_id(node_id)
 
         if node_alias is None:
@@ -1139,29 +1139,36 @@ class DgraphTranspiler(Tier0Transpiler):
         """Build all edge-group plans for a node."""
         plans: list[EdgeGroupPlan] = []
 
-        for edge_direction, current_key, target_key in (
-            ("out", "subject", "object"),
-            ("in", "object", "subject"),
-        ):
-            for edge_id, edge in edges.items():
-                if edge[current_key] != node_id:
-                    continue
-
-                target_id = edge[target_key]
-                if target_id in visited:
-                    continue
-
-                plans.append(
-                    self._build_edge_group_plan(
-                        edge_id=edge_id,
-                        edge=edge,
-                        target_id=target_id,
-                        edge_direction=edge_direction,
-                        visited=visited,
-                        nodes=nodes,
-                        edges=edges,
+        for edge_id, edge in edges.items():
+            if edge["subject"] == node_id:
+                outbound_target_id: QNodeID = edge["object"]
+                if outbound_target_id not in visited:
+                    plans.append(
+                        self._build_edge_group_plan(
+                            edge_id=edge_id,
+                            edge=edge,
+                            target_id=outbound_target_id,
+                            edge_direction="out",
+                            visited=visited,
+                            nodes=nodes,
+                            edges=edges,
+                        )
                     )
-                )
+
+            if edge["object"] == node_id:
+                inbound_target_id: QNodeID = edge["subject"]
+                if inbound_target_id not in visited:
+                    plans.append(
+                        self._build_edge_group_plan(
+                            edge_id=edge_id,
+                            edge=edge,
+                            target_id=inbound_target_id,
+                            edge_direction="in",
+                            visited=visited,
+                            nodes=nodes,
+                            edges=edges,
+                        )
+                    )
 
         return plans
 
