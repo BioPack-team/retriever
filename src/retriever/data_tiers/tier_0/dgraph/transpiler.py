@@ -77,30 +77,40 @@ class DirectionTraversalContext:
 
 @dataclass(frozen=True)
 class BranchStep:
+    """A single edge-and-node alias pair that represents one hop in a planned branch."""
+
     edge_alias: str
     node_alias: str
 
 
 @dataclass(frozen=True)
 class EdgeGroupPlan:
+    """The set of alternative branches that may fulfill one qedge in the query graph."""
+
     qedge_id: QEdgeID
     branches: tuple["BranchPlan", ...]
 
 
 @dataclass(frozen=True)
 class NodePlan:
+    """A recursive plan describing which edge groups must match beneath a node alias."""
+
     node_alias: str
     edge_groups: tuple[EdgeGroupPlan, ...]
 
 
 @dataclass(frozen=True)
 class BranchPlan:
+    """A specific multi-step path that must end in a target node plan."""
+
     steps: tuple[BranchStep, ...]
     target: NodePlan
 
 
 @dataclass(frozen=True)
 class QueryBuildResult:
+    """Container for the emitted DQL and the node plan used to validate its results."""
+
     dql: str
     plan: NodePlan
 
@@ -393,7 +403,6 @@ class DgraphTranspiler(Tier0Transpiler):
         Returns:
             Filtered list of nodes that satisfy cascade with OR logic and full path requirements
         """
-
         if isinstance(plan, dict):
             qgraph = plan
             if not self._reverse_node_map or not self._reverse_edge_map:
