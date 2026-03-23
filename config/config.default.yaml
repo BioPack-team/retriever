@@ -26,7 +26,7 @@ job: callback:
     tier1_timeout: 10  # Time in seconds before a tier 1 query should time out, set to -1 to disable.
     tier2_timeout: 300  # Time in seconds before a tier 2 query should time out, set to -1 to disable.
     implicit_subclassing: true  # Whether or not to answer via subclasses.
-    subclass_cutoff: 1000  # Maximum number of subclass descendants found for a given node before failing a query.
+    subclass_cutoff: 1000  # Maximum number of subclass descendants found for a given node before failing a query. Set to -1 to disable.
   metakg:
     retries: 3  # Number of times to retry obtaining DINGO metadata.
     acquire_timeout: 30  # Time in seconds until a metadata call should time out, set to -1 to disable.

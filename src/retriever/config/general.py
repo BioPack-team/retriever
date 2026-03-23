@@ -139,7 +139,7 @@ class LookupSettings(BaseModel):
     subclass_cutoff: Annotated[
         int,
         Field(
-            description="Maximum number of subclass descendants found for a given node before failing a query."
+            description="Maximum number of subclass descendants found for a given node before failing a query. Set to -1 to disable."
         ),
     ] = 1000
 

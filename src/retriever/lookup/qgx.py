@@ -274,7 +274,10 @@ class QueryGraphExecutor:
         for curie in curies:
             descendants = await SUBCLASS_MAPPING.get(curie)
 
-            if len(descendants) > CONFIG.job.lookup.subclass_cutoff:
+            if (
+                CONFIG.job.lookup.subclass_cutoff > 0
+                and len(descendants) > CONFIG.job.lookup.subclass_cutoff
+            ):
                 self.job_log.error(
                     f"Qnode `{qnode_id}` curie {curie} found {len(descendants)} descendants, exceeding cutoff of {CONFIG.job.lookup.subclass_cutoff}. For stability, your query terminates."
                 )
