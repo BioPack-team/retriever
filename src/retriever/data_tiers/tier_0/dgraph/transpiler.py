@@ -1198,7 +1198,9 @@ class DgraphTranspiler(Tier0Transpiler):
 
         branches: list[BranchPlan] = [
             BranchPlan(
-                steps=(BranchStep(edge_alias=primary_edge_alias, node_alias=target_alias),),
+                steps=(
+                    BranchStep(edge_alias=primary_edge_alias, node_alias=target_alias),
+                ),
                 target=target_plan,
             )
         ]
@@ -1206,7 +1208,11 @@ class DgraphTranspiler(Tier0Transpiler):
         if edge_id in self._symmetric_edge_map:
             branches.append(
                 BranchPlan(
-                    steps=(BranchStep(edge_alias=symmetric_edge_alias, node_alias=target_alias),),
+                    steps=(
+                        BranchStep(
+                            edge_alias=symmetric_edge_alias, node_alias=target_alias
+                        ),
+                    ),
                     target=target_plan,
                 )
             )
@@ -1255,9 +1261,8 @@ class DgraphTranspiler(Tier0Transpiler):
         target_has_categories = self._node_has_categories(target_node)
 
         follows_requested_direction = (
-            (edge_direction == "out" and target_id == edge["object"])
-            or (edge_direction == "in" and target_id == edge["subject"])
-        )
+            edge_direction == "out" and target_id == edge["object"]
+        ) or (edge_direction == "in" and target_id == edge["subject"])
 
         def add_branch(*steps: tuple[str, str]) -> None:
             branches.append(
@@ -1628,7 +1633,14 @@ class DgraphTranspiler(Tier0Transpiler):
         query += self._build_node_cascade_clause(
             ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
         )
-        query += " { " + self._add_standard_node_fields() + self._build_further_hops(ctx.target_id, ctx.nodes, ctx.edges, ctx.visited | {ctx.target_id}) + " } } } } "
+        query += (
+            " { "
+            + self._add_standard_node_fields()
+            + self._build_further_hops(
+                ctx.target_id, ctx.nodes, ctx.edges, ctx.visited | {ctx.target_id}
+            )
+            + " } } } } "
+        )
         return query
 
     def _build_subclass_form_c(self, ctx: EdgeTraversalContext, norm_eid: str) -> str:
@@ -1656,7 +1668,14 @@ class DgraphTranspiler(Tier0Transpiler):
         query += self._build_node_cascade_clause(
             ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
         )
-        query += " { " + self._add_standard_node_fields() + self._build_further_hops(ctx.target_id, ctx.nodes, ctx.edges, ctx.visited | {ctx.target_id}) + " } } } } "
+        query += (
+            " { "
+            + self._add_standard_node_fields()
+            + self._build_further_hops(
+                ctx.target_id, ctx.nodes, ctx.edges, ctx.visited | {ctx.target_id}
+            )
+            + " } } } } "
+        )
         return query
 
     def _build_subclass_form_d(self, ctx: EdgeTraversalContext, norm_eid: str) -> str:
@@ -1691,7 +1710,14 @@ class DgraphTranspiler(Tier0Transpiler):
         query += self._build_node_cascade_clause(
             ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
         )
-        query += " { " + self._add_standard_node_fields() + self._build_further_hops(ctx.target_id, ctx.nodes, ctx.edges, ctx.visited | {ctx.target_id}) + " } } } } } } "
+        query += (
+            " { "
+            + self._add_standard_node_fields()
+            + self._build_further_hops(
+                ctx.target_id, ctx.nodes, ctx.edges, ctx.visited | {ctx.target_id}
+            )
+            + " } } } } } } "
+        )
         return query
 
     def _build_subclass_object_case3_form_b(
@@ -1733,7 +1759,14 @@ class DgraphTranspiler(Tier0Transpiler):
         query += self._build_node_cascade_clause(
             ctx.target_id, ctx.edges, ctx.visited | {ctx.target_id}
         )
-        query += " { " + self._add_standard_node_fields() + self._build_further_hops(ctx.target_id, ctx.nodes, ctx.edges, ctx.visited | {ctx.target_id}) + " } } } } "
+        query += (
+            " { "
+            + self._add_standard_node_fields()
+            + self._build_further_hops(
+                ctx.target_id, ctx.nodes, ctx.edges, ctx.visited | {ctx.target_id}
+            )
+            + " } } } } "
+        )
         return query
 
     @override
@@ -1913,10 +1946,11 @@ class DgraphTranspiler(Tier0Transpiler):
         """
         original_node_id = QNodeID(node.binding)
 
-        # This is a real QNode
-        real_curie = CURIE(node.id)
+        # The node CURIE (whether it binds to a real QNode or is a subclass)
+        node_curie = CURIE(node.id)
 
-        if node.id not in self.kgraph["nodes"]:
+        # All nodes (normal *and* subclass) are added to the KGraph
+        if node_curie not in self.kgraph["nodes"]:
             trapi_node = self._build_trapi_node(node)
             constraints = qg["nodes"][original_node_id].get("constraints", []) or []
             attributes = trapi_node.get("attributes", []) or []
@@ -1924,51 +1958,56 @@ class DgraphTranspiler(Tier0Transpiler):
             if not attributes_meet_contraints(constraints, attributes):
                 return []
 
-            self.kgraph["nodes"][real_curie] = trapi_node
+            self.kgraph["nodes"][node_curie] = trapi_node
 
+        # There are two slightly different end conditions
         normal_end_node = len(node.edges) == 0
         subclass_end_node = node.is_subclass_of_expansion and all(
-            edge.predicate == "subclass_of" and len(edge.node.edges) == 0
+            edge.is_subclass_of_expansion
+            and edge.predicate == "subclass_of"
+            and len(edge.node.edges) == 0
             for edge in node.edges
         )
 
+        # When we reach an end condition, return a Partial to kick off result formation
         if normal_end_node or subclass_end_node:
-            return [Partial([(original_node_id, real_curie)], [])]
+            return [Partial([(original_node_id, node_curie)], [])]
 
         partials = {QEdgeID(edge.binding): list[Partial]() for edge in node.edges}
 
+        # Loop through the existing edges...subclassing can cause new edges to check
         next_edges = list(node.edges)
         while len(next_edges) > 0:
             edge = next_edges.pop()
             qedge_id = QEdgeID(edge.binding)
 
-            # Build the TRAPI edge using the real node's CURIE (not an intermediate's)
-            trapi_edge = self._build_trapi_edge(edge, node.id)
+            # Skip implicit subclassing subclass_of edges
+            if edge.predicate == "subclass_of" and edge.is_subclass_of_expansion:
+                next_edges.extend(edge.node.edges)
+                continue
+
+            # Build the KGraph edge, doesn't matter if it uses a subclass node or not
+            trapi_edge = self._build_trapi_edge(edge, node_curie)
 
             constraints = qg["edges"][qedge_id].get("constraints", []) or []
             attributes = trapi_edge.get("attributes", []) or []
 
             if not attributes_meet_contraints(constraints, attributes):
-                continue
+                continue  # We don't continue down the path because this edge breaks it
 
             self._update_graphs(qedge_id, trapi_edge)
-
-            # Skip subclass edges
-            if edge.predicate == "subclass_of":
-                logger.debug("skipped subclass edge!")
-                next_edges.extend(edge.node.edges)
-                continue
 
             for partial in self._build_results(edge.node, qg):
                 partials[qedge_id].append(
                     partial.combine(
                         Partial(
-                            [(original_node_id, real_curie)],
+                            [(original_node_id, node_curie)],
                             [(qedge_id, trapi_edge["subject"], trapi_edge["object"])],
                         )
                     )
                 )
 
+        # Reconciling partials builds up a result for each path
         reconciled = list[Partial]()
         for combo in itertools.product(*partials.values()):
             if len(combo) == 1:
@@ -2017,9 +2056,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
         # Apply cascade filtering using the generated query plan when available.
         if self._query_plan is not None:
-            logger.debug(
-                "Applying OR cascade filter using generated query plan"
-            )
+            logger.debug("Applying OR cascade filter using generated query plan")
             results = self._filter_cascaded_with_or(results, self._query_plan)
             logger.debug(f"Filtered to {len(results)} valid result paths")
 
