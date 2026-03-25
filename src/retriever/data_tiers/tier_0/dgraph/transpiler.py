@@ -122,6 +122,96 @@ class FilterValueProtocol(Protocol):
     def __str__(self) -> str: ...
 
 
+@dataclass(slots=True)
+class CascadePlanMatcher:
+    """Match a result tree against a NodePlan and prune unmatched edges in place."""
+
+    def match_node_plan(self, node: dg.Node, node_plan: NodePlan) -> bool:
+        """Return whether a node satisfies a plan and keep only matching child edges."""
+        if node.raw_alias != node_plan.node_alias:
+            return False
+
+        kept_edges: list[dg.Edge] = []
+
+        for group in node_plan.edge_groups:
+            group_matches = self.match_edge_group(node, group)
+            if not group_matches:
+                return False
+            kept_edges.extend(group_matches)
+
+        node.edges[:] = self._dedupe_edges(kept_edges)
+        return True
+
+    def match_edge_group(
+        self,
+        node: dg.Node,
+        group: EdgeGroupPlan,
+    ) -> list[dg.Edge]:
+        """Return all edges that satisfy any branch in an edge group."""
+        kept: list[dg.Edge] = []
+
+        for branch in group.branches:
+            matched = self.match_branch(node, branch)
+            if matched:
+                kept.extend(matched)
+
+        return kept
+
+    def match_branch(
+        self,
+        node: dg.Node,
+        branch: BranchPlan,
+    ) -> list[dg.Edge] | None:
+        """Return the matched edges for a branch, or None when the branch fails."""
+        return self.match_branch_steps(node, branch.steps, 0, branch.target)
+
+    def match_branch_steps(
+        self,
+        node: dg.Node,
+        steps: tuple[BranchStep, ...],
+        index: int,
+        target_plan: NodePlan,
+    ) -> list[dg.Edge] | None:
+        """Recursively match a branch's steps starting at the given step index."""
+        step = steps[index]
+        matched_edges: list[dg.Edge] = []
+
+        for edge in node.edges:
+            if edge.raw_alias != step.edge_alias:
+                continue
+            if edge.node.raw_alias != step.node_alias:
+                continue
+
+            if index == len(steps) - 1:
+                if self.match_node_plan(edge.node, target_plan):
+                    matched_edges.append(edge)
+                continue
+
+            tail = self.match_branch_steps(
+                edge.node,
+                steps,
+                index + 1,
+                target_plan,
+            )
+            if tail is not None:
+                matched_edges.append(edge)
+
+        return matched_edges or None
+
+    def _dedupe_edges(self, edges: list[dg.Edge]) -> list[dg.Edge]:
+        seen: set[tuple[str, int]] = set()
+        out: list[dg.Edge] = []
+
+        for edge in edges:
+            key = (edge.raw_alias, id(edge))
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(edge)
+
+        return out
+
+
 class DgraphTranspiler(Tier0Transpiler):
     """Transpiler for converting TRAPI queries into Dgraph GraphQL queries."""
 
@@ -403,117 +493,56 @@ class DgraphTranspiler(Tier0Transpiler):
         Returns:
             Filtered list of nodes that satisfy cascade with OR logic and full path requirements
         """
-        if isinstance(plan, dict):
-            qgraph = plan
-            if not self._reverse_node_map or not self._reverse_edge_map:
-                self._normalize_qgraph_ids(qgraph)
+        resolved_plan = self._resolve_result_filter_plan(nodes, plan)
+        matcher = CascadePlanMatcher()
+        return [node for node in nodes if matcher.match_node_plan(node, resolved_plan)]
 
-            qnodes = qgraph["nodes"]
-            qedges = qgraph["edges"]
-            start_node_id: QNodeID | None = None
+    def _resolve_result_filter_plan(
+        self,
+        nodes: list[dg.Node],
+        plan: NodePlan | QueryGraphDict,
+    ) -> NodePlan:
+        if not isinstance(plan, dict):
+            return plan
 
-            if nodes:
-                root_alias = nodes[0].raw_alias
-                normalized_root_id: str | None = None
+        qgraph = plan
+        if not self._reverse_node_map or not self._reverse_edge_map:
+            self._normalize_qgraph_ids(qgraph)
 
-                if root_alias.startswith("q") and "_node_" in root_alias:
-                    normalized_root_id = root_alias.split("_node_", 1)[1]
-                elif root_alias.startswith("node_"):
-                    normalized_root_id = root_alias.removeprefix("node_")
+        qnodes = qgraph["nodes"]
+        qedges = qgraph["edges"]
 
-                if normalized_root_id is not None:
-                    start_node_id = self._get_original_node_id(normalized_root_id)
+        start_node_id = self._infer_start_node_id_from_results(nodes)
+        if start_node_id is None:
+            start_node_id = self._find_start_node(qnodes, qedges)
 
-            if start_node_id is None:
-                start_node_id = self._find_start_node(qnodes, qedges)
+        self._detect_symmetric_and_subclass_edges(qedges, qnodes)
+        return self._build_node_plan(
+            start_node_id,
+            qnodes,
+            qedges,
+            query_index=0,
+        )
 
-            self._detect_symmetric_and_subclass_edges(qedges, qnodes)
-            plan = self._build_node_plan(
-                start_node_id,
-                qnodes,
-                qedges,
-                query_index=0,
-            )
+    def _infer_start_node_id_from_results(
+        self,
+        nodes: list[dg.Node],
+    ) -> QNodeID | None:
+        if not nodes:
+            return None
 
-        def dedupe_edges(edges: list[dg.Edge]) -> list[dg.Edge]:
-            seen: set[tuple[str, int]] = set()
-            out: list[dg.Edge] = []
+        normalized_root_id = self._extract_normalized_root_id(nodes[0].raw_alias)
+        if normalized_root_id is None:
+            return None
 
-            for edge in edges:
-                key = (edge.raw_alias, id(edge))
-                if key in seen:
-                    continue
-                seen.add(key)
-                out.append(edge)
+        return self._get_original_node_id(normalized_root_id)
 
-            return out
-
-        def match_branch_steps(
-            node: dg.Node,
-            steps: tuple[BranchStep, ...],
-            index: int,
-            target_plan: NodePlan,
-        ) -> list[dg.Edge] | None:
-            step = steps[index]
-            matched_edges: list[dg.Edge] = []
-
-            for edge in node.edges:
-                if edge.raw_alias != step.edge_alias:
-                    continue
-                if edge.node.raw_alias != step.node_alias:
-                    continue
-
-                if index == len(steps) - 1:
-                    if match_node_plan(edge.node, target_plan):
-                        matched_edges.append(edge)
-                    continue
-
-                tail = match_branch_steps(
-                    edge.node,
-                    steps,
-                    index + 1,
-                    target_plan,
-                )
-                if tail is not None:
-                    matched_edges.append(edge)
-
-            return matched_edges or None
-
-        def match_branch(
-            node: dg.Node,
-            branch: BranchPlan,
-        ) -> list[dg.Edge] | None:
-            return match_branch_steps(node, branch.steps, 0, branch.target)
-
-        def match_edge_group(
-            node: dg.Node,
-            group: EdgeGroupPlan,
-        ) -> list[dg.Edge]:
-            kept: list[dg.Edge] = []
-
-            for branch in group.branches:
-                matched = match_branch(node, branch)
-                if matched:
-                    kept.extend(matched)
-
-            return kept
-
-        def match_node_plan(node: dg.Node, node_plan: NodePlan) -> bool:
-            if node.raw_alias != node_plan.node_alias:
-                return False
-
-            kept_edges: list[dg.Edge] = []
-
-            for group in node_plan.edge_groups:
-                group_matches = match_edge_group(node, group)
-                if not group_matches:
-                    return False
-                kept_edges.extend(group_matches)
-
-            node.edges[:] = dedupe_edges(kept_edges)
-            return True
-
-        return [node for node in nodes if match_node_plan(node, plan)]
+    def _extract_normalized_root_id(self, raw_alias: str) -> str | None:
+        if raw_alias.startswith("q") and "_node_" in raw_alias:
+            return raw_alias.split("_node_", 1)[1]
+        if raw_alias.startswith("node_"):
+            return raw_alias.removeprefix("node_")
+        return None
 
     # =========================================================================
     # Public Transpiler Entrypoints
