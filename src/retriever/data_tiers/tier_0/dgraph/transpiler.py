@@ -387,7 +387,7 @@ class DgraphTranspiler(Tier0Transpiler):
                     and self._node_has_categories(source_node)
                     and not self._node_has_ids(source_node)
                 ):
-                    subclass_forms.append(f"in_edges-subclassObjB_{normalized_edge_id}")
+                    subclass_forms.append(f"out_edges-subclassObjB_{normalized_edge_id}")
 
                 if subclass_forms:
                     self._subclass_edge_map[edge_id] = subclass_forms
@@ -1371,8 +1371,8 @@ class DgraphTranspiler(Tier0Transpiler):
             if follows_requested_direction:
                 add_branch(
                     (
-                        f"in_edges-subclassObjB_{normalized_edge_id}",
-                        f"node_intermediate_{normalized_source_id}",
+                        f"out_edges-subclassObjB_{normalized_edge_id}",
+                        f"node_intermediate_{normalized_target_id}",
                     ),
                     (
                         f"out_edges-subclassObjB-tail_{normalized_edge_id}",
@@ -1769,22 +1769,21 @@ class DgraphTranspiler(Tier0Transpiler):
         self, ctx: EdgeTraversalContext, norm_eid: str
     ) -> str:
         """Mirrored Case 2 (CAT->P->ID)."""
-        # The intermediate node is on the subject side (in_edges on object),
-        # so it's between the source node (CAT) and the predicate edge.
-        # Use the source node alias.
-        normalized_source_id = self._get_normalized_node_id(ctx.edge["subject"])
-        intermediate_alias = f"node_intermediate_{normalized_source_id}"
+        # The intermediate node is the subclassed object reached by the
+        # predicate edge, so it shares the target node alias.
+        normalized_target_id = self._get_normalized_node_id(ctx.target_id)
+        intermediate_alias = f"node_intermediate_{normalized_target_id}"
 
-        alias = f"in_edges-subclassObjB_{norm_eid}"
+        alias = f"out_edges-subclassObjB_{norm_eid}"
         pred_edge_filter = self._build_edge_filter(ctx.edge)
         pred_filter_clause = f" @filter({pred_edge_filter})" if pred_edge_filter else ""
         query = (
-            f"{alias}: ~{self._v('object')}{pred_filter_clause} "
-            f"@cascade({self._v('predicate')}, {self._v('subject')}) {{ "
+            f"{alias}: ~{self._v('subject')}{pred_filter_clause} "
+            f"@cascade({self._v('predicate')}, {self._v('object')}) {{ "
         )
         query += self._add_standard_edge_fields()
         query += (
-            f"{intermediate_alias}: {self._v('subject')} "
+            f"{intermediate_alias}: {self._v('object')} "
             f"@filter(has({self._v('id')})) "
             f"@cascade({self._v('id')}, ~{self._v('subject')}) {{ "
         )
