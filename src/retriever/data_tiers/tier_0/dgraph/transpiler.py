@@ -2035,6 +2035,7 @@ class DgraphTranspiler(Tier0Transpiler):
         # One case for obtaining subclass backmap
         if subclass_end_node:
             self.subclass_backmap[node_curie] = node.edges[0].node.id
+            self._add_node_to_kgraph(node.edges[0].node, qg)
 
         # When we reach an end condition, return a Partial to kick off result formation
         if normal_end_node or subclass_end_node:
