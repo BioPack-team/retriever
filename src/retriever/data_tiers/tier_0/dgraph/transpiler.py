@@ -1144,7 +1144,7 @@ class DgraphTranspiler(Tier0Transpiler):
     # Query Planning
     # =========================================================================
 
-    def _build_node_plan(
+    def _build_node_plan(  # noqa: PLR0913
         self,
         node_id: QNodeID,
         nodes: Mapping[QNodeID, QNodeDict],
@@ -1218,7 +1218,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
         return plans
 
-    def _build_edge_group_plan(
+    def _build_edge_group_plan(  # noqa: PLR0913
         self,
         *,
         edge_id: QEdgeID,
@@ -1289,7 +1289,7 @@ class DgraphTranspiler(Tier0Transpiler):
             branches=tuple(branches),
         )
 
-    def _build_subclass_branch_plans(
+    def _build_subclass_branch_plans(  # noqa: PLR0913
         self,
         *,
         edge_id: QEdgeID,

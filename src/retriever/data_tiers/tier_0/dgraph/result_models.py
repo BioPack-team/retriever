@@ -243,7 +243,7 @@ class Node:
     is_subclass_of_expansion: bool = False
 
     @classmethod
-    def from_dict(
+    def from_dict(  # noqa: PLR0913
         cls,
         data: Mapping[str, Any],
         *,
