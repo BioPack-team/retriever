@@ -12,6 +12,7 @@ from retriever.config.general import CONFIG
 from retriever.data_tiers.base_transpiler import Tier0Transpiler
 from retriever.data_tiers.tier_0.dgraph import result_models as dg
 from retriever.lookup.partial import Partial
+from retriever.lookup.subclass import solve_subclass_edges
 from retriever.lookup.utils import QueryDumper
 from retriever.types.general import BackendResult, KAdjacencyGraph
 from retriever.types.trapi import (
@@ -244,6 +245,9 @@ class DgraphTranspiler(Tier0Transpiler):
     _reverse_node_map: dict[str, QNodeID]
     _reverse_edge_map: dict[str, QEdgeID]
 
+    # Mapping for TRAPI conversion of implicit subclass handling
+    subclass_backmap: dict[CURIE, CURIE]
+
     # =========================================================================
     # Construction and Shared State
     # =========================================================================
@@ -288,6 +292,8 @@ class DgraphTranspiler(Tier0Transpiler):
         self._symmetric_edge_map: dict[QEdgeID, tuple[str, str]] = {}
         self._subclass_edge_map: dict[QEdgeID, list[str]] = {}
         self._query_plan: NodePlan | None = None
+
+        self.subclass_backmap = {}
 
     # =========================================================================
     # Identifier and Alias Helpers
@@ -387,7 +393,9 @@ class DgraphTranspiler(Tier0Transpiler):
                     and self._node_has_categories(source_node)
                     and not self._node_has_ids(source_node)
                 ):
-                    subclass_forms.append(f"out_edges-subclassObjB_{normalized_edge_id}")
+                    subclass_forms.append(
+                        f"out_edges-subclassObjB_{normalized_edge_id}"
+                    )
 
                 if subclass_forms:
                     self._subclass_edge_map[edge_id] = subclass_forms
@@ -1974,6 +1982,23 @@ class DgraphTranspiler(Tier0Transpiler):
             self.k_agraph[qedge_id][subject_id][object_id] = list[EdgeIdentifier]()
         self.k_agraph[qedge_id][subject_id][object_id].append(edge_hash)
 
+    def _add_node_to_kgraph(self, node: dg.Node, qg: QueryGraphDict) -> bool:
+        """Add the node to the kgraph if it isn't already added.
+
+        Returns True if the node meets node constraints.
+        """
+        if node.id not in self.kgraph["nodes"]:
+            trapi_node = self._build_trapi_node(node)
+            constraints = qg["nodes"][node.binding].get("constraints", []) or []
+            attributes = trapi_node.get("attributes", []) or []
+
+            if not attributes_meet_contraints(constraints, attributes):
+                return False
+
+            self.kgraph["nodes"][node.id] = trapi_node
+
+        return True
+
     def _build_results(
         self,
         node: dg.Node,
@@ -1994,15 +2019,9 @@ class DgraphTranspiler(Tier0Transpiler):
         node_curie = CURIE(node.id)
 
         # All nodes (normal *and* subclass) are added to the KGraph
-        if node_curie not in self.kgraph["nodes"]:
-            trapi_node = self._build_trapi_node(node)
-            constraints = qg["nodes"][original_node_id].get("constraints", []) or []
-            attributes = trapi_node.get("attributes", []) or []
-
-            if not attributes_meet_contraints(constraints, attributes):
-                return []
-
-            self.kgraph["nodes"][node_curie] = trapi_node
+        met_constraints = self._add_node_to_kgraph(node, qg)
+        if not met_constraints:
+            return []
 
         # There are two slightly different end conditions
         normal_end_node = len(node.edges) == 0
@@ -2012,6 +2031,10 @@ class DgraphTranspiler(Tier0Transpiler):
             and len(edge.node.edges) == 0
             for edge in node.edges
         )
+
+        # One case for obtaining subclass backmap
+        if subclass_end_node:
+            self.subclass_backmap[node_curie] = node.edges[0].node.id
 
         # When we reach an end condition, return a Partial to kick off result formation
         if normal_end_node or subclass_end_node:
@@ -2027,6 +2050,12 @@ class DgraphTranspiler(Tier0Transpiler):
 
             # Skip implicit subclassing subclass_of edges
             if edge.predicate == "subclass_of" and edge.is_subclass_of_expansion:
+                # Build subclass backmap
+                subclass = node_curie if node.is_subclass_of_expansion else edge.node.id
+                ancestor = edge.node.id if node.is_subclass_of_expansion else node_curie
+                self.subclass_backmap[subclass] = ancestor
+
+                # Continue on with edges after subclass edge
                 next_edges.extend(edge.node.edges)
                 continue
 
@@ -2114,9 +2143,15 @@ class DgraphTranspiler(Tier0Transpiler):
         )
         trapi_results = [part.as_result(self.k_agraph) for part in reconciled.values()]
 
+        aux_graphs = dict[AuxGraphID, AuxiliaryGraphDict]()
+        if len(trapi_results) > 0:
+            solve_subclass_edges(
+                self.subclass_backmap, self.kgraph, trapi_results, aux_graphs
+            )
+
         logger.info("Finished transforming records")
         return BackendResult(
             results=trapi_results,
             knowledge_graph=self.kgraph,
-            auxiliary_graphs=dict[AuxGraphID, AuxiliaryGraphDict](),
+            auxiliary_graphs=aux_graphs,
         )
