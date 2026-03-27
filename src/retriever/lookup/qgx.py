@@ -16,7 +16,8 @@ from retriever.lookup.branch import (
     SuperpositionID,
 )
 from retriever.lookup.partial import Partial
-from retriever.lookup.subclass import SubclassMapping, solve_subclass_edges
+from retriever.lookup.subclass import SubclassMapping
+from retriever.lookup.subclass_format import solve_subclass_edges
 from retriever.lookup.subquery import SubqueryDispatcher
 from retriever.lookup.utils import make_mappings
 from retriever.metadata.optable import OperationPlan, OpTableManager

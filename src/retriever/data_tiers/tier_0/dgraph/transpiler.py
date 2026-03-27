@@ -12,7 +12,7 @@ from retriever.config.general import CONFIG
 from retriever.data_tiers.base_transpiler import Tier0Transpiler
 from retriever.data_tiers.tier_0.dgraph import result_models as dg
 from retriever.lookup.partial import Partial
-from retriever.lookup.subclass import solve_subclass_edges
+from retriever.lookup.subclass_format import solve_subclass_edges
 from retriever.lookup.utils import QueryDumper
 from retriever.types.general import BackendResult, KAdjacencyGraph
 from retriever.types.trapi import (
