@@ -7,7 +7,9 @@ from loguru import logger
 
 from retriever.config.general import CONFIG
 from retriever.data_tiers import tier_manager
-from retriever.types.trapi import CURIE
+from retriever.types.trapi import (
+    CURIE,
+)
 from retriever.utils.general import BatchedAction
 from retriever.utils.redis import RedisClient
 
