@@ -2626,7 +2626,7 @@ def test_subclassing_with_attribute_constraints(
                 "e0": {
                     "subject": "n0",
                     "object": "n1",
-                    "predicates": ["biolink:related_to"],
+                    "predicates": ["biolink:related_to_at_instance_level"],
                     "attribute_constraints": [
                         {
                             "id": "knowledge_level",
