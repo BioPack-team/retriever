@@ -18,7 +18,13 @@ class DgraphQuery(Tier0Query):
     async def get_results(self, qgraph: QueryGraphDict) -> BackendResult:
         backend_driver = DgraphGrpcDriver()
         dgraph_schema_version = await backend_driver.get_active_version()
-        transpiler = DgraphTranspiler(version=dgraph_schema_version)
+        graph_uses_subclass = any(
+            "biolink:subclass_of" in (edge.get("predicates", []) or [])
+            for edge in qgraph["edges"].values()
+        )
+        transpiler = DgraphTranspiler(
+            version=dgraph_schema_version, enable_subclass_edges=not graph_uses_subclass
+        )
 
         # Transpile to backend QL
         query_payload = transpiler.process_qgraph(qgraph)

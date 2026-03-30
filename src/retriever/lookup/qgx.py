@@ -79,6 +79,7 @@ class QueryGraphExecutor:
     dead_superpositions: set[SuperpositionID]
     complete_paths: set[CompletePathName]
 
+    skip_subclassing: bool
     subclass_backmap: dict[CURIE, CURIE]
 
     locks: dict[Hashable, asyncio.Lock]
@@ -115,6 +116,10 @@ class QueryGraphExecutor:
         self.dead_superpositions = set()
         self.complete_paths = set()
 
+        self.skip_subclassing = any(
+            "biolink:subclass_of" in (edge.get("predicates", []) or [])
+            for edge in self.qgraph["edges"].values()
+        )
         self.subclass_backmap = {}
 
         # Initialize locks for accessing some of the above
@@ -251,7 +256,7 @@ class QueryGraphExecutor:
 
         # If the qnode is going into a predicate that can return "subclass_of",
         # Then we can't proceed
-        if any(
+        if self.skip_subclassing or any(
             any(
                 set(edge.get("predicates", []) or []).intersection(
                     biolink.SUBCLASS_SKIP_PREDICATES
