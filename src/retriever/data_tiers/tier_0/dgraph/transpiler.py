@@ -322,8 +322,11 @@ class DgraphTranspiler(Tier0Transpiler):
     def _is_subclass_predicate(self, predicates: Sequence[str] | None) -> bool:
         """Return True if predicates contain biolink:subclass_of."""
         if not predicates:
-            return False
-        return any(str(p).endswith("subclass_of") for p in predicates)
+            predicates = ["biolink:related_to"]
+        return any(
+            biolink.ensure_prefix(p) in biolink.SUBCLASS_SKIP_PREDICATES
+            for p in predicates
+        )
 
     def _subclass_edge_filter(self) -> str:
         """Filter clause for subclass_of edges only."""
