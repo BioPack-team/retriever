@@ -11,13 +11,12 @@ from reasoner_pydantic import QueryGraph
 from reasoner_pydantic.utils import make_hashable
 
 from retriever.types.trapi import (
-    AttributeConstraintDict,
     CURIE,
     AnalysisDict,
+    AttributeConstraintDict,
     AttributeDict,
     AuxGraphID,
     AuxiliaryGraphDict,
-    BiolinkEntity,
     EdgeBindingDict,
     EdgeDict,
     EdgeIdentifier,
