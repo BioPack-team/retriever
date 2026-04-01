@@ -4,12 +4,13 @@ import re
 import uuid
 from collections import defaultdict
 from collections.abc import Sequence
-from typing import Any, cast
+from typing import cast
 
 from opentelemetry import trace
 from reasoner_pydantic import QueryGraph
 from reasoner_pydantic.utils import make_hashable
 
+from retriever.types.base import JsonSerializable
 from retriever.types.trapi import (
     CURIE,
     AnalysisDict,
@@ -462,6 +463,42 @@ def meta_attributes_meet_constraints(
     return all(constr["id"] in attribute_type_ids for constr in constraints)
 
 
+def _compare_values(
+    constr: JsonSerializable, attr: JsonSerializable, operator: OperatorEnum
+) -> bool:
+    if operator == OperatorEnum.EQUAL:
+        return attr == constr
+    elif operator in (OperatorEnum.GT, OperatorEnum.LT):
+        if isinstance(attr, dict | list | None):
+            raise TypeError("Cannot use operators `>` or `<` with type `{type(a_val}`.")
+        elif isinstance(constr, dict | list | None):
+            raise TypeError("Cannot use operators `>` or `<` with type `{type(c_val}`.")
+
+        # Ensure values to compare are same type (or are both numbers for int/float)
+        num_disagreement = isinstance(attr, int | float) != isinstance(
+            constr, int | float
+        )
+        type_disagreement = type(attr) is not type(constr)
+        if (type_disagreement and not num_disagreement) or num_disagreement:
+            raise TypeError(
+                "Cannot compare unalike types (constraint: `{type(c_val)}`, attribute: `{type(a_val)}`)"
+            )
+        # NOTE: Doing some bogus casts to make type check understand
+        # THEY HAVE BEEN CONFIRMED TO BE THE SAME TYPE (see above)
+        if operator == OperatorEnum.GT:
+            return cast(int, attr) > cast(int, constr)
+        else:
+            return cast(int, attr) < cast(int, constr)
+    elif operator == OperatorEnum.MATCH:
+        if not isinstance(constr, str):
+            raise TypeError(
+                f"Cannot use constraint value of type `{type(constr)}` as regex pattern."
+            )
+        return bool(re.search(constr, str(attr)))
+
+    return False
+
+
 def attribute_meets_constraint(
     constraint: AttributeConstraintDict, attribute: AttributeDict
 ) -> bool:
@@ -480,22 +517,20 @@ def attribute_meets_constraint(
     # Per attribute constraints, all other operators operate
     # On either the value itself, or list members if the value is a list
     # This way, we can do both at once
-    attr_values: list[Any] = (  # pyright:ignore[reportUnknownVariableType]
+    constr_values: list[JsonSerializable] = (
+        constraint_value if isinstance(constraint_value, list) else [constraint_value]
+    )
+    attr_values: list[JsonSerializable] = (
         attribute["value"]
         if isinstance(attribute["value"], list)
         else [attribute["value"]]
     )
 
-    success = False
-    for value in attr_values:
-        if (
-            (operator == OperatorEnum.EQUAL and (value == constraint_value))
-            or (operator == OperatorEnum.GT and (value > constraint_value))
-            or (operator == OperatorEnum.LT and (value < constraint_value))
-            or (operator == OperatorEnum.MATCH and (re.search(constraint_value, value)))
-        ):
-            success = True
-            break
+    success: bool = False
+    success = any(
+        any(_compare_values(c_val, a_val, operator) for a_val in attr_values)
+        for c_val in constr_values
+    )
 
     if negated:
         success = not success

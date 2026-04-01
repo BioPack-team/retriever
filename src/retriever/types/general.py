@@ -91,14 +91,5 @@ QEdgeIDMap = dict[int, QEdgeID]
 # A pair of Qnode and CURIE, used to uniquely identify partial results
 QNodeCURIEPair = tuple[QNodeID, CURIE]
 
-JsonSerializable = (
-    None
-    | int
-    | float
-    | str
-    | bool
-    | list["JsonSerializable"]
-    | dict[str, "JsonSerializable"]
-)
 
 EntityToEntityMapping = dict[CURIE, list[CURIE]]

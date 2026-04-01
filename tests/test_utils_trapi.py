@@ -690,6 +690,7 @@ class TestAttributeConstraints:
             numeric_array_attribute,
         )
 
+
         assert not attribute_meets_constraint(
             AttributeConstraintDict(
                 name="some_type has 3",
@@ -718,6 +719,27 @@ class TestAttributeConstraints:
                 value=0,
                 operator=OperatorEnum.EQUAL,
                 **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            numeric_array_attribute,
+        )
+
+        # Test both array values
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type has 0, 1, or 2",
+                id="some_type",
+                value=[0, 1, 2],
+                operator=OperatorEnum.EQUAL,
+            ),
+            numeric_array_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type has 3, 4, or 5",
+                id="some_type",
+                value=[3, 4, 5],
+                operator=OperatorEnum.EQUAL,
             ),
             numeric_array_attribute,
         )
