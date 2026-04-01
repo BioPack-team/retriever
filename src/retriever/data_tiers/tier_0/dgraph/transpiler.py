@@ -2002,6 +2002,24 @@ class DgraphTranspiler(Tier0Transpiler):
 
         return True
 
+    def _reconcile_partials(
+        self, partials: dict[QEdgeID, list[Partial]]
+    ) -> list[Partial]:
+        """Reconcile partials for each branch/qedge."""
+        reconciled = list[Partial]()
+        for combo in itertools.product(*partials.values()):
+            if len(combo) == 1:
+                reconciled.append(combo[0])
+                continue
+            reconcile_attempt = combo[0]
+            for part in combo[1:]:
+                reconcile_attempt = reconcile_attempt.reconcile(part)
+                if reconcile_attempt is None:
+                    break
+            if reconcile_attempt is not None:
+                reconciled.append(reconcile_attempt)
+        return reconciled
+
     def _build_results(
         self,
         node: dg.Node,
@@ -2044,7 +2062,7 @@ class DgraphTranspiler(Tier0Transpiler):
         if normal_end_node or subclass_end_node:
             return [Partial([(original_node_id, node_curie)], [])]
 
-        partials = {QEdgeID(edge.binding): list[Partial]() for edge in node.edges}
+        partials: dict[str, list[Partial]] = {}
 
         # Loop through the existing edges...subclassing can cause new edges to check
         next_edges = list(node.edges)
@@ -2068,13 +2086,15 @@ class DgraphTranspiler(Tier0Transpiler):
 
             constraints = qg["edges"][qedge_id].get("constraints", []) or []
             attributes = trapi_edge.get("attributes", []) or []
-
             if not attributes_meet_contraints(constraints, attributes):
                 continue  # We don't continue down the path because this edge breaks it
 
             self._update_graphs(qedge_id, trapi_edge)
 
+            # Add the current hop to partials from continuing down each path
             for partial in self._build_results(edge.node, qg):
+                if qedge_id not in partials:
+                    partials[qedge_id] = []
                 partials[qedge_id].append(
                     partial.combine(
                         Partial(
@@ -2085,19 +2105,7 @@ class DgraphTranspiler(Tier0Transpiler):
                 )
 
         # Reconciling partials builds up a result for each path
-        reconciled = list[Partial]()
-        for combo in itertools.product(*partials.values()):
-            if len(combo) == 1:
-                reconciled.append(combo[0])
-                continue
-            reconcile_attempt = combo[0]
-            for part in combo[1:]:
-                reconcile_attempt = reconcile_attempt.reconcile(part)
-                if reconcile_attempt is None:
-                    break
-            if reconcile_attempt is not None:
-                reconciled.append(reconcile_attempt)
-        return reconciled
+        return self._reconcile_partials(partials)
 
     # =========================================================================
     # Result Conversion Entrypoint
