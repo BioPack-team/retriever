@@ -199,8 +199,6 @@ async def get_job_state(
         job_dict = await MongoClient().get_job_doc(job_id)
         if job_dict:
             ctx_log.debug(f"Got job {job_id} result from MongoDB.")
-        else:
-            ctx_log.debug(f"Job {job_id} not in MongoDB.")
         job = job_dict
     except Exception as e:
         ctx_log.exception(
