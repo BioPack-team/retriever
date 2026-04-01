@@ -489,14 +489,12 @@ def _compare_values(
             return cast(int, attr) > cast(int, constr)
         else:
             return cast(int, attr) < cast(int, constr)
-    elif operator == OperatorEnum.MATCH:
+    else:  # OperatorEnum.MATCH
         if not isinstance(constr, str):
             raise TypeError(
                 f"Cannot use constraint value of type `{type(constr)}` as regex pattern."
             )
         return bool(re.search(constr, str(attr)))
-
-    return False
 
 
 def attribute_meets_constraint(
