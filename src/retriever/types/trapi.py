@@ -15,7 +15,9 @@ A few notes:
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, NotRequired, TypedDict
+from typing import NotRequired, TypedDict
+
+from retriever.types.base import JsonSerializable
 
 
 class SetInterpretationEnum(str, Enum):
@@ -48,7 +50,7 @@ class QueryDict(TypedDict):
 
     message: MessageDict
     log_level: NotRequired[LogLevel | None]
-    workflow: NotRequired[list[dict[str, Any]] | None]
+    workflow: NotRequired[list[dict[str, JsonSerializable]] | None]
     submitter: NotRequired[str | None]
     bypass_cache: NotRequired[bool]
     parameters: NotRequired[ParametersDict | None]
@@ -84,7 +86,7 @@ class ResponseDict(TypedDict):
     status: NotRequired[str | None]
     description: NotRequired[str | None]
     logs: NotRequired[list[LogEntryDict]]
-    workflow: NotRequired[list[dict[str, Any]] | None]
+    workflow: NotRequired[list[dict[str, JsonSerializable]] | None]
     parameters: NotRequired[ParametersDict | None]
     schema_version: NotRequired[str | None]
     biolink_version: NotRequired[str | None]
@@ -249,7 +251,7 @@ class AttributeDict(TypedDict):
 
     attribute_type_id: str
     original_attribute_name: NotRequired[str | None]
-    value: Any
+    value: JsonSerializable
     value_type_id: NotRequired[str | None]
     attribute_source: NotRequired[str | None]
     value_url: NotRequired[URL | None]
@@ -335,7 +337,7 @@ AttributeConstraintDict = TypedDict(
         "name": str,
         "not": NotRequired[bool],
         "operator": OperatorEnum,
-        "value": Any,
+        "value": JsonSerializable,
         "unit_id": NotRequired[str | None],
         "unit_name": NotRequired[str | None],
     },

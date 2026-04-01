@@ -637,6 +637,7 @@ class TestAttributeConstraints:
     def test_equals(
         self, numeric_attribute: AttributeDict, numeric_array_attribute: AttributeDict
     ):
+
         assert attribute_meets_constraint(
             AttributeConstraintDict(
                 name="some_type is equal to 0",
@@ -718,6 +719,27 @@ class TestAttributeConstraints:
                 value=0,
                 operator=OperatorEnum.EQUAL,
                 **{"not": True},  # pyright:ignore[reportArgumentType] dumb workaround, will fix with TOM
+            ),
+            numeric_array_attribute,
+        )
+
+        # Test both array values
+        assert attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type has 0, 1, or 2",
+                id="some_type",
+                value=[0, 1, 2],
+                operator=OperatorEnum.EQUAL,
+            ),
+            numeric_array_attribute,
+        )
+
+        assert not attribute_meets_constraint(
+            AttributeConstraintDict(
+                name="some_type has 3, 4, or 5",
+                id="some_type",
+                value=[3, 4, 5],
+                operator=OperatorEnum.EQUAL,
             ),
             numeric_array_attribute,
         )
@@ -813,6 +835,19 @@ class TestAttributeConstraints:
     def test_greater_than(
         self, numeric_attribute: AttributeDict, numeric_array_attribute: AttributeDict
     ):
+
+        # Test fail case
+        with pytest.raises(TypeError):
+            assert attribute_meets_constraint(
+                AttributeConstraintDict(
+                    name="A constraint that should error",
+                    id="some_type",
+                    value={"some": "dictionary"},
+                    operator=OperatorEnum.GT,
+                ),
+                numeric_attribute,
+            )
+
         assert attribute_meets_constraint(
             AttributeConstraintDict(
                 name="some_type is greater than -1",
@@ -922,6 +957,33 @@ class TestAttributeConstraints:
     def test_less_than(
         self, numeric_attribute: AttributeDict, numeric_array_attribute: AttributeDict
     ):
+
+        # Test fail case
+        with pytest.raises(TypeError):
+            assert attribute_meets_constraint(
+                AttributeConstraintDict(
+                    name="A constraint that should error",
+                    id="some_type",
+                    value="a",
+                    operator=OperatorEnum.LT,
+                ),
+                AttributeDict(
+                    attribute_type_id="some_type", value={"some": "dictionary"}
+                ),
+            )
+
+        # Test fail case
+        with pytest.raises(TypeError):
+            assert attribute_meets_constraint(
+                AttributeConstraintDict(
+                    name="A constraint that should error",
+                    id="some_type",
+                    value="a",
+                    operator=OperatorEnum.LT,
+                ),
+                AttributeDict(attribute_type_id="some_type", value=1),
+            )
+
         assert attribute_meets_constraint(
             AttributeConstraintDict(
                 name="some_type is less than 1",
@@ -1031,6 +1093,17 @@ class TestAttributeConstraints:
     def test_matches(
         self, string_attribute: AttributeDict, string_array_attribute: AttributeDict
     ):
+        # Test fail case
+        with pytest.raises(TypeError):
+            assert attribute_meets_constraint(
+                AttributeConstraintDict(
+                    name="A constraint that should error",
+                    id="some_type",
+                    value={"some": "dictionary"},
+                    operator=OperatorEnum.MATCH,
+                ),
+                string_attribute,
+            )
         assert attribute_meets_constraint(
             AttributeConstraintDict(
                 name="some_type ends in 'bc'",
@@ -1083,7 +1156,6 @@ class TestAttributeConstraints:
             ),
             string_array_attribute,
         )
-
 
         assert not attribute_meets_constraint(
             AttributeConstraintDict(

@@ -10,7 +10,7 @@ from pydantic_settings import BaseSettings
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
 
-from retriever.types.general import JsonSerializable
+from retriever.types.base import JsonSerializable
 
 yaml = YAML()
 CommentedSerializable = JsonSerializable | list[CommentedMap] | dict[str, CommentedMap]
