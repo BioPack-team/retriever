@@ -152,7 +152,7 @@ async def meta_knowledge_graph(
 ) -> ORJSONResponse:
     """Retrieve the Meta-Knowledge Graph."""
     response_dict = await make_query("metakg", APIInfo(request, response), tiers=tier)
-    return ORJSONResponse(response_dict)
+    return ORJSONResponse(response_dict, status_code=response.status_code)
     # return {"logs": list(logs)}
 
 
@@ -168,7 +168,7 @@ async def metadata(
     response_dict = await make_query(
         func="metadata", ctx=APIInfo(request, response), tiers=[tier]
     )
-    return ORJSONResponse(response_dict)
+    return ORJSONResponse(response_dict, status_code=response.status_code)
 
 
 @app.post(
@@ -202,7 +202,7 @@ async def query(
 ) -> ORJSONResponse:
     """Initiate a synchronous query."""
     response_dict = await make_query("lookup", APIInfo(request, response), body=body)
-    return ORJSONResponse(response_dict)
+    return ORJSONResponse(response_dict, status_code=response.status_code)
     # return {}
 
 
@@ -239,7 +239,7 @@ async def asyncquery(
     response_dict = await make_query(
         "lookup", APIInfo(request, response, background_tasks), body=body
     )
-    return ORJSONResponse(response_dict)
+    return ORJSONResponse(response_dict, status_code=response.status_code)
 
 
 @app.get(
@@ -286,7 +286,7 @@ async def asyncquery_status(
     for key in del_keys:
         del job_dict[key]
 
-    return ORJSONResponse(job_dict)
+    return ORJSONResponse(job_dict, status_code=response.status_code)
 
 
 @app.get(
@@ -306,7 +306,7 @@ async def asyncquery_status(
 async def response(request: Request, response: Response, job_id: str) -> ORJSONResponse:
     """Get the response of an asynchronous query."""
     job_dict = await get_job_state(job_id, request, response)
-    return ORJSONResponse(job_dict)
+    return ORJSONResponse(job_dict, status_code=response.status_code)
 
 
 @app.get(
