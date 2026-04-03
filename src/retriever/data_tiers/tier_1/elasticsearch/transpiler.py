@@ -275,6 +275,27 @@ class ElasticsearchTranspiler(Tier1Transpiler):
 
         return attributes
 
+    def build_single_node(
+        self, node: ESNode, attributes: list[AttributeDict] | None = None
+    ) -> NodeDict:
+        """Build a single TRAPI node from the given knowledge."""
+        _attributes = [] if attributes is None else attributes
+
+        if attributes is None:
+            # Cases that require additional formatting to be TRAPI-compliant
+            special_cases: SpecialCaseDict = {}
+            _attributes = self.build_attributes(node, special_cases)
+
+        trapi_node = NodeDict(
+            name=node.name,
+            categories=[
+                BiolinkEntity(biolink.ensure_prefix(cat)) for cat in node.category
+            ],
+            attributes=_attributes,
+        )
+
+        return trapi_node
+
     def build_nodes(
         self, edges: list[ESEdge], query_subject: QNodeDict, query_object: QNodeDict
     ) -> dict[CURIE, NodeDict]:
@@ -288,8 +309,6 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                 node_ids[node_pos] = node_id
                 if node_id in nodes:
                     continue
-                attributes: list[AttributeDict] = []
-
                 # Cases that require additional formatting to be TRAPI-compliant
                 special_cases: SpecialCaseDict = {}
 
@@ -298,17 +317,11 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                 constraints = (
                     query_subject if node_pos == "subject" else query_object
                 ).get("constraints", []) or []
+
                 if not attributes_meet_contraints(constraints, attributes):
                     continue
 
-                trapi_node = NodeDict(
-                    name=node.name,
-                    categories=[
-                        BiolinkEntity(biolink.ensure_prefix(cat))
-                        for cat in node.category
-                    ],
-                    attributes=attributes,
-                )
+                trapi_node = self.build_single_node(node, attributes)
 
                 nodes[node_id] = trapi_node
 
