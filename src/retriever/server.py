@@ -151,8 +151,10 @@ async def meta_knowledge_graph(
     ],
 ) -> ORJSONResponse:
     """Retrieve the Meta-Knowledge Graph."""
-    response_dict = await make_query("metakg", APIInfo(request, response), tiers=tier)
-    return ORJSONResponse(response_dict, status_code=response.status_code)
+    status_code, response_dict = await make_query(
+        "metakg", APIInfo(request, response), tiers=tier
+    )
+    return ORJSONResponse(response_dict, status_code=status_code)
     # return {"logs": list(logs)}
 
 
@@ -165,10 +167,10 @@ async def metadata(
     request: Request, response: Response, tier: TierNumber
 ) -> ORJSONResponse:
     """Retrieve the metadata associated with a given Data Tier."""
-    response_dict = await make_query(
+    status_code, response_dict = await make_query(
         func="metadata", ctx=APIInfo(request, response), tiers=[tier]
     )
-    return ORJSONResponse(response_dict, status_code=response.status_code)
+    return ORJSONResponse(response_dict, status_code=status_code)
 
 
 @app.post(
@@ -201,8 +203,10 @@ async def query(
     body: Annotated[TRAPIQuery, Body(examples=[EXAMPLE_QUERY])],
 ) -> ORJSONResponse:
     """Initiate a synchronous query."""
-    response_dict = await make_query("lookup", APIInfo(request, response), body=body)
-    return ORJSONResponse(response_dict, status_code=response.status_code)
+    status_code, response_dict = await make_query(
+        "lookup", APIInfo(request, response), body=body
+    )
+    return ORJSONResponse(response_dict, status_code=status_code)
     # return {}
 
 
@@ -236,10 +240,10 @@ async def asyncquery(
     background_tasks: BackgroundTasks,
 ) -> ORJSONResponse:
     """Initiate an asynchronous query."""
-    response_dict = await make_query(
+    status_code, response_dict = await make_query(
         "lookup", APIInfo(request, response, background_tasks), body=body
     )
-    return ORJSONResponse(response_dict, status_code=response.status_code)
+    return ORJSONResponse(response_dict, status_code=status_code)
 
 
 @app.get(
@@ -262,11 +266,9 @@ async def asyncquery(
         },
     },
 )
-async def asyncquery_status(
-    request: Request, response: Response, job_id: str
-) -> ORJSONResponse:
+async def asyncquery_status(request: Request, job_id: str) -> ORJSONResponse:
     """Get the status of an asynchronous query."""
-    job_dict = await get_job_state(job_id, request, response)
+    status_code, job_dict = await get_job_state(job_id, request)
 
     # Remove keys not meant for asyncquery_status
     del_keys: list[str] = [
@@ -286,7 +288,7 @@ async def asyncquery_status(
     for key in del_keys:
         del job_dict[key]
 
-    return ORJSONResponse(job_dict, status_code=response.status_code)
+    return ORJSONResponse(job_dict, status_code=status_code)
 
 
 @app.get(
@@ -303,10 +305,10 @@ async def asyncquery_status(
         },
     },
 )
-async def response(request: Request, response: Response, job_id: str) -> ORJSONResponse:
+async def response(request: Request, job_id: str) -> ORJSONResponse:
     """Get the response of an asynchronous query."""
-    job_dict = await get_job_state(job_id, request, response)
-    return ORJSONResponse(job_dict, status_code=response.status_code)
+    status_code, job_dict = await get_job_state(job_id, request)
+    return ORJSONResponse(job_dict, status_code=status_code)
 
 
 @app.get(
