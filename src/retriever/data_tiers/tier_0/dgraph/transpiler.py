@@ -2079,6 +2079,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
                 # Continue on with edges after subclass edge
                 next_edges.extend(edge.node.edges)
+                self._add_node_to_kgraph(edge.node, qg)
                 continue
 
             # Build the KGraph edge, doesn't matter if it uses a subclass node or not
