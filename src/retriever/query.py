@@ -196,13 +196,13 @@ async def get_job_state(
     ctx_log = TRAPILogger(job_id)
 
     try:
-        job_dict = await MongoClient().get_job_doc(job_id)
-        if job_dict:
-            ctx_log.debug(f"Got job {job_id} result from MongoDB.")
-        job = job_dict
+        job = await MongoClient().get_job_doc(job_id)
+        if job is not None:
+            ctx_log.debug(f"Got job {job_id} response from MongoDB.", no_mongo_log=True)
     except Exception as e:
         ctx_log.exception(
-            f"Encountered exception retrieving job {job_id} from MongoDB."
+            f"Encountered exception retrieving job {job_id} from MongoDB.",
+            no_mongo_log=True,
         )
         telemetry.capture_exception(e)
         error = e
@@ -216,7 +216,7 @@ async def get_job_state(
         if len(job_logs) > 0:
             job = {
                 "status": "Running",
-                "logs": job_logs,
+                "logs": [*job_logs, *ctx_log.get_logs()],
                 "description": "Job is running.",
             }
 
