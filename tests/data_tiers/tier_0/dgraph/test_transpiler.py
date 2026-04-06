@@ -2522,13 +2522,13 @@ def test_subclassing_case3_category_to_id(
     actual = transpiler_with_subclassing.convert_multihop_public(qgraph)
 
     # Should have mirrored Form B (subclass object)
-    assert "out_edges-subclassObjB_e0:" in actual
+    assert "in_edges-subclassObjB_e0:" in actual
     assert (
-        'out_edges-subclassObjB_e0: ~subject @filter(eq(predicate_ancestors, "condition_associated_with_gene"))'
+        'in_edges-subclassObjB_e0: ~object @filter(eq(predicate_ancestors, "subclass_of"))'
         in actual
     )
     assert (
-        'out_edges-subclassObjB-tail_e0: ~subject @filter(eq(predicate_ancestors, "subclass_of"))'
+        'in_edges-subclassObjB-tail_e0: ~object @filter(eq(predicate_ancestors, "condition_associated_with_gene"))'
         in actual
     )
 
@@ -2768,9 +2768,9 @@ def test_subclassing_three_hop_mixed_cases(
     assert "in_edges-subclassD_e0:" not in actual  # No Form D
 
     # Edge e1 (CAT -> ID): should have mirrored Form B
-    assert "out_edges-subclassObjB_e1:" in actual
+    assert "in_edges-subclassObjB_e1:" in actual
     assert (
-        'out_edges-subclassObjB_e1: ~subject @filter(eq(predicate_ancestors, "gene_associated_with_condition"))'
+        'in_edges-subclassObjB_e1: ~object @filter(eq(predicate_ancestors, "subclass_of"))'
         in actual
     )
     assert 'node_intermediate_n2: object @filter(has(id))' in actual
