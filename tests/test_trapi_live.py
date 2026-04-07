@@ -213,11 +213,13 @@ async def test_symmetric_predicate_query(tier: int) -> None:
 #   CAT = biolink:PhenotypicFeature
 #
 # ── Case 3 (CAT→P→ID, target subclass) ───────────────────────────────────
-#   INTERMEDIATE = GO:0031393
-#          → genetic_association → EFO:0004528
-#          → subclass_of         → GO:0051055
-#   n0 = {categories: ["biolink:BiologicalProcess"]}
-#   n1 = {ids: ["EFO:0004528"]}
+#   B  = GO:0051055
+#   B' = GO:0031393
+#          CHEBI:78420, CHEBI:18406, ... → affects → B' (direct)
+#          B' subclass_of B
+#   CAT = biolink:SmallMolecule
+#   n0 = {categories: ["biolink:SmallMolecule"]}
+#   n1 = {ids: ["GO:0051055"]}
 # ---------------------------------------------------------------------------
 
 
@@ -352,6 +354,60 @@ async def test_subclass_case2_id_to_cat(tier: int) -> None:
 
     n0_ids = _result_node_ids(msg, "n0")
     assert "UMLS:C3273258" in n0_ids, "UMLS:C3273258 must appear in n0 result bindings"
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tier", TIERS)
+async def test_subclass_case3_cat_to_id(tier: int) -> None:
+    """
+    Case 3: biolink:SmallMolecule → affects → GO:0051055 via target subclass.
+
+    GO:0031393 is a direct subclass of GO:0051055.  Several small molecules
+    have direct ``affects`` edges to GO:0031393; they should surface as
+    results via target-side subclass expansion.
+    """
+    query_graph = {
+        "nodes": {
+            "n0": {"categories": ["biolink:SmallMolecule"], "constraints": []},
+            "n1": {"ids": ["GO:0051055"], "constraints": []}
+        },
+        "edges": {
+            "e0": {
+                "subject": "n0",
+                "object": "n1",
+                "predicates": ["biolink:affects"],
+                "attribute_constraints": [],
+                "qualifier_constraints": []
+            }
+        }
+    }
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        response = await client.post(QUERY_ENDPOINT, json=_request(tier, query_graph))
+
+    msg = _assert_ok(response)
+    assert msg["results"], "Expected results via subclass expansion (Case 3)"
+
+    kg_nodes = _kg_node_ids(msg)
+    assert "GO:0051055" in kg_nodes, (
+        "B (GO:0051055, negative regulation of lipid biosynthetic process) "
+        "must appear in the knowledge graph"
+    )
+
+    known_small_molecules = {"CHEBI:78420", "CHEBI:78492", "CHEBI:192461", "CHEBI:202791", "CHEBI:29014", "CHEBI:18406", "CHEBI:82621", "CHEBI:45713"}
+    assert known_small_molecules & kg_nodes, (
+        f"At least one of the expected small molecule nodes {known_small_molecules} must appear "
+        "in the knowledge graph (reached via GO:0031393 target subclass expansion)"
+    )
+
+    n0_ids = _result_node_ids(msg, "n0")
+    assert known_small_molecules.issubset(n0_ids), (
+        "All expected small molecule nodes must appear in n0 result bindings"
+    )
+
+    n1_ids = _result_node_ids(msg, "n1")
+    assert "GO:0051055" in n1_ids, "GO:0051055 must appear in n1 result bindings"
 
 
 # ---------------------------------------------------------------------------
