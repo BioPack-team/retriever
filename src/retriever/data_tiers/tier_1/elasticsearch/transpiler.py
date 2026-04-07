@@ -275,10 +275,6 @@ class ElasticsearchTranspiler(Tier1Transpiler):
 
         return attributes
 
-    def fetch_single_node(self, _string: str) -> ESNode | None:
-        """Fetch a single node from the Elasticsearch backend."""
-        return None
-
     def build_single_node(
         self, node: ESNode, attributes: list[AttributeDict] | None = None
     ) -> NodeDict:

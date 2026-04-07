@@ -10,6 +10,7 @@ from opentelemetry import trace
 
 from retriever.config.general import CONFIG
 from retriever.data_tiers import tier_manager
+from retriever.data_tiers.tier_1.elasticsearch.driver import ElasticSearchDriver
 from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
 from retriever.lookup.branch import (
     Branch,
@@ -248,16 +249,22 @@ class QueryGraphExecutor:
         if len(incomplete_nodes) == 0:
             return
 
+        driver: ElasticSearchDriver = cast(
+            ElasticSearchDriver, tier_manager.get_driver(1)
+        )
         transpiler: ElasticsearchTranspiler = cast(
             ElasticsearchTranspiler, tier_manager.get_transpiler(1)
         )
+
         hydrated_count = 0
 
         for curie in incomplete_nodes:
             try:
-                fetched = transpiler.fetch_single_node(str(curie))
+                fetched = await driver.fetch_single_node(str(curie))
                 if fetched is None:
-                    self.job_log.debug(f"Failed to hydrate node: {curie} ")
+                    self.job_log.warning(
+                        f"Unable to hydrate node metadata for {curie}: no canonical tier-1 node was found."
+                    )
                     continue
 
                 trapi_node = transpiler.build_single_node(fetched)

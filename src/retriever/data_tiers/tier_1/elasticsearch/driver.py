@@ -25,6 +25,7 @@ from retriever.data_tiers.tier_1.elasticsearch.meta import (
 )
 from retriever.data_tiers.tier_1.elasticsearch.types import (
     ESEdge,
+    ESNode,
     ESPayload,
 )
 from retriever.data_tiers.utils import (
@@ -171,6 +172,10 @@ class ElasticSearchDriver(DatabaseDriver):
             raise e
 
         return results
+
+    async def fetch_single_node(self, _curie: str) -> ESNode | None:
+        """Fetch a single canonical node from the Elasticsearch backend."""
+        return None
 
     @override
     @tracer.start_as_current_span("elasticsearch_query")
