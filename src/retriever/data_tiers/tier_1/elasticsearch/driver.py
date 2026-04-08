@@ -175,7 +175,28 @@ class ElasticSearchDriver(DatabaseDriver):
 
     async def fetch_single_node(self, _curie: str) -> ESNode | None:
         """Fetch a single canonical node from the Elasticsearch backend."""
-        return None
+        index_name = "ubergraph_nodes"
+
+        if self.es_connection is None:
+            raise RuntimeError(
+                "Must use ElasticSearchDriver.connect() before fetching node metadata."
+            )
+
+        response = await self.es_connection.search(
+            index=index_name,
+            size=1,
+            query={"term": {"id": _curie}},
+        )
+        hits = response["hits"]["hits"]
+        if len(hits) == 0:
+            return None
+        total_hits = response["hits"]["total"]["value"]
+        if total_hits > 1:
+            log.warning(
+                f"Found {total_hits} canonical node hits for {_curie} in `ubergraph_nodes`; using the first match."
+            )
+
+        return ESNode.from_dict(hits[0]["_source"])
 
     @override
     @tracer.start_as_current_span("elasticsearch_query")
