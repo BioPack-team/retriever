@@ -170,6 +170,28 @@ ID_BYPASS_PAYLOAD = qg({
     }
 })
 
+HYDRATION_QGRAPH = qg({
+    "nodes": {
+        "on": {
+            "categories": ["biolink:Gene", "biolink:Protein"],
+            "ids": ["NCBIGene:4314"],
+            "is_set": False,
+        },
+        "sn": {
+            "categories": ["biolink:ChemicalEntity"],
+            "ids": ["CHEBI:48927"],
+            "is_set": False,
+        },
+    },
+    "edges": {
+        "e00": {
+            "object": "on",
+            "predicates": ["biolink:affects"],
+            "subject": "sn",
+        }
+    },
+})
+
 
 def generate_qgraph_with_attribute_constraints(constraints: list[AttributeConstraintDict]):
     """Generate a QGraph with attribute constraints."""

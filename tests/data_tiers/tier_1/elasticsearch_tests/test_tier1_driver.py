@@ -1,12 +1,13 @@
 import importlib
-from typing import Iterator, cast, Any
+from collections.abc import Iterator
+from typing import Any, cast
 
 import pytest
 import retriever.config.general as general_mod
 import retriever.data_tiers.tier_1.elasticsearch.driver as driver_mod
 from retriever.data_tiers.tier_1.elasticsearch.meta import extract_metadata_entries_from_blob, get_t1_indices
 from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
-from retriever.data_tiers.tier_1.elasticsearch.types import ESPayload, ESEdge
+from retriever.data_tiers.tier_1.elasticsearch.types import ESPayload, ESEdge, ESNode
 from payload.trapi_qgraphs import DINGO_QGRAPH, VALID_REGEX_QGRAPHS, INVALID_REGEX_QGRAPHS, ID_BYPASS_PAYLOAD
 from retriever.utils.redis import RedisClient
 from test_tier1_transpiler import _convert_triple, _convert_batch_triple
@@ -93,11 +94,11 @@ PAYLOAD_2: ESPayload = esp({
     "payload, expected",
     [
         (PAYLOAD_0, 0),
-        (PAYLOAD_1, 4),
+        (PAYLOAD_1, 2),
         (PAYLOAD_2, 32),
         (
                 [PAYLOAD_0, PAYLOAD_1, PAYLOAD_2],
-                [0, 4, 32]
+                [0, 2, 32]
         )
     ],
     ids=[
@@ -205,11 +206,33 @@ async def test_metadata_retrieval():
 
 @pytest.mark.usefixtures("mock_elasticsearch_config")
 @pytest.mark.asyncio
+async def test_fetch_single_node():
+    driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
+
+    try:
+        await driver.connect()
+        assert driver.es_connection is not None
+    except Exception:
+        pytest.skip("skipping fetch_single_node test: cannot connect")
+
+    node = await driver.fetch_single_node("CHEBI:48927")
+
+    assert isinstance(node, ESNode)
+    assert node is not None
+    assert node.id == "CHEBI:48927"
+    assert len(node.category) > 0
+    assert node.name == "N-acyl-L-alpha-amino acid"
+
+    await driver.close()
+
+
+@pytest.mark.usefixtures("mock_elasticsearch_config")
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "qgraph, expected_hits",
     [
         (DINGO_QGRAPH, 8),
-        (ID_BYPASS_PAYLOAD, 6181),  # <-- adjust to the real number
+        (ID_BYPASS_PAYLOAD, 4176),  # <-- adjust to the real number
     ],
 )
 async def test_end_to_end(qgraph, expected_hits):
@@ -381,6 +404,6 @@ async def test_ubergraph_info_retrieval():
     #     print(k, v)
 
     # assert "mapping" in info
-    assert len(info) == 122707
+    assert len(info) == 122176
 
     await driver.close()

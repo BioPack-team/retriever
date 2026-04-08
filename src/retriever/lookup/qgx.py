@@ -9,6 +9,9 @@ from typing import cast
 from opentelemetry import trace
 
 from retriever.config.general import CONFIG
+from retriever.data_tiers import tier_manager
+from retriever.data_tiers.tier_1.elasticsearch.driver import ElasticSearchDriver
+from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
 from retriever.lookup.branch import (
     Branch,
     BranchID,
@@ -199,6 +202,8 @@ class QueryGraphExecutor:
                     await asyncio.sleep(0)
                     results.append(part.as_result(self.k_agraph))
 
+            await self.hydrate_missing_nodes()
+
             timeout_task.cancel()
             end_time = time.time()
             duration_ms = math.ceil((end_time - self.start_time) * 1000)
@@ -233,6 +238,46 @@ class QueryGraphExecutor:
             return LookupArtifacts(
                 [], self.kgraph, self.aux_graphs, self.job_log.get_logs(), error=True
             )
+
+    async def hydrate_missing_nodes(self) -> None:
+        """Hydrate skeletal KG nodes using tier-1 canonical node metadata."""
+        incomplete_nodes = [
+            curie
+            for curie, node in self.kgraph["nodes"].items()
+            if len(node.get("categories", [])) == 0 or not node.get("name")
+        ]
+        if len(incomplete_nodes) == 0:
+            return
+
+        driver: ElasticSearchDriver = cast(
+            ElasticSearchDriver, tier_manager.get_driver(1)
+        )
+        transpiler: ElasticsearchTranspiler = cast(
+            ElasticsearchTranspiler, tier_manager.get_transpiler(1)
+        )
+
+        hydrated_count = 0
+
+        for curie in incomplete_nodes:
+            try:
+                fetched = await driver.fetch_single_node(str(curie))
+                if fetched is None:
+                    self.job_log.warning(
+                        f"Unable to hydrate node metadata for {curie}: no canonical tier-1 node was found."
+                    )
+                    continue
+
+                trapi_node = transpiler.build_single_node(fetched)
+                update_kgraph(
+                    self.kgraph,
+                    KnowledgeGraphDict(nodes={curie: trapi_node}, edges={}),
+                )
+                hydrated_count += 1
+            except Exception:
+                self.job_log.exception(f"Failed to hydrate node metadata for {curie}.")
+
+        if hydrated_count > 0:
+            self.job_log.debug(f"Hydrated {hydrated_count} skeletal KG nodes.")
 
     async def expand_initial_subclasses(self) -> None:
         """Check if any pinned nodes have subclasses and expand them accordingly."""
