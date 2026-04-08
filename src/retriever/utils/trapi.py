@@ -475,14 +475,14 @@ def _compare_values(
             raise TypeError("Cannot use operators `>` or `<` with type `{type(c_val}`.")
 
         # Ensure values to compare are same type (or are both numbers for int/float)
-        num_disagreement = isinstance(attr, int | float) != isinstance(
+        both_are_numbers = isinstance(attr, int | float) and isinstance(
             constr, int | float
         )
         type_disagreement = type(attr) is not type(constr)
 
-        # if there's no num_disagreement => both are numbers, should proceed with comparison
-        # if there's num_disagreement => do broader type comparison with type_disagreement
-        if num_disagreement and type_disagreement:
+        # if both are numbers, should proceed with comparison
+        # if not both are number => do broader type comparison with type_disagreement
+        if not both_are_numbers and type_disagreement:
             raise TypeError(
                 f"Cannot compare unalike types (constraint: `{type(constr)}`, attribute: `{type(attr)}`)"
             )
