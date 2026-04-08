@@ -396,9 +396,7 @@ class DgraphTranspiler(Tier0Transpiler):
                     and self._node_has_categories(source_node)
                     and not self._node_has_ids(source_node)
                 ):
-                    subclass_forms.append(
-                        f"in_edges-subclassObjB_{normalized_edge_id}"
-                    )
+                    subclass_forms.append(f"in_edges-subclassObjB_{normalized_edge_id}")
 
                 if subclass_forms:
                     self._subclass_edge_map[edge_id] = subclass_forms
@@ -2070,9 +2068,11 @@ class DgraphTranspiler(Tier0Transpiler):
         partials: dict[str, list[Partial]] = {}
 
         # Loop through the existing edges...subclassing can cause new edges to check
-        next_edges = list(node.edges)
+        next_edges: list[tuple[CURIE | None, dg.Edge]] = [
+            (None, edge) for edge in node.edges
+        ]
         while len(next_edges) > 0:
-            edge = next_edges.pop()
+            subclass_intermediate, edge = next_edges.pop()
             qedge_id = QEdgeID(edge.binding)
 
             # Skip implicit subclassing subclass_of edges
@@ -2083,12 +2083,14 @@ class DgraphTranspiler(Tier0Transpiler):
                 self.subclass_backmap[subclass] = ancestor
 
                 # Continue on with edges after subclass edge
-                next_edges.extend(edge.node.edges)
+                next_edges.extend([(subclass, edge) for edge in edge.node.edges])
                 self._add_node_to_kgraph(edge.node, qg)
                 continue
 
             # Build the KGraph edge, doesn't matter if it uses a subclass node or not
-            trapi_edge = self._build_trapi_edge(edge, node_curie)
+            trapi_edge = self._build_trapi_edge(
+                edge, subclass_intermediate or node_curie
+            )
 
             constraints = qg["edges"][qedge_id].get("constraints", []) or []
             attributes = trapi_edge.get("attributes", []) or []
@@ -2104,7 +2106,7 @@ class DgraphTranspiler(Tier0Transpiler):
                 partials[qedge_id].append(
                     partial.combine(
                         Partial(
-                            [(original_node_id, node_curie)],
+                            [(original_node_id, subclass_intermediate or node_curie)],
                             [(qedge_id, trapi_edge["subject"], trapi_edge["object"])],
                         )
                     )
