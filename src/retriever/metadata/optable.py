@@ -137,7 +137,9 @@ class OpTableManager(AsyncDaemon):
             }
         )
 
-        await REDIS_CLIENT.set(OP_TABLE_KEY, op_table_json, compress=True)
+        await REDIS_CLIENT.set(
+            OP_TABLE_KEY, op_table_json, compress=True, ttl=CONFIG.job.metakg.build_time
+        )
         await REDIS_CLIENT.publish(OP_TABLE_UPDATE_CHANNEL, 1)
 
     async def retrieve_stored_operation_table(self) -> OperationTable | None:

@@ -3,7 +3,7 @@ import uuid
 from typing import Any, Literal, overload
 
 import sentry_sdk
-from fastapi import Request, Response
+from fastapi import Request
 from loguru import logger
 from opentelemetry import trace
 
@@ -38,7 +38,7 @@ async def make_query(
     ctx: APIInfo,
     *,
     body: TRAPIQuery,
-) -> ResponseDict: ...
+) -> tuple[int, ResponseDict]: ...
 
 
 @overload
@@ -47,7 +47,7 @@ async def make_query(
     ctx: APIInfo,
     *,
     body: TRAPIAsyncQuery,
-) -> AsyncQueryResponseDict: ...
+) -> tuple[int, AsyncQueryResponseDict]: ...
 
 
 @overload
@@ -56,7 +56,7 @@ async def make_query(
     ctx: APIInfo,
     *,
     tiers: list[TierNumber],
-) -> MetaKnowledgeGraphDict: ...
+) -> tuple[int, MetaKnowledgeGraphDict]: ...
 
 
 @overload
@@ -65,7 +65,7 @@ async def make_query(
     ctx: APIInfo,
     *,
     tiers: list[TierNumber],
-) -> DINGOMetadata: ...
+) -> tuple[int, DINGOMetadata]: ...
 
 
 async def make_query(
@@ -74,13 +74,14 @@ async def make_query(
     *,
     body: TRAPIQuery | TRAPIAsyncQuery | None = None,
     tiers: list[TierNumber] | None = None,  # Guaranteed to be 0 <= x <= 2
-) -> (
+) -> tuple[
+    int,
     ResponseDict
     | AsyncQueryResponseDict
     | MetaKnowledgeGraphDict
     | DINGOMetadata
-    | ErrorDetail
-):
+    | ErrorDetail,
+]:
     """Process a request and await its response before returning.
 
     Unhandled errors are handled by middleware.
@@ -141,15 +142,14 @@ async def make_query(
     # TRAPI Async vs Sync query (client wants callback vs. will wait)
     if ctx.background_tasks is not None:  # TRAPI Asyncquery lookup
         ctx.background_tasks.add_task(async_lookup, query=query)
-        return AsyncQueryResponseDict(
+        return 200, AsyncQueryResponseDict(
             status="Accepted",
             description="Query has been queued for processing.",
             job_id=job_id,
         )
     else:  # Sync query
         status_code, response_body = await query_function(query)
-        ctx.response.status_code = status_code
-        return response_body
+        return status_code, response_body
 
 
 def contextualize_query_telemetry(query: QueryInfo, func: str, is_async: bool) -> None:
@@ -184,9 +184,7 @@ def contextualize_query_telemetry(query: QueryInfo, func: str, is_async: bool) -
     sentry_sdk.set_tags(span_tags)
 
 
-async def get_job_state(
-    job_id: str, request: Request, response: Response
-) -> dict[str, Any]:
+async def get_job_state(job_id: str, request: Request) -> tuple[int, dict[str, Any]]:
     """Retrieve job information from MongoDB.
 
     Returns whole job response so it can be used by either `/asyncquery_status` or `/response`.
@@ -221,8 +219,7 @@ async def get_job_state(
             }
 
     if job is None and error is not None:
-        response.status_code = 500
-        return {
+        return 500, {
             "status": "Error",
             "description": "An error occurred while attempting to retrieve job status",
             "logs": list(ctx_log.get_logs()),
@@ -230,8 +227,7 @@ async def get_job_state(
             "trace": traceback.format_exc(),
         }
     elif job is None:
-        response.status_code = 404
-        return {
+        return 404, {
             "status": "Not Found",
             "description": f"The job ID you provided ({job_id}) was not found. It may have expired.",
             "logs": list(ctx_log.get_logs()),
@@ -242,7 +238,7 @@ async def get_job_state(
         if key in job:
             del job[key]
 
-    return {
+    return 200, {
         **job,
         "response_url": f"{request.base_url}response/{job_id}",
         "logs": job.get("logs", list(ctx_log.get_logs())),

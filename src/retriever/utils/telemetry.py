@@ -58,6 +58,7 @@ def configure_telemetry(app: FastAPI | None = None) -> None:
                 app,
                 http_capture_headers_server_request=["User-Agent"],
                 tracer_provider=trace_provider,
+                excluded_urls="docs,openapi.json,openapi.yaml,logs,config",
             )
 
         # Instrument httpx clients

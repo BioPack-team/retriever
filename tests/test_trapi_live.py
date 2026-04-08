@@ -410,6 +410,53 @@ async def test_subclass_case3_cat_to_id(tier: int) -> None:
     assert "GO:0051055" in n1_ids, "GO:0051055 must appear in n1 result bindings"
 
 
+@pytest.mark.live
+@pytest.mark.asyncio
+async def test_tier1_query_hydrates_empty_query_nodes() -> None:
+    """
+    Tier-1 query should hydrate the pinned ancestor node metadata rather than
+    leaving an empty shell node in the final knowledge graph.
+    """
+    query_graph = {
+        "nodes": {
+            "on": {
+                "categories": ["biolink:Gene", "biolink:Protein"],
+                "ids": ["NCBIGene:4314"],
+                "is_set": False,
+            },
+            "sn": {
+                "categories": ["biolink:ChemicalEntity"],
+                "ids": ["CHEBI:48927"],
+                "is_set": False,
+            },
+        },
+        "edges": {
+            "e00": {
+                "object": "on",
+                "predicates": ["biolink:affects"],
+                "subject": "sn",
+            }
+        },
+    }
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        response = await client.post(QUERY_ENDPOINT, json=_request(1, query_graph))
+
+    msg = _assert_ok(response)
+    assert msg["results"], "Expected at least one tier-1 result for CHEBI:48927 affects NCBIGene:4314"
+
+    kg_nodes = msg["knowledge_graph"]["nodes"]
+    assert len(kg_nodes) == 3, "Expected hydrated ancestor, descendant support node, and target gene node"
+    assert "CHEBI:48927" in kg_nodes, "Pinned CHEBI:48927 must appear in the knowledge graph"
+    assert "CHEBI:71223" in kg_nodes, "Subclass support node CHEBI:71223 must appear in the knowledge graph"
+    assert "NCBIGene:4314" in kg_nodes, "Pinned NCBIGene:4314 must appear in the knowledge graph"
+    assert kg_nodes["CHEBI:48927"]["categories"], "CHEBI:48927 should be hydrated with categories"
+    assert kg_nodes["CHEBI:48927"].get("name") == "N-acyl-L-alpha-amino acid"
+    assert all(node.get("categories") for node in kg_nodes.values()), (
+        "No returned knowledge graph node should have empty categories after hydration"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Multi-hop queries
 #
