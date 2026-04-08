@@ -479,10 +479,14 @@ def _compare_values(
             constr, int | float
         )
         type_disagreement = type(attr) is not type(constr)
-        if (type_disagreement and not num_disagreement) or num_disagreement:
+
+        # if there's no num_disagreement => both are numbers, should proceed with comparison
+        # if there's num_disagreement => do broader type comparison with type_disagreement
+        if num_disagreement and type_disagreement:
             raise TypeError(
-                "Cannot compare unalike types (constraint: `{type(c_val)}`, attribute: `{type(a_val)}`)"
+                f"Cannot compare unalike types (constraint: `{type(constr)}`, attribute: `{type(attr)}`)"
             )
+
         # NOTE: Doing some bogus casts to make type check understand
         # THEY HAVE BEEN CONFIRMED TO BE THE SAME TYPE (see above)
         if operator == OperatorEnum.GT:
