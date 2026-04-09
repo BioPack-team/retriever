@@ -396,9 +396,7 @@ class DgraphTranspiler(Tier0Transpiler):
                     and self._node_has_categories(source_node)
                     and not self._node_has_ids(source_node)
                 ):
-                    subclass_forms.append(
-                        f"out_edges-subclassObjB_{normalized_edge_id}"
-                    )
+                    subclass_forms.append(f"in_edges-subclassObjB_{normalized_edge_id}")
 
                 if subclass_forms:
                     self._subclass_edge_map[edge_id] = subclass_forms
@@ -1306,6 +1304,7 @@ class DgraphTranspiler(Tier0Transpiler):
         normalized_edge_id = self._get_normalized_edge_id(edge_id)
         normalized_target_id = self._get_normalized_node_id(target_id)
         normalized_source_id = self._get_normalized_node_id(edge["subject"])
+        normalized_object_id = self._get_normalized_node_id(edge["object"])
 
         source_node = nodes[edge["subject"]]
         target_node = nodes[edge["object"]]
@@ -1382,11 +1381,11 @@ class DgraphTranspiler(Tier0Transpiler):
             if follows_requested_direction:
                 add_branch(
                     (
-                        f"out_edges-subclassObjB_{normalized_edge_id}",
-                        f"node_intermediate_{normalized_target_id}",
+                        f"in_edges-subclassObjB_{normalized_edge_id}",
+                        f"node_intermediate_{normalized_object_id}",
                     ),
                     (
-                        f"out_edges-subclassObjB-tail_{normalized_edge_id}",
+                        f"in_edges-subclassObjB-tail_{normalized_edge_id}",
                         f"node_{normalized_target_id}",
                     ),
                 )
@@ -1779,35 +1778,39 @@ class DgraphTranspiler(Tier0Transpiler):
     def _build_subclass_object_case3_form_b(
         self, ctx: EdgeTraversalContext, norm_eid: str
     ) -> str:
-        """Mirrored Case 2 (CAT->P->ID)."""
-        # The intermediate node is the subclassed object reached by the
-        # predicate edge, so it shares the target node alias.
+        """Case 3 Form B: B' subclass_of→ B(ID); CAT → P → B'."""
+        # Pattern: CAT -> P -> B'; B' <- subclass_of <- B
+        # Starting from B (the ID/object node), first find subclasses B' of B
+        # via subclass_of edges, then find predicate edges that have B' as object.
+        normalized_object_id = self._get_normalized_node_id(ctx.edge["object"])
         normalized_target_id = self._get_normalized_node_id(ctx.target_id)
-        intermediate_alias = f"node_intermediate_{normalized_target_id}"
+        intermediate_alias = f"node_intermediate_{normalized_object_id}"
 
-        alias = f"out_edges-subclassObjB_{norm_eid}"
-        pred_edge_filter = self._build_edge_filter(ctx.edge)
-        pred_filter_clause = f" @filter({pred_edge_filter})" if pred_edge_filter else ""
+        alias = f"in_edges-subclassObjB_{norm_eid}"
+        subclass_filter_clause = f" @filter({self._subclass_edge_filter()})"
+        # Hop 1: subclass_of edges where B is the object -> subject = B'
         query = (
-            f"{alias}: ~{self._v('subject')}{pred_filter_clause} "
-            f"@cascade({self._v('predicate')}, {self._v('object')}) {{ "
+            f"{alias}: ~{self._v('object')}{subclass_filter_clause} "
+            f"@cascade({self._v('predicate')}, {self._v('subject')}) {{ "
         )
         query += self._add_standard_edge_fields()
+        # Intermediate: B' must have an id and must be targeted by a predicate edge
         query += (
-            f"{intermediate_alias}: {self._v('object')} "
+            f"{intermediate_alias}: {self._v('subject')} "
             f"@filter(has({self._v('id')})) "
-            f"@cascade({self._v('id')}, ~{self._v('subject')}) {{ "
+            f"@cascade({self._v('id')}, ~{self._v('object')}) {{ "
         )
         query += self._add_standard_node_fields()
-        subclass_filter_clause = f" @filter({self._subclass_edge_filter()})"
-        tail_edge_alias = f"out_edges-subclassObjB-tail_{norm_eid}"
+        pred_edge_filter = self._build_edge_filter(ctx.edge)
+        pred_filter_clause = f" @filter({pred_edge_filter})" if pred_edge_filter else ""
+        tail_edge_alias = f"in_edges-subclassObjB-tail_{norm_eid}"
+        # Hop 2: predicate edges where B' is the object -> subject = CAT node
         query += (
-            f"{tail_edge_alias}: ~{self._v('subject')}{subclass_filter_clause} "
-            f"@cascade({self._v('predicate')}, {self._v('object')}) {{ "
+            f"{tail_edge_alias}: ~{self._v('object')}{pred_filter_clause} "
+            f"@cascade({self._v('predicate')}, {self._v('subject')}) {{ "
         )
         query += self._add_standard_edge_fields()
-        normalized_target_id = self._get_normalized_node_id(ctx.target_id)
-        query += f"node_{normalized_target_id}: {self._v('object')}"
+        query += f"node_{normalized_target_id}: {self._v('subject')}"
         target_filter = self._build_node_filter(ctx.target_node)
         if target_filter:
             query += f" @filter({target_filter})"
@@ -2065,9 +2068,11 @@ class DgraphTranspiler(Tier0Transpiler):
         partials: dict[str, list[Partial]] = {}
 
         # Loop through the existing edges...subclassing can cause new edges to check
-        next_edges = list(node.edges)
+        next_edges: list[tuple[CURIE | None, dg.Edge]] = [
+            (None, edge) for edge in node.edges
+        ]
         while len(next_edges) > 0:
-            edge = next_edges.pop()
+            subclass_intermediate, edge = next_edges.pop()
             qedge_id = QEdgeID(edge.binding)
 
             # Skip implicit subclassing subclass_of edges
@@ -2078,12 +2083,14 @@ class DgraphTranspiler(Tier0Transpiler):
                 self.subclass_backmap[subclass] = ancestor
 
                 # Continue on with edges after subclass edge
-                next_edges.extend(edge.node.edges)
+                next_edges.extend([(subclass, edge) for edge in edge.node.edges])
                 self._add_node_to_kgraph(edge.node, qg)
                 continue
 
             # Build the KGraph edge, doesn't matter if it uses a subclass node or not
-            trapi_edge = self._build_trapi_edge(edge, node_curie)
+            trapi_edge = self._build_trapi_edge(
+                edge, subclass_intermediate or node_curie
+            )
 
             constraints = qg["edges"][qedge_id].get("constraints", []) or []
             attributes = trapi_edge.get("attributes", []) or []
@@ -2099,7 +2106,7 @@ class DgraphTranspiler(Tier0Transpiler):
                 partials[qedge_id].append(
                     partial.combine(
                         Partial(
-                            [(original_node_id, node_curie)],
+                            [(original_node_id, subclass_intermediate or node_curie)],
                             [(qedge_id, trapi_edge["subject"], trapi_edge["object"])],
                         )
                     )

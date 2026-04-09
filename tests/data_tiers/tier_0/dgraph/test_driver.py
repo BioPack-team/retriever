@@ -85,7 +85,7 @@ def mock_dgraph_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setenv("TIER0__DGRAPH__HOST", "localhost")
     monkeypatch.setenv("TIER0__DGRAPH__HTTP_PORT", "8080")
     monkeypatch.setenv("TIER0__DGRAPH__GRPC_PORT", "9080")
-    monkeypatch.setenv("TIER0__DGRAPH__PREFERRED_VERSION", "vM")
+    monkeypatch.setenv("TIER0__DGRAPH__PREFERRED_VERSION", "vN")
     monkeypatch.setenv("TIER0__DGRAPH__USE_TLS", "false")
     monkeypatch.setenv("TIER0__DGRAPH__QUERY_TIMEOUT", "10")
     monkeypatch.setenv("TIER0__DGRAPH__CONNECT_RETRIES", "0")
@@ -198,7 +198,7 @@ async def test_get_active_version_success_grpc_live():
 
     # Should return the version "v2" as per the live Dgraph instance
     version = await driver.get_active_version()
-    assert version == "vM"
+    assert version == "vN"
 
     await driver.close()
 
@@ -216,7 +216,7 @@ async def test_get_active_version_success_http_live():
 
     # Should return the version "v2" as per the live Dgraph instance
     version = await driver.get_active_version()
-    assert version == "vM"
+    assert version == "vN"
 
     await driver.close()
 
@@ -791,19 +791,19 @@ async def test_simple_one_query_live_http() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n0(func: eq(vM_id, "GO:0031410")) @cascade(vM_id, ~vM_object) {
-            expand(vM_Node)
-            in_edges_e0: ~vM_object @filter(eq(vM_predicate_ancestors, "located_in")) @cascade(vM_predicate, vM_subject) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
-                node_n1: vM_subject @filter(eq(vM_id, "NCBIGene:11276")) @cascade(vM_id) {
-                    expand(vM_Node)
+        q0_node_n0(func: eq(vN_id, "GO:0031410")) @cascade(vN_id, ~vN_object) {
+            expand(vN_Node)
+            in_edges_e0: ~vN_object @filter(eq(vN_predicate_ancestors, "located_in")) @cascade(vN_predicate, vN_subject) {
+                expand(vN_Edge) { vN_sources expand(vN_Source) }
+                node_n1: vN_subject @filter(eq(vN_id, "NCBIGene:11276")) @cascade(vN_id) {
+                    expand(vN_Node)
                 }
             }
         }
     }
     """).strip()
 
-    # driver = new_http_driver(version="vM")
+    # driver = new_http_driver(version="vN")
     driver = new_http_driver()
     await driver.connect()
 
@@ -816,8 +816,8 @@ async def test_simple_one_query_live_http() -> None:
         enable_symmetric_edges=True,
         enable_subclass_edges=False,
     )
-    assert transpiler.version == "vM"
-    assert transpiler.prefix == "vM_"
+    assert transpiler.version == "vN"
+    assert transpiler.prefix == "vN_"
 
     dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
     assert_query_equals(dgraph_query, dgraph_query_match)
@@ -966,12 +966,12 @@ async def test_simple_one_query_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vM_id, "NCBIGene:11276")) @cascade(vM_id, ~vM_subject) {
-            expand(vM_Node)
-            out_edges_e0: ~vM_subject @filter(eq(vM_predicate_ancestors, "located_in")) @cascade(vM_predicate, vM_object) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
-                node_n0: vM_object @filter(eq(vM_id, "GO:0031410")) @cascade(vM_id) {
-                    expand(vM_Node)
+        q0_node_n1(func: eq(vN_id, "NCBIGene:11276")) @cascade(vN_id, ~vN_subject) {
+            expand(vN_Node)
+            out_edges_e0: ~vN_subject @filter(eq(vN_predicate_ancestors, "located_in")) @cascade(vN_predicate, vN_object) {
+                expand(vN_Edge) { vN_sources expand(vN_Source) }
+                node_n0: vN_object @filter(eq(vN_id, "GO:0031410")) @cascade(vN_id) {
+                    expand(vN_Node)
                 }
             }
         }
@@ -990,8 +990,8 @@ async def test_simple_one_query_live_grpc() -> None:
         enable_symmetric_edges=True,
         enable_subclass_edges=False,
     )
-    assert transpiler.version == "vM"
-    assert transpiler.prefix == "vM_"
+    assert transpiler.version == "vN"
+    assert transpiler.prefix == "vN_"
 
     # Use the transpiler to generate the Dgraph query
     dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
@@ -1056,12 +1056,12 @@ async def test_simple_reverse_query_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vM_id, "DOID:0070271")) @cascade(vM_id, ~vM_subject) {
-            expand(vM_Node)
-            out_edges_e0: ~vM_subject @filter(eq(vM_predicate_ancestors, "has_phenotype")) @cascade(vM_predicate, vM_object) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
-                node_n0: vM_object @filter(eq(vM_category, "NamedThing")) @cascade(vM_id) {
-                    expand(vM_Node)
+        q0_node_n1(func: eq(vN_id, "DOID:0070271")) @cascade(vN_id, ~vN_subject) {
+            expand(vN_Node)
+            out_edges_e0: ~vN_subject @filter(eq(vN_predicate_ancestors, "has_phenotype")) @cascade(vN_predicate, vN_object) {
+                expand(vN_Edge) { vN_sources expand(vN_Source) }
+                node_n0: vN_object @filter(eq(vN_category, "NamedThing")) @cascade(vN_id) {
+                    expand(vN_Node)
                 }
             }
         }
@@ -1080,8 +1080,8 @@ async def test_simple_reverse_query_live_grpc() -> None:
         enable_symmetric_edges=True,
         enable_subclass_edges=False,
     )
-    assert transpiler.version == "vM"
-    assert transpiler.prefix == "vM_"
+    assert transpiler.version == "vN"
+    assert transpiler.prefix == "vN_"
 
     # Use the transpiler to generate the Dgraph query
     dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
@@ -1147,30 +1147,30 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vM_id, "NCBIGene:3778")) @cascade(vM_id) {
-            expand(vM_Node)
+        q0_node_n1(func: eq(vN_id, "NCBIGene:3778")) @cascade(vN_id) {
+            expand(vN_Node)
 
-            out_edges_e0: ~vM_subject
-            @filter(eq(vM_predicate_ancestors, "related_to"))
-            @cascade(vM_predicate, vM_object) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
+            out_edges_e0: ~vN_subject
+            @filter(eq(vN_predicate_ancestors, "related_to"))
+            @cascade(vN_predicate, vN_object) {
+                expand(vN_Edge) { vN_sources expand(vN_Source) }
 
-                node_n0: vM_object
-                @filter(eq(vM_category, "NamedThing"))
-                @cascade(vM_id) {
-                    expand(vM_Node)
+                node_n0: vN_object
+                @filter(eq(vN_category, "NamedThing"))
+                @cascade(vN_id) {
+                    expand(vN_Node)
                 }
             }
 
-            in_edges-symmetric_e0: ~vM_object
-            @filter(eq(vM_predicate_ancestors, "related_to"))
-            @cascade(vM_predicate, vM_subject) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
+            in_edges-symmetric_e0: ~vN_object
+            @filter(eq(vN_predicate_ancestors, "related_to"))
+            @cascade(vN_predicate, vN_subject) {
+                expand(vN_Edge) { vN_sources expand(vN_Source) }
 
-                node_n0: vM_subject
-                @filter(eq(vM_category, "NamedThing"))
-                @cascade(vM_id) {
-                    expand(vM_Node)
+                node_n0: vN_subject
+                @filter(eq(vN_category, "NamedThing"))
+                @cascade(vN_id) {
+                    expand(vN_Node)
                 }
             }
         }
@@ -1189,8 +1189,8 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
         enable_symmetric_edges=True,
         enable_subclass_edges=False,
     )
-    assert transpiler.version == "vM"
-    assert transpiler.prefix == "vM_"
+    assert transpiler.version == "vN"
+    assert transpiler.prefix == "vN_"
 
     # Use the transpiler to generate the Dgraph query
     dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
@@ -1341,30 +1341,30 @@ async def test_normalization_with_special_edge_id_live_grpc() -> None:
     # Expected query should use normalized edge ID 'e0', not 'e0_bad$%^'
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vM_id, "NCBIGene:3778")) @cascade(vM_id) {
-            expand(vM_Node)
+        q0_node_n1(func: eq(vN_id, "NCBIGene:3778")) @cascade(vN_id) {
+            expand(vN_Node)
 
-            out_edges_e0: ~vM_subject
-            @filter(eq(vM_predicate_ancestors, "related_to"))
-            @cascade(vM_predicate, vM_object) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
+            out_edges_e0: ~vN_subject
+            @filter(eq(vN_predicate_ancestors, "related_to"))
+            @cascade(vN_predicate, vN_object) {
+                expand(vN_Edge) { vN_sources expand(vN_Source) }
 
-                node_n0: vM_object
-                @filter(eq(vM_category, "NamedThing"))
-                @cascade(vM_id) {
-                    expand(vM_Node)
+                node_n0: vN_object
+                @filter(eq(vN_category, "NamedThing"))
+                @cascade(vN_id) {
+                    expand(vN_Node)
                 }
             }
 
-            in_edges-symmetric_e0: ~vM_object
-            @filter(eq(vM_predicate_ancestors, "related_to"))
-            @cascade(vM_predicate, vM_subject) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
+            in_edges-symmetric_e0: ~vN_object
+            @filter(eq(vN_predicate_ancestors, "related_to"))
+            @cascade(vN_predicate, vN_subject) {
+                expand(vN_Edge) { vN_sources expand(vN_Source) }
 
-                node_n0: vM_subject
-                @filter(eq(vM_category, "NamedThing"))
-                @cascade(vM_id) {
-                    expand(vM_Node)
+                node_n0: vN_subject
+                @filter(eq(vN_category, "NamedThing"))
+                @cascade(vN_id) {
+                    expand(vN_Node)
                 }
             }
         }
@@ -1383,8 +1383,8 @@ async def test_normalization_with_special_edge_id_live_grpc() -> None:
         enable_symmetric_edges=True,
         enable_subclass_edges=False,
     )
-    assert transpiler.version == "vM"
-    assert transpiler.prefix == "vM_"
+    assert transpiler.version == "vN"
+    assert transpiler.prefix == "vN_"
 
     # Use the transpiler to generate the Dgraph query
     dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
@@ -1645,11 +1645,13 @@ async def test_run_grpc_query_name_error_workaround(
 #   CAT = biolink:PhenotypicFeature
 #
 # ── Case 3 (CAT→P→ID, target subclass) ──────────────────────────────────
-#   INTERMEDIATE = GO:0031393 (has IDs)
-#          → genetic_association → EFO:0004528 (B)
-#          → subclass_of         → GO:0051055  (RESULT_N0, BiologicalProcess)
-#   n0 = {categories: ["biolink:BiologicalProcess"]}
-#   n1 = {ids: ["EFO:0004528"]}
+#   Anchor   = GO:0051055 (negative regulation of lipid biosynthetic process)
+#   B'       = GO:0031393 (negative regulation of prostaglandin biosynthetic process)
+#              B' subclass_of GO:0051055;  CHEBI:4042 → affects → B' (direct)
+#   RESULT   = CHEBI:4042 (Cypermethrin, SmallMolecule)
+#   No direct SmallMolecule → affects → GO:0051055 edge exists.
+#   n0 = {categories: ["biolink:SmallMolecule"]}
+#   n1 = {ids: ["GO:0051055"]}
 # ---------------------------------------------------------------------------
 
 
@@ -1683,12 +1685,12 @@ async def test_subclass_case1_direct_path_absent_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n0(func: eq(vM_id, "GO:0051055")) @cascade(vM_id, ~vM_subject) {
-            expand(vM_Node)
-            out_edges_e0: ~vM_subject @filter(eq(vM_predicate_ancestors, "genetic_association")) @cascade(vM_predicate, vM_object) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
-                node_n1: vM_object @filter(eq(vM_id, "EFO:0004528")) @cascade(vM_id) {
-                    expand(vM_Node)
+        q0_node_n0(func: eq(vN_id, "GO:0051055")) @cascade(vN_id, ~vN_subject) {
+            expand(vN_Node)
+            out_edges_e0: ~vN_subject @filter(eq(vN_predicate_ancestors, "genetic_association")) @cascade(vN_predicate, vN_object) {
+                expand(vN_Edge) { vN_sources expand(vN_Source) }
+                node_n1: vN_object @filter(eq(vN_id, "EFO:0004528")) @cascade(vN_id) {
+                    expand(vN_Node)
                 }
             }
         }
@@ -1771,50 +1773,50 @@ async def test_subclass_case1_form_b_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n0(func: eq(vM_id, "GO:0051055")) @cascade(vM_id) {
-            expand(vM_Node)
-            out_edges_e0: ~vM_subject @filter(eq(vM_predicate_ancestors, "genetic_association")) @cascade(vM_predicate, vM_object) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
-                node_n1: vM_object @filter(eq(vM_id, "EFO:0004528")) @cascade(vM_id) {
-                    expand(vM_Node)
+        q0_node_n0(func: eq(vN_id, "GO:0051055")) @cascade(vN_id) {
+            expand(vN_Node)
+            out_edges_e0: ~vN_subject @filter(eq(vN_predicate_ancestors, "genetic_association")) @cascade(vN_predicate, vN_object) {
+                expand(vN_Edge) { vN_sources expand(vN_Source) }
+                node_n1: vN_object @filter(eq(vN_id, "EFO:0004528")) @cascade(vN_id) {
+                    expand(vN_Node)
                 }
             }
-            in_edges-subclassB_e0: ~vM_object @filter(eq(vM_predicate_ancestors, "subclass_of")) @cascade(vM_predicate, vM_subject) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
-                node_intermediate_n0: vM_subject @filter(has(vM_id)) @cascade(vM_id, ~vM_subject) {
-                    expand(vM_Node)
-                    out_edges-subclassB-mid_e0: ~vM_subject @filter(eq(vM_predicate_ancestors, "genetic_association")) @cascade(vM_predicate, vM_object) {
-                        expand(vM_Edge) { vM_sources expand(vM_Source) }
-                        node_n1: vM_object @filter(eq(vM_id, "EFO:0004528")) @cascade(vM_id) {
-                            expand(vM_Node)
+            in_edges-subclassB_e0: ~vN_object @filter(eq(vN_predicate_ancestors, "subclass_of")) @cascade(vN_predicate, vN_subject) {
+                expand(vN_Edge) { vN_sources expand(vN_Source) }
+                node_intermediate_n0: vN_subject @filter(has(vN_id)) @cascade(vN_id, ~vN_subject) {
+                    expand(vN_Node)
+                    out_edges-subclassB-mid_e0: ~vN_subject @filter(eq(vN_predicate_ancestors, "genetic_association")) @cascade(vN_predicate, vN_object) {
+                        expand(vN_Edge) { vN_sources expand(vN_Source) }
+                        node_n1: vN_object @filter(eq(vN_id, "EFO:0004528")) @cascade(vN_id) {
+                            expand(vN_Node)
                         }
                     }
                 }
             }
-            out_edges-subclassC_e0: ~vM_subject @filter(eq(vM_predicate_ancestors, "genetic_association")) @cascade(vM_predicate, vM_object) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
-                node_intermediate_n1: vM_object @filter(has(vM_id)) @cascade(vM_id, ~vM_subject) {
-                    expand(vM_Node)
-                    out_edges-subclassC-tail_e0: ~vM_subject @filter(eq(vM_predicate_ancestors, "subclass_of")) @cascade(vM_predicate, vM_object) {
-                        expand(vM_Edge) { vM_sources expand(vM_Source) }
-                        node_n1: vM_object @filter(eq(vM_id, "EFO:0004528")) @cascade(vM_id) {
-                            expand(vM_Node)
+            out_edges-subclassC_e0: ~vN_subject @filter(eq(vN_predicate_ancestors, "genetic_association")) @cascade(vN_predicate, vN_object) {
+                expand(vN_Edge) { vN_sources expand(vN_Source) }
+                node_intermediate_n1: vN_object @filter(has(vN_id)) @cascade(vN_id, ~vN_subject) {
+                    expand(vN_Node)
+                    out_edges-subclassC-tail_e0: ~vN_subject @filter(eq(vN_predicate_ancestors, "subclass_of")) @cascade(vN_predicate, vN_object) {
+                        expand(vN_Edge) { vN_sources expand(vN_Source) }
+                        node_n1: vN_object @filter(eq(vN_id, "EFO:0004528")) @cascade(vN_id) {
+                            expand(vN_Node)
                         }
                     }
                 }
             }
-            in_edges-subclassD_e0: ~vM_object @filter(eq(vM_predicate_ancestors, "subclass_of")) @cascade(vM_predicate, vM_subject) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
-                node_intermediateA_n0: vM_subject @filter(has(vM_id)) @cascade(vM_id, ~vM_subject) {
-                    expand(vM_Node)
-                    out_edges-subclassD-mid_e0: ~vM_subject @filter(eq(vM_predicate_ancestors, "genetic_association")) @cascade(vM_predicate, vM_object) {
-                        expand(vM_Edge) { vM_sources expand(vM_Source) }
-                        node_intermediateB_n1: vM_object @filter(has(vM_id)) @cascade(vM_id, ~vM_subject) {
-                            expand(vM_Node)
-                            out_edges-subclassD-tail_e0: ~vM_subject @filter(eq(vM_predicate_ancestors, "subclass_of")) @cascade(vM_predicate, vM_object) {
-                                expand(vM_Edge) { vM_sources expand(vM_Source) }
-                                node_n1: vM_object @filter(eq(vM_id, "EFO:0004528")) @cascade(vM_id) {
-                                    expand(vM_Node)
+            in_edges-subclassD_e0: ~vN_object @filter(eq(vN_predicate_ancestors, "subclass_of")) @cascade(vN_predicate, vN_subject) {
+                expand(vN_Edge) { vN_sources expand(vN_Source) }
+                node_intermediateA_n0: vN_subject @filter(has(vN_id)) @cascade(vN_id, ~vN_subject) {
+                    expand(vN_Node)
+                    out_edges-subclassD-mid_e0: ~vN_subject @filter(eq(vN_predicate_ancestors, "genetic_association")) @cascade(vN_predicate, vN_object) {
+                        expand(vN_Edge) { vN_sources expand(vN_Source) }
+                        node_intermediateB_n1: vN_object @filter(has(vN_id)) @cascade(vN_id, ~vN_subject) {
+                            expand(vN_Node)
+                            out_edges-subclassD-tail_e0: ~vN_subject @filter(eq(vN_predicate_ancestors, "subclass_of")) @cascade(vN_predicate, vN_object) {
+                                expand(vN_Edge) { vN_sources expand(vN_Source) }
+                                node_n1: vN_object @filter(eq(vN_id, "EFO:0004528")) @cascade(vN_id) {
+                                    expand(vN_Node)
                                 }
                             }
                         }
@@ -1931,12 +1933,12 @@ async def test_subclass_case1_form_c_baseline_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n0(func: eq(vM_id, "CHEBI:4042")) @cascade(vM_id, ~vM_subject) {
-            expand(vM_Node)
-            out_edges_e0: ~vM_subject @filter(eq(vM_predicate_ancestors, "affects")) @cascade(vM_predicate, vM_object) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
-                node_n1: vM_object @filter(eq(vM_id, "GO:0051055")) @cascade(vM_id) {
-                    expand(vM_Node)
+        q0_node_n0(func: eq(vN_id, "CHEBI:4042")) @cascade(vN_id, ~vN_subject) {
+            expand(vN_Node)
+            out_edges_e0: ~vN_subject @filter(eq(vN_predicate_ancestors, "affects")) @cascade(vN_predicate, vN_object) {
+                expand(vN_Edge) { vN_sources expand(vN_Source) }
+                node_n1: vN_object @filter(eq(vN_id, "GO:0051055")) @cascade(vN_id) {
+                    expand(vN_Node)
                 }
             }
         }
@@ -2012,50 +2014,50 @@ async def test_subclass_case1_form_c_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n0(func: eq(vM_id, "CHEBI:4042")) @cascade(vM_id) {
-            expand(vM_Node)
-            out_edges_e0: ~vM_subject @filter(eq(vM_predicate_ancestors, "affects")) @cascade(vM_predicate, vM_object) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
-                node_n1: vM_object @filter(eq(vM_id, "GO:0051055")) @cascade(vM_id) {
-                    expand(vM_Node)
+        q0_node_n0(func: eq(vN_id, "CHEBI:4042")) @cascade(vN_id) {
+            expand(vN_Node)
+            out_edges_e0: ~vN_subject @filter(eq(vN_predicate_ancestors, "affects")) @cascade(vN_predicate, vN_object) {
+                expand(vN_Edge) { vN_sources expand(vN_Source) }
+                node_n1: vN_object @filter(eq(vN_id, "GO:0051055")) @cascade(vN_id) {
+                    expand(vN_Node)
                 }
             }
-            in_edges-subclassB_e0: ~vM_object @filter(eq(vM_predicate_ancestors, "subclass_of")) @cascade(vM_predicate, vM_subject) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
-                node_intermediate_n0: vM_subject @filter(has(vM_id)) @cascade(vM_id, ~vM_subject) {
-                    expand(vM_Node)
-                    out_edges-subclassB-mid_e0: ~vM_subject @filter(eq(vM_predicate_ancestors, "affects")) @cascade(vM_predicate, vM_object) {
-                        expand(vM_Edge) { vM_sources expand(vM_Source) }
-                        node_n1: vM_object @filter(eq(vM_id, "GO:0051055")) @cascade(vM_id) {
-                            expand(vM_Node)
+            in_edges-subclassB_e0: ~vN_object @filter(eq(vN_predicate_ancestors, "subclass_of")) @cascade(vN_predicate, vN_subject) {
+                expand(vN_Edge) { vN_sources expand(vN_Source) }
+                node_intermediate_n0: vN_subject @filter(has(vN_id)) @cascade(vN_id, ~vN_subject) {
+                    expand(vN_Node)
+                    out_edges-subclassB-mid_e0: ~vN_subject @filter(eq(vN_predicate_ancestors, "affects")) @cascade(vN_predicate, vN_object) {
+                        expand(vN_Edge) { vN_sources expand(vN_Source) }
+                        node_n1: vN_object @filter(eq(vN_id, "GO:0051055")) @cascade(vN_id) {
+                            expand(vN_Node)
                         }
                     }
                 }
             }
-            out_edges-subclassC_e0: ~vM_subject @filter(eq(vM_predicate_ancestors, "affects")) @cascade(vM_predicate, vM_object) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
-                node_intermediate_n1: vM_object @filter(has(vM_id)) @cascade(vM_id, ~vM_subject) {
-                    expand(vM_Node)
-                    out_edges-subclassC-tail_e0: ~vM_subject @filter(eq(vM_predicate_ancestors, "subclass_of")) @cascade(vM_predicate, vM_object) {
-                        expand(vM_Edge) { vM_sources expand(vM_Source) }
-                        node_n1: vM_object @filter(eq(vM_id, "GO:0051055")) @cascade(vM_id) {
-                            expand(vM_Node)
+            out_edges-subclassC_e0: ~vN_subject @filter(eq(vN_predicate_ancestors, "affects")) @cascade(vN_predicate, vN_object) {
+                expand(vN_Edge) { vN_sources expand(vN_Source) }
+                node_intermediate_n1: vN_object @filter(has(vN_id)) @cascade(vN_id, ~vN_subject) {
+                    expand(vN_Node)
+                    out_edges-subclassC-tail_e0: ~vN_subject @filter(eq(vN_predicate_ancestors, "subclass_of")) @cascade(vN_predicate, vN_object) {
+                        expand(vN_Edge) { vN_sources expand(vN_Source) }
+                        node_n1: vN_object @filter(eq(vN_id, "GO:0051055")) @cascade(vN_id) {
+                            expand(vN_Node)
                         }
                     }
                 }
             }
-            in_edges-subclassD_e0: ~vM_object @filter(eq(vM_predicate_ancestors, "subclass_of")) @cascade(vM_predicate, vM_subject) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
-                node_intermediateA_n0: vM_subject @filter(has(vM_id)) @cascade(vM_id, ~vM_subject) {
-                    expand(vM_Node)
-                    out_edges-subclassD-mid_e0: ~vM_subject @filter(eq(vM_predicate_ancestors, "affects")) @cascade(vM_predicate, vM_object) {
-                        expand(vM_Edge) { vM_sources expand(vM_Source) }
-                        node_intermediateB_n1: vM_object @filter(has(vM_id)) @cascade(vM_id, ~vM_subject) {
-                            expand(vM_Node)
-                            out_edges-subclassD-tail_e0: ~vM_subject @filter(eq(vM_predicate_ancestors, "subclass_of")) @cascade(vM_predicate, vM_object) {
-                                expand(vM_Edge) { vM_sources expand(vM_Source) }
-                                node_n1: vM_object @filter(eq(vM_id, "GO:0051055")) @cascade(vM_id) {
-                                    expand(vM_Node)
+            in_edges-subclassD_e0: ~vN_object @filter(eq(vN_predicate_ancestors, "subclass_of")) @cascade(vN_predicate, vN_subject) {
+                expand(vN_Edge) { vN_sources expand(vN_Source) }
+                node_intermediateA_n0: vN_subject @filter(has(vN_id)) @cascade(vN_id, ~vN_subject) {
+                    expand(vN_Node)
+                    out_edges-subclassD-mid_e0: ~vN_subject @filter(eq(vN_predicate_ancestors, "affects")) @cascade(vN_predicate, vN_object) {
+                        expand(vN_Edge) { vN_sources expand(vN_Source) }
+                        node_intermediateB_n1: vN_object @filter(has(vN_id)) @cascade(vN_id, ~vN_subject) {
+                            expand(vN_Node)
+                            out_edges-subclassD-tail_e0: ~vN_subject @filter(eq(vN_predicate_ancestors, "subclass_of")) @cascade(vN_predicate, vN_object) {
+                                expand(vN_Edge) { vN_sources expand(vN_Source) }
+                                node_n1: vN_object @filter(eq(vN_id, "GO:0051055")) @cascade(vN_id) {
+                                    expand(vN_Node)
                                 }
                             }
                         }
@@ -2163,12 +2165,12 @@ async def test_subclass_case2_id_to_cat_baseline_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n0(func: eq(vM_id, "UMLS:C3273258")) @cascade(vM_id, ~vM_subject) {
-            expand(vM_Node)
-            out_edges_e0: ~vM_subject @filter(eq(vM_predicate_ancestors, "has_phenotype")) @cascade(vM_predicate, vM_object) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
-                node_n1: vM_object @filter(eq(vM_category, "PhenotypicFeature")) @cascade(vM_id) {
-                    expand(vM_Node)
+        q0_node_n0(func: eq(vN_id, "UMLS:C3273258")) @cascade(vN_id, ~vN_subject) {
+            expand(vN_Node)
+            out_edges_e0: ~vN_subject @filter(eq(vN_predicate_ancestors, "has_phenotype")) @cascade(vN_predicate, vN_object) {
+                expand(vN_Edge) { vN_sources expand(vN_Source) }
+                node_n1: vN_object @filter(eq(vN_category, "PhenotypicFeature")) @cascade(vN_id) {
+                    expand(vN_Node)
                 }
             }
         }
@@ -2243,22 +2245,22 @@ async def test_subclass_case2_id_to_cat_form_b_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n0(func: eq(vM_id, "UMLS:C3273258")) @cascade(vM_id) {
-            expand(vM_Node)
-            out_edges_e0: ~vM_subject @filter(eq(vM_predicate_ancestors, "has_phenotype")) @cascade(vM_predicate, vM_object) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
-                node_n1: vM_object @filter(eq(vM_category, "PhenotypicFeature")) @cascade(vM_id) {
-                    expand(vM_Node)
+        q0_node_n0(func: eq(vN_id, "UMLS:C3273258")) @cascade(vN_id) {
+            expand(vN_Node)
+            out_edges_e0: ~vN_subject @filter(eq(vN_predicate_ancestors, "has_phenotype")) @cascade(vN_predicate, vN_object) {
+                expand(vN_Edge) { vN_sources expand(vN_Source) }
+                node_n1: vN_object @filter(eq(vN_category, "PhenotypicFeature")) @cascade(vN_id) {
+                    expand(vN_Node)
                 }
             }
-            in_edges-subclassB_e0: ~vM_object @filter(eq(vM_predicate_ancestors, "subclass_of")) @cascade(vM_predicate, vM_subject) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
-                node_intermediate_n0: vM_subject @filter(has(vM_id)) @cascade(vM_id, ~vM_subject) {
-                    expand(vM_Node)
-                    out_edges-subclassB-mid_e0: ~vM_subject @filter(eq(vM_predicate_ancestors, "has_phenotype")) @cascade(vM_predicate, vM_object) {
-                        expand(vM_Edge) { vM_sources expand(vM_Source) }
-                        node_n1: vM_object @filter(eq(vM_category, "PhenotypicFeature")) @cascade(vM_id) {
-                            expand(vM_Node)
+            in_edges-subclassB_e0: ~vN_object @filter(eq(vN_predicate_ancestors, "subclass_of")) @cascade(vN_predicate, vN_subject) {
+                expand(vN_Edge) { vN_sources expand(vN_Source) }
+                node_intermediate_n0: vN_subject @filter(has(vN_id)) @cascade(vN_id, ~vN_subject) {
+                    expand(vN_Node)
+                    out_edges-subclassB-mid_e0: ~vN_subject @filter(eq(vN_predicate_ancestors, "has_phenotype")) @cascade(vN_predicate, vN_object) {
+                        expand(vN_Edge) { vN_sources expand(vN_Source) }
+                        node_n1: vN_object @filter(eq(vN_category, "PhenotypicFeature")) @cascade(vN_id) {
+                            expand(vN_Node)
                         }
                     }
                 }
@@ -2346,50 +2348,49 @@ async def test_subclass_case3_cat_to_id_live_grpc() -> None:
     """
     Integration test: Case 3, Mirrored Form B subclass expansion — CAT → P → ID (gRPC).
 
-    Query:  CAT:BiologicalProcess → genetic_association → EFO:0004528
-    EFO:0004528 (mean corpuscular hemoglobin concentration) receives direct
-    genetic_association edges from several BiologicalProcess nodes including
-    GO:0031393 (found via Form A baseline). The Case 3 expansion additionally
-    surfaces GO:0051055 (negative regulation of lipid biosynthetic process)
-    because the intermediate GO:0031393 is a subclass_of GO:0051055.
+    Query:  CAT:SmallMolecule → affects → GO:0051055
+    There is no direct SmallMolecule → affects → GO:0051055 edge in the DB.
 
-    With subclass expansion enabled (Case 3 Mirrored Form B):
-        INTERMEDIATE → P → B ; INTERMEDIATE → subclass_of → RESULT_N0(CAT)
-    the transpiler adds:
-        EFO:0004528 → out_edges-subclassObjB_e0 → GO:0031393
-        GO:0031393 → subclass_of → GO:0051055 (BiologicalProcess)
+    GO:0031393 (negative regulation of prostaglandin biosynthetic process) is a
+    subclass_of GO:0051055, and CHEBI:4042 → affects → GO:0031393 (direct edge).
 
-    The result must surface EFO:0004528 as root (n1) with GO:0031393 as an
-    intermediate and GO:0051055 discoverable as the n0 node via the subclass
-    tail on GO:0031393. GO:0051055 must NOT appear in a query without
-    subclass expansion as it has no direct genetic_association to EFO:0004528.
+    With Case 3 subclass expansion enabled, the transpiler starts from the
+    anchor ID node (GO:0051055, n1) and finds subclasses B' of it via subclass_of,
+    then walks from each B' to find SmallMolecule (n0) result nodes connected via
+    affects:
+
+        GO:0051055 ← subclass_of ← GO:0031393 (B')  (in_edges-subclassObjB_e0, node_intermediate_n1)
+        GO:0031393 ← affects ← CHEBI:4042  (in_edges-subclassObjB-tail_e0, node_n0)
+
+    The result surfaces GO:0051055 as root (n1) with GO:0031393 as the intermediate,
+    which carries an incoming affects edge from CHEBI:4042 (SmallMolecule).
     """
     qgraph_query: QueryGraphDict = qg(
         {
             "nodes": {
-                "n0": {"categories": ["biolink:BiologicalProcess"], "constraints": []},
-                "n1": {"ids": ["EFO:0004528"], "constraints": []},
+                "n0": {"categories": ["biolink:SmallMolecule"], "constraints": []},
+                "n1": {"ids": ["GO:0051055"], "constraints": []}
             },
             "edges": {
                 "e0": {
                     "subject": "n0",
                     "object": "n1",
-                    "predicates": ["biolink:genetic_association"],
+                    "predicates": ["biolink:affects"],
                     "attribute_constraints": [],
-                    "qualifier_constraints": [],
+                    "qualifier_constraints": []
                 }
-            },
+            }
         }
     )
 
     baseline_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vM_id, "EFO:0004528")) @cascade(vM_id, ~vM_object) {
-            expand(vM_Node)
-            in_edges_e0: ~vM_object @filter(eq(vM_predicate_ancestors, "genetic_association")) @cascade(vM_predicate, vM_subject) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
-                node_n0: vM_subject @filter(eq(vM_category, "BiologicalProcess")) @cascade(vM_id) {
-                    expand(vM_Node)
+        q0_node_n1(func: eq(vN_id, "GO:0051055")) @cascade(vN_id, ~vN_object) {
+            expand(vN_Node)
+            in_edges_e0: ~vN_object @filter(eq(vN_predicate_ancestors, "affects")) @cascade(vN_predicate, vN_subject) {
+                expand(vN_Edge) { vN_sources expand(vN_Source) }
+                node_n0: vN_subject @filter(eq(vN_category, "SmallMolecule")) @cascade(vN_id) {
+                    expand(vN_Node)
                 }
             }
         }
@@ -2398,27 +2399,27 @@ async def test_subclass_case3_cat_to_id_live_grpc() -> None:
 
     dgraph_query_match: str = dedent("""
     {
-        q0_node_n1(func: eq(vM_id, "EFO:0004528")) @cascade(vM_id) {
-            expand(vM_Node)
-            in_edges_e0: ~vM_object @filter(eq(vM_predicate_ancestors, "genetic_association")) @cascade(vM_predicate, vM_subject) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
-                node_n0: vM_subject @filter(eq(vM_category, "BiologicalProcess")) @cascade(vM_id) {
-                    expand(vM_Node)
-                }
-            }
-            out_edges-subclassObjB_e0: ~vM_subject @filter(eq(vM_predicate_ancestors, "genetic_association")) @cascade(vM_predicate, vM_object) {
-                expand(vM_Edge) { vM_sources expand(vM_Source) }
-                node_intermediate_n0: vM_object @filter(has(vM_id)) @cascade(vM_id, ~vM_subject) {
-                    expand(vM_Node)
-                    out_edges-subclassObjB-tail_e0: ~vM_subject @filter(eq(vM_predicate_ancestors, "subclass_of")) @cascade(vM_predicate, vM_object) {
-                        expand(vM_Edge) { vM_sources expand(vM_Source) }
-                        node_n0: vM_object @filter(eq(vM_category, "BiologicalProcess")) @cascade(vM_id) {
-                            expand(vM_Node)
-                        }
-                    }
-                }
-            }
+      q0_node_n1(func: eq(vN_id, "GO:0051055")) @cascade(vN_id) {
+        expand(vN_Node)
+        in_edges_e0: ~vN_object @filter(eq(vN_predicate_ancestors, "affects")) @cascade(vN_predicate, vN_subject) {
+          expand(vN_Edge) { vN_sources expand(vN_Source) }
+          node_n0: vN_subject @filter(eq(vN_category, "SmallMolecule")) @cascade(vN_id) {
+            expand(vN_Node)
+          }
         }
+        in_edges-subclassObjB_e0: ~vN_object @filter(eq(vN_predicate_ancestors, "subclass_of")) @cascade(vN_predicate, vN_subject) {
+          expand(vN_Edge) { vN_sources expand(vN_Source) }
+          node_intermediate_n1: vN_subject @filter(has(vN_id)) @cascade(vN_id, ~vN_object) {
+            expand(vN_Node)
+            in_edges-subclassObjB-tail_e0: ~vN_object @filter(eq(vN_predicate_ancestors, "affects")) @cascade(vN_predicate, vN_subject) {
+              expand(vN_Edge) { vN_sources expand(vN_Source) }
+              node_n0: vN_subject @filter(eq(vN_category, "SmallMolecule")) @cascade(vN_id) {
+                expand(vN_Node)
+              }
+            }
+          }
+        }
+      }
     }
     """).strip()
 
@@ -2426,7 +2427,7 @@ async def test_subclass_case3_cat_to_id_live_grpc() -> None:
     await driver.connect()
     dgraph_schema_version = await driver.get_active_version()
 
-    # ── 1. Baseline: confirm GO:0051055 absent without subclass expansion ──
+    # 1. Baseline: confirm no subclassObjB alias without subclass expansion
     baseline_transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(
         version=dgraph_schema_version,
         enable_symmetric_edges=False,
@@ -2440,19 +2441,8 @@ async def test_subclass_case3_cat_to_id_live_grpc() -> None:
         baseline_query, transpiler=baseline_transpiler
     )
     assert isinstance(baseline_result, dg_models.DgraphResponse)
-    baseline_n1_nodes = baseline_result.data.get("q0", []) if baseline_result.data else []
-    # GO:0051055 must NOT be reachable directly
-    baseline_all_n0_ids: set[str] = set()
-    for root in baseline_n1_nodes:
-        for e in root.edges:
-            if e.binding == "e0":
-                baseline_all_n0_ids.add(e.node.id)
-    assert "GO:0051055" not in baseline_all_n0_ids, (
-        "GO:0051055 should not appear as a direct n0 result (it has no direct "
-        "genetic_association edge to EFO:0004528)"
-    )
 
-    # ── 2. Subclass expansion: GO:0051055 appears via Case 3 Mirrored Form B ──
+    # 2. Subclass expansion: Case 3 ObjB traversal appears in DQL
     transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(
         version=dgraph_schema_version,
         enable_symmetric_edges=False,
@@ -2460,8 +2450,8 @@ async def test_subclass_case3_cat_to_id_live_grpc() -> None:
     )
     dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
     assert_query_equals(dgraph_query, dgraph_query_match)
-    assert "out_edges-subclassObjB_e0" in dgraph_query, "Missing Case 3 ObjB alias"
-    assert "out_edges-subclassObjB-tail_e0" in dgraph_query, "Missing Case 3 ObjB tail alias"
+    assert "in_edges-subclassObjB_e0" in dgraph_query, "Missing Case 3 ObjB alias"
+    assert "in_edges-subclassObjB-tail_e0" in dgraph_query, "Missing Case 3 ObjB tail alias"
 
     result: dg_models.DgraphResponse = await driver.run_query(
         dgraph_query, transpiler=transpiler
@@ -2471,50 +2461,57 @@ async def test_subclass_case3_cat_to_id_live_grpc() -> None:
     assert "q0" in result.data
 
     n1_nodes = result.data["q0"]
-    assert len(n1_nodes) == 1, "Expected 1 root node (EFO:0004528)"
+    assert len(n1_nodes) == 1, "Expected 1 root node (GO:0051055)"
 
     root_node = n1_nodes[0]
     assert root_node.binding == "n1"
-    assert root_node.id == "EFO:0004528"
-    assert root_node.name == "mean corpuscular hemoglobin concentration"
+    assert root_node.id == "GO:0051055"
+    assert root_node.name == "negative regulation of lipid biosynthetic process"
 
-    # Case 3 Mirrored Form B: root receives an object-side helper edge whose
-    # nested node is INTERMEDIATE (GO:0031393), and INTERMEDIATE carries a
-    # subclass_of tail edge whose object is RESULT_N0 = GO:0051055.
+    # Case 3 Mirrored Form B: root GO:0051055 is the object of
+    # subclass_of edges from B' (nodes that are subclasses of GO:0051055),
+    # and B' carries incoming affects edges from SmallMolecule result nodes.
     intermediate_edges = [
         e
         for e in root_node.edges
         if e.binding == "e0"
-        and e.direction == "out"
-        and e.predicate == "genetic_association"
-        and e.node.raw_alias == "node_intermediate_n0"
+        and e.direction == "in"
+        and e.predicate == "subclass_of"
+        and e.node.raw_alias == "node_intermediate_n1"
     ]
     assert intermediate_edges, (
-        "Expected object-side genetic_association edges (Case 3 ObjB) with an "
-        "intermediate node on the root EFO:0004528"
+        "Expected incoming subclass_of edges (Case 3 ObjB) with an "
+        "intermediate node on the root GO:0051055"
     )
 
+    # The intermediate GO:0031393 must be present
     intermediate_ids = {e.node.id for e in intermediate_edges}
     assert "GO:0031393" in intermediate_ids, (
-        "Expected GO:0031393 as the intermediate node in Case 3 ObjB expansion"
+        "Expected GO:0031393 (negative regulation of prostaglandin biosynthetic process) "
+        "as the B' intermediate (subclass of GO:0051055)"
     )
 
-    go031393_node = next(e.node for e in intermediate_edges if e.node.id == "GO:0031393")
+    # Each intermediate B' must carry incoming affects edges from SmallMolecule (n0) result nodes.
+    for intermediate_edge in intermediate_edges:
+        bprime_node = intermediate_edge.node
+        pred_tail_edges = [
+            e
+            for e in bprime_node.edges
+            if e.binding == "e0"
+            and e.direction == "in"
+            and e.predicate == "affects"
+        ]
+        assert pred_tail_edges, (
+            f"Expected incoming affects edges (Case 3 ObjB tail) on "
+            f"intermediate node {bprime_node.id}"
+        )
 
-    # The intermediate must carry the subclass_of tail edge → GO:0051055
-    subclass_tail_edges = [
-        e
-        for e in go031393_node.edges
-        if e.binding == "e0" and e.direction == "out" and e.predicate == "subclass_of"
-    ]
-    assert subclass_tail_edges, (
-        "Expected outgoing subclass_of edge (Case 3 ObjB tail) on GO:0031393"
-    )
-
-    tail_n0_ids = {e.node.id for e in subclass_tail_edges}
-    assert "GO:0051055" in tail_n0_ids, (
-        "Expected GO:0051055 (negative regulation of lipid biosynthetic process) "
-        "as RESULT_N0 reached via Case 3 Mirrored Form B subclass expansion"
+    # CHEBI:4042 must be reachable via GO:0031393
+    aprime_node = next(e.node for e in intermediate_edges if e.node.id == "GO:0031393")
+    tail_ids = {e.node.id for e in aprime_node.edges if e.predicate == "affects"}
+    assert "CHEBI:4042" in tail_ids, (
+        "Expected CHEBI:4042 (Cypermethrin) as the SmallMolecule result node "
+        "reached via Case 3 ObjB expansion from GO:0051055"
     )
 
     await driver.close()
