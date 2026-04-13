@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import cast
 
 import bmt
 from reasoner_pydantic import BiolinkQualifier
@@ -64,6 +65,11 @@ def get_inverse(predicate: BiolinkPredicate) -> BiolinkPredicate | None:
     """Return the inverse of a given predicate."""
     inverse = biolink.get_inverse_predicate(predicate, formatted=True)
     return BiolinkPredicate(inverse) if inverse else None
+
+
+def get_descendants[T: str](value: T) -> list[T]:
+    """Get the descendants for a given biolink concept."""
+    return cast(list[T], biolink.get_descendants(value, formatted=True))
 
 
 def get_descendant_values(qualifier_type: BiolinkQualifier, value: str) -> set[str]:
