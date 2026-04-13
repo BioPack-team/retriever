@@ -7,7 +7,7 @@ from typing import Literal, overload
 
 import bmt
 import httpx
-from opentelemetry import trace
+from opentelemetry import context, trace
 
 from retriever.config.general import CONFIG
 from retriever.config.openapi import OPENAPI_CONFIG
@@ -51,8 +51,10 @@ MONGO_QUEUE = MongoQueue()
 OP_TABLE_MANAGER = OpTableManager()
 
 
-async def async_lookup(query: QueryInfo) -> None:
+async def async_lookup(query: QueryInfo, ctx: context.Context) -> None:
     """Handle running lookup as an async query where the client receives a callback."""
+    context.attach(ctx)  # Ensure context propagates
+
     if query.body is None or "callback" not in query.body:
         raise TypeError(f"Expected AsyncQuery, received {type(query.body)}.")
 

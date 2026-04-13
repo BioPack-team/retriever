@@ -153,7 +153,7 @@ dev = 'task dbs && task launch:debug'
     && TELEMETRY__OTEL_ENABLED=true \
     TELEMETRY__OTEL_HOST=localhost \
     TELEMETRY__OTEL_PORT=4318 \
-    launch:debug
+    task launch:debug
 """
 
 # Config work
