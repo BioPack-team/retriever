@@ -422,10 +422,12 @@ class QueryGraphExecutor:
                 continue
 
             other_branches = [
-                parts for s_name, parts in partials.items() if s_name != branch_id
+                parts for b_name, parts in partials.items() if b_name != branch_id
             ]
             if any(len(parts) == 0 for parts in other_branches):
-                self.job_log.trace("No other branches ready.")
+                self.job_log.trace(
+                    f"Branch {branch.branch_name} pending reconciliation; no other branches ready."
+                )
                 continue
 
             # Find valid reconciliations of each branch combined
@@ -446,7 +448,7 @@ class QueryGraphExecutor:
         Yields:
             A tuple of the branch which was executed, and a partial result backtracking on that branch.
         """
-        self.job_log.trace(f"{current_branch.superposition_name}")
+        self.job_log.trace(f"EXEC {current_branch.superposition_name}")
 
         # Ensure this SuperpositionHop has a lock to work with
         async with self.locks["hop_check"]:
@@ -640,12 +642,12 @@ class QueryGraphExecutor:
         )
 
         self.job_log.trace(
-            f"{current_branch.superposition_name}: found {len(next_steps)} next steps for curies {list(next_curies)}."
+            f"{current_branch.superposition_name}: found {len(next_steps)} next steps for curies {expanded_next_curies}."
         )
 
         if len(next_steps) == 0:
             self.job_log.trace(
-                f"{current_branch.superposition_name}: Returning {len(list(next_curies))} Partial results."
+                f"{current_branch.superposition_name}: Returning {len(list(expanded_next_curies)) + (1 if not use_input_for_next else 0)} Partial results."
             )
             for edge in new_kgraph["edges"].values():
                 if edge["subject"] == current_branch.input_curie:
@@ -661,7 +663,7 @@ class QueryGraphExecutor:
                         continue  # Prevent yielding duplicate partials
                     self.complete_paths.add(path_name)
                     self.job_log.trace(
-                        f"{current_branch.superposition_name}{next_hop_curie}]"
+                        f"PART {current_branch.superposition_name}({next_hop_curie})"
                     )
                     yield Partial(
                         [(current_branch.output_node, next_hop_curie)],

@@ -270,7 +270,7 @@ class Branch:
                         qedge_claims, lock
                     ):
                         self.job_log.trace(
-                            f"Branch {self.branch_name} halts due to existing claim on QEdge {next_qedge_id} by {qedge_claims[next_qedge_id]}"
+                            f"Branch {branch.branch_name} halts due to existing claim on QEdge {next_qedge_id} by {qedge_claims[next_qedge_id]}"
                         )
                         break
                     claim_checked = True
