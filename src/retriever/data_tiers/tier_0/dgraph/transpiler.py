@@ -843,12 +843,23 @@ class DgraphTranspiler(Tier0Transpiler):
                 qval = (
                     biolink.rmprefix(q["qualifier_value"])
                     if "qualified_predicate" in qtype
-                    else q["qualifier_value"]
+                    else biolink.rmprefix(q["qualifier_value"])
                 )
                 if not qtype or qval == "":
                     continue
                 field = self._v(qtype)
-                and_filters.append(self._get_operator_filter(field, "==", qval))
+
+                # Expand qualifier values to include descendants
+                expanded_values = biolink.get_descendant_values(
+                    qtype, qval
+                )
+                if len(expanded_values) > 1:
+                    and_filters.append(
+                        self._create_in_filter(field, sorted(expanded_values))
+                    )
+                else:
+                    and_filters.append(self._get_operator_filter(field, "==", qval))
+
             if and_filters:
                 # AND items within the set; wrap in parentheses if more than one
                 set_filters.append(

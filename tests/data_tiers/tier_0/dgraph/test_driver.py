@@ -1031,6 +1031,127 @@ async def test_simple_one_query_live_grpc() -> None:
 @pytest.mark.live
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("mock_dgraph_config")
+async def test_qualifier_constraints_with_descendant_expansion_live_grpc() -> None:
+    """
+    Integration test: Verify qualifier constraints expand to include descendant values.
+    """
+
+    qgraph_query: QueryGraphDict = qg(
+        {
+            "nodes": {
+                "ON": {
+                    "ids": ["HGNC:3870"],
+                    "categories": ["biolink:Gene"],
+                },
+                "SN": {
+                    "ids": ["CHEBI:59173"],
+                    "categories": ["biolink:ChemicalEntity"],
+                },
+            },
+            "edges": {
+                "e0": {
+                    "subject": "SN",
+                    "object": "ON",
+                    "predicates": ["biolink:affects"],
+                    "qualifier_constraints": [
+                        {
+                            "qualifier_set": [
+                                {
+                                    "qualifier_type_id": "biolink:qualified_predicate",
+                                    "qualifier_value": "biolink:causes",
+                                },
+                                {
+                                    "qualifier_type_id": "biolink:object_aspect_qualifier",
+                                    "qualifier_value": "biolink:activity",
+                                },
+                                {
+                                    "qualifier_type_id": "biolink:object_direction_qualifier",
+                                    "qualifier_value": "biolink:decreased",
+                                },
+                            ]
+                        }
+                    ],
+                }
+            },
+        }
+    )
+
+    # object_direction_qualifier "decreased" expands to ["decreased", "downregulated"]
+    dgraph_query_match: str = dedent("""
+    {
+        q0_node_n0(func: eq(vN_id, "HGNC:3870")) @cascade(vN_id, ~vN_object) {
+            expand(vN_Node)
+            in_edges_e0: ~vN_object @filter(eq(vN_predicate_ancestors, "affects") AND (eq(vN_qualified_predicate, "causes") AND eq(vN_object_aspect_qualifier, "activity") AND eq(vN_object_direction_qualifier, ["decreased", "downregulated"]))) @cascade(vN_predicate, vN_subject) {
+                expand(vN_Edge) { vN_sources expand(vN_Source) }
+                node_n1: vN_subject @filter(eq(vN_id, "CHEBI:59173")) @cascade(vN_id) {
+                    expand(vN_Node)
+                }
+            }
+        }
+    }
+    """).strip()
+
+    driver = new_grpc_driver()
+    await driver.connect()
+
+    # Get the active Dgraph schema version
+    dgraph_schema_version = await driver.get_active_version()
+
+    # Initialize the transpiler with the detected version
+    transpiler: _TestDgraphTranspiler = _TestDgraphTranspiler(
+        version=dgraph_schema_version,
+        enable_symmetric_edges=False,
+        enable_subclass_edges=False,
+    )
+    assert transpiler.version == "vN"
+    assert transpiler.prefix == "vN_"
+
+    # Use the transpiler to generate the Dgraph query
+    dgraph_query: str = transpiler.convert_multihop_public(qgraph_query)
+    assert_query_equals(dgraph_query, dgraph_query_match)
+
+    # Run the query against the live Dgraph instance
+    result: dg_models.DgraphResponse = await driver.run_query(
+        dgraph_query, transpiler=transpiler
+    )
+    assert isinstance(result, dg_models.DgraphResponse)
+
+    # Verify data is returned
+    assert result.data, "No data returned from Dgraph for qualifier constraints query"
+    assert "q0" in result.data
+    assert len(result.data["q0"]) >= 1
+
+    # Root node should be the object (HGNC:3870)
+    root_node = result.data["q0"][0]
+    assert root_node.binding == "ON"
+    assert root_node.id == "HGNC:3870"
+    assert len(root_node.edges) >= 1
+
+    # Validate edge qualifiers
+    for edge in root_node.edges:
+        assert edge.binding == "e0"
+        assert edge.direction == "in"
+        assert edge.predicate == "affects"
+
+        # Qualifier values should include descendants
+        qualifiers = edge.qualifiers
+        assert qualifiers.get("qualified_predicate") == "causes"
+        assert qualifiers.get("object_direction_qualifier") in (
+            "decreased",
+            "downregulated",
+        )
+
+    # Validate connected node
+    connected_node = root_node.edges[0].node
+    assert connected_node.binding == "SN"
+    assert connected_node.id == "CHEBI:59173"
+
+    await driver.close()
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
 async def test_simple_reverse_query_live_grpc() -> None:
     """
     Integration test: Run the 'simple-one' query against a live Dgraph HTTP instance.
