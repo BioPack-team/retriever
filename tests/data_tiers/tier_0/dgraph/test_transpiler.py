@@ -764,6 +764,46 @@ QUALIFIER_SETS_AND_QGRAPH: QueryGraphDict = qg(
     }
 )
 
+QUALIFIER_DESCENDANT_EXPANSION_QGRAPH: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "ON": {
+                "ids": ["HGNC:3870"],
+                "categories": ["biolink:Gene"],
+            },
+            "SN": {
+                "ids": ["CHEBI:59173"],
+                "categories": ["biolink:ChemicalEntity"],
+            },
+        },
+        "edges": {
+            "e0": {
+                "subject": "SN",
+                "object": "ON",
+                "predicates": ["biolink:affects"],
+                "qualifier_constraints": [
+                    {
+                        "qualifier_set": [
+                            {
+                                "qualifier_type_id": "biolink:qualified_predicate",
+                                "qualifier_value": "biolink:causes",
+                            },
+                            {
+                                "qualifier_type_id": "biolink:object_aspect_qualifier",
+                                "qualifier_value": "activity",
+                            },
+                            {
+                                "qualifier_type_id": "biolink:object_direction_qualifier",
+                                "qualifier_value": "decreased",
+                            },
+                        ]
+                    }
+                ],
+            }
+        },
+    }
+)
+
 
 # -----------------------
 # Expected queries
@@ -1342,6 +1382,21 @@ EXP_QUALIFIER_SETS_AND = dedent("""
 }
 """).strip()
 
+EXP_QUALIFIER_DESCENDANT_EXPANSION = dedent("""
+{
+  q0_node_n0(func: eq(id, "HGNC:3870")) @cascade(id, ~object) {
+    expand(Node)
+    in_edges_e0: ~object @filter(eq(predicate_ancestors, "affects") AND
+      (eq(qualified_predicate, "causes") AND eq(object_aspect_qualifier, "activity") AND eq(object_direction_qualifier, ["decreased", "downregulated"]))) @cascade(predicate, subject) {
+      expand(Edge) { sources expand(Source) }
+      node_n1: subject @filter(eq(id, "CHEBI:59173")) @cascade(id) {
+        expand(Node)
+      }
+    }
+  }
+}
+""").strip()
+
 
 # -----------------------
 # Case pairs
@@ -1384,6 +1439,10 @@ CASES: list[QueryCase] = [
     ),
     QueryCase("qualifier-set", QUALIFIER_SET_QGRAPH, EXP_QUALIFIER_SET),
     QueryCase("qualifier-sets-and", QUALIFIER_SETS_AND_QGRAPH, EXP_QUALIFIER_SETS_AND),
+    QueryCase(
+        "qualifier-descendant-expansion",
+        QUALIFIER_DESCENDANT_EXPANSION_QGRAPH, EXP_QUALIFIER_DESCENDANT_EXPANSION,
+    ),
     # NOTE: The following cases test transpiler-level attribute constraint filtering, which is
     # intentionally disabled. Attribute constraints are enforced via Python-level post-filtering
     # in `_build_results` using `attributes_meet_contraints`. See transpiler.py `_build_edge_filter`.
