@@ -850,9 +850,7 @@ class DgraphTranspiler(Tier0Transpiler):
                 field = self._v(qtype)
 
                 # Expand qualifier values to include descendants
-                expanded_values = biolink.get_descendant_values(
-                    qtype, qval
-                )
+                expanded_values = biolink.get_descendant_values(qtype, qval)
                 if len(expanded_values) > 1:
                     and_filters.append(
                         self._create_in_filter(field, sorted(expanded_values))
