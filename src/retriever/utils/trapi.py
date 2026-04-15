@@ -126,7 +126,7 @@ def hash_qualifier_set(qualifiers: list[QualifierDict]) -> int:
     """Hash a set of qualifiers."""
     if len(qualifiers) == 0:
         return 0
-    return hash(hash_qualifier(qual) for qual in qualifiers)
+    return hash(frozenset(hash_qualifier(qual) for qual in qualifiers))
 
 
 def edge_primary_knowledge_source(edge: EdgeDict) -> RetrievalSourceDict | None:
