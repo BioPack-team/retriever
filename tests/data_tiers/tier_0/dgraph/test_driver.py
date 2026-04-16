@@ -1062,7 +1062,7 @@ async def test_qualifier_constraints_with_descendant_expansion_live_grpc() -> No
                                 },
                                 {
                                     "qualifier_type_id": "biolink:object_aspect_qualifier",
-                                    "qualifier_value": "biolink:activity",
+                                    "qualifier_value": "biolink:activity_or_abundance",
                                 },
                                 {
                                     "qualifier_type_id": "biolink:object_direction_qualifier",
@@ -1081,7 +1081,7 @@ async def test_qualifier_constraints_with_descendant_expansion_live_grpc() -> No
     {
         q0_node_n0(func: eq(vN_id, "HGNC:3870")) @cascade(vN_id, ~vN_object) {
             expand(vN_Node)
-            in_edges_e0: ~vN_object @filter(eq(vN_predicate_ancestors, "affects") AND (eq(vN_qualified_predicate, "causes") AND eq(vN_object_aspect_qualifier, "activity") AND eq(vN_object_direction_qualifier, ["decreased", "downregulated"]))) @cascade(vN_predicate, vN_subject) {
+            in_edges_e0: ~vN_object @filter(eq(vN_predicate_ancestors, "affects") AND (eq(vN_qualified_predicate, "causes") AND eq(vN_object_aspect_qualifier, ["abundance", "activity", "activity_or_abundance", "expression", "synthesis"]) AND eq(vN_object_direction_qualifier, ["decreased", "downregulated"]))) @cascade(vN_predicate, vN_subject) {
                 expand(vN_Edge) { vN_sources expand(vN_Source) }
                 node_n1: vN_subject @filter(eq(vN_id, "CHEBI:59173")) @cascade(vN_id) {
                     expand(vN_Node)
@@ -1136,6 +1136,7 @@ async def test_qualifier_constraints_with_descendant_expansion_live_grpc() -> No
         # Qualifier values should include descendants
         qualifiers = edge.qualifiers
         assert qualifiers.get("qualified_predicate") == "causes"
+        assert qualifiers.get("object_aspect_qualifier") == "activity"
         assert qualifiers.get("object_direction_qualifier") in (
             "decreased",
             "downregulated",

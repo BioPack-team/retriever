@@ -790,7 +790,7 @@ QUALIFIER_DESCENDANT_EXPANSION_QGRAPH: QueryGraphDict = qg(
                             },
                             {
                                 "qualifier_type_id": "biolink:object_aspect_qualifier",
-                                "qualifier_value": "activity",
+                                "qualifier_value": "activity_or_abundance",
                             },
                             {
                                 "qualifier_type_id": "biolink:object_direction_qualifier",
@@ -1387,7 +1387,7 @@ EXP_QUALIFIER_DESCENDANT_EXPANSION = dedent("""
   q0_node_n0(func: eq(id, "HGNC:3870")) @cascade(id, ~object) {
     expand(Node)
     in_edges_e0: ~object @filter(eq(predicate_ancestors, "affects") AND
-      (eq(qualified_predicate, "causes") AND eq(object_aspect_qualifier, "activity") AND eq(object_direction_qualifier, ["decreased", "downregulated"]))) @cascade(predicate, subject) {
+      (eq(qualified_predicate, "causes") AND eq(object_aspect_qualifier, ["abundance", "activity", "activity_or_abundance", "expression", "synthesis"]) AND eq(object_direction_qualifier, ["decreased", "downregulated"]))) @cascade(predicate, subject) {
       expand(Edge) { sources expand(Source) }
       node_n1: subject @filter(eq(id, "CHEBI:59173")) @cascade(id) {
         expand(Node)

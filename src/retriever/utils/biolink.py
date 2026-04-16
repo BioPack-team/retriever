@@ -74,17 +74,14 @@ def get_descendants[T: str](value: T) -> list[T]:
 
 def get_descendant_values(qualifier_type: BiolinkQualifier, value: str) -> set[str]:
     """Given a biolink qualifier and an associated value, return applicable descendant values."""
-    ranges = biolink.get_slot_range(qualifier_type)  # pyright:ignore[reportUnknownMemberType]
-
-    # Handle qualified_predicate
     if "predicate" in qualifier_type:
         return {rmprefix(predicate) for predicate in expand(value)}
 
     permissible_values: set[str] = {value}
-    for value_type in ranges:
-        if biolink.is_enum(value_type):
+    for enum_name, enum_def in biolink.view.all_enums().items():
+        if value in (enum_def.permissible_values or {}):
             permissible_values.update(
-                biolink.get_permissible_value_descendants(value, value_type)
+                biolink.get_permissible_value_descendants(value, enum_name)
             )
 
     return permissible_values
