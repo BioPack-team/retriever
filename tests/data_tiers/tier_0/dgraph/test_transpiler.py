@@ -3004,10 +3004,11 @@ def test_node_fields_explicit_versioned() -> None:
 
 
 def test_node_fields_empty_tuple() -> None:
-    """An empty node_fields tuple emits an empty string (no expand())."""
+    """An empty node_fields tuple still emits the required 'id' field (no expand())."""
     t = _make_transpiler(fields=FieldSelection(node_fields=()))
     result = t._add_standard_node_fields()
-    assert result == " "
+    assert "id" in result.split()
+    assert "expand(" not in result
 
 
 # ---------------------------------------------------------------------------
@@ -3033,10 +3034,14 @@ def test_edge_fields_id_remapped_to_eid() -> None:
 
 
 def test_edge_fields_category_remapped_to_ecategory() -> None:
-    """'category' in edge_fields is silently remapped to 'ecategory'."""
+    """'category' in edge_fields is silently remapped to 'ecategory'; required eid is injected."""
     t = _make_transpiler(fields=FieldSelection(edge_fields=("category", "predicate")))
     result = t._add_standard_edge_fields()
-    assert result == "ecategory predicate "
+    parts = result.split()
+    assert "ecategory" in parts
+    assert "predicate" in parts
+    assert "eid" in parts  # required field injected
+    assert "category" not in parts  # original name must not appear
 
 
 def test_edge_fields_id_and_category_remapped_versioned() -> None:
@@ -3046,7 +3051,49 @@ def test_edge_fields_id_and_category_remapped_versioned() -> None:
         version="vM",
     )
     result = t._add_standard_edge_fields()
-    assert result == "vM_eid vM_ecategory vM_predicate "
+    parts = result.split()
+    assert "vM_eid" in parts
+    assert "vM_ecategory" in parts
+    assert "vM_predicate" in parts
+    # id/category remapped; eid already present so not duplicated
+    assert parts.count("vM_eid") == 1
+
+
+def test_node_fields_required_id_injected_when_missing() -> None:
+    """'id' is always present in emitted node fields even if caller omits it."""
+    t = _make_transpiler(fields=FieldSelection(node_fields=("name", "category")))
+    result = t._add_standard_node_fields()
+    assert "id" in result.split()
+
+
+def test_node_fields_required_id_not_duplicated_when_present() -> None:
+    """'id' appears exactly once when caller already includes it."""
+    t = _make_transpiler(fields=FieldSelection(node_fields=("id", "name")))
+    result = t._add_standard_node_fields()
+    assert result.split().count("id") == 1
+
+
+def test_edge_fields_required_eid_injected_when_missing() -> None:
+    """'eid' is always present in emitted edge fields even if caller omits it."""
+    t = _make_transpiler(fields=FieldSelection(edge_fields=("knowledge_level",)))
+    result = t._add_standard_edge_fields()
+    assert "eid" in result.split()
+
+
+def test_edge_fields_required_predicate_injected_when_missing() -> None:
+    """'predicate' is always present in emitted edge fields even if caller omits it."""
+    t = _make_transpiler(fields=FieldSelection(edge_fields=("eid",)))
+    result = t._add_standard_edge_fields()
+    assert "predicate" in result.split()
+
+
+def test_edge_fields_required_fields_not_duplicated_when_present() -> None:
+    """Required edge fields appear exactly once when caller already includes them."""
+    t = _make_transpiler(fields=FieldSelection(edge_fields=("eid", "predicate", "knowledge_level")))
+    result = t._add_standard_edge_fields()
+    parts = result.split()
+    assert parts.count("eid") == 1
+    assert parts.count("predicate") == 1
 
 
 def test_edge_fields_explicit_with_sources_default_source_expand() -> None:
@@ -3059,7 +3106,7 @@ def test_edge_fields_explicit_with_sources_default_source_expand() -> None:
 
 
 def test_edge_fields_explicit_with_sources_explicit_source_fields() -> None:
-    """'sources' in edge_fields + explicit source_fields emits inner scalars."""
+    """'sources' in edge_fields + explicit source_fields emits inner scalars; predicate injected."""
     t = _make_transpiler(
         fields=FieldSelection(
             edge_fields=("eid", "sources"),
@@ -3067,7 +3114,9 @@ def test_edge_fields_explicit_with_sources_explicit_source_fields() -> None:
         )
     )
     result = t._add_standard_edge_fields()
-    assert result == "eid sources { resource_id resource_role } "
+    assert "eid" in result
+    assert "sources { resource_id resource_role }" in result
+    assert "predicate" in result  # required field injected
 
 
 def test_edge_fields_explicit_versioned_with_sources() -> None:

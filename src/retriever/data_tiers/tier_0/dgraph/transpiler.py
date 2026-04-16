@@ -260,6 +260,8 @@ class DgraphTranspiler(Tier0Transpiler):
     _reverse_edge_map: dict[str, QEdgeID]
 
     # Field selection for DQL emission
+    _NODE_REQUIRED_FIELDS: frozenset[str] = frozenset({"id"})
+    _EDGE_REQUIRED_FIELDS: frozenset[str] = frozenset({"eid", "predicate"})
     _fields: FieldSelection
 
     # Mapping for TRAPI conversion of implicit subclass handling
@@ -1017,7 +1019,8 @@ class DgraphTranspiler(Tier0Transpiler):
     def _add_standard_node_fields(self) -> str:
         """Generate standard node fields with versioned aliases."""
         if self._fields.node_fields is not None:
-            return " ".join(f"{self.prefix}{f}" for f in self._fields.node_fields) + " "
+            effective = (*self._fields.node_fields, *self._NODE_REQUIRED_FIELDS - set(self._fields.node_fields))
+            return " ".join(f"{self.prefix}{f}" for f in effective) + " "
         return f"expand({self.prefix}Node) "
 
     def _add_standard_edge_fields(self) -> str:
@@ -1026,13 +1029,16 @@ class DgraphTranspiler(Tier0Transpiler):
             # Edge type uses different names for id/category to avoid
             # collisions with the Node type: id→eid, category→ecategory.
             edge_field_remap: dict[str, str] = {"id": "eid", "category": "ecategory"}
+            # Merge caller fields with required fields (already in Edge naming).
+            caller_remapped = {edge_field_remap.get(f, f) for f in self._fields.edge_fields}
+            effective = (*self._fields.edge_fields, *self._EDGE_REQUIRED_FIELDS - caller_remapped)
             scalar_fields = [
                 edge_field_remap.get(f, f)
-                for f in self._fields.edge_fields
+                for f in effective
                 if f != "sources"
             ]
             parts = [f"{self.prefix}{f}" for f in scalar_fields]
-            if "sources" in self._fields.edge_fields:
+            if "sources" in effective:
                 parts.append(self._build_sources_fragment())
             return " ".join(parts) + " "
         return f"expand({self.prefix}Edge) {{ {self._build_sources_fragment()} }} "
