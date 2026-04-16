@@ -79,7 +79,7 @@ def get_descendant_values(qualifier_type: BiolinkQualifier, value: str) -> set[s
 
     permissible_values: set[str] = {value}
     for enum_name, enum_def in biolink.view.all_enums().items():
-        if value in (enum_def.permissible_values or {}):
+        if value in cast(dict[str, object], enum_def.permissible_values or {}):
             permissible_values.update(
                 biolink.get_permissible_value_descendants(value, enum_name)
             )
