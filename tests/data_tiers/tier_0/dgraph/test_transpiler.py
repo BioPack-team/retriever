@@ -5,7 +5,7 @@ from typing import Any, cast
 
 import pytest
 
-from retriever.data_tiers.tier_0.dgraph.transpiler import DgraphTranspiler
+from retriever.data_tiers.tier_0.dgraph.transpiler import DgraphTranspiler, FieldSelection
 from retriever.types.trapi import QEdgeDict, QNodeDict, QueryGraphDict
 
 # -----------------------
@@ -49,11 +49,13 @@ class _TestDgraphTranspiler(DgraphTranspiler):
         version: str | None = None,
         enable_symmetric_edges: bool | None = None,
         enable_subclass_edges: bool | None = None,
+        fields: FieldSelection | None = None,
     ) -> None:
         super().__init__(
             version=version,
             enable_symmetric_edges=enable_symmetric_edges,
             enable_subclass_edges=enable_subclass_edges,
+            fields=fields,
         )
 
     def convert_multihop_public(self, qgraph: QueryGraphDict) -> str:
@@ -2913,3 +2915,251 @@ def test_subclassing_disabled_via_parameter(transpiler: _TestDgraphTranspiler) -
 
     # Should only have direct edge (and possibly symmetric)
     assert "in_edges_e0:" in actual or "out_edges_e0:" in actual
+
+
+# =============================================================================
+# FieldSelection tests
+# =============================================================================
+
+FIELD_SELECT_QGRAPH: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "n0": {"ids": ["GO:0031410"], "constraints": []},
+            "n1": {"ids": ["NCBIGene:11276"], "constraints": []},
+        },
+        "edges": {
+            "e0": {
+                "object": "n0",
+                "subject": "n1",
+                "predicates": ["located_in"],
+                "attribute_constraints": [],
+                "qualifier_constraints": [],
+            }
+        },
+    }
+)
+
+
+def _make_transpiler(
+    fields: FieldSelection | None = None,
+    version: str | None = None,
+) -> _TestDgraphTranspiler:
+    return _TestDgraphTranspiler(
+        version=version,
+        enable_symmetric_edges=False,
+        enable_subclass_edges=False,
+        fields=fields,
+    )
+
+
+# ---------------------------------------------------------------------------
+# FieldSelection defaults
+# ---------------------------------------------------------------------------
+
+
+def test_field_selection_defaults_to_none() -> None:
+    """FieldSelection() has all axes as None (expand-everything behaviour)."""
+    fs = FieldSelection()
+    assert fs.node_fields is None
+    assert fs.edge_fields is None
+    assert fs.source_fields is None
+
+
+def test_transpiler_default_fields_uses_expand() -> None:
+    """Without an explicit FieldSelection the transpiler emits expand()."""
+    t = _make_transpiler()
+    assert t._add_standard_node_fields() == "expand(Node) "
+    assert t._add_standard_edge_fields() == "expand(Edge) { sources expand(Source) } "
+
+
+def test_transpiler_default_fields_versioned_uses_expand() -> None:
+    """With a version prefix, the default still emits versioned expand()."""
+    t = _make_transpiler(version="v1")
+    assert t._add_standard_node_fields() == "expand(v1_Node) "
+    assert t._add_standard_edge_fields() == (
+        "expand(v1_Edge) { v1_sources expand(v1_Source) } "
+    )
+
+
+# ---------------------------------------------------------------------------
+# Node field selection
+# ---------------------------------------------------------------------------
+
+
+def test_node_fields_explicit() -> None:
+    """Explicit node_fields emits exactly the requested prefixed fields."""
+    t = _make_transpiler(fields=FieldSelection(node_fields=("id", "name", "category")))
+    result = t._add_standard_node_fields()
+    assert result == "id name category "
+
+
+def test_node_fields_explicit_versioned() -> None:
+    """Explicit node_fields with a version correctly applies the prefix."""
+    t = _make_transpiler(
+        fields=FieldSelection(node_fields=("id", "name")),
+        version="v2",
+    )
+    result = t._add_standard_node_fields()
+    assert result == "v2_id v2_name "
+
+
+def test_node_fields_empty_tuple() -> None:
+    """An empty node_fields tuple emits an empty string (no expand())."""
+    t = _make_transpiler(fields=FieldSelection(node_fields=()))
+    result = t._add_standard_node_fields()
+    assert result == " "
+
+
+# ---------------------------------------------------------------------------
+# Edge field selection
+# ---------------------------------------------------------------------------
+
+
+def test_edge_fields_explicit_without_sources() -> None:
+    """Explicit edge_fields without 'sources' emits only the listed scalars."""
+    t = _make_transpiler(
+        fields=FieldSelection(edge_fields=("eid", "predicate", "knowledge_level"))
+    )
+    result = t._add_standard_edge_fields()
+    assert result == "eid predicate knowledge_level "
+
+
+def test_edge_fields_id_remapped_to_eid() -> None:
+    """'id' in edge_fields is silently remapped to 'eid' (the Edge type field name)."""
+    t = _make_transpiler(fields=FieldSelection(edge_fields=("id", "predicate")))
+    result = t._add_standard_edge_fields()
+    assert result == "eid predicate "
+    assert "id " not in result.split("eid ")[1]  # bare "id" must not appear
+
+
+def test_edge_fields_category_remapped_to_ecategory() -> None:
+    """'category' in edge_fields is silently remapped to 'ecategory'."""
+    t = _make_transpiler(fields=FieldSelection(edge_fields=("category", "predicate")))
+    result = t._add_standard_edge_fields()
+    assert result == "ecategory predicate "
+
+
+def test_edge_fields_id_and_category_remapped_versioned() -> None:
+    """Both id→eid and category→ecategory remaps work correctly with a version prefix."""
+    t = _make_transpiler(
+        fields=FieldSelection(edge_fields=("id", "category", "predicate")),
+        version="vM",
+    )
+    result = t._add_standard_edge_fields()
+    assert result == "vM_eid vM_ecategory vM_predicate "
+
+
+def test_edge_fields_explicit_with_sources_default_source_expand() -> None:
+    """'sources' in edge_fields with source_fields=None uses expand(Source)."""
+    t = _make_transpiler(
+        fields=FieldSelection(edge_fields=("eid", "predicate", "sources"))
+    )
+    result = t._add_standard_edge_fields()
+    assert result == "eid predicate sources expand(Source) "
+
+
+def test_edge_fields_explicit_with_sources_explicit_source_fields() -> None:
+    """'sources' in edge_fields + explicit source_fields emits inner scalars."""
+    t = _make_transpiler(
+        fields=FieldSelection(
+            edge_fields=("eid", "sources"),
+            source_fields=("resource_id", "resource_role"),
+        )
+    )
+    result = t._add_standard_edge_fields()
+    assert result == "eid sources { resource_id resource_role } "
+
+
+def test_edge_fields_explicit_versioned_with_sources() -> None:
+    """Versioned prefix applied to all scalars including sources fragment."""
+    t = _make_transpiler(
+        fields=FieldSelection(
+            edge_fields=("eid", "predicate", "sources"),
+            source_fields=("resource_id",),
+        ),
+        version="vM",
+    )
+    result = t._add_standard_edge_fields()
+    assert result == "vM_eid vM_predicate vM_sources { vM_resource_id } "
+
+
+# ---------------------------------------------------------------------------
+# Source field selection (standalone _build_sources_fragment)
+# ---------------------------------------------------------------------------
+
+
+def test_sources_fragment_default_expand() -> None:
+    """source_fields=None falls back to expand(Source)."""
+    t = _make_transpiler()
+    assert t._build_sources_fragment() == "sources expand(Source)"
+
+
+def test_sources_fragment_explicit() -> None:
+    """Explicit source_fields emits the listed prefixed scalars."""
+    t = _make_transpiler(
+        fields=FieldSelection(source_fields=("resource_id", "resource_role"))
+    )
+    assert t._build_sources_fragment() == "sources { resource_id resource_role }"
+
+
+def test_sources_fragment_versioned() -> None:
+    """Versioned prefix applied inside the sources fragment."""
+    t = _make_transpiler(
+        fields=FieldSelection(source_fields=("resource_id",)),
+        version="vM",
+    )
+    assert t._build_sources_fragment() == "vM_sources { vM_resource_id }"
+
+
+# ---------------------------------------------------------------------------
+# End-to-end: FieldSelection appears in emitted DQL
+# ---------------------------------------------------------------------------
+
+
+def test_field_selection_node_fields_appear_in_dql() -> None:
+    """Emitted DQL contains the explicit node fields instead of expand()."""
+    t = _make_transpiler(
+        fields=FieldSelection(
+            node_fields=("id", "name", "category"),
+            edge_fields=("eid", "predicate", "sources"),
+            source_fields=("resource_id",),
+        )
+    )
+    dql = t.convert_multihop_public(FIELD_SELECT_QGRAPH)
+    assert "expand(" not in dql
+    assert "id" in dql
+    assert "name" in dql
+    assert "category" in dql
+    assert "eid" in dql
+    assert "predicate" in dql
+
+
+def test_field_selection_does_not_affect_filters() -> None:
+    """FieldSelection only changes field emission; filters remain unaffected."""
+    t_default = _make_transpiler()
+    t_fields = _make_transpiler(
+        fields=FieldSelection(node_fields=("id",), edge_fields=("eid",))
+    )
+    dql_default = normalize(t_default.convert_multihop_public(FIELD_SELECT_QGRAPH))
+    dql_fields = normalize(t_fields.convert_multihop_public(FIELD_SELECT_QGRAPH))
+
+    # @filter and @cascade clauses must be identical
+    import re as _re
+
+    filter_default = _re.findall(r"@filter\([^)]+\)", dql_default)
+    filter_fields = _re.findall(r"@filter\([^)]+\)", dql_fields)
+    assert filter_default == filter_fields
+
+
+def test_expand_default_not_in_explicit_field_dql() -> None:
+    """Explicit field selection must suppress every expand() call in DQL."""
+    t = _make_transpiler(
+        fields=FieldSelection(
+            node_fields=("id", "name"),
+            edge_fields=("eid", "predicate"),
+            source_fields=("resource_id",),
+        ),
+        version="vM",
+    )
+    dql = t.convert_multihop_public(FIELD_SELECT_QGRAPH)
+    assert "expand(" not in dql
