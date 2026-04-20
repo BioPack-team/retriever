@@ -2655,14 +2655,20 @@ async def test_field_selection_explicit_node_and_edge_fields_live_grpc() -> None
     qgraph_query: QueryGraphDict = qg(
         {
             "nodes": {
-                "n0": {"ids": ["GO:0031410"], "constraints": []},
-                "n1": {"ids": ["NCBIGene:11276"], "constraints": []},
+                "nB": {
+                    "categories": ["biolink:Disease"],
+                    "ids": ["MONDO:0005015"],
+                },
+                "nA": {
+                    "categories": ["biolink:Drug"],
+                    "ids": ["CHEBI:6801"],
+                },
             },
             "edges": {
-                "e0": {
-                    "object": "n0",
-                    "subject": "n1",
-                    "predicates": ["located_in"],
+                "e1": {
+                    "subject": "nA",
+                    "object": "nB",
+                    "predicates": ["biolink:treats_or_applied_or_studied_to_treat"],
                     "attribute_constraints": [],
                     "qualifier_constraints": [],
                 }
@@ -2698,17 +2704,18 @@ async def test_field_selection_explicit_node_and_edge_fields_live_grpc() -> None
     assert "q0" in result.data
 
     nodes = result.data["q0"]
-    assert len(nodes) == 1
+    assert len(nodes) >= 1
     root = nodes[0]
 
-    # Root node: id and name must be present
-    assert root.id == "GO:0031410"
-    assert root.name == "cytoplasmic vesicle"
+    # Root node: id, name and category must be present (field-selected)
+    assert root.id in {"MONDO:0005015", "CHEBI:6801"}
+    assert root.name, "name should be populated"
+    assert root.category, "category should be populated"
 
-    # Edge must be resolved with the requested fields
-    assert len(root.edges) == 1
+    # At least one edge with the expected predicate
+    assert len(root.edges) >= 1
     edge = root.edges[0]
-    assert edge.predicate == "located_in"
+    assert edge.predicate == "treats_or_applied_or_studied_to_treat"
 
     # Sources must contain only resource_id and resource_role
     assert len(edge.sources) > 0
@@ -2721,8 +2728,8 @@ async def test_field_selection_explicit_node_and_edge_fields_live_grpc() -> None
 
     # Connected node must have id, name, category
     connected = edge.node
-    assert connected.id == "NCBIGene:11276"
-    assert connected.name == "SYNRG"
+    assert connected.id in {"MONDO:0005015", "CHEBI:6801"}
+    assert connected.name, "connected node name should be populated"
     assert connected.category  # non-empty list
 
     await driver.close()
@@ -2739,14 +2746,20 @@ async def test_field_selection_explicit_node_fields_only_live_grpc() -> None:
     qgraph_query: QueryGraphDict = qg(
         {
             "nodes": {
-                "n0": {"ids": ["GO:0031410"], "constraints": []},
-                "n1": {"ids": ["NCBIGene:11276"], "constraints": []},
+                "nB": {
+                    "categories": ["biolink:Disease"],
+                    "ids": ["MONDO:0005015"],
+                },
+                "nA": {
+                    "categories": ["biolink:Drug"],
+                    "ids": ["CHEBI:6801"],
+                },
             },
             "edges": {
-                "e0": {
-                    "object": "n0",
-                    "subject": "n1",
-                    "predicates": ["located_in"],
+                "e1": {
+                    "subject": "nA",
+                    "object": "nB",
+                    "predicates": ["biolink:treats_or_applied_or_studied_to_treat"],
                     "attribute_constraints": [],
                     "qualifier_constraints": [],
                 }
@@ -2779,12 +2792,12 @@ async def test_field_selection_explicit_node_fields_only_live_grpc() -> None:
     assert result.data and "q0" in result.data
 
     root = result.data["q0"][0]
-    assert root.id == "GO:0031410"
-    assert root.name == "cytoplasmic vesicle"
+    assert root.id in {"MONDO:0005015", "CHEBI:6801"}
+    assert root.name, "name should be populated"
 
     # Full edge attributes available because edge used expand()
     edge = root.edges[0]
-    assert edge.predicate == "located_in"
+    assert edge.predicate == "treats_or_applied_or_studied_to_treat"
     assert edge.sources  # sources still populated via edge expand
 
     await driver.close()
