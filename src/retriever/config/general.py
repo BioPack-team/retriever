@@ -297,12 +297,31 @@ class DgraphSettings(BaseModel):
         return f"{self.host}:{self.grpc_port}"
 
 
+class GandalfSettings(BaseModel):
+    """Settings for the Tier 0 Gandalf interface."""
+    preferred_version: str | None = None
+    use_tls: bool = False
+    query_timeout: Annotated[
+        int,
+        Field(
+            description="Time in seconds before a Dgraph query should time out.",
+        ),
+    ] = 3600
+    connect_retries: Annotated[
+        int,
+        Field(
+            description="Number of retries before declaring a connection failure.",
+        ),
+    ] = 5
+
+
 class Tier0Settings(BaseModel):
     """Settings concern Tier 0 abstraction layers."""
 
     backend: str = "dgraph"
     backend_infores: str = "infores:dogpark-tier0"
     dgraph: DgraphSettings = DgraphSettings()
+    gandalf: GandalfSettings = GandalfSettings()
     dump_queries: Annotated[
         bool,
         Field(
