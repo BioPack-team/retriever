@@ -144,7 +144,7 @@ def append_aggregator_source(
     upstreams = set(
         itertools.chain(
             *[
-                source.get(Infores("upstream_resource_ids"), [])
+                (source.get("upstream_resource_ids", []) or [])
                 for source in edge["sources"]
             ]
         )
