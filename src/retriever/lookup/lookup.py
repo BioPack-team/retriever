@@ -53,39 +53,42 @@ OP_TABLE_MANAGER = OpTableManager()
 
 async def async_lookup(query: QueryInfo, ctx: context.Context) -> None:
     """Handle running lookup as an async query where the client receives a callback."""
-    context.attach(ctx)  # Ensure context propagates
+    token = context.attach(ctx)  # Ensure context propagates
 
-    if query.body is None or "callback" not in query.body:
-        raise TypeError(f"Expected AsyncQuery, received {type(query.body)}.")
-
-    job_id = query.job_id
-    job_log = TRAPILogger(job_id)
-    status, response = await lookup(query)
-
-    job_log.debug(f"Sending callback to `{query.body['callback']}`...")
     try:
-        client = get_callback_client()
-        callback_response = await client.post(
-            url=str(query.body["callback"]), json=response
-        )
-        callback_response.raise_for_status()
-        job_log.debug("Callback sent successfully.")
-    except httpx.HTTPStatusError as error:
-        job_log.exception(
-            f"Callback returned erroneous status {error.response.status_code}"
-        )
-        job_log.error(f"Response body was {error.response.text}")
-    except httpx.HTTPError:
-        job_log.exception(
-            "An unhandled exception occured while making response callback."
-        )
+        if query.body is None or "callback" not in query.body:
+            raise TypeError(f"Expected AsyncQuery, received {type(query.body)}.")
 
-    # Effectively tack the callback logs onto the end of the response
-    response_logs = response.get("logs", []) or []
-    job_log.log_deque = deque(response_logs) + job_log.log_deque
+        job_id = query.job_id
+        job_log = TRAPILogger(job_id)
+        status, response = await lookup(query)
 
-    # Update the stored state with new logs
-    tracked_response(status, query, response, job_log)
+        job_log.debug(f"Sending callback to `{query.body['callback']}`...")
+        try:
+            client = get_callback_client()
+            callback_response = await client.post(
+                url=str(query.body["callback"]), json=response
+            )
+            callback_response.raise_for_status()
+            job_log.debug("Callback sent successfully.")
+        except httpx.HTTPStatusError as error:
+            job_log.exception(
+                f"Callback returned erroneous status {error.response.status_code}"
+            )
+            job_log.error(f"Response body was {error.response.text}")
+        except httpx.HTTPError:
+            job_log.exception(
+                "An unhandled exception occured while making response callback."
+            )
+
+        # Effectively tack the callback logs onto the end of the response
+        response_logs = response.get("logs", []) or []
+        job_log.log_deque = deque(response_logs) + job_log.log_deque
+
+        # Update the stored state with new logs
+        tracked_response(status, query, response, job_log)
+    finally:
+        context.detach(token)
 
 
 async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
