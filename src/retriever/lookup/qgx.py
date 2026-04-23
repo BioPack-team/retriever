@@ -609,29 +609,18 @@ class QueryGraphExecutor:
             self.job_log.log_deque.extend(logs)
             await self.update_knowledge(current_branch, new_kgraph, update_kgraph)
 
+        next_curies = set[CURIE]()
+
         # Ensure "backwards" edges don't cause input curie to propogate
-        input_categories = set(
-            self.qgraph["nodes"][current_branch.input_node].get("categories", []) or []
-        )
-        output_categories = set(
-            self.qgraph["nodes"][current_branch.output_node].get("categories", []) or []
-        )
-        qnodes_allow_self_edge = not input_categories.isdisjoint(output_categories)
-
-        # Don't iterate through all kedges unless the QEdge has the potential to
-        # cause node self-edges (otherwise input curie can show up as output due to
-        # "backwards" edges)
-        use_input_for_next = qnodes_allow_self_edge and any(
-            edge["subject"] == current_branch.input_curie
-            and edge["object"] == current_branch.input_curie
-            for edge in new_kgraph["edges"].values()
-        )
-
-        next_curies = new_kgraph["nodes"].keys()
-        if not use_input_for_next:
-            next_curies = (
-                curie for curie in next_curies if curie != current_branch.input_curie
-            )
+        for edge in new_kgraph["edges"].values():
+            if (
+                edge["object"] == current_branch.input_curie
+                and edge["subject"] != edge["object"]
+            ):
+                next_curies.add(edge["subject"])  # "Backwards" edge
+                continue
+            # Otherwise, normal edge (incl. self-edges) we add the object
+            next_curies.add(edge["object"])
 
         expanded_next_curies = await self.expand_subclasses(
             current_branch.output_node, next_curies
@@ -647,7 +636,7 @@ class QueryGraphExecutor:
 
         if len(next_steps) == 0:
             self.job_log.trace(
-                f"{current_branch.superposition_name}: Returning {len(list(expanded_next_curies)) + (1 if not use_input_for_next else 0)} Partial results."
+                f"{current_branch.superposition_name}: Returning {len(expanded_next_curies)} Partial results."
             )
             for edge in new_kgraph["edges"].values():
                 if edge["subject"] == current_branch.input_curie:
