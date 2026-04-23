@@ -1,6 +1,10 @@
 from typing import cast
 
-from retriever.types.trapi import QualifierDict, QualifierConstraintDict, QualifierTypeID
+from retriever.types.trapi import (
+    QualifierConstraintDict,
+    QualifierDict,
+    QualifierTypeID,
+)
 
 
 def create_qualifier_constraint(name: str, value) -> QualifierConstraintDict:
@@ -25,7 +29,7 @@ qualifier_specifications = cast(list[QualifierDict],
                                     },
 
                                     {
-                                        "qualifier_type_id": "biolink:object_modifier_qualifier",
+                                        "qualifier_type_id": "biolink:object_direction_qualifier",
                                         "qualifier_value": "increased"
                                     },
 

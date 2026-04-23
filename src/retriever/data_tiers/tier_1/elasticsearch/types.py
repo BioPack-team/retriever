@@ -7,7 +7,8 @@ from retriever.data_tiers.tier_1.elasticsearch.constraints.types.attribute_types
     AttributeFilterQuery,
 )
 from retriever.data_tiers.tier_1.elasticsearch.constraints.types.qualifier_types import (
-    ESQueryForSingleQualifierConstraint,
+    ESBoolQueryForExpandedQualifiers,
+    ESEquivalentQualifierPairCollection,
     ESTermClause,
 )
 from retriever.data_tiers.utils import (
@@ -29,8 +30,10 @@ class ESFilterClause(TypedDict):
 class ESBooleanQuery(TypedDict):
     """An Elasticsearch boolean query."""
 
-    filter: list[ESFilterClause | ESTermClause]
-    should: NotRequired[list[ESQueryForSingleQualifierConstraint | ESTermClause]]
+    filter: list[ESFilterClause | ESTermClause | ESEquivalentQualifierPairCollection]
+    should: NotRequired[
+        list[ESEquivalentQualifierPairCollection | ESBoolQueryForExpandedQualifiers]
+    ]
     minimum_should_match: NotRequired[int]
     must: NotRequired[list[AttributeFilterQuery]]
     must_not: NotRequired[list[AttributeFilterQuery]]
