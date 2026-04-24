@@ -851,13 +851,17 @@ class DgraphTranspiler(Tier0Transpiler):
                 for qtype_desc in qtype_descs:
                     qtype_desc_clean = biolink.rmprefix(qtype_desc)
                     field = self._v(qtype_desc_clean)
-                    expanded_values = biolink.get_descendant_values(qtype_desc_clean, qval)
+                    expanded_values = biolink.get_descendant_values(
+                        qtype_desc_clean, qval
+                    )
                     if len(expanded_values) > 1:
                         type_filters.append(
                             self._create_in_filter(field, sorted(expanded_values))
                         )
                     else:
-                        type_filters.append(self._get_operator_filter(field, "==", qval))
+                        type_filters.append(
+                            self._get_operator_filter(field, "==", qval)
+                        )
 
                 if len(type_filters) == 1:
                     and_filters.append(type_filters[0])
