@@ -1,11 +1,14 @@
-import gc
+import asyncio
+from contextlib import suppress
+from http import HTTPStatus
 from typing import Any, override
+from urllib.parse import urljoin
 
+import aiohttp
+from aiohttp import ClientTimeout
 from cachetools import TTLCache
 from loguru import logger as log
 from opentelemetry import trace
-from bmt import Toolkit
-from gandalf import CSRGraph, lookup
 
 from retriever.config.general import CONFIG, GandalfSettings
 from retriever.data_tiers.base_driver import DatabaseDriver
@@ -25,10 +28,11 @@ class GandalfDriver(DatabaseDriver):
     connect_retries: int
     version: str | None = None
 
+    _http_session: aiohttp.ClientSession | None = None
+
     _failed: bool = False
     _version_cache: TTLCache[str, str | None] = TTLCache(maxsize=1, ttl=60)
     _mapping_cache: TTLCache[str, dict[str, Any] | None] = TTLCache(maxsize=1, ttl=300)
-    _grpc_endpoints: list[str]
 
     def __init__(
         self,
@@ -44,17 +48,7 @@ class GandalfDriver(DatabaseDriver):
         self.settings = CONFIG.tier0.gandalf
         self.query_timeout = self.settings.query_timeout
         self.connect_retries = self.settings.connect_retries
-
-        self.bmt = Toolkit()
-        self.gandalf = CSRGraph.load_mmap("/app/gandalf_mmap")
-        # Freeze all objects allocated so far (graph + BMT) into a permanent
-        # generation that the cyclic GC will never scan.  This makes Gen 2
-        # collections cheap because they skip the large CSR arrays.
-        gc.collect()
-        gc.freeze()
-        # Raise thresholds so Gen 2 collections are less frequent even for
-        # the (now-small) unfrozen query-time object set.
-        gc.set_threshold(50_000, 50, 50)
+        self._http_session = None
 
         # Version precedence: constructor arg > env var > auto-detect from DB
         if version is not None:
@@ -69,6 +63,9 @@ class GandalfDriver(DatabaseDriver):
         else:
             self.version = None
 
+        self.endpoint = self.settings.http_endpoint
+        self.metadata = None
+
     def remove_none_values(self, d: dict) -> dict:
         """Remove all None values."""
         if not isinstance(d, dict):
@@ -79,7 +76,7 @@ class GandalfDriver(DatabaseDriver):
     async def run_query(
         self, query: dict, *args: Any, **kwargs: Any
     ) -> dict:
-        """Execute a query against the Dgraph database and parse into dataclasses.
+        """Execute a query against the Gandalf database and parse into dataclasses.
 
         Args:
             query: The Gandalf query to execute
@@ -100,10 +97,8 @@ class GandalfDriver(DatabaseDriver):
 
         try:
             query = self.remove_none_values(query)
-            result = lookup(
-                self.gandalf,
+            result = await self._run_http_query(
                 query,
-                self.bmt,
             )
         except TimeoutError as e:
             if otel_span is not None:
@@ -117,13 +112,96 @@ class GandalfDriver(DatabaseDriver):
 
         return result
 
+    async def _run_http_query(
+        self,
+        query: dict,
+    ) -> dict:
+        """Execute query using HTTP protocol with DQL.
+
+        Args:
+            query: The Gandalf TRAPI query
+
+        Returns:
+            Parsed response
+        """
+        assert self._http_session is not None, "HTTP session not initialized"
+
+        async with self._http_session.post(
+            urljoin(self.endpoint, "/query"),
+            json=query,
+            timeout=ClientTimeout(total=self.query_timeout),
+        ) as response:
+            if response.status != HTTPStatus.OK:
+                text = await response.text()
+                raise RuntimeError(
+                    f"Gandalf HTTP query failed with status {response.status}: {text}"
+                )
+
+            message = await response.json()
+
+            if "errors" in message:
+                raise RuntimeError(
+                    f"Gandalf query returned errors: {message['errors']}"
+                )
+
+            return message
+
     @override
     async def connect(self, retries: int = 0) -> None:
         """Connect to Gandalf using selected protocol."""
+        log.info("Checking Gandalf connection...")
+        try:
+            await self._connect_http()
+            log.success("Gandalf http connection successful!")
+
+            # Populate version cache after successful connect so subsequent
+            # code can use get_active_version without triggering a query.
+            try:
+                await self.get_active_version()
+            except Exception as e:
+                log.warning(f"Unable to fetch active schema version after connect: {e}")
+
+        except Exception as e:
+            await self._cleanup_connections()
+            if retries < self.connect_retries:
+                await asyncio.sleep(1)
+                log.error(f"""
+                    Could not establish connection to Gandalf via http,
+                    trying again... retry {retries + 1}
+                """)
+                await self.connect(retries + 1)
+            else:
+                log.error(f"Could not establish connection to Gandalf, error: {e}")
+                self._failed = True
+                raise e
+
+    async def _connect_http(self) -> None:
+        """Establish HTTP connection to Dgraph."""
+        self._http_session = aiohttp.ClientSession()
+        # Test connection with a simple query
+        async with self._http_session.get(
+            urljoin(self.endpoint, "/metadata"),
+            timeout=ClientTimeout(total=self.query_timeout),
+        ) as response:
+            if response.status != HTTPStatus.OK:
+                text = await response.text()
+                raise ConnectionError(
+                    f"HTTP connection failed with status {response.status}: {text}"
+                )
+            self.metadata = await response.json()
+
+    async def _cleanup_connections(self) -> None:
+        """Clean up any open connections."""
+        # Close HTTP session if open
+        if self._http_session is not None:
+            with suppress(Exception):
+                await self._http_session.close()
+            self._http_session = None
 
     @override
     async def close(self) -> None:
         """Close the connection to Gandalf and clean up resources."""
+        await self._cleanup_connections()
 
     @override
     async def get_metadata(self) -> dict[str, Any] | None:
@@ -138,7 +216,7 @@ class GandalfDriver(DatabaseDriver):
         Returns:
             Deserialized mapping dictionary, or None if not found or on error.
         """
-        return self.gandalf.graph_metadata
+        return self.metadata
 
     @override
     async def get_operations(

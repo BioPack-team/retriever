@@ -5,7 +5,7 @@ FROM python:3.13-alpine
 # Ensure requirements
 RUN apk add --no-cache git
 # Build requirements
-RUN apk add --no-cache rust cargo g++ file make patch
+RUN apk add --no-cache rust cargo g++ file make
 RUN pip install --upgrade pip
 
 RUN adduser -D python
@@ -17,6 +17,6 @@ COPY --chown=python:python . .
 
 RUN pip install --user uv
 ENV PATH="/home/python/.local/bin:${PATH}"
-RUN uv sync --no-dev
+RUN uv sync --locked --no-dev
 
 CMD [ ".venv/bin/python3", "./src/retriever/__main__.py" ]

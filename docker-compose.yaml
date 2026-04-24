@@ -27,10 +27,7 @@ services:
       MONGO__HOST: mongodb
       REDIS__HOST: dragonfly
       REDIS__PORT: 6379
-      GANDALF_LARGE_RESULT_THRESHOLD: 1000000000
-      GANDALF_INFORES: infores:dogpark-tier0
     volumes:
-      - ./gandalf_mmap:/app/gandalf_mmap
       - ./debug:/app/debug
 #     secrets:
 #       - tier0__neo4j__host

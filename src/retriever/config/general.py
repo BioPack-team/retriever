@@ -299,6 +299,8 @@ class DgraphSettings(BaseModel):
 
 class GandalfSettings(BaseModel):
     """Settings for the Tier 0 Gandalf interface."""
+    host: str = "localhost"
+    http_port: int = 6429
     preferred_version: str | None = None
     use_tls: bool = False
     query_timeout: Annotated[
@@ -313,6 +315,11 @@ class GandalfSettings(BaseModel):
             description="Number of retries before declaring a connection failure.",
         ),
     ] = 5
+
+    @property
+    def http_endpoint(self) -> str:
+        """Get the complete HTTP endpoint URL for Gandalf HTTP API."""
+        return f"{self.host}:{self.http_port}"
 
 
 class Tier0Settings(BaseModel):
