@@ -805,6 +805,47 @@ QUALIFIER_DESCENDANT_EXPANSION_QGRAPH: QueryGraphDict = qg(
 )
 
 
+QUALIFIER_DESCENDANT_MULTIPLE_EXPANSION_QGRAPH: QueryGraphDict = qg(
+    {
+        "nodes": {
+            "ON": {
+                "ids": ["HGNC:3870"],
+                "categories": ["biolink:Gene"],
+            },
+            "SN": {
+                "ids": ["CHEBI:59173"],
+                "categories": ["biolink:ChemicalEntity"],
+            },
+        },
+        "edges": {
+            "e0": {
+                "subject": "SN",
+                "object": "ON",
+                "predicates": ["biolink:affects"],
+                "qualifier_constraints": [
+                    {
+                        "qualifier_set": [
+                            {
+                                # biolink:direction_qualifier has two sub-types:
+                                # subject_direction_qualifier and object_direction_qualifier,
+                                "qualifier_type_id": "biolink:direction_qualifier",
+                                "qualifier_value": "decreased",
+                            },
+                            {
+                                # biolink:aspect_qualifier has two sub-types:
+                                # subject_aspect_qualifier and object_aspect_qualifier.
+                                "qualifier_type_id": "biolink:aspect_qualifier",
+                                "qualifier_value": "activity_or_abundance",
+                            },
+                        ]
+                    }
+                ],
+            }
+        },
+    }
+)
+
+
 # -----------------------
 # Expected queries
 # -----------------------
@@ -1397,6 +1438,26 @@ EXP_QUALIFIER_DESCENDANT_EXPANSION = dedent("""
 }
 """).strip()
 
+EXP_QUALIFIER_DESCENDANT_MULTIPLE_EXPANSION = dedent("""
+{
+  q0_node_n0(func: eq(id, "HGNC:3870")) @cascade(id, ~object) {
+    expand(Node)
+    in_edges_e0: ~object @filter(eq(predicate_ancestors, "affects") AND
+      ((eq(direction_qualifier, ["decreased", "downregulated"]) OR
+        eq(subject_direction_qualifier, ["decreased", "downregulated"]) OR
+        eq(object_direction_qualifier, ["decreased", "downregulated"])) AND
+       (eq(aspect_qualifier, ["abundance", "activity", "activity_or_abundance", "expression", "synthesis"]) OR
+        eq(subject_aspect_qualifier, ["abundance", "activity", "activity_or_abundance", "expression", "synthesis"]) OR
+        eq(object_aspect_qualifier, ["abundance", "activity", "activity_or_abundance", "expression", "synthesis"])))) @cascade(predicate, subject) {
+      expand(Edge) { sources expand(Source) }
+      node_n1: subject @filter(eq(id, "CHEBI:59173")) @cascade(id) {
+        expand(Node)
+      }
+    }
+  }
+}
+""").strip()
+
 
 # -----------------------
 # Case pairs
@@ -1442,6 +1503,10 @@ CASES: list[QueryCase] = [
     QueryCase(
         "qualifier-descendant-expansion",
         QUALIFIER_DESCENDANT_EXPANSION_QGRAPH, EXP_QUALIFIER_DESCENDANT_EXPANSION,
+    ),
+    QueryCase(
+        "qualifier-descendant-multiple-expansion",
+        QUALIFIER_DESCENDANT_MULTIPLE_EXPANSION_QGRAPH, EXP_QUALIFIER_DESCENDANT_MULTIPLE_EXPANSION,
     ),
     # NOTE: The following cases test transpiler-level attribute constraint filtering, which is
     # intentionally disabled. Attribute constraints are enforced via Python-level post-filtering
