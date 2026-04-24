@@ -840,23 +840,29 @@ class DgraphTranspiler(Tier0Transpiler):
             and_filters: list[str] = []
             for q in qset:
                 qtype = biolink.rmprefix(q["qualifier_type_id"])
-                qval = (
-                    biolink.rmprefix(q["qualifier_value"])
-                    if "qualified_predicate" in qtype
-                    else biolink.rmprefix(q["qualifier_value"])
-                )
+                qval = biolink.rmprefix(q["qualifier_value"])
                 if not qtype or qval == "":
                     continue
-                field = self._v(qtype)
 
-                # Expand qualifier values to include descendants
-                expanded_values = biolink.get_descendant_values(qtype, qval)
-                if len(expanded_values) > 1:
-                    and_filters.append(
-                        self._create_in_filter(field, sorted(expanded_values))
-                    )
-                else:
-                    and_filters.append(self._get_operator_filter(field, "==", qval))
+                # Expand qualifier type to include descendants, then for each
+                # descendant type expand its values to include descendants as well.
+                qtype_descs = biolink.get_descendants(biolink.ensure_prefix(qtype))
+                type_filters: list[str] = []
+                for qtype_desc in qtype_descs:
+                    qtype_desc_clean = biolink.rmprefix(qtype_desc)
+                    field = self._v(qtype_desc_clean)
+                    expanded_values = biolink.get_descendant_values(qtype_desc_clean, qval)
+                    if len(expanded_values) > 1:
+                        type_filters.append(
+                            self._create_in_filter(field, sorted(expanded_values))
+                        )
+                    else:
+                        type_filters.append(self._get_operator_filter(field, "==", qval))
+
+                if len(type_filters) == 1:
+                    and_filters.append(type_filters[0])
+                elif len(type_filters) > 1:
+                    and_filters.append(f"({' OR '.join(type_filters)})")
 
             if and_filters:
                 # AND items within the set; wrap in parentheses if more than one
