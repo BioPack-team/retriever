@@ -6,6 +6,7 @@ services:
     ulimits:
       memlock: -1
     ports: [6888:6379]
+    restart: on-failure
     # For better performance, consider `host` mode instead `port` to avoid docker NAT.
     # `host` mode is NOT currently supported in Swarm Mode.
     # https://docs.docker.com/compose/compose-file/compose-file-v3/#network_mode
@@ -15,6 +16,7 @@ services:
     image: mongodb/mongodb-community-server:latest
     # environment: [MONGO_INITDB_ROOT_USERNAME=user, MONGO_INITDB_ROOT_PASSWORD=pass]
     ports: [27017:27017]
+    restart: on-failure
   retriever:
     container_name: retriever
     image: biopack-team/retriever
