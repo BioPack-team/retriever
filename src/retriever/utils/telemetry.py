@@ -1,17 +1,35 @@
+from collections.abc import Sequence
+from typing import override
+
 import sentry_sdk
 from fastapi import FastAPI
 from loguru import logger as log
 from opentelemetry import trace
+from opentelemetry.baggage.propagation import W3CBaggagePropagator
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.propagate import set_global_textmap
+from opentelemetry.propagators.composite import CompositePropagator
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
+from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
+from opentelemetry.sdk.trace.export import (
+    BatchSpanProcessor,
+    SpanExporter,
+    SpanExportResult,
+)
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from sentry_sdk.integrations.opentelemetry import SentryPropagator, SentrySpanProcessor
 
 from retriever.config.general import CONFIG
+
+
+class NoOpSpanExporter(SpanExporter):
+    """A SpanExporter that does nothing."""
+
+    @override
+    def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
+        return SpanExportResult.SUCCESS
 
 
 def configure_telemetry(app: FastAPI | None = None) -> None:
@@ -46,11 +64,19 @@ def configure_telemetry(app: FastAPI | None = None) -> None:
                 endpoint=f"{collector_address}{CONFIG.telemetry.otel_trace_endpoint}"
             )
             if CONFIG.telemetry.otel_enabled
-            else SpanExporter()  # essentially a NoOp exporter
+            else NoOpSpanExporter()  # essentially a NoOp exporter
         )
         trace_provider.add_span_processor(processor)
         trace.set_tracer_provider(trace_provider)
-        set_global_textmap(SentryPropagator())
+        set_global_textmap(
+            CompositePropagator(
+                [
+                    TraceContextTextMapPropagator(),
+                    W3CBaggagePropagator(),
+                    SentryPropagator(),
+                ]
+            )
+        )
 
         # Instrument Server
         if app:
@@ -68,4 +94,6 @@ def configure_telemetry(app: FastAPI | None = None) -> None:
 def capture_exception(e: Exception) -> None:
     """Capture an otherwise handled exception."""
     span = trace.get_current_span()
+    if not span.get_span_context().is_valid:
+        sentry_sdk.capture_exception(e)
     span.record_exception(e, escaped=True)

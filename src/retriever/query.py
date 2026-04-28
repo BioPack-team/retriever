@@ -5,7 +5,7 @@ from typing import Any, Literal, overload
 import sentry_sdk
 from fastapi import Request
 from loguru import logger
-from opentelemetry import context, trace
+from opentelemetry import context, propagate, trace
 
 from retriever.config.general import CONFIG
 from retriever.lookup.lookup import async_lookup, lookup
@@ -141,9 +141,9 @@ async def make_query(
 
     # TRAPI Async vs Sync query (client wants callback vs. will wait)
     if ctx.background_tasks is not None:  # TRAPI Asyncquery lookup
-        ctx.background_tasks.add_task(
-            async_lookup, query=query, ctx=context.get_current()
-        )
+        carrier = dict[str, str]()
+        propagate.inject(carrier, context.get_current())
+        ctx.background_tasks.add_task(async_lookup, query=query, ctx=carrier)
         return 200, AsyncQueryResponseDict(
             status="Accepted",
             description="Query has been queued for processing.",

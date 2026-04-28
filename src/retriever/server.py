@@ -97,9 +97,6 @@ async def exception_ensure_cors(request: Request, exc: Exception) -> Response:
     return await ensure_cors(app, request, exc)
 
 
-# Set up Sentry and Otel
-configure_telemetry(app)
-
 # Configure profiling middleware
 if CONFIG.allow_profiler:
     from pyinstrument import Profiler
@@ -398,3 +395,7 @@ async def config() -> ORJSONResponse:
         pass
 
     return ORJSONResponse(config)
+
+
+# Set up Sentry and Otel
+configure_telemetry(app)
