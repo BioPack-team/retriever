@@ -15,7 +15,7 @@ import pytest
 import retriever.config.general as general_mod
 import retriever.data_tiers.tier_0.dgraph.driver as driver_mod
 from retriever.data_tiers.tier_0.dgraph import result_models as dg_models
-from retriever.data_tiers.tier_0.dgraph.transpiler import DgraphTranspiler
+from retriever.data_tiers.tier_0.dgraph.transpiler import DgraphTranspiler, FieldSelection
 from retriever.types.trapi import QueryGraphDict
 
 
@@ -2635,5 +2635,169 @@ async def test_subclass_case3_cat_to_id_live_grpc() -> None:
         "Expected CHEBI:4042 (Cypermethrin) as the SmallMolecule result node "
         "reached via Case 3 ObjB expansion from GO:0051055"
     )
+
+    await driver.close()
+
+
+# =============================================================================
+# FieldSelection live tests
+# =============================================================================
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_field_selection_explicit_node_and_edge_fields_live_grpc() -> None:
+    """
+    Live test: querying with explicit FieldSelection returns only the requested
+    fields on nodes and edges, and no extra attributes bleed through.
+    """
+    qgraph_query: QueryGraphDict = qg(
+        {
+            "nodes": {
+                "nB": {
+                    "categories": ["biolink:Disease"],
+                    "ids": ["MONDO:0005015"],
+                },
+                "nA": {
+                    "categories": ["biolink:Drug"],
+                    "ids": ["CHEBI:6801"],
+                },
+            },
+            "edges": {
+                "e1": {
+                    "subject": "nA",
+                    "object": "nB",
+                    "predicates": ["biolink:treats_or_applied_or_studied_to_treat"],
+                    "attribute_constraints": [],
+                    "qualifier_constraints": [],
+                }
+            },
+        }
+    )
+
+    driver = new_grpc_driver()
+    await driver.connect()
+
+    dgraph_schema_version = await driver.get_active_version()
+
+    transpiler = _TestDgraphTranspiler(
+        version=dgraph_schema_version,
+        enable_symmetric_edges=False,
+        enable_subclass_edges=False,
+        fields=FieldSelection(
+            node_fields=("id", "name", "category"),
+            edge_fields=("eid", "predicate", "sources"),
+            source_fields=("resource_id", "resource_role"),
+        ),
+    )
+
+    # Verify expand() is gone from the emitted DQL
+    dql = transpiler.convert_multihop_public(qgraph_query)
+    assert "expand(" not in dql, "expand() should not appear with explicit FieldSelection"
+
+    result: dg_models.DgraphResponse = await driver.run_query(
+        dql, transpiler=transpiler
+    )
+    assert isinstance(result, dg_models.DgraphResponse)
+    assert result.data, "Expected non-empty result data"
+    assert "q0" in result.data
+
+    nodes = result.data["q0"]
+    assert len(nodes) >= 1
+    root = nodes[0]
+
+    # Root node: id, name and category must be present (field-selected)
+    assert root.id in {"MONDO:0005015", "CHEBI:6801"}
+    assert root.name, "name should be populated"
+    assert root.category, "category should be populated"
+
+    # At least one edge with the expected predicate
+    assert len(root.edges) >= 1
+    edge = root.edges[0]
+    assert edge.predicate == "treats_or_applied_or_studied_to_treat"
+
+    # Sources must contain only resource_id and resource_role
+    assert len(edge.sources) > 0
+    for source in edge.sources:
+        assert source.resource_id, "resource_id should be populated"
+        # upstream_resource_ids and source_record_urls were not requested;
+        # they should be absent (empty)
+        assert source.upstream_resource_ids == []
+        assert source.source_record_urls == []
+
+    # Connected node must have id, name, category
+    connected = edge.node
+    assert connected.id in {"MONDO:0005015", "CHEBI:6801"}
+    assert connected.name, "connected node name should be populated"
+    assert connected.category  # non-empty list
+
+    await driver.close()
+
+
+@pytest.mark.live
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_dgraph_config")
+async def test_field_selection_explicit_node_fields_only_live_grpc() -> None:
+    """
+    Live test: restricting only node_fields still returns correct nodes and
+    falls back to expand(Edge) for edges.
+    """
+    qgraph_query: QueryGraphDict = qg(
+        {
+            "nodes": {
+                "nB": {
+                    "categories": ["biolink:Disease"],
+                    "ids": ["MONDO:0005015"],
+                },
+                "nA": {
+                    "categories": ["biolink:Drug"],
+                    "ids": ["CHEBI:6801"],
+                },
+            },
+            "edges": {
+                "e1": {
+                    "subject": "nA",
+                    "object": "nB",
+                    "predicates": ["biolink:treats_or_applied_or_studied_to_treat"],
+                    "attribute_constraints": [],
+                    "qualifier_constraints": [],
+                }
+            },
+        }
+    )
+
+    driver = new_grpc_driver()
+    await driver.connect()
+
+    dgraph_schema_version = await driver.get_active_version()
+
+    transpiler = _TestDgraphTranspiler(
+        version=dgraph_schema_version,
+        enable_symmetric_edges=False,
+        enable_subclass_edges=False,
+        fields=FieldSelection(node_fields=("id", "name")),
+    )
+
+    dql = transpiler.convert_multihop_public(qgraph_query)
+    # Node fields should not use expand(), but edges still should
+    assert f"{dgraph_schema_version}_id" in dql
+    assert f"{dgraph_schema_version}_name" in dql
+    assert "expand(" in dql  # edge still uses expand
+
+    result: dg_models.DgraphResponse = await driver.run_query(
+        dql, transpiler=transpiler
+    )
+    assert isinstance(result, dg_models.DgraphResponse)
+    assert result.data and "q0" in result.data
+
+    root = result.data["q0"][0]
+    assert root.id in {"MONDO:0005015", "CHEBI:6801"}
+    assert root.name, "name should be populated"
+
+    # Full edge attributes available because edge used expand()
+    edge = root.edges[0]
+    assert edge.predicate == "treats_or_applied_or_studied_to_treat"
+    assert edge.sources  # sources still populated via edge expand
 
     await driver.close()

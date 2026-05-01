@@ -213,6 +213,20 @@ class CascadePlanMatcher:
         return out
 
 
+@dataclass(frozen=True)
+class FieldSelection:
+    """Explicit field selection for Dgraph query emission.
+
+    Set a field list to None to use expand() (the default).
+    Field names should be unprefixed; the transpiler applies the version prefix
+    automatically.
+    """
+
+    node_fields: tuple[str, ...] | None = None
+    edge_fields: tuple[str, ...] | None = None
+    source_fields: tuple[str, ...] | None = None
+
+
 class DgraphTranspiler(Tier0Transpiler):
     """Transpiler for converting TRAPI queries into Dgraph GraphQL queries."""
 
@@ -245,6 +259,11 @@ class DgraphTranspiler(Tier0Transpiler):
     _reverse_node_map: dict[str, QNodeID]
     _reverse_edge_map: dict[str, QEdgeID]
 
+    # Field selection for DQL emission
+    _NODE_REQUIRED_FIELDS: frozenset[str] = frozenset({"id"})
+    _EDGE_REQUIRED_FIELDS: frozenset[str] = frozenset({"eid", "predicate"})
+    _fields: FieldSelection
+
     # Mapping for TRAPI conversion of implicit subclass handling
     subclass_backmap: dict[CURIE, CURIE]
 
@@ -257,6 +276,7 @@ class DgraphTranspiler(Tier0Transpiler):
         version: str | None = None,
         enable_symmetric_edges: bool | None = None,
         enable_subclass_edges: bool | None = None,
+        fields: FieldSelection | None = None,
     ) -> None:
         """Initialize a Transpiler instance.
 
@@ -264,6 +284,7 @@ class DgraphTranspiler(Tier0Transpiler):
             version: An optional version string to prefix to all schema fields.
             enable_symmetric_edges: Enable symmetric edge expansion. If None, uses config value.
             enable_subclass_edges: Enable subclass edge expansion. If None, uses config value.
+            fields: Optional field selection for DQL emission. If None, uses expand() for all types.
         """
         super().__init__()
         self.kgraph: KnowledgeGraphDict = KnowledgeGraphDict(nodes={}, edges={})
@@ -294,6 +315,7 @@ class DgraphTranspiler(Tier0Transpiler):
         self._query_plan: NodePlan | None = None
 
         self.subclass_backmap = {}
+        self._fields = fields if fields is not None else FieldSelection()
 
     # =========================================================================
     # Identifier and Alias Helpers
@@ -997,13 +1019,39 @@ class DgraphTranspiler(Tier0Transpiler):
 
         return primary_filter, secondary_filters
 
+    def _build_sources_fragment(self) -> str:
+        """Generate the sources sub-selection within an Edge field list."""
+        if self._fields.source_fields is not None:
+            inner = " ".join(f"{self.prefix}{f}" for f in self._fields.source_fields)
+            return f"{self.prefix}sources {{ {inner} }}"
+        return f"{self.prefix}sources expand({self.prefix}Source)"
+
     def _add_standard_node_fields(self) -> str:
         """Generate standard node fields with versioned aliases."""
+        if self._fields.node_fields is not None:
+            effective = (*self._fields.node_fields, *self._NODE_REQUIRED_FIELDS - set(self._fields.node_fields))
+            return " ".join(f"{self.prefix}{f}" for f in effective) + " "
         return f"expand({self.prefix}Node) "
 
     def _add_standard_edge_fields(self) -> str:
         """Generate standard edge fields with versioned aliases."""
-        return f"expand({self.prefix}Edge) {{ {self.prefix}sources expand({self.prefix}Source) }} "
+        if self._fields.edge_fields is not None:
+            # Edge type uses different names for id/category to avoid
+            # collisions with the Node type: id→eid, category→ecategory.
+            edge_field_remap: dict[str, str] = {"id": "eid", "category": "ecategory"}
+            # Merge caller fields with required fields (already in Edge naming).
+            caller_remapped = {edge_field_remap.get(f, f) for f in self._fields.edge_fields}
+            effective = (*self._fields.edge_fields, *self._EDGE_REQUIRED_FIELDS - caller_remapped)
+            scalar_fields = [
+                edge_field_remap.get(f, f)
+                for f in effective
+                if f != "sources"
+            ]
+            parts = [f"{self.prefix}{f}" for f in scalar_fields]
+            if "sources" in effective:
+                parts.append(self._build_sources_fragment())
+            return " ".join(parts) + " "
+        return f"expand({self.prefix}Edge) {{ {self._build_sources_fragment()} }} "
 
     def _build_filter_clause(self, filters: list[str]) -> str:
         """Build filter clause from a list of filters."""
