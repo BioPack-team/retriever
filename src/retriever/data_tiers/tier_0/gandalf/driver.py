@@ -2,7 +2,6 @@ import asyncio
 from contextlib import suppress
 from http import HTTPStatus
 from typing import Any, override
-from urllib.parse import urljoin
 
 import aiohttp
 from aiohttp import ClientTimeout
@@ -127,7 +126,7 @@ class GandalfDriver(DatabaseDriver):
         assert self._http_session is not None, "HTTP session not initialized"
 
         async with self._http_session.post(
-            urljoin(self.endpoint, "/query"),
+            f"{self.endpoint}/query",
             json=query,
             timeout=ClientTimeout(total=self.query_timeout),
         ) as response:
@@ -180,7 +179,7 @@ class GandalfDriver(DatabaseDriver):
         self._http_session = aiohttp.ClientSession()
         # Test connection with a simple query
         async with self._http_session.get(
-            urljoin(self.endpoint, "/metadata"),
+            f"{self.endpoint}/metadata",
             timeout=ClientTimeout(total=self.query_timeout),
         ) as response:
             if response.status != HTTPStatus.OK:

@@ -319,7 +319,7 @@ class GandalfSettings(BaseModel):
     @property
     def http_endpoint(self) -> str:
         """Get the complete HTTP endpoint URL for Gandalf HTTP API."""
-        return f"{self.host}:{self.http_port}"
+        return f"{self.host}"
 
 
 class Tier0Settings(BaseModel):
