@@ -140,7 +140,7 @@ def build_subclass_construct_edge(
         ],
         sources=[
             RetrievalSourceDict(
-                resource_id="infores:retriever",
+                resource_id="infores:obie",
                 resource_role="primary_knowledge_source",
                 upstream_resource_ids=["infores:ubergraph"],
             ),
