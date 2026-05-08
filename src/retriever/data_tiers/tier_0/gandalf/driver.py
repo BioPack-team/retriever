@@ -4,8 +4,8 @@ from http import HTTPStatus
 from typing import Any, override
 
 import aiohttp
+import orjson
 from aiohttp import ClientTimeout
-from cachetools import TTLCache
 from loguru import logger as log
 from opentelemetry import trace
 
@@ -13,30 +13,26 @@ from retriever.config.general import CONFIG, GandalfSettings
 from retriever.data_tiers.base_driver import DatabaseDriver
 from retriever.data_tiers.utils import parse_dingo_metadata
 from retriever.types.dingo import DINGOMetadata
-from retriever.types.general import BackendResult, EntityToEntityMapping
+from retriever.types.general import EntityToEntityMapping
 from retriever.types.metakg import Operation, OperationNode
-from retriever.types.trapi import BiolinkEntity, Infores
+from retriever.types.trapi import BiolinkEntity, Infores, QueryDict, ResponseDict
 
 
 class GandalfDriver(DatabaseDriver):
     """Driver for Gandalf."""
 
+    metadata: dict[str, Any] | None
     settings: GandalfSettings
     endpoint: str
     query_timeout: float
     connect_retries: int
-    version: str | None = None
 
     _http_session: aiohttp.ClientSession | None = None
 
     _failed: bool = False
-    _version_cache: TTLCache[str, str | None] = TTLCache(maxsize=1, ttl=60)
-    _mapping_cache: TTLCache[str, dict[str, Any] | None] = TTLCache(maxsize=1, ttl=300)
 
     def __init__(
         self,
-        *,
-        version: str | None = None,
     ) -> None:
         """Initialize the Gandalf driver with connection settings.
 
@@ -49,32 +45,19 @@ class GandalfDriver(DatabaseDriver):
         self.connect_retries = self.settings.connect_retries
         self._http_session = None
 
-        # Version precedence: constructor arg > env var > auto-detect from DB
-        if version is not None:
-            self.version = version
-            log.debug(f"Using schema version from constructor parameter: {version}")
-        elif self.settings.preferred_version:
-            self.version = self.settings.preferred_version
-            log.debug(
-                "Using schema version from TIER0__GANDALF__PREFERRED_VERSION env var: "
-                + f"{self.version}"
-            )
-        else:
-            self.version = None
-
         self.endpoint = self.settings.http_endpoint
         self.metadata = None
 
-    def remove_none_values(self, d: dict) -> dict:
+    def remove_none_values(self, d: Any) -> Any:
         """Remove all None values."""
         if not isinstance(d, dict):
             return d
-        return {k: self.remove_none_values(v) for k, v in d.items() if v is not None}
+        return {k: self.remove_none_values(v) for k, v in d.items() if v is not None}  # pyright:ignore[reportUnknownVariableType]
 
     @override
     async def run_query(
-        self, query: dict, *args: Any, **kwargs: Any
-    ) -> dict:
+        self, query: QueryDict, *args: Any, **kwargs: Any
+    ) -> ResponseDict:
         """Execute a query against the Gandalf database and parse into dataclasses.
 
         Args:
@@ -89,7 +72,8 @@ class GandalfDriver(DatabaseDriver):
         otel_span = trace.get_current_span()
         if otel_span and otel_span.is_recording():
             otel_span.add_event(
-                "gandalf_query_start", attributes={"gandalf_query": query}
+                "gandalf_query_start",
+                attributes={"gandalf_query": orjson.dumps(dict(**query)).decode()},
             )
         else:
             otel_span = None
@@ -113,8 +97,8 @@ class GandalfDriver(DatabaseDriver):
 
     async def _run_http_query(
         self,
-        query: dict,
-    ) -> dict:
+        query: QueryDict,
+    ) -> ResponseDict:
         """Execute query using HTTP protocol with DQL.
 
         Args:
@@ -153,13 +137,6 @@ class GandalfDriver(DatabaseDriver):
             await self._connect_http()
             log.success("Gandalf http connection successful!")
 
-            # Populate version cache after successful connect so subsequent
-            # code can use get_active_version without triggering a query.
-            try:
-                await self.get_active_version()
-            except Exception as e:
-                log.warning(f"Unable to fetch active schema version after connect: {e}")
-
         except Exception as e:
             await self._cleanup_connections()
             if retries < self.connect_retries:
@@ -175,7 +152,7 @@ class GandalfDriver(DatabaseDriver):
                 raise e
 
     async def _connect_http(self) -> None:
-        """Establish HTTP connection to Dgraph."""
+        """Establish HTTP connection to Gandalf."""
         self._http_session = aiohttp.ClientSession()
         # Test connection with a simple query
         async with self._http_session.get(
@@ -234,17 +211,3 @@ class GandalfDriver(DatabaseDriver):
     @override
     async def get_subclass_mapping(self) -> EntityToEntityMapping:
         raise NotImplementedError("Tier 0 does not implement subclass mapping.")
-
-    async def get_active_version(self) -> str | None:
-        """Queries Dgraph for the active schema version and caches the result.
-
-        If a version was provided at initialization, it will be returned directly.
-
-        This method implements manual caching to be async-safe.
-        """
-        # If a version was manually set on the driver, always use it.
-        if self.version:
-            log.debug(f"Using manually specified Gandalf schema version: {self.version}")
-            return self.version
-
-        return None

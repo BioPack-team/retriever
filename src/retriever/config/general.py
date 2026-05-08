@@ -299,10 +299,8 @@ class DgraphSettings(BaseModel):
 
 class GandalfSettings(BaseModel):
     """Settings for the Tier 0 Gandalf interface."""
+
     host: str = "localhost"
-    http_port: int = 6429
-    preferred_version: str | None = None
-    use_tls: bool = False
     query_timeout: Annotated[
         int,
         Field(
