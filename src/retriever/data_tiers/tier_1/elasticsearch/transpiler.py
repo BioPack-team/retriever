@@ -1,6 +1,22 @@
 from typing import Any, Literal, cast, override
 
 import orjson
+from translator_tom import (
+    CURIE,
+    Attribute,
+    AttributeConstraint,
+    Biolink,
+    Edge,
+    EdgeID,
+    KnowledgeGraph,
+    Node,
+    QEdge,
+    QNode,
+    Qualifier,
+    QueryGraph,
+    RetrievalSource,
+    infores,
+)
 
 from retriever.config.general import CONFIG
 from retriever.data_tiers.base_transpiler import Tier1Transpiler
@@ -27,36 +43,12 @@ from retriever.data_tiers.tier_1.elasticsearch.types import (
 )
 from retriever.lookup.utils import QueryDumper
 from retriever.types.general import BackendResult
-from retriever.types.trapi import (
-    CURIE,
-    AttributeDict,
-    BiolinkEntity,
-    BiolinkPredicate,
-    EdgeDict,
-    EdgeIdentifier,
-    Infores,
-    KnowledgeGraphDict,
-    NodeDict,
-    QEdgeDict,
-    QNodeDict,
-    QualifierDict,
-    QualifierTypeID,
-    QueryGraphDict,
-    RetrievalSourceDict,
-)
-from retriever.utils import biolink
-from retriever.utils.trapi import (
-    append_aggregator_source,
-    attributes_meet_contraints,
-    hash_edge,
-    hash_hex,
-)
 
 # TODO: Eventually we can roll this into the Tier2 x-bte transpiler
 # And use x-bte annotations either on the SmartAPI for each Tier1 resource
 # Or just a built-in annotation
 
-SpecialCaseDict = dict[str, tuple[str, Any]]
+SpecialCase = dict[str, tuple[str, Any]]
 
 
 NODE_FIELDS_MAPPING = {
@@ -75,7 +67,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
 
     @override
     def process_qgraph(
-        self, qgraph: QueryGraphDict, *additional_qgraphs: QueryGraphDict
+        self, qgraph: QueryGraph, *additional_qgraphs: QueryGraph
     ) -> ESPayload | list[ESPayload]:
         payload = super().process_qgraph(qgraph, *additional_qgraphs)
 
@@ -99,35 +91,35 @@ class ElasticsearchTranspiler(Tier1Transpiler):
 
         # to match both "category" and "categories"
         if "categor" in target or "predicate" in target:
-            adjusted_value = [biolink.rmprefix(cat) for cat in value]
+            adjusted_value = [Biolink.rmprefix(cat) for cat in value]
         return {"terms": {f"{target}": adjusted_value}}
 
     def process_qnode(
-        self, qnode: QNodeDict, side: Literal["subject", "object"]
+        self, qnode: QNode, side: Literal["subject", "object"]
     ) -> list[ESFilterClause]:
-        """Provide query terms based on given side and fields of a QNodeDict.
+        """Provide query terms based on given side and fields of a QNode.
 
         Example return value: { "terms": { "subject.id": ["NCBIGene:22828"] }},
         """
         query_fields = NODE_FIELDS_MAPPING.copy()
 
         # bypass categories if id is provided
-        if qnode.get("ids", None):
+        if qnode.ids:
             query_fields.pop("categories")
 
         return [
             self.generate_query_term(f"{side}.{es_field}", values)
             for qfield, es_field in query_fields.items()
-            if (values := qnode.get(qfield))
+            if (values := getattr(qnode, qfield))
         ]
 
-    def process_qedge(self, qedge: QEdgeDict) -> list[ESFilterClause]:
-        """Provide query terms based on a given QEdgeDict.
+    def process_qedge(self, qedge: QEdge) -> list[ESFilterClause]:
+        """Provide query terms based on a given QEdge.
 
         Example return value: { "terms": { "predicates": ["Gene"] }},
         """
         # Check required field
-        predicates = qedge.get("predicates")
+        predicates = qedge.predicates
 
         if type(predicates) is not list or len(predicates) == 0:
             raise Exception("Invalid predicates values")
@@ -137,14 +129,14 @@ class ElasticsearchTranspiler(Tier1Transpiler):
         return [
             self.generate_query_term(f"{es_field}", values)
             for qfield, es_field in EDGE_FIELDS_MAPPING.items()
-            if (values := qedge.get(qfield))
+            if (values := getattr(qedge, qfield))
         ]
 
     def generate_attribute_constraints(
         self,
-        in_node: QNodeDict,
-        edge: QEdgeDict,
-        out_node: QNodeDict,
+        in_node: QNode,
+        edge: QEdge,
+        out_node: QNode,
         query_kwargs: ESBooleanQuery,
     ) -> ESBooleanQuery:
         """Generate attribute constraints based on QNode/QEdge payload."""
@@ -163,9 +155,9 @@ class ElasticsearchTranspiler(Tier1Transpiler):
             )
 
             if origin == "edge":
-                constraints = entity.get("attribute_constraints", None)
+                constraints = cast(QEdge, entity).attribute_constraints
             else:
-                constraints = entity.get("constraints", None)
+                constraints = cast(QNode, entity).constraints
 
             if constraints:
                 must, must_not = process_attribute_constraints(constraints, origin)
@@ -183,9 +175,9 @@ class ElasticsearchTranspiler(Tier1Transpiler):
 
     def generate_queries(
         self,
-        in_node: QNodeDict,
-        edge: QEdgeDict,
-        out_node: QNodeDict,
+        in_node: QNode,
+        edge: QEdge,
+        out_node: QNode,
         gen_attribute_constraints: bool = False,  # disable attribute constraints for now
     ) -> ESPayload:
         """Generate query based on merged edges schema on Elasticsearch.
@@ -211,7 +203,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
             "filter": [*subject_terms, *object_terms, *edge_terms]
         }
 
-        qualifier_constraints = edge.get("qualifier_constraints", None)
+        qualifier_constraints = edge.qualifier_constraints
         qualifier_terms = process_qualifier_constraints(qualifier_constraints)
 
         if qualifier_terms:
@@ -243,68 +235,68 @@ class ElasticsearchTranspiler(Tier1Transpiler):
         return ESPayload(query=ESQueryContext(bool=ESBooleanQuery(**query_kwargs)))
 
     @override
-    def convert_triple(self, qgraph: QueryGraphDict) -> ESPayload:
+    def convert_triple(self, qgraph: QueryGraph) -> ESPayload:
         """Provide an ES query body for given trio of Q-dicts."""
-        edge = next(iter(qgraph["edges"].values()), None)
+        edge = next(iter(qgraph.edges.values()), None)
         if edge is None:
             raise ValueError("Query graph must contain exactly one edge.")
-        in_node = qgraph["nodes"][edge["subject"]]
-        out_node = qgraph["nodes"][edge["object"]]
+        in_node = qgraph.nodes[edge.subject]
+        out_node = qgraph.nodes[edge.object]
         return self.generate_queries(in_node, edge, out_node)
 
     @override
-    def convert_batch_triple(self, qgraphs: list[QueryGraphDict]) -> list[ESPayload]:
+    def convert_batch_triple(self, qgraphs: list[QueryGraph]) -> list[ESPayload]:
         return [self.convert_triple(qgraph) for qgraph in qgraphs]
 
     def build_attributes(
-        self, knowledge: ESEdge | ESNode, special_cases: SpecialCaseDict
-    ) -> list[AttributeDict]:
+        self, knowledge: ESEdge | ESNode, special_cases: SpecialCase
+    ) -> list[Attribute]:
         """Build attributes from the given knowledge."""
-        attributes: list[AttributeDict] = []
+        attributes: list[Attribute] = []
 
         for field, value in knowledge.attributes.items():
             if field in special_cases:
                 continue
             if value is not None and value not in ([], ""):
                 attributes.append(
-                    AttributeDict(
-                        attribute_type_id=biolink.ensure_prefix(field),
+                    Attribute.model_construct(
+                        attribute_type_id=Biolink(field),
                         value=value,
                     )
                 )
 
         for name, value in special_cases.values():
             if value is not None and value not in ([], ""):
-                attributes.append(AttributeDict(attribute_type_id=name, value=value))
+                attributes.append(
+                    Attribute.model_construct(attribute_type_id=name, value=value)
+                )
 
         return attributes
 
     def build_single_node(
-        self, node: ESNode, attributes: list[AttributeDict] | None = None
-    ) -> NodeDict:
+        self, node: ESNode, attributes: list[Attribute] | None = None
+    ) -> Node:
         """Build a single TRAPI node from the given knowledge."""
         _attributes = [] if attributes is None else attributes
 
         if attributes is None:
             # Cases that require additional formatting to be TRAPI-compliant
-            special_cases: SpecialCaseDict = {}
+            special_cases: SpecialCase = {}
             _attributes = self.build_attributes(node, special_cases)
 
-        trapi_node = NodeDict(
+        trapi_node = Node.model_construct(
             name=node.name,
-            categories=[
-                BiolinkEntity(biolink.ensure_prefix(cat)) for cat in node.category
-            ],
+            categories=[Biolink(cat) for cat in node.category],
             attributes=_attributes,
         )
 
         return trapi_node
 
     def build_nodes(
-        self, edges: list[ESEdge], query_subject: QNodeDict, query_object: QNodeDict
-    ) -> dict[CURIE, NodeDict]:
+        self, edges: list[ESEdge], query_subject: QNode, query_object: QNode
+    ) -> dict[CURIE, Node]:
         """Build TRAPI nodes from backend representation."""
-        nodes = dict[CURIE, NodeDict]()
+        nodes = dict[CURIE, Node]()
         for edge in edges:
             node_ids = dict[str, CURIE]()
             for node_pos in ("subject", "object"):
@@ -314,15 +306,15 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                 if node_id in nodes:
                     continue
                 # Cases that require additional formatting to be TRAPI-compliant
-                special_cases: SpecialCaseDict = {}
+                special_cases: SpecialCase = {}
 
                 attributes = self.build_attributes(node, special_cases)
 
                 constraints = (
                     query_subject if node_pos == "subject" else query_object
-                ).get("constraints", []) or []
+                ).constraints_list
 
-                if not attributes_meet_contraints(constraints, attributes):
+                if not AttributeConstraint.set_met_by(constraints, attributes):
                     continue
 
                 trapi_node = self.build_single_node(node, attributes)
@@ -331,95 +323,90 @@ class ElasticsearchTranspiler(Tier1Transpiler):
 
         return nodes
 
-    def build_edges(
-        self, edges: list[ESEdge], qedge: QEdgeDict
-    ) -> dict[EdgeIdentifier, EdgeDict]:
+    def build_edges(self, edges: list[ESEdge], qedge: QEdge) -> dict[EdgeID, Edge]:
         """Build TRAPI edges from backend representation."""
-        trapi_edges = dict[EdgeIdentifier, EdgeDict]()
+        trapi_edges = dict[EdgeID, Edge]()
         for edge in edges:
-            attributes: list[AttributeDict] = []
-            qualifiers: list[QualifierDict] = []
-            sources: list[RetrievalSourceDict] = []
+            attributes: list[Attribute] = []
+            qualifiers: list[Qualifier] = []
+            sources: list[RetrievalSource] = []
 
             # Cases that require additional formatting to be TRAPI-compliant
-            special_cases: SpecialCaseDict = {
+            special_cases: SpecialCase = {
                 "category": (
-                    "biolink:category",
-                    [
-                        BiolinkEntity(biolink.ensure_prefix(cat))
-                        for cat in edge.attributes.get("category", [])
-                    ],
+                    Biolink("category"),
+                    [Biolink(cat) for cat in edge.attributes.get("category", [])],
                 ),
             }
 
             attributes = self.build_attributes(edge, special_cases)
 
-            constraints = qedge.get("attribute_constraints", []) or []
-            if not attributes_meet_contraints(constraints, attributes):
+            constraints = qedge.attribute_constraints_list
+            if not AttributeConstraint.set_met_by(constraints, attributes):
                 continue
 
             # Build Qualifiers
             for qtype, qval in edge.qualifiers.items():
                 qualifiers.append(
-                    QualifierDict(
-                        qualifier_type_id=QualifierTypeID(biolink.ensure_prefix(qtype)),
+                    Qualifier.model_construct(
+                        qualifier_type_id=Biolink(qtype),
                         qualifier_value=qval
                         if "qualified_predicate" not in qtype
-                        else biolink.ensure_prefix(qval),
+                        else Biolink(qval),
                     )
                 )
 
             # Build Sources
             for source in edge.sources:
-                retrieval_source = RetrievalSourceDict(
-                    resource_id=Infores(source["resource_id"]),
-                    resource_role=source["resource_role"],
+                retrieval_source = RetrievalSource.model_construct(
+                    resource_id=infores(source.resource_id),
+                    resource_role=source.resource_role,
                 )
-                if upstream_resource_ids := source.get("upstream_resource_ids"):
-                    retrieval_source["upstream_resource_ids"] = [
-                        Infores(upstream) for upstream in upstream_resource_ids
+                if upstream_resource_ids := source.upstream_resource_ids:
+                    retrieval_source.upstream_resource_ids = [
+                        infores(upstream) for upstream in upstream_resource_ids
                     ]
-                if source_record_urls := source.get("source_record_urls"):
-                    retrieval_source["source_record_urls"] = source_record_urls
+                if source_record_urls := source.source_record_urls:
+                    retrieval_source.source_record_urls = source_record_urls
                 sources.append(retrieval_source)
 
             # Build Edge
-            trapi_edge = EdgeDict(
-                predicate=BiolinkPredicate(biolink.ensure_prefix(edge.predicate)),
-                subject=CURIE(edge.subject.id),
-                object=CURIE(edge.object.id),
+            trapi_edge = Edge.model_construct(
+                predicate=Biolink(edge.predicate),
+                subject=edge.subject.id,
+                object=edge.object.id,
                 sources=sources,
             )
             if len(attributes) > 0:
-                trapi_edge["attributes"] = attributes
+                trapi_edge.attributes = attributes
             if len(qualifiers) > 0:
-                trapi_edge["qualifiers"] = qualifiers
+                trapi_edge.qualifiers = qualifiers
 
-            append_aggregator_source(trapi_edge, Infores(CONFIG.tier1.backend_infores))
+            trapi_edge.append_aggregator(infores(CONFIG.tier1.backend_infores))
 
-            edge_hash = hash_hex(hash_edge(trapi_edge))
+            edge_hash = trapi_edge.hash()
             trapi_edges[edge_hash] = trapi_edge
 
         return trapi_edges
 
     @override
     def convert_results(
-        self, qgraph: QueryGraphDict, results: list[ESEdge]
+        self, qgraph: QueryGraph, results: list[ESEdge]
     ) -> BackendResult:
-        edge = next(iter(qgraph["edges"].values()))
-        sbj = qgraph["nodes"][edge["subject"]]
-        obj = qgraph["nodes"][edge["object"]]
+        edge = next(iter(qgraph.edges.values()))
+        sbj = qgraph.nodes[edge.subject]
+        obj = qgraph.nodes[edge.object]
         nodes = self.build_nodes(results, sbj, obj)
         edges = self.build_edges(results, edge)
 
         return BackendResult(
             results=[],
-            knowledge_graph=KnowledgeGraphDict(nodes=nodes, edges=edges),
+            knowledge_graph=KnowledgeGraph.model_construct(nodes=nodes, edges=edges),
             auxiliary_graphs={},
         )
 
     def convert_batch_results(
-        self, qgraph_list: list[QueryGraphDict], results: list[list[ESEdge]]
+        self, qgraph_list: list[QueryGraph], results: list[list[ESEdge]]
     ) -> list[BackendResult]:
         """Wrapper for converting results for a batch query."""
         return [

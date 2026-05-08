@@ -7,6 +7,19 @@ from collections.abc import AsyncGenerator, Hashable, Iterable
 from typing import cast
 
 from opentelemetry import trace
+from translator_tom import (
+    CURIE,
+    AuxGraphID,
+    AuxiliaryGraph,
+    Edge,
+    EdgeID,
+    KnowledgeGraph,
+    LogEntry,
+    QEdgeID,
+    QNodeID,
+    QueryGraph,
+    Result,
+)
 
 from retriever.config.general import CONFIG
 from retriever.data_tiers import tier_manager
@@ -31,33 +44,19 @@ from retriever.types.general import (
     QEdgeIDMap,
     QueryInfo,
 )
-from retriever.types.trapi import (
-    CURIE,
-    AuxGraphID,
-    AuxiliaryGraphDict,
-    EdgeDict,
-    EdgeIdentifier,
-    KnowledgeGraphDict,
-    LogEntryDict,
-    QEdgeID,
-    QNodeID,
-    QueryGraphDict,
-    ResultDict,
+from retriever.utils.general import (
+    SUBCLASS_SKIP_PREDICATES,
+    EmptyIteratorError,
+    merge_iterators,
 )
-from retriever.utils import biolink
-from retriever.utils.general import EmptyIteratorError, merge_iterators
 from retriever.utils.logs import TRAPILogger
-from retriever.utils.trapi import (
-    initialize_kgraph,
-    update_kgraph,
-)
+from retriever.utils.trapi import initialize_kgraph
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 OP_TABLE_MANAGER = OpTableManager()
 SUBCLASS_MAPPING = SubclassMapping()
 DISPATCHER = SubqueryDispatcher()
 
-# TODO: Set interpretation
 
 CompletePathName = str
 
@@ -66,15 +65,15 @@ class QueryGraphExecutor:
     """Handler class for running the QGX algorithm."""
 
     ctx: QueryInfo
-    qgraph: QueryGraphDict
+    qgraph: QueryGraph
     job_log: TRAPILogger
 
     q_agraph: AdjacencyGraph
     qedge_map: QEdgeIDMap
     qedge_claims: dict[QEdgeID, Branch | None]
-    kgraph: KnowledgeGraphDict
-    aux_graphs: dict[AuxGraphID, AuxiliaryGraphDict]
-    kedges_by_input: dict[SuperpositionHop, list[EdgeDict]]
+    kgraph: KnowledgeGraph
+    aux_graphs: dict[AuxGraphID, AuxiliaryGraph]
+    kedges_by_input: dict[SuperpositionHop, list[Edge]]
     k_agraph: KAdjacencyGraph
 
     active_branches: set[BranchID]
@@ -90,7 +89,7 @@ class QueryGraphExecutor:
     start_time: float
     timeout: float
 
-    def __init__(self, qgraph: QueryGraphDict, query_info: QueryInfo) -> None:
+    def __init__(self, qgraph: QueryGraph, query_info: QueryInfo) -> None:
         """Initialize a QueryGraphExecutor, setting up information shared by methods."""
         self.ctx = query_info
         self.qgraph = qgraph
@@ -99,9 +98,7 @@ class QueryGraphExecutor:
         q_agraph, qedge_map = make_mappings(self.qgraph)
         self.q_agraph = q_agraph
         self.qedge_map = qedge_map
-        self.qedge_claims = {
-            QEdgeID(qedge_id): None for qedge_id in self.qgraph["edges"]
-        }
+        self.qedge_claims = dict.fromkeys(self.qgraph.edges)
 
         self.kgraph = initialize_kgraph(self.qgraph)
         self.aux_graphs = {}
@@ -110,8 +107,8 @@ class QueryGraphExecutor:
         # (branch's input curie and current edge)
         self.kedges_by_input = {}
         self.k_agraph = {
-            QEdgeID(qedge_id): dict[CURIE, dict[CURIE, list[EdgeIdentifier]]]()
-            for qedge_id in self.qgraph["edges"]
+            qedge_id: dict[CURIE, dict[CURIE, list[EdgeID]]]()
+            for qedge_id in self.qgraph.edges
         }
 
         self.active_branches = set()
@@ -120,8 +117,8 @@ class QueryGraphExecutor:
         self.complete_paths = set()
 
         self.skip_subclassing = any(
-            "biolink:subclass_of" in (edge.get("predicates", []) or [])
-            for edge in self.qgraph["edges"].values()
+            "biolink:subclass_of" in edge.predicates_list
+            for edge in self.qgraph.edges.values()
         )
         self.subclass_backmap = {}
 
@@ -197,7 +194,7 @@ class QueryGraphExecutor:
             )
 
             with tracer.start_as_current_span("convert_results"):
-                results = list[ResultDict]()
+                results = list[Result]()
                 for part in reconciled:
                     await asyncio.sleep(0)
                     results.append(part.as_result(self.k_agraph))
@@ -211,13 +208,12 @@ class QueryGraphExecutor:
                 "Tier {}: Retrieved {} results / {} nodes / {} edges in {}ms.".format(
                     ", ".join(str(t) for t in self.ctx.tiers if t > 0),
                     len(results),
-                    len(self.kgraph["nodes"]),
-                    len(self.kgraph["edges"]),
+                    len(self.kgraph.nodes),
+                    len(self.kgraph.edges),
                     duration_ms,
                 )
             )
 
-            # TODO: cleanup (set_interpretation)
             if len(results) > 0:
                 solve_subclass_edges(
                     self.subclass_backmap,
@@ -243,8 +239,8 @@ class QueryGraphExecutor:
         """Hydrate skeletal KG nodes using tier-1 canonical node metadata."""
         incomplete_nodes = [
             curie
-            for curie, node in self.kgraph["nodes"].items()
-            if len(node.get("categories", [])) == 0 or not node.get("name")
+            for curie, node in self.kgraph.nodes.items()
+            if len(node.categories) == 0 or node.name is None
         ]
         if len(incomplete_nodes) == 0:
             return
@@ -268,10 +264,10 @@ class QueryGraphExecutor:
                     continue
 
                 trapi_node = transpiler.build_single_node(fetched)
-                update_kgraph(
-                    self.kgraph,
-                    KnowledgeGraphDict(nodes={curie: trapi_node}, edges={}),
-                )
+                if curie in self.kgraph.nodes:
+                    self.kgraph.nodes[curie].update(trapi_node)
+                else:
+                    self.kgraph.nodes[curie] = trapi_node
                 hydrated_count += 1
             except Exception:
                 self.job_log.exception(f"Failed to hydrate node metadata for {curie}.")
@@ -281,14 +277,12 @@ class QueryGraphExecutor:
 
     async def expand_initial_subclasses(self) -> None:
         """Check if any pinned nodes have subclasses and expand them accordingly."""
-        for qnode_id, node in self.qgraph["nodes"].items():
+        for qnode_id, node in self.qgraph.nodes.items():
             # Verify that no edges connected to this node use subclass_of
 
-            expanded_curies = await self.expand_subclasses(
-                qnode_id, (node.get("ids", []) or [])
-            )
+            expanded_curies = await self.expand_subclasses(qnode_id, (node.ids_list))
 
-            node["ids"] = expanded_curies
+            node.ids = expanded_curies
 
     async def expand_subclasses(
         self, qnode_id: QNodeID, curies: Iterable[CURIE]
@@ -303,9 +297,7 @@ class QueryGraphExecutor:
         # Then we can't proceed
         if self.skip_subclassing or any(
             any(
-                set(edge.get("predicates", []) or []).intersection(
-                    biolink.SUBCLASS_SKIP_PREDICATES
-                )
+                set(edge.predicates_list).intersection(SUBCLASS_SKIP_PREDICATES)
                 for edge in edges
             )
             for edges in self.q_agraph[qnode_id].values()
@@ -466,7 +458,7 @@ class QueryGraphExecutor:
 
             branch_tasks = list[asyncio.Task[list[Partial]]]()
             parallel_tasks = list[
-                asyncio.Task[tuple[KnowledgeGraphDict, list[LogEntryDict]]]
+                asyncio.Task[tuple[KnowledgeGraph, list[LogEntry]]]
                 | asyncio.Task[list[Partial]]
             ](subquery_tasks)
 
@@ -491,7 +483,7 @@ class QueryGraphExecutor:
                     else None
                 )
                 done, pending = await asyncio.wait(
-                    parallel_tasks,  # pyright:ignore[reportUnknownArgumentType] pyright being weird
+                    parallel_tasks,
                     timeout=timeout,
                     return_when=asyncio.FIRST_COMPLETED,
                 )
@@ -526,7 +518,7 @@ class QueryGraphExecutor:
     async def get_subquery_tasks(
         self,
         current_branch: Branch,
-    ) -> tuple[list[asyncio.Task[tuple[KnowledgeGraphDict, list[LogEntryDict]]]], bool]:
+    ) -> tuple[list[asyncio.Task[tuple[KnowledgeGraph, list[LogEntry]]]], bool]:
         """Create tasks for the subqueries the current branch will generate.
 
         Avoids creating duplicate tasks when some superposition is already executing the
@@ -568,7 +560,7 @@ class QueryGraphExecutor:
 
     async def consume_parallel_task(
         self,
-        task: asyncio.Task[tuple[KnowledgeGraphDict, list[LogEntryDict]]]
+        task: asyncio.Task[tuple[KnowledgeGraph, list[LogEntry]]]
         | asyncio.Task[list[Partial]],
         current_branch: Branch,
         partials: dict[SuperpositionHop, dict[QEdgeID, list[Partial]]],
@@ -592,7 +584,7 @@ class QueryGraphExecutor:
 
     async def consume_subquery_task(
         self,
-        task_result: tuple[KnowledgeGraphDict, list[LogEntryDict]],
+        task_result: tuple[KnowledgeGraph, list[LogEntry]],
         current_branch: Branch,
         partials: dict[SuperpositionHop, dict[QEdgeID, list[Partial]]],
         update_kgraph: bool,
@@ -612,15 +604,15 @@ class QueryGraphExecutor:
         next_curies = set[CURIE]()
 
         # Ensure "backwards" edges don't cause input curie to propogate
-        for edge in new_kgraph["edges"].values():
+        for edge in new_kgraph.edges.values():
             if (
-                edge["object"] == current_branch.input_curie
-                and edge["subject"] != edge["object"]
+                edge.object == current_branch.input_curie
+                and edge.subject != edge.object
             ):
-                next_curies.add(edge["subject"])  # "Backwards" edge
+                next_curies.add(edge.subject)  # "Backwards" edge
                 continue
             # Otherwise, normal edge (incl. self-edges) we add the object
-            next_curies.add(edge["object"])
+            next_curies.add(edge.object)
 
         expanded_next_curies = await self.expand_subclasses(
             current_branch.output_node, next_curies
@@ -638,11 +630,11 @@ class QueryGraphExecutor:
             self.job_log.trace(
                 f"{current_branch.superposition_name}: Returning {len(expanded_next_curies)} Partial results."
             )
-            for edge in new_kgraph["edges"].values():
-                if edge["subject"] == current_branch.input_curie:
-                    next_hop_curie = edge["object"]
+            for edge in new_kgraph.edges.values():
+                if edge.subject == current_branch.input_curie:
+                    next_hop_curie = edge.object
                 else:
-                    next_hop_curie = edge["subject"]
+                    next_hop_curie = edge.subject
 
                 partial_binding = qedge_id, current_branch.input_curie, next_hop_curie
 
@@ -672,29 +664,29 @@ class QueryGraphExecutor:
     async def update_knowledge(
         self,
         current_branch: Branch,
-        new_kgraph: KnowledgeGraphDict,
+        new_kgraph: KnowledgeGraph,
         do_update_kgraph: bool,
     ) -> None:
         """Update knowledge tracking with a new knowledge graph."""
         qedge_id = current_branch.current_edge
 
         if do_update_kgraph:
-            update_kgraph(self.kgraph, new_kgraph)
+            self.kgraph.update(new_kgraph)
 
         if current_branch.hop_id not in self.kedges_by_input:
-            self.kedges_by_input[current_branch.hop_id] = list[EdgeDict]()
-        self.kedges_by_input[current_branch.hop_id].extend(new_kgraph["edges"].values())
+            self.kedges_by_input[current_branch.hop_id] = list[Edge]()
+        self.kedges_by_input[current_branch.hop_id].extend(new_kgraph.edges.values())
 
         # Update the k_agraph
-        for edge_id, edge in new_kgraph["edges"].items():
-            if edge["subject"] == current_branch.input_curie:
-                in_node, out_node = edge["subject"], edge["object"]
+        for edge_id, edge in new_kgraph.edges.items():
+            if edge.subject == current_branch.input_curie:
+                in_node, out_node = edge.subject, edge.object
             else:
-                in_node, out_node = edge["object"], edge["subject"]
+                in_node, out_node = edge.object, edge.subject
             if in_node not in self.k_agraph[qedge_id]:
-                self.k_agraph[qedge_id][in_node] = dict[CURIE, list[EdgeIdentifier]]()
+                self.k_agraph[qedge_id][in_node] = dict[CURIE, list[EdgeID]]()
             if out_node not in self.k_agraph[qedge_id][in_node]:
-                self.k_agraph[qedge_id][in_node][out_node] = list[EdgeIdentifier]()
+                self.k_agraph[qedge_id][in_node][out_node] = list[EdgeID]()
 
             self.k_agraph[qedge_id][in_node][out_node].append(edge_id)
 

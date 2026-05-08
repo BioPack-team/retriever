@@ -9,12 +9,12 @@ from typing import Any, Literal, Self, TypeGuard, cast
 
 import msgpack
 import orjson
+from translator_tom import Biolink, Infores, ResourceRole, ResourceRoleEnum
 
 from retriever.data_tiers.utils import (
     DINGO_KG_EDGE_TOPLEVEL_VALUES,
     DINGO_KG_NODE_TOPLEVEL_VALUES,
 )
-from retriever.utils import biolink
 
 # Regex to find the node binding, ignoring an optional batch prefix like "q0_"
 # It captures the part after the optional prefix and "node_"
@@ -67,9 +67,9 @@ _EDGE_KEY_PARTS = 3
 class Source:
     """Represents a single source with its resource ID and role."""
 
-    resource_id: str
-    resource_role: str
-    upstream_resource_ids: list[str] = field(default_factory=list)
+    resource_id: Infores
+    resource_role: ResourceRole
+    upstream_resource_ids: list[Infores] = field(default_factory=list)
     source_record_urls: list[str] = field(default_factory=list)
     source_id: str = ""
     source_category: list[str] = field(default_factory=list)
@@ -82,7 +82,7 @@ class Source:
         norm = _strip_prefix(source_dict, prefix)
         return cls(
             resource_id=str(norm.get("resource_id", "")),
-            resource_role=str(norm.get("resource_role", "")),
+            resource_role=ResourceRoleEnum(str(norm.get("resource_role", ""))).value,
             upstream_resource_ids=_to_str_list(norm.get("upstream_resource_ids")),
             source_record_urls=_to_str_list(norm.get("source_record_urls")),
             source_id=str(norm.get("source_id", "")),
@@ -194,7 +194,7 @@ class Edge:
         for key, value in norm.items():
             if key in DINGO_KG_EDGE_TOPLEVEL_VALUES or key.startswith("node_"):
                 continue
-            if biolink.is_qualifier(key) and value is not None:
+            if Biolink.is_qualifier(key) and value is not None:
                 if not isinstance(value, str):
                     qualifiers[key] = orjson.dumps(value).decode()
                 else:

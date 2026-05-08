@@ -7,6 +7,28 @@ from typing import Any, Protocol, TypeAlias, override
 
 import orjson
 from loguru import logger
+from translator_tom import (
+    CURIE,
+    Attribute,
+    AttributeConstraint,
+    AuxGraphID,
+    AuxiliaryGraph,
+    Biolink,
+    Edge,
+    EdgeID,
+    KnowledgeGraph,
+    Node,
+    QEdge,
+    QEdgeID,
+    QNode,
+    QNodeID,
+    Qualifier,
+    QualifierConstraint,
+    QueryGraph,
+    RetrievalSource,
+    infores,
+    tomhash,
+)
 
 from retriever.config.general import CONFIG
 from retriever.data_tiers.base_transpiler import Tier0Transpiler
@@ -15,36 +37,7 @@ from retriever.lookup.partial import Partial
 from retriever.lookup.subclass_format import solve_subclass_edges
 from retriever.lookup.utils import QueryDumper
 from retriever.types.general import BackendResult, KAdjacencyGraph
-from retriever.types.trapi import (
-    CURIE,
-    AttributeConstraintDict,
-    AttributeDict,
-    AuxGraphID,
-    AuxiliaryGraphDict,
-    BiolinkEntity,
-    BiolinkPredicate,
-    EdgeDict,
-    EdgeIdentifier,
-    Infores,
-    KnowledgeGraphDict,
-    NodeDict,
-    QEdgeDict,
-    QEdgeID,
-    QNodeDict,
-    QNodeID,
-    QualifierConstraintDict,
-    QualifierDict,
-    QualifierTypeID,
-    QueryGraphDict,
-    RetrievalSourceDict,
-)
-from retriever.utils import biolink
-from retriever.utils.trapi import (
-    append_aggregator_source,
-    attributes_meet_contraints,
-    hash_edge,
-    hash_hex,
-)
+from retriever.utils.general import SUBCLASS_SKIP_PREDICATES
 
 
 @dataclass(frozen=True)
@@ -52,13 +45,13 @@ class EdgeTraversalContext:
     """Context for building an edge traversal query."""
 
     edge_id: QEdgeID
-    edge: QEdgeDict
+    edge: QEdge
     target_id: QNodeID
-    target_node: QNodeDict
+    target_node: QNode
     edge_direction: str  # "out" or "in"
     visited: set[QNodeID]
-    nodes: Mapping[QNodeID, QNodeDict]
-    edges: Mapping[QEdgeID, QEdgeDict]
+    nodes: Mapping[QNodeID, QNode]
+    edges: Mapping[QEdgeID, QEdge]
 
 
 @dataclass(frozen=True)
@@ -72,8 +65,8 @@ class DirectionTraversalContext:
     target_id: QNodeID
     target_filter: str
     child_visited: set[QNodeID]
-    nodes: Mapping[QNodeID, QNodeDict]
-    edges: Mapping[QEdgeID, QEdgeDict]
+    nodes: Mapping[QNodeID, QNode]
+    edges: Mapping[QEdgeID, QEdge]
 
 
 @dataclass(frozen=True)
@@ -266,7 +259,7 @@ class DgraphTranspiler(Tier0Transpiler):
             enable_subclass_edges: Enable subclass edge expansion. If None, uses config value.
         """
         super().__init__()
-        self.kgraph: KnowledgeGraphDict = KnowledgeGraphDict(nodes={}, edges={})
+        self.kgraph: KnowledgeGraph = KnowledgeGraph(nodes={}, edges={})
         self.k_agraph: KAdjacencyGraph
         self.version = version
         self.prefix = f"{version}_" if version else ""
@@ -309,24 +302,21 @@ class DgraphTranspiler(Tier0Transpiler):
             return " ".join(f"{field}: {self._v(field)}" for field in fields) + " "
         return " ".join(fields) + " "
 
-    def _node_has_ids(self, node: QNodeDict) -> bool:
+    def _node_has_ids(self, node: QNode) -> bool:
         """Check if node has IDs specified."""
-        ids = node.get("ids")
+        ids = node.ids
         return bool(ids and len(ids) > 0)
 
-    def _node_has_categories(self, node: QNodeDict) -> bool:
+    def _node_has_categories(self, node: QNode) -> bool:
         """Check if node has categories specified."""
-        cats = node.get("categories")
+        cats = node.categories
         return bool(cats and len(cats) > 0)
 
     def _is_subclass_predicate(self, predicates: Sequence[str] | None) -> bool:
         """Return True if predicates contain biolink:subclass_of."""
         if not predicates:
-            predicates = ["biolink:related_to"]
-        return any(
-            biolink.ensure_prefix(p) in biolink.SUBCLASS_SKIP_PREDICATES
-            for p in predicates
-        )
+            predicates = [Biolink("related_to")]
+        return any(Biolink(p) in SUBCLASS_SKIP_PREDICATES for p in predicates)
 
     def _subclass_edge_filter(self) -> str:
         """Filter clause for subclass_of edges only."""
@@ -338,8 +328,8 @@ class DgraphTranspiler(Tier0Transpiler):
 
     def _detect_symmetric_and_subclass_edges(
         self,
-        edges: Mapping[QEdgeID, QEdgeDict],
-        nodes: Mapping[QNodeID, QNodeDict],
+        edges: Mapping[QEdgeID, QEdge],
+        nodes: Mapping[QNodeID, QNode],
     ) -> None:
         """Pre-detect all symmetric and subclass edges in the query graph.
 
@@ -347,15 +337,15 @@ class DgraphTranspiler(Tier0Transpiler):
         clauses can correctly identify nodes with special edges.
 
         Args:
-            edges: Dictionary of all edges in the query graph
-            nodes: Dictionary of all nodes in the query graph
+            edges: ionary of all edges in the query graph
+            nodes: ionary of all nodes in the query graph
         """
         self._symmetric_edge_map.clear()
         self._subclass_edge_map.clear()
 
         for edge_id, edge in edges.items():
-            predicates = edge.get("predicates") or []
-            is_symmetric = any(biolink.is_symmetric(str(pred)) for pred in predicates)
+            predicates = edge.predicates_list
+            is_symmetric = any(Biolink.is_symmetric(pred) for pred in predicates)
             is_subclass = self._is_subclass_predicate(predicates)
 
             if is_symmetric and self._symmetric_edges_enabled:
@@ -366,8 +356,8 @@ class DgraphTranspiler(Tier0Transpiler):
 
             # Detect subclass expansion cases (skip if edge itself is subclass_of)
             if not is_subclass and self._subclass_edges_enabled:
-                source_id = edge["subject"]
-                target_id = edge["object"]
+                source_id = edge.subject
+                target_id = edge.object
                 source_node = nodes[source_id]
                 target_node = nodes[target_id]
 
@@ -405,7 +395,7 @@ class DgraphTranspiler(Tier0Transpiler):
     # Query Graph Normalization
     # =========================================================================
 
-    def _normalize_qgraph_ids(self, qgraph: QueryGraphDict) -> None:
+    def _normalize_qgraph_ids(self, qgraph: QueryGraph) -> None:
         """Create normalized mappings for node and edge IDs to prevent injection attacks.
 
         This method creates safe, predictable identifiers (n0, n1, e0, e1, etc.) that are
@@ -423,7 +413,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
         # Create normalized node IDs (n0, n1, n2, ...)
         # Sort for deterministic ordering
-        for i, node_id in enumerate(sorted(qgraph["nodes"].keys())):
+        for i, node_id in enumerate(sorted(qgraph.nodes.keys())):
             normalized = f"n{i}"
             self._node_id_map[node_id] = normalized
             self._reverse_node_map[normalized] = node_id
@@ -431,7 +421,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
         # Create normalized edge IDs (e0, e1, e2, ...)
         # Sort for deterministic ordering
-        for i, edge_id in enumerate(sorted(qgraph["edges"].keys())):
+        for i, edge_id in enumerate(sorted(qgraph.edges.keys())):
             normalized = f"e{i}"
             self._edge_id_map[edge_id] = normalized
             self._reverse_edge_map[normalized] = edge_id
@@ -468,7 +458,7 @@ class DgraphTranspiler(Tier0Transpiler):
         Returns:
             The original node ID from the query graph
         """
-        return self._reverse_node_map.get(normalized_id, QNodeID(normalized_id))
+        return self._reverse_node_map.get(normalized_id, normalized_id)
 
     def _get_original_edge_id(self, normalized_id: str) -> QEdgeID:
         """Get the original edge ID from a normalized ID.
@@ -479,7 +469,7 @@ class DgraphTranspiler(Tier0Transpiler):
         Returns:
             The original edge ID from the query graph
         """
-        return self._reverse_edge_map.get(normalized_id, QEdgeID(normalized_id))
+        return self._reverse_edge_map.get(normalized_id, normalized_id)
 
     # =========================================================================
     # Result-Path Validation
@@ -488,7 +478,7 @@ class DgraphTranspiler(Tier0Transpiler):
     def _filter_cascaded_with_or(
         self,
         nodes: list[dg.Node],
-        plan: NodePlan | QueryGraphDict,
+        plan: NodePlan | QueryGraph,
     ) -> list[dg.Node]:
         """Filter results to enforce cascade with OR logic between symmetric edge directions.
 
@@ -509,17 +499,17 @@ class DgraphTranspiler(Tier0Transpiler):
     def _resolve_result_filter_plan(
         self,
         nodes: list[dg.Node],
-        plan: NodePlan | QueryGraphDict,
+        plan: NodePlan | QueryGraph,
     ) -> NodePlan:
-        if not isinstance(plan, dict):
+        if not isinstance(plan, QueryGraph):
             return plan
 
         qgraph = plan
         if not self._reverse_node_map or not self._reverse_edge_map:
             self._normalize_qgraph_ids(qgraph)
 
-        qnodes = qgraph["nodes"]
-        qedges = qgraph["edges"]
+        qnodes = qgraph.nodes
+        qedges = qgraph.edges
 
         start_node_id = self._infer_start_node_id_from_results(nodes)
         if start_node_id is None:
@@ -559,7 +549,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
     @override
     def process_qgraph(
-        self, qgraph: QueryGraphDict, *additional_qgraphs: QueryGraphDict
+        self, qgraph: QueryGraph, *additional_qgraphs: QueryGraph
     ) -> str:
         payload = super().process_qgraph(qgraph, *additional_qgraphs)
 
@@ -575,7 +565,7 @@ class DgraphTranspiler(Tier0Transpiler):
         return payload
 
     @override
-    def convert_multihop(self, qgraph: QueryGraphDict) -> str:
+    def convert_multihop(self, qgraph: QueryGraph) -> str:
         """Convert a TRAPI multi-hop graph to a proper Dgraph multihop query.
 
         Args:
@@ -587,8 +577,8 @@ class DgraphTranspiler(Tier0Transpiler):
         # Normalize IDs first to prevent injection attacks
         self._normalize_qgraph_ids(qgraph)
 
-        nodes = qgraph["nodes"]
-        edges = qgraph["edges"]
+        nodes = qgraph.nodes
+        edges = qgraph.edges
 
         # Identify the starting node
         start_node_id = self._find_start_node(nodes, edges)
@@ -612,8 +602,8 @@ class DgraphTranspiler(Tier0Transpiler):
 
     def _find_start_node(
         self,
-        nodes: Mapping[QNodeID, QNodeDict],
-        edges: Mapping[QEdgeID, QEdgeDict],
+        nodes: Mapping[QNodeID, QNode],
+        edges: Mapping[QEdgeID, QEdge],
     ) -> QNodeID:
         """Find the best node to start the traversal from.
 
@@ -624,7 +614,7 @@ class DgraphTranspiler(Tier0Transpiler):
             raise ValueError("Query graph must have at least one node.")
 
         # Use pinnedness algorithm to find the most constrained node
-        qgraph = QueryGraphDict(nodes=dict(nodes), edges=dict(edges))
+        qgraph = QueryGraph(nodes=dict(nodes), edges=dict(edges))
         pinnedness_scores = {
             node_id: self._get_pinnedness(qgraph, node_id) for node_id in nodes
         }
@@ -640,22 +630,22 @@ class DgraphTranspiler(Tier0Transpiler):
     # =========================================================================
 
     def _get_adjacency_matrix(
-        self, qgraph: QueryGraphDict
+        self, qgraph: QueryGraph
     ) -> defaultdict[str, defaultdict[str, int]]:
         """Get adjacency matrix."""
         adjacency_matrix: defaultdict[str, defaultdict[str, int]] = defaultdict(
             lambda: defaultdict(int)
         )
-        for qedge in qgraph["edges"].values():
-            adjacency_matrix[qedge["subject"]][qedge["object"]] += 1
-            adjacency_matrix[qedge["object"]][qedge["subject"]] += 1
+        for qedge in qgraph.edges.values():
+            adjacency_matrix[qedge.subject][qedge.object] += 1
+            adjacency_matrix[qedge.object][qedge.subject] += 1
         return adjacency_matrix
 
-    def _get_num_ids(self, qgraph: QueryGraphDict) -> dict[str, int]:
+    def _get_num_ids(self, qgraph: QueryGraph) -> dict[str, int]:
         """Get the number of ids for each node, defaulting to N."""
         num_ids_map: dict[str, int] = {}
-        for qnode_id, qnode in qgraph["nodes"].items():
-            ids = qnode.get("ids")
+        for qnode_id, qnode in qgraph.nodes.items():
+            ids = qnode.ids
             if ids:
                 num_ids_map[qnode_id] = len(ids)
             else:
@@ -708,7 +698,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
         return log_expected_n
 
-    def _get_pinnedness(self, qgraph: QueryGraphDict, qnode_id: str) -> float:
+    def _get_pinnedness(self, qgraph: QueryGraph, qnode_id: str) -> float:
         """Get pinnedness of a single node.
 
         Higher pinnedness is better. With dampened adjacency, fewer IDs (more selective)
@@ -723,7 +713,7 @@ class DgraphTranspiler(Tier0Transpiler):
     # Filter Compilation
     # =========================================================================
 
-    def _build_node_filter(self, node: QNodeDict, *, primary: bool = False) -> str:
+    def _build_node_filter(self, node: QNode, *, primary: bool = False) -> str:
         """Build a filter expression for a node based on its properties.
 
         If `primary` is True, it returns the most selective filter for a `func:` block.
@@ -734,9 +724,9 @@ class DgraphTranspiler(Tier0Transpiler):
         2. Categories (narrow down by type)
         3. Constraints (additional filtering)
         """
-        ids = node.get("ids")
-        categories = node.get("categories")
-        constraints = node.get("constraints")
+        ids = node.ids
+        categories = node.categories
+        constraints = node.constraints
 
         # For primary filter, return the most selective single option
         if primary:
@@ -762,20 +752,20 @@ class DgraphTranspiler(Tier0Transpiler):
 
         return " AND ".join(filters) if filters else ""
 
-    def _build_edge_filter(self, edge: QEdgeDict) -> str:
+    def _build_edge_filter(self, edge: QEdge) -> str:
         """Build a filter expression for an edge based on its properties."""
         filters: list[str] = []
 
         # Handle predicates (multiple) filtering
-        predicates = edge.get("predicates")
+        predicates = edge.predicates
         if predicates:
             if len(predicates) == 1:
                 filters.append(
-                    f'eq({self._v("predicate_ancestors")}, "{predicates[0].replace("biolink:", "")}")'
+                    f'eq({self._v("predicate_ancestors")}, "{Biolink.rmprefix(predicates[0])}")'
                 )
             elif len(predicates) > 1:
                 predicates_str = ", ".join(
-                    f'"{pred.replace("biolink:", "")}"' for pred in predicates
+                    f'"{Biolink.rmprefix(pred)}"' for pred in predicates
                 )
                 filters.append(
                     f"eq({self._v('predicate_ancestors')}, [{predicates_str}])"
@@ -783,15 +773,15 @@ class DgraphTranspiler(Tier0Transpiler):
 
         # NOTE: Attribute constraints are intentionally not applied at the Dgraph query level.
         # They are enforced via Python-level post-filtering in `_build_results` using
-        # `attributes_meet_contraints`. Full transpiler-level support is pending.
+        # `attributes_meet_constraints`. Full transpiler-level support is pending.
         # TODO: Handle attribute constraints
         # attribute_constraints = edge.get("attribute_constraints")
         # if attribute_constraints:
         #     filters.extend(self._convert_constraints_to_filters(attribute_constraints))
 
         # Qualifier constraints
-        qualifier_constraints: Sequence[QualifierConstraintDict] | None = edge.get(
-            "qualifier_constraints"
+        qualifier_constraints: Sequence[QualifierConstraint] | None = (
+            edge.qualifier_constraints
         )
         if qualifier_constraints:
             qc_filter = self._convert_qualifier_constraints_to_filter(
@@ -811,7 +801,7 @@ class DgraphTranspiler(Tier0Transpiler):
             return " AND ".join(filters)
 
     def _convert_constraints_to_filters(
-        self, constraints: list[AttributeConstraintDict]
+        self, constraints: list[AttributeConstraint]
     ) -> list[str]:
         """Convert TRAPI attribute constraints to Dgraph filter expressions."""
         filters: list[str] = []
@@ -824,7 +814,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
     def _convert_qualifier_constraints_to_filter(
         self,
-        qualifier_constraints: Sequence[QualifierConstraintDict],
+        qualifier_constraints: Sequence[QualifierConstraint],
     ) -> str:
         """Convert TRAPI qualifier_constraints into a Dgraph filter string.
 
@@ -836,22 +826,22 @@ class DgraphTranspiler(Tier0Transpiler):
         set_filters: list[str] = []
 
         for qc in qualifier_constraints:
-            qset: Sequence[QualifierDict] = qc["qualifier_set"]
+            qset: Sequence[Qualifier] = qc.qualifier_set
             and_filters: list[str] = []
             for q in qset:
-                qtype = biolink.rmprefix(q["qualifier_type_id"])
-                qval = biolink.rmprefix(q["qualifier_value"])
+                qtype = Biolink.rmprefix(q.qualifier_type_id)
+                qval = Biolink.rmprefix(q.qualifier_value)
                 if not qtype or qval == "":
                     continue
 
                 # Expand qualifier type to include descendants, then for each
                 # descendant type expand its values to include descendants as well.
-                qtype_descs = biolink.get_descendants(biolink.ensure_prefix(qtype))
+                qtype_descs = Biolink.get_descendants(Biolink(qtype))
                 type_filters: list[str] = []
                 for qtype_desc in qtype_descs:
-                    qtype_desc_clean = biolink.rmprefix(qtype_desc)
+                    qtype_desc_clean = Biolink.rmprefix(qtype_desc)
                     field = self._v(qtype_desc_clean)
-                    expanded_values = biolink.get_descendant_values(
+                    expanded_values = Biolink.get_descendant_values(
                         qtype_desc_clean, qval
                     )
                     if len(expanded_values) > 1:
@@ -885,12 +875,12 @@ class DgraphTranspiler(Tier0Transpiler):
             else f"({' OR '.join(set_filters)})"
         )
 
-    def _create_filter_expression(self, constraint: AttributeConstraintDict) -> str:
+    def _create_filter_expression(self, constraint: AttributeConstraint) -> str:
         """Create a filter expression for a single constraint."""
-        field_name = self._v(constraint["id"].replace("biolink:", ""))
-        value = constraint["value"]
-        operator = constraint["operator"]
-        is_negated = constraint.get("not", False)
+        field_name = self._v(Biolink.rmprefix(constraint.id))
+        value = constraint.value
+        operator = constraint.operator
+        is_negated = constraint.negated
 
         # Generate the appropriate filter expression based on the operator
         filter_expr = self._get_operator_filter(field_name, operator, value)
@@ -957,41 +947,39 @@ class DgraphTranspiler(Tier0Transpiler):
 
     def _create_category_filter(
         self,
-        categories: Sequence[str] | Sequence[BiolinkEntity],
+        categories: Sequence[str] | Sequence[Biolink.Entity],
     ) -> str:
         """Create a filter for category fields."""
-        cat_vals = [str(c).replace("biolink:", "") for c in categories]
+        cat_vals = [Biolink.rmprefix(str(c)) for c in categories]
         if len(cat_vals) == 1:
-            return f'eq({self._v("category")}, "{cat_vals[0].replace("biolink:", "")}")'
+            return f'eq({self._v("category")}, "{Biolink.rmprefix(cat_vals[0])}")'
         categories_str = ", ".join(f'"{cat}"' for cat in cat_vals)
         return f"eq({self._v('category')}, [{categories_str}])"
 
-    def _get_primary_and_secondary_filters(
-        self, node: QNodeDict
-    ) -> tuple[str, list[str]]:
+    def _get_primary_and_secondary_filters(self, node: QNode) -> tuple[str, list[str]]:
         """Extract primary and secondary filters from a node."""
         primary_filter = f"has({self._v('id')})"  # Default
         secondary_filters: list[str] = []
 
         # Choose the most selective filter for primary (usually ID)
-        ids = node.get("ids")
+        ids = node.ids
         if ids:
             primary_filter = self._create_id_filter(ids)
         else:
             # Use category as primary if no IDs
-            categories = node.get("categories")
+            categories = node.categories
             if categories:
                 primary_filter = self._create_category_filter(categories)
 
         # Build secondary filters
         # If we used IDs as primary, add categories as secondary
-        categories = node.get("categories")
+        categories = node.categories
         if ids and categories:
             category_filter = self._create_category_filter(categories)
             secondary_filters.append(category_filter)
 
         # Add constraints as secondary filters
-        constraints = node.get("constraints")
+        constraints = node.constraints
         if constraints:
             secondary_filters.extend(self._convert_constraints_to_filters(constraints))
 
@@ -1020,25 +1008,25 @@ class DgraphTranspiler(Tier0Transpiler):
 
         def __init__(
             self,
-            nodes: Mapping[QNodeID, QNodeDict],
-            edges: Mapping[QEdgeID, QEdgeDict],
+            nodes: Mapping[QNodeID, QNode],
+            edges: Mapping[QEdgeID, QEdge],
             visited: set[QNodeID],
         ) -> None:
             """Initialize edge connection context.
 
             Args:
-                nodes: Dictionary of query nodes
-                edges: Dictionary of query edges
+                nodes: ionary of query nodes
+                edges: ionary of query edges
                 visited: Set of already visited node IDs
             """
-            self.nodes: Mapping[QNodeID, QNodeDict] = nodes
-            self.edges: Mapping[QEdgeID, QEdgeDict] = edges
+            self.nodes: Mapping[QNodeID, QNode] = nodes
+            self.edges: Mapping[QEdgeID, QEdge] = edges
             self.visited: set[QNodeID] = visited
 
     def _process_edge_connection(
         self,
-        edge: QEdgeDict,
-        source: QNodeDict,
+        edge: QEdge,
+        source: QNode,
         source_id: QNodeID,
         context: EdgeConnectionContext,
     ) -> str:
@@ -1091,7 +1079,7 @@ class DgraphTranspiler(Tier0Transpiler):
     def _build_node_cascade_clause(
         self,
         node_id: QNodeID,
-        edges: Mapping[QEdgeID, QEdgeDict],
+        edges: Mapping[QEdgeID, QEdge],
         visited: set[QNodeID],
     ) -> str:
         """Build a @cascade(...) clause for a node block.
@@ -1105,8 +1093,8 @@ class DgraphTranspiler(Tier0Transpiler):
         has_non_special_out = False
         for e_id, e in edges.items():
             if (
-                e["subject"] == node_id
-                and e["object"] not in visited
+                e.subject == node_id
+                and e.object not in visited
                 and e_id not in self._symmetric_edge_map
                 and e_id not in self._subclass_edge_map
             ):
@@ -1121,8 +1109,8 @@ class DgraphTranspiler(Tier0Transpiler):
         has_non_special_in = False
         for e_id, e in edges.items():
             if (
-                e["object"] == node_id
-                and e["subject"] not in visited
+                e.object == node_id
+                and e.subject not in visited
                 and e_id not in self._symmetric_edge_map
                 and e_id not in self._subclass_edge_map
             ):
@@ -1137,7 +1125,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
     def _detect_symmetric_edges(
         self,
-        edges: Mapping[QEdgeID, QEdgeDict],
+        edges: Mapping[QEdgeID, QEdge],
     ) -> None:
         """Pre-detect all symmetric edges in the query graph.
 
@@ -1145,13 +1133,13 @@ class DgraphTranspiler(Tier0Transpiler):
         clauses can correctly identify nodes with symmetric edges.
 
         Args:
-            edges: Dictionary of all edges in the query graph
+            edges: ionary of all edges in the query graph
         """
         self._symmetric_edge_map.clear()
 
         for edge_id, edge in edges.items():
-            predicates = edge.get("predicates") or []
-            is_symmetric = any(biolink.is_symmetric(str(pred)) for pred in predicates)
+            predicates = edge.predicates_list
+            is_symmetric = any(Biolink.is_symmetric(str(pred)) for pred in predicates)
 
             if is_symmetric:
                 normalized_edge_id = self._get_normalized_edge_id(edge_id)
@@ -1167,8 +1155,8 @@ class DgraphTranspiler(Tier0Transpiler):
     def _build_node_plan(  # noqa: PLR0913
         self,
         node_id: QNodeID,
-        nodes: Mapping[QNodeID, QNodeDict],
-        edges: Mapping[QEdgeID, QEdgeDict],
+        nodes: Mapping[QNodeID, QNode],
+        edges: Mapping[QEdgeID, QEdge],
         visited: set[QNodeID] | None = None,
         *,
         query_index: int | None = None,
@@ -1198,16 +1186,16 @@ class DgraphTranspiler(Tier0Transpiler):
     def _build_edge_group_plans(
         self,
         node_id: QNodeID,
-        nodes: Mapping[QNodeID, QNodeDict],
-        edges: Mapping[QEdgeID, QEdgeDict],
+        nodes: Mapping[QNodeID, QNode],
+        edges: Mapping[QEdgeID, QEdge],
         visited: set[QNodeID],
     ) -> list[EdgeGroupPlan]:
         """Build all edge-group plans for a node."""
         plans: list[EdgeGroupPlan] = []
 
         for edge_id, edge in edges.items():
-            if edge["subject"] == node_id:
-                outbound_target_id: QNodeID = edge["object"]
+            if edge.subject == node_id:
+                outbound_target_id: QNodeID = edge.object
                 if outbound_target_id not in visited:
                     plans.append(
                         self._build_edge_group_plan(
@@ -1221,8 +1209,8 @@ class DgraphTranspiler(Tier0Transpiler):
                         )
                     )
 
-            if edge["object"] == node_id:
-                inbound_target_id: QNodeID = edge["subject"]
+            if edge.object == node_id:
+                inbound_target_id: QNodeID = edge.subject
                 if inbound_target_id not in visited:
                     plans.append(
                         self._build_edge_group_plan(
@@ -1242,12 +1230,12 @@ class DgraphTranspiler(Tier0Transpiler):
         self,
         *,
         edge_id: QEdgeID,
-        edge: QEdgeDict,
+        edge: QEdge,
         target_id: QNodeID,
         edge_direction: str,
         visited: set[QNodeID],
-        nodes: Mapping[QNodeID, QNodeDict],
-        edges: Mapping[QEdgeID, QEdgeDict],
+        nodes: Mapping[QNodeID, QNode],
+        edges: Mapping[QEdgeID, QEdge],
     ) -> EdgeGroupPlan:
         """Build the plan for one qedge and all of its valid branches."""
         normalized_edge_id = self._get_normalized_edge_id(edge_id)
@@ -1291,7 +1279,7 @@ class DgraphTranspiler(Tier0Transpiler):
             )
 
         if edge_id in self._subclass_edge_map and not self._is_subclass_predicate(
-            edge.get("predicates")
+            edge.predicates
         ):
             branches.extend(
                 self._build_subclass_branch_plans(
@@ -1313,20 +1301,20 @@ class DgraphTranspiler(Tier0Transpiler):
         self,
         *,
         edge_id: QEdgeID,
-        edge: QEdgeDict,
+        edge: QEdge,
         target_id: QNodeID,
         edge_direction: str,
         target_plan: NodePlan,
-        nodes: Mapping[QNodeID, QNodeDict],
+        nodes: Mapping[QNodeID, QNode],
     ) -> list[BranchPlan]:
         """Build all subclass expansion branches for a qedge."""
         normalized_edge_id = self._get_normalized_edge_id(edge_id)
         normalized_target_id = self._get_normalized_node_id(target_id)
-        normalized_source_id = self._get_normalized_node_id(edge["subject"])
-        normalized_object_id = self._get_normalized_node_id(edge["object"])
+        normalized_source_id = self._get_normalized_node_id(edge.subject)
+        normalized_object_id = self._get_normalized_node_id(edge.object)
 
-        source_node = nodes[edge["subject"]]
-        target_node = nodes[edge["object"]]
+        source_node = nodes[edge.subject]
+        target_node = nodes[edge.object]
         branches: list[BranchPlan] = []
 
         source_has_ids = self._node_has_ids(source_node)
@@ -1335,8 +1323,8 @@ class DgraphTranspiler(Tier0Transpiler):
         target_has_categories = self._node_has_categories(target_node)
 
         follows_requested_direction = (
-            edge_direction == "out" and target_id == edge["object"]
-        ) or (edge_direction == "in" and target_id == edge["subject"])
+            edge_direction == "out" and target_id == edge.object
+        ) or (edge_direction == "in" and target_id == edge.subject)
 
         def add_branch(*steps: tuple[str, str]) -> None:
             branches.append(
@@ -1418,16 +1406,16 @@ class DgraphTranspiler(Tier0Transpiler):
     def _build_node_query(
         self,
         node_id: QNodeID,
-        nodes: Mapping[QNodeID, QNodeDict],
-        edges: Mapping[QEdgeID, QEdgeDict],
+        nodes: Mapping[QNodeID, QNode],
+        edges: Mapping[QEdgeID, QEdge],
         query_index: int | None = None,
     ) -> str:
         """Recursively build a query for a node and its connected nodes.
 
         Args:
             node_id: The original node ID from the query graph
-            nodes: Dictionary of all nodes in the query graph
-            edges: Dictionary of all edges in the query graph
+            nodes: ionary of all nodes in the query graph
+            edges: ionary of all edges in the query graph
             query_index: Optional index for batch queries
 
         Returns:
@@ -1487,7 +1475,7 @@ class DgraphTranspiler(Tier0Transpiler):
         is_symmetric = ctx.edge_id in self._symmetric_edge_map
 
         # Check if this edge was already detected as subclass expansion
-        is_subclass = self._is_subclass_predicate(ctx.edge.get("predicates"))
+        is_subclass = self._is_subclass_predicate(ctx.edge.predicates)
 
         edge_filter = self._build_edge_filter(ctx.edge)
         filter_clause = f" @filter({edge_filter})" if edge_filter else ""
@@ -1542,8 +1530,8 @@ class DgraphTranspiler(Tier0Transpiler):
             query += self._build_single_direction_traversal(reverse_ctx)
 
         if ctx.edge_id in self._subclass_edge_map and not is_subclass:
-            source_id = ctx.edge["subject"]
-            target_id = ctx.edge["object"]
+            source_id = ctx.edge.subject
+            target_id = ctx.edge.object
             source_node = ctx.nodes[source_id]
             target_node = ctx.nodes[target_id]
 
@@ -1624,8 +1612,8 @@ class DgraphTranspiler(Tier0Transpiler):
     def _build_further_hops(
         self,
         node_id: QNodeID,
-        nodes: Mapping[QNodeID, QNodeDict],
-        edges: Mapping[QEdgeID, QEdgeDict],
+        nodes: Mapping[QNodeID, QNode],
+        edges: Mapping[QEdgeID, QEdge],
         visited: set[QNodeID],
     ) -> str:
         """Recursively build query for all hops connected to the current node_id."""
@@ -1633,8 +1621,8 @@ class DgraphTranspiler(Tier0Transpiler):
 
         # Find outgoing edges from this node (where this node is the SUBJECT)
         for edge_id, edge in edges.items():
-            if edge["subject"] == node_id:
-                object_id: QNodeID = edge["object"]
+            if edge.subject == node_id:
+                object_id: QNodeID = edge.object
                 if object_id in visited:
                     continue  # Skip cycles
 
@@ -1653,8 +1641,8 @@ class DgraphTranspiler(Tier0Transpiler):
 
         # Find incoming edges to this node (where this node is the OBJECT)
         for edge_id, edge in edges.items():
-            if edge["object"] == node_id:
-                source_id: QNodeID = edge["subject"]
+            if edge.object == node_id:
+                source_id: QNodeID = edge.subject
                 if source_id in visited:
                     continue  # Skip cycles
 
@@ -1685,7 +1673,7 @@ class DgraphTranspiler(Tier0Transpiler):
         #   -> intermediate is between source and predicate -> use source node alias
         # ctx.edge_direction == "in": current node is object (n1), target is source (n0)
         #   -> intermediate is between target (n0) and predicate -> use target node alias
-        normalized_source_id = self._get_normalized_node_id(ctx.edge["subject"])
+        normalized_source_id = self._get_normalized_node_id(ctx.edge.subject)
         intermediate_alias = f"node_intermediate_{normalized_source_id}"
 
         alias = f"in_edges-subclassB_{norm_eid}"
@@ -1756,7 +1744,7 @@ class DgraphTranspiler(Tier0Transpiler):
         """Form D: A' subclass_of→ A; A' → predicate1 → B'; B' subclass_of→ B."""
         # intermediateA is on the subject side -> use source node alias
         # intermediateB is on the object side -> use target node alias
-        normalized_source_id = self._get_normalized_node_id(ctx.edge["subject"])
+        normalized_source_id = self._get_normalized_node_id(ctx.edge.subject)
         normalized_target_id = self._get_normalized_node_id(ctx.target_id)
         intermediate_a_alias = f"node_intermediateA_{normalized_source_id}"
         intermediate_b_alias = f"node_intermediateB_{normalized_target_id}"
@@ -1801,7 +1789,7 @@ class DgraphTranspiler(Tier0Transpiler):
         # Pattern: CAT -> P -> B'; B' <- subclass_of <- B
         # Starting from B (the ID/object node), first find subclasses B' of B
         # via subclass_of edges, then find predicate edges that have B' as object.
-        normalized_object_id = self._get_normalized_node_id(ctx.edge["object"])
+        normalized_object_id = self._get_normalized_node_id(ctx.edge.object)
         normalized_target_id = self._get_normalized_node_id(ctx.target_id)
         intermediate_alias = f"node_intermediate_{normalized_object_id}"
 
@@ -1847,7 +1835,7 @@ class DgraphTranspiler(Tier0Transpiler):
         return query
 
     @override
-    def convert_batch_multihop(self, qgraphs: list[QueryGraphDict]) -> str:
+    def convert_batch_multihop(self, qgraphs: list[QueryGraph]) -> str:
         """Convert a TRAPI multi-hop batch graph to a batch of Dgraph queries.
 
         Args:
@@ -1862,9 +1850,9 @@ class DgraphTranspiler(Tier0Transpiler):
             # Normalize IDs for each qgraph independently
             self._normalize_qgraph_ids(sub_qgraph)
 
-            sub_qgraph_typed: QueryGraphDict = sub_qgraph
-            nodes = sub_qgraph_typed["nodes"]
-            edges = sub_qgraph_typed["edges"]
+            sub_qgraph_typed: QueryGraph = sub_qgraph
+            nodes = sub_qgraph_typed.nodes
+            edges = sub_qgraph_typed.edges
             start_node_id = self._find_start_node(nodes, edges)
             # Build each query block with its corresponding batch index
             blocks.append(
@@ -1878,9 +1866,9 @@ class DgraphTranspiler(Tier0Transpiler):
     # TRAPI Translation and Result Assembly
     # =========================================================================
 
-    def _build_trapi_node(self, node: dg.Node) -> NodeDict:
-        """Convert a Dgraph Node to a TRAPI NodeDict."""
-        attributes: list[AttributeDict] = []
+    def _build_trapi_node(self, node: dg.Node) -> Node:
+        """Convert a Dgraph Node to a TRAPI Node."""
+        attributes: list[Attribute] = []
 
         # Cases that require additional formatting to be TRAPI-compliant
         special_cases: dict[str, tuple[str, Any]] = {}
@@ -1890,39 +1878,36 @@ class DgraphTranspiler(Tier0Transpiler):
                 continue
             if value is not None and value not in ([], ""):
                 attributes.append(
-                    AttributeDict(
-                        attribute_type_id=biolink.ensure_prefix(attr_id), value=value
+                    Attribute.model_construct(
+                        attribute_type_id=Biolink(attr_id), value=value
                     )
                 )
 
         for name, value in special_cases.values():
             if value is not None and value not in ([], ""):
-                attributes.append(AttributeDict(attribute_type_id=name, value=value))
+                attributes.append(
+                    Attribute.model_construct(attribute_type_id=name, value=value)
+                )
 
-        trapi_node = NodeDict(
+        trapi_node = Node.model_construct(
             name=node.name,
-            categories=[
-                BiolinkEntity(biolink.ensure_prefix(cat)) for cat in node.category
-            ],
+            categories=[Biolink(cat) for cat in node.category],
             attributes=attributes,
         )
 
         return trapi_node
 
-    def _build_trapi_edge(self, edge: dg.Edge, initial_curie: str) -> EdgeDict:
-        """Convert a Dgraph Edge to a TRAPI EdgeDict."""
-        attributes: list[AttributeDict] = []
-        qualifiers: list[QualifierDict] = []
-        sources: list[RetrievalSourceDict] = []
+    def _build_trapi_edge(self, edge: dg.Edge, initial_curie: str) -> Edge:
+        """Convert a Dgraph Edge to a TRAPI Edge."""
+        attributes: list[Attribute] = []
+        qualifiers: list[Qualifier] = []
+        sources: list[RetrievalSource] = []
 
         # Cases that require additional formatting to be TRAPI-compliant
         special_cases: dict[str, tuple[str, Any]] = {
             "category": (
-                "biolink:category",
-                [
-                    BiolinkEntity(biolink.ensure_prefix(cat))
-                    for cat in edge.attributes.get("category", [])
-                ],
+                Biolink("category"),
+                [Biolink(cat) for cat in edge.attributes.get("category", [])],
             ),
         }
         for attr_id, value in edge.attributes.items():
@@ -1930,62 +1915,64 @@ class DgraphTranspiler(Tier0Transpiler):
                 continue
             if value is not None and value not in ([], ""):
                 attributes.append(
-                    AttributeDict(
-                        attribute_type_id=biolink.ensure_prefix(attr_id), value=value
+                    Attribute.model_construct(
+                        attribute_type_id=Biolink(attr_id), value=value
                     )
                 )
 
         for name, value in special_cases.values():
             if value is not None and value not in ([], ""):
-                attributes.append(AttributeDict(attribute_type_id=name, value=value))
+                attributes.append(
+                    Attribute.model_construct(attribute_type_id=name, value=value)
+                )
 
         # Build qualifiers
         for qualifier_id, value in edge.qualifiers.items():
             qualifiers.append(
-                QualifierDict(
-                    qualifier_type_id=QualifierTypeID(
-                        biolink.ensure_prefix(qualifier_id)
+                Qualifier.model_construct(
+                    qualifier_type_id=Biolink(qualifier_id),
+                    qualifier_value=(
+                        Biolink(value)
+                        if "qualified_predicate" in qualifier_id
+                        else value
                     ),
-                    qualifier_value=biolink.ensure_prefix(value)
-                    if "qualified_predicate" in qualifier_id
-                    else value,
                 )
             )
 
         # Build Sources
         for source in edge.sources:
-            retrieval_source = RetrievalSourceDict(
-                resource_id=Infores(source.resource_id),
+            retrieval_source = RetrievalSource.model_construct(
+                resource_id=source.resource_id,
                 resource_role=source.resource_role,
             )
             if len(source.upstream_resource_ids):
-                retrieval_source["upstream_resource_ids"] = [
-                    Infores(upstream) for upstream in source.upstream_resource_ids
-                ]
+                retrieval_source.upstream_resource_ids = list(
+                    source.upstream_resource_ids
+                )
             if len(source.source_record_urls):
-                retrieval_source["source_record_urls"] = source.source_record_urls
+                retrieval_source.source_record_urls = source.source_record_urls
             sources.append(retrieval_source)
 
         # Build Edge
-        trapi_edge = EdgeDict(
-            predicate=BiolinkPredicate(biolink.ensure_prefix(edge.predicate)),
-            subject=CURIE(edge.node.id if edge.direction == "in" else initial_curie),
-            object=CURIE(initial_curie if edge.direction == "in" else edge.node.id),
+        trapi_edge = Edge.model_construct(
+            predicate=Biolink(edge.predicate),
+            subject=edge.node.id if edge.direction == "in" else initial_curie,
+            object=initial_curie if edge.direction == "in" else edge.node.id,
             sources=sources,
         )
         if len(attributes) > 0:
-            trapi_edge["attributes"] = attributes
+            trapi_edge.attributes = attributes
         if len(qualifiers) > 0:
-            trapi_edge["qualifiers"] = qualifiers
+            trapi_edge.qualifiers = qualifiers
 
-        append_aggregator_source(trapi_edge, Infores(CONFIG.tier0.backend_infores))
+        trapi_edge.append_aggregator(infores(CONFIG.tier0.backend_infores))
 
         return trapi_edge
 
     def _update_graphs(
         self,
         qedge_id: QEdgeID,
-        trapi_edge: EdgeDict,
+        trapi_edge: Edge,
     ) -> None:
         """Update the knowledge graph and adjacency graph with the given edge.
 
@@ -1993,34 +1980,34 @@ class DgraphTranspiler(Tier0Transpiler):
             qedge_id: The original query edge ID that the edge fulfills.
             trapi_edge: The TRAPI representation of the edge fulfilling the QEdge.
         """
-        subject_id = trapi_edge["subject"]
-        object_id = trapi_edge["object"]
-        edge_hash = EdgeIdentifier(hash_hex(hash_edge(trapi_edge)))
+        subject_id = trapi_edge.subject
+        object_id = trapi_edge.object
+        edge_hash = trapi_edge.hash()
         # Update kgraph
-        if edge_hash not in self.kgraph["edges"]:
-            self.kgraph["edges"][edge_hash] = trapi_edge
+        if edge_hash not in self.kgraph.edges:
+            self.kgraph.edges[edge_hash] = trapi_edge
 
         # Update k_agraph
         if subject_id not in self.k_agraph[qedge_id]:
-            self.k_agraph[qedge_id][subject_id] = dict[CURIE, list[EdgeIdentifier]]()
+            self.k_agraph[qedge_id][subject_id] = dict[CURIE, list[EdgeID]]()
         if object_id not in self.k_agraph[qedge_id][subject_id]:
-            self.k_agraph[qedge_id][subject_id][object_id] = list[EdgeIdentifier]()
+            self.k_agraph[qedge_id][subject_id][object_id] = list[EdgeID]()
         self.k_agraph[qedge_id][subject_id][object_id].append(edge_hash)
 
-    def _add_node_to_kgraph(self, node: dg.Node, qg: QueryGraphDict) -> bool:
+    def _add_node_to_kgraph(self, node: dg.Node, qg: QueryGraph) -> bool:
         """Add the node to the kgraph if it isn't already added.
 
         Returns True if the node meets node constraints.
         """
-        if node.id not in self.kgraph["nodes"]:
+        if node.id not in self.kgraph.nodes:
             trapi_node = self._build_trapi_node(node)
-            constraints = qg["nodes"][node.binding].get("constraints", []) or []
-            attributes = trapi_node.get("attributes", []) or []
+            constraints = qg.nodes[node.binding].constraints_list
+            attributes = trapi_node.attributes
 
-            if not attributes_meet_contraints(constraints, attributes):
+            if not AttributeConstraint.set_met_by(constraints, attributes):
                 return False
 
-            self.kgraph["nodes"][node.id] = trapi_node
+            self.kgraph.nodes[node.id] = trapi_node
 
         return True
 
@@ -2045,7 +2032,7 @@ class DgraphTranspiler(Tier0Transpiler):
     def _build_results(
         self,
         node: dg.Node,
-        qg: QueryGraphDict,
+        qg: QueryGraph,
     ) -> list[Partial]:
         """Recursively build results from dgraph response.
 
@@ -2111,9 +2098,9 @@ class DgraphTranspiler(Tier0Transpiler):
                 edge, subclass_intermediate or node_curie
             )
 
-            constraints = qg["edges"][qedge_id].get("constraints", []) or []
-            attributes = trapi_edge.get("attributes", []) or []
-            if not attributes_meet_contraints(constraints, attributes):
+            if not trapi_edge.meets_attribute_constraints(
+                qg.edges[qedge_id].attribute_constraints_list
+            ):
                 continue  # We don't continue down the path because this edge breaks it
 
             self._update_graphs(qedge_id, trapi_edge)
@@ -2126,7 +2113,7 @@ class DgraphTranspiler(Tier0Transpiler):
                     partial.combine(
                         Partial(
                             [(original_node_id, subclass_intermediate or node_curie)],
-                            [(qedge_id, trapi_edge["subject"], trapi_edge["object"])],
+                            [(qedge_id, trapi_edge.subject, trapi_edge.object)],
                         )
                     )
                 )
@@ -2140,7 +2127,7 @@ class DgraphTranspiler(Tier0Transpiler):
 
     @override
     def convert_results(
-        self, qgraph: QueryGraphDict, results: list[dg.Node]
+        self, qgraph: QueryGraph, results: list[dg.Node]
     ) -> BackendResult:
         """Convert Dgraph JSON results back to TRAPI BackendResults.
 
@@ -2159,12 +2146,12 @@ class DgraphTranspiler(Tier0Transpiler):
             self._normalize_qgraph_ids(qgraph)
 
         self.k_agraph = {
-            QEdgeID(qedge_id): dict[CURIE, dict[CURIE, list[EdgeIdentifier]]]()
-            for qedge_id in qgraph["edges"]
+            qedge_id: dict[CURIE, dict[CURIE, list[EdgeID]]]()
+            for qedge_id in qgraph.edges
         }
 
         partial_count = 0
-        reconciled = dict[int, Partial]()
+        reconciled = dict[str, Partial]()
 
         # Apply cascade filtering using the generated query plan when available.
         if self._query_plan is not None:
@@ -2175,14 +2162,14 @@ class DgraphTranspiler(Tier0Transpiler):
         for node in results:
             partials = self._build_results(node, qgraph)
             partial_count += len(partials)
-            reconciled.update({hash(part): part for part in partials})
+            reconciled.update({tomhash(part): part for part in partials})
 
         logger.debug(
             f"Reconciled {partial_count} partials into {len(reconciled)} results."
         )
         trapi_results = [part.as_result(self.k_agraph) for part in reconciled.values()]
 
-        aux_graphs = dict[AuxGraphID, AuxiliaryGraphDict]()
+        aux_graphs = dict[AuxGraphID, AuxiliaryGraph]()
         if len(trapi_results) > 0:
             solve_subclass_edges(
                 self.subclass_backmap, self.kgraph, trapi_results, aux_graphs

@@ -2,14 +2,20 @@ import json
 import re
 from dataclasses import dataclass
 from textwrap import dedent
-from typing import Any, cast
+from typing import Any
 
 import pytest
+from translator_tom import (
+    Biolink,
+    QEdge,
+    QEdgeID,
+    QNode,
+    QNodeID,
+    QueryGraph,
+)
 
 from retriever.data_tiers.tier_0.dgraph import result_models as dg
 from retriever.data_tiers.tier_0.dgraph.transpiler import DgraphTranspiler
-from retriever.types.trapi import QueryGraphDict
-
 
 # -----------------------
 # Helpers
@@ -19,7 +25,7 @@ from retriever.types.trapi import QueryGraphDict
 class QueryCase:
     """Pair of input TRAPI qgraph and expected Dgraph query."""
     name: str
-    qgraph: QueryGraphDict
+    qgraph: QueryGraph
     expected_dgraph_response: str
     expected_after_cascade_or: str
 
@@ -30,14 +36,10 @@ class _TestDgraphTranspiler(DgraphTranspiler):
     def filter_cascaded_with_or_public(
         self,
         nodes: list[Any],
-        qgraph: QueryGraphDict,
+        qgraph: QueryGraph,
     ) -> list[Any]:
         self._normalize_qgraph_ids(qgraph)
         return self._filter_cascaded_with_or(nodes, qgraph)
-
-
-def qg(d: dict[str, Any]) -> QueryGraphDict:
-    return cast(QueryGraphDict, cast(object, d))
 
 
 @pytest.fixture
@@ -77,7 +79,7 @@ def _parse_filter_cascade_response(
 # After cascading with OR, only structurally complete branch instances should remain, while incomplete partial paths are pruned.
 #
 # Intended pruning logic:
-# q0_node_n0 
+# q0_node_n0
 # AND (
 #         (out_edges_e0 AND node_n1)
 #         OR (in_edges-subclassB_e0 AND node_intermediate_n0 AND out_edges-subclassB-mid_e0 AND node_n1)
@@ -85,25 +87,25 @@ def _parse_filter_cascade_response(
 #         OR (in_edges-subclassD_e0 AND node_intermediateA_n0 AND out_edges-subclassD-mid_e0 AND node_intermediateB_n1 AND out_edges-subclassD-tail_e0 AND node_n1)
 # )
 
-SAMPLE_01_QGRAPH: QueryGraphDict = qg({
-    "nodes": {
-        "nB": {
-            "categories": ["biolink:Disease"],
-            "ids": ["MONDO:0005015"]
-        },
-        "nA": {
-            "categories": ["biolink:Drug"],
-            "ids": ["CHEBI:6801"]
-        }
+SAMPLE_01_QGRAPH = QueryGraph(
+    nodes={
+        QNodeID("nB"): QNode(
+            categories=[Biolink("Disease")],
+            ids=["MONDO:0005015"],
+        ),
+        QNodeID("nA"): QNode(
+            categories=[Biolink("Drug")],
+            ids=["CHEBI:6801"],
+        ),
     },
-    "edges": {
-        "e1": {
-            "subject": "nA",
-            "object": "nB",
-            "predicates": ["biolink:treats_or_applied_or_studied_to_treat"]
-        }
-    }
-})
+    edges={
+        QEdgeID("e1"): QEdge(
+            subject=QNodeID("nA"),
+            object=QNodeID("nB"),
+            predicates=[Biolink("treats_or_applied_or_studied_to_treat")],
+        ),
+    },
+)
 
 SAMPLE_01_EXPECTED_DGRAPH_RESPONSE = dedent("""
 {
@@ -353,25 +355,25 @@ SAMPLE_01_EXPECTED_AFTER_CASCADE_OR = dedent("""
 }
 """).strip()
 
-SAMPLE_02_QGRAPH: QueryGraphDict = qg({
-    "nodes": {
-        "nB": {
-            "categories": ["biolink:Disease"],
-            "ids": ["MONDO:0005015"]
-        },
-        "nA": {
-            "categories": ["biolink:Drug"],
-            "ids": ["CHEBI:6801"]
-        }
+SAMPLE_02_QGRAPH = QueryGraph(
+    nodes={
+        QNodeID("nB"): QNode(
+            categories=[Biolink("Disease")],
+            ids=["MONDO:0005015"],
+        ),
+        QNodeID("nA"): QNode(
+            categories=[Biolink("Drug")],
+            ids=["CHEBI:6801"],
+        ),
     },
-    "edges": {
-        "e1": {
-            "subject": "nA",
-            "object": "nB",
-            "predicates": ["biolink:treats_or_applied_or_studied_to_treat"]
-        }
-    }
-})
+    edges={
+        QEdgeID("e1"): QEdge(
+            subject=QNodeID("nA"),
+            object=QNodeID("nB"),
+            predicates=[Biolink("treats_or_applied_or_studied_to_treat")],
+        ),
+    },
+)
 
 SAMPLE_02_EXPECTED_DGRAPH_RESPONSE = dedent("""
 {
@@ -558,25 +560,25 @@ SAMPLE_02_EXPECTED_AFTER_CASCADE_OR = dedent("""
 }
 """).strip()
 
-SAMPLE_03_QGRAPH: QueryGraphDict = qg({
-    "nodes": {
-        "nB": {
-            "categories": ["biolink:Disease"],
-            "ids": ["MONDO:0005015"]
-        },
-        "nA": {
-            "categories": ["biolink:Drug"],
-            "ids": ["CHEBI:6801"]
-        }
+SAMPLE_03_QGRAPH = QueryGraph(
+    nodes={
+        QNodeID("nB"): QNode(
+            categories=[Biolink("Disease")],
+            ids=["MONDO:0005015"],
+        ),
+        QNodeID("nA"): QNode(
+            categories=[Biolink("Drug")],
+            ids=["CHEBI:6801"],
+        ),
     },
-    "edges": {
-        "e1": {
-            "subject": "nA",
-            "object": "nB",
-            "predicates": ["biolink:treats_or_applied_or_studied_to_treat"]
-        }
-    }
-})
+    edges={
+        QEdgeID("e1"): QEdge(
+            subject=QNodeID("nA"),
+            object=QNodeID("nB"),
+            predicates=[Biolink("treats_or_applied_or_studied_to_treat")],
+        ),
+    },
+)
 
 SAMPLE_03_EXPECTED_DGRAPH_RESPONSE = dedent("""
 {
@@ -701,7 +703,7 @@ SAMPLE_03_EXPECTED_AFTER_CASCADE_OR = dedent("""
 # #         AND node_n1
 # # )
 
-# SAMPLE_02_QGRAPH: QueryGraphDict = qg({
+# SAMPLE_02_QGRAPH: QueryGraph = qg({
 #     "nodes": {
 #         "nA": {
 #             "categories": ["biolink:Drug"],

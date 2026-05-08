@@ -7,6 +7,18 @@ from typing import NamedTuple, override
 import ormsgpack
 from loguru import logger
 from opentelemetry import trace
+from translator_tom import (
+    Biolink,
+    MetaAttribute,
+    MetaEdge,
+    MetaKnowledgeGraph,
+    MetaNode,
+    MetaQualifier,
+    QEdge,
+    QEdgeID,
+    QNodeID,
+    QueryGraph,
+)
 
 from retriever.config.general import CONFIG
 from retriever.data_tiers import tier_manager
@@ -18,29 +30,9 @@ from retriever.types.metakg import (
     OperationTable,
     SortedOperations,
 )
-from retriever.types.trapi import (
-    BiolinkEntity,
-    BiolinkPredicate,
-    MetaAttributeDict,
-    MetaEdgeDict,
-    MetaKnowledgeGraphDict,
-    MetaNodeDict,
-    MetaQualifierDict,
-    QEdgeDict,
-    QEdgeID,
-    QNodeID,
-    QualifierTypeID,
-    QueryGraphDict,
-)
-from retriever.types.trapi_pydantic import TierNumber
-from retriever.utils import biolink
-from retriever.utils.biolink import expand
+from retriever.types.trapi_overrides import TierNumber
 from retriever.utils.general import AsyncDaemon
 from retriever.utils.redis import OP_TABLE_KEY, OP_TABLE_UPDATE_CHANNEL, RedisClient
-from retriever.utils.trapi import (
-    hash_meta_attribute,
-    meta_qualifier_meets_constraints,
-)
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 REDIS_CLIENT = RedisClient()
@@ -49,7 +41,7 @@ METAKG_GET_ATTEMPTS = 3
 
 OperationPlan = dict[QEdgeID, list[Operation]]
 
-SPO = tuple[BiolinkEntity, BiolinkPredicate, BiolinkEntity]
+SPO = tuple[Biolink.Entity, Biolink.Predicate, Biolink.Entity]
 
 
 class DINGOMetaKGInfo(NamedTuple):
@@ -63,7 +55,7 @@ class DINGOMetaKGInfo(NamedTuple):
 class TRAPIMetaKGInfo(NamedTuple):
     """Basic info about a given MetaKG resource."""
 
-    metadata: MetaKnowledgeGraphDict
+    metadata: MetaKnowledgeGraph
     tier: TierNumber
     infores: str
 
@@ -134,7 +126,8 @@ class OpTableManager(AsyncDaemon):
                     }
                     for cat, tier_nodes in op_table.nodes.items()
                 },
-            }
+            },
+            option=ormsgpack.OPT_SERIALIZE_PYDANTIC,
         )
 
         await REDIS_CLIENT.set(
@@ -153,6 +146,10 @@ class OpTableManager(AsyncDaemon):
         operations_flat = FlatOperations()
 
         for op_dict in op_table_json["operations_flat"]:
+            if op_dict.get("attributes") is not None:
+                op_dict["attributes"] = [
+                    MetaAttribute.from_dict(attr) for attr in op_dict["attributes"]
+                ]
             op = Operation(**op_dict)
             operations_flat[op.hash] = op
             if op.subject not in operations_sorted:
@@ -163,16 +160,20 @@ class OpTableManager(AsyncDaemon):
                 operations_sorted[op.subject][op.predicate][op.object] = []
             operations_sorted[op.subject][op.predicate][op.object].append(op)
 
+        nodes = dict[Biolink.Entity, dict[TierNumber, OperationNode]]()
+        for category, tier_nodes in op_table_json["nodes"].items():
+            nodes[category] = {}
+            for tier, node in tier_nodes.items():
+                node["attributes"] = {
+                    api: [MetaAttribute.from_dict(attr) for attr in attrs]
+                    for api, attrs in node["attributes"].items()
+                }
+                nodes[category][int(tier)] = OperationNode(**node)
+
         return OperationTable(
             operations_sorted=operations_sorted,
             operations_flat=operations_flat,
-            nodes={
-                category: {
-                    int(tier): OperationNode(**node)
-                    for tier, node in tier_nodes.items()
-                }
-                for category, tier_nodes in op_table_json["nodes"].items()
-            },
+            nodes=nodes,
         )
 
     def merge_operations(
@@ -185,10 +186,8 @@ class OpTableManager(AsyncDaemon):
         for op in new_operations:
             if attributes := op.attributes:
                 for attr in attributes:
-                    attr["constraint_use"] = True
-                    attr["constraint_name"] = biolink.rmprefix(
-                        attr["attribute_type_id"]
-                    )
+                    attr.constraint_use = True
+                    attr.constraint_name = Biolink.rmprefix(attr.attribute_type_id)
             operations_flat[op.hash] = op
             if op.subject not in operations_sorted:
                 operations_sorted[op.subject] = {}
@@ -200,8 +199,8 @@ class OpTableManager(AsyncDaemon):
 
     def merge_nodes(
         self,
-        nodes: dict[BiolinkEntity, dict[TierNumber, OperationNode]],
-        new_nodes: dict[BiolinkEntity, OperationNode],
+        nodes: dict[Biolink.Entity, dict[TierNumber, OperationNode]],
+        new_nodes: dict[Biolink.Entity, OperationNode],
         tier: TierNumber,
     ) -> None:
         """Merge new nodes into the existing nodes."""
@@ -218,10 +217,8 @@ class OpTableManager(AsyncDaemon):
         for tier_nodes in nodes.values():
             for node in tier_nodes.values():
                 for attr in itertools.chain(*node.attributes.values()):
-                    attr["constraint_use"] = True
-                    attr["constraint_name"] = biolink.rmprefix(
-                        attr["attribute_type_id"]
-                    )
+                    attr.constraint_use = True
+                    attr.constraint_name = Biolink.rmprefix(attr.attribute_type_id)
 
     async def build_operation_table(self) -> None:
         """Build Retriever's internal OperationTable and store it to Redis."""
@@ -232,7 +229,7 @@ class OpTableManager(AsyncDaemon):
 
         operations_flat = FlatOperations()
         operations_sorted = SortedOperations()
-        nodes = dict[BiolinkEntity, dict[TierNumber, OperationNode]]()
+        nodes = dict[Biolink.Entity, dict[TierNumber, OperationNode]]()
 
         driver_ops = [
             await tier_manager.get_driver(tier).get_operations() for tier in range(0, 2)
@@ -280,66 +277,65 @@ class OpTableManager(AsyncDaemon):
         return op_table
 
     async def find_operations(
-        self, edge: QEdgeDict, qgraph: QueryGraphDict, tiers: set[TierNumber]
+        self, edge: QEdge, qgraph: QueryGraph, tiers: set[TierNumber]
     ) -> list[Operation]:
         """Find a list of operations that match a given Branch.
 
         Raises either QueryNotTraversable or UnsupportedConstraint if no appropriate
         operations could be found.
         """
-        input_node = qgraph["nodes"][edge["subject"]]
-        output_node = qgraph["nodes"][edge["object"]]
+        input_node = qgraph.nodes[edge.subject]
+        output_node = qgraph.nodes[edge.object]
 
-        input_categories = expand(
-            set(
-                input_node.get("categories", ["biolink:NamedThing"])
-                or ["biolink:NamedThing"]
-            )
+        input_categories = Biolink.expand(
+            set(input_node.categories or [Biolink("NamedThing")])
         )
-        output_categories = expand(
-            set(
-                output_node.get("categories", ["biolink:NamedThing"])
-                or ["biolink:NamedThing"]
-            )
+        output_categories = Biolink.expand(
+            set(output_node.categories or [Biolink("NamedThing")])
         )
-        predicates = expand(set(edge.get("predicates") or ["biolink:related_to"]))
+        predicates = Biolink.expand(set(edge.predicates or ["biolink:related_to"]))
 
         op_table = await self.get_op_table()
 
         predicate_tables = [
-            op_table.operations_sorted[BiolinkEntity(sbj_cat)]
+            op_table.operations_sorted[sbj_cat]
             for sbj_cat in input_categories
-            if BiolinkEntity(sbj_cat) in op_table.operations_sorted
+            if sbj_cat in op_table.operations_sorted
         ]
-        object_tables: list[dict[BiolinkEntity, list[Operation]]] = []
+        object_tables: list[dict[Biolink.Entity, list[Operation]]] = []
         for predicate in predicates:
             object_tables.extend(
-                table[BiolinkPredicate(predicate)]
-                for table in predicate_tables
-                if BiolinkPredicate(predicate) in table
+                table[predicate] for table in predicate_tables if predicate in table
             )
         operations = list[Operation]()
 
         unmet_constraints = defaultdict[str, int](int)
         for obj_cat in output_categories:
             for table in object_tables:
-                op_list = table.get(BiolinkEntity(obj_cat))
+                op_list = table.get(obj_cat)
                 if op_list is None:
                     continue
                 for op in op_list:
-                    if op.tier not in tiers or not meta_qualifier_meets_constraints(
-                        op.qualifiers, edge.get("qualifier_constraints", [])
+                    meta_qualifiers = (
+                        MetaQualifier(
+                            qualifier_type_id=qual_type, applicable_values=vals
+                        )
+                        for qual_type, vals in (op.qualifiers or {}).items()
+                    )
+                    if op.tier not in tiers or not all(
+                        constr.met_by(meta_qualifiers)
+                        for constr in edge.qualifier_constraints_list
                     ):
                         continue
                     op_attr_types = {
-                        mattr["attribute_type_id"]
+                        mattr.attribute_type_id
                         for mattr in (op.attributes or [])
-                        if mattr.get("constraint_use", False)
+                        if mattr.constraint_use
                     }
                     attr_constraints_met = True
-                    for constr in edge.get("attribute_constraints", []) or []:
-                        if constr["id"] not in op_attr_types:
-                            unmet_constraints[constr["name"]] += 1
+                    for constr in edge.attribute_constraints_list:
+                        if constr.id not in op_attr_types:
+                            unmet_constraints[constr.name] += 1
                             attr_constraints_met = False
                     if attr_constraints_met:
                         operations.append(op)
@@ -353,7 +349,7 @@ class OpTableManager(AsyncDaemon):
 
     @tracer.start_as_current_span("operation_plan")
     async def create_operation_plan(
-        self, qgraph: QueryGraphDict, tiers: set[TierNumber]
+        self, qgraph: QueryGraph, tiers: set[TierNumber]
     ) -> tuple[
         bool, OperationPlan | dict[QEdgeID, UnsupportedConstraint | QueryNotTraversable]
     ]:
@@ -365,36 +361,31 @@ class OpTableManager(AsyncDaemon):
         unsupported_qedges = dict[
             QEdgeID, UnsupportedConstraint | QueryNotTraversable
         ]()
-        for qedge_id, qedge in qgraph["edges"].items():
+        for qedge_id, qedge in qgraph.edges.items():
             operations = []
             try:
                 operations = await self.find_operations(qedge, qgraph, tiers)
             except (UnsupportedConstraint, QueryNotTraversable) as e:
                 unsupported_qedges[qedge_id] = e
-            plan[QEdgeID(qedge_id)] = operations
+            plan[qedge_id] = operations
 
         if len(unsupported_qedges) > 0:
             return False, unsupported_qedges
         return True, plan
 
     async def qnodes_supported(
-        self, qgraph: QueryGraphDict, tiers: set[TierNumber]
+        self, qgraph: QueryGraph, tiers: set[TierNumber]
     ) -> None | dict[QNodeID, UnsupportedConstraint]:
         """Check if any nodes contain unsupported constraints, returning a dictionary of any that are unsupported."""
         unmet_nodes = defaultdict[QNodeID, set[str]](set)
         op_table = await self.get_op_table()
-        nodes_met = dict.fromkeys(qgraph["nodes"], False)
-        for qnode_id, node in qgraph["nodes"].items():
-            constraints = node.get("constraints", []) or []
+        nodes_met = dict.fromkeys(qgraph.nodes, False)
+        for qnode_id, node in qgraph.nodes.items():
+            constraints = node.constraints_list
             if len(constraints) == 0:
                 nodes_met[qnode_id] = True
                 continue
-            categories = expand(
-                set(
-                    node.get("categories", ["biolink:NamedThing"])
-                    or ["biolink:NamedThing"]
-                )
-            )
+            categories = Biolink.expand(set(node.categories or [Biolink("NamedThing")]))
             for category in categories:
                 op_tier_nodes = op_table.nodes.get(category)
                 if op_tier_nodes is None:
@@ -406,17 +397,17 @@ class OpTableManager(AsyncDaemon):
                     available_attrs = itertools.chain(
                         *(
                             (
-                                attr["attribute_type_id"]
+                                attr.attribute_type_id
                                 for attr in attrs
-                                if attr.get("constraint_use", False)
+                                if attr.constraint_use
                             )
                             for attrs in op_node.attributes.values()
                         )
                     )
                     met = True
                     for constr in constraints:
-                        if constr["id"] not in available_attrs:
-                            unmet_nodes[qnode_id].add(constr["name"])
+                        if constr.id not in available_attrs:
+                            unmet_nodes[qnode_id].add(constr.name)
                             met = False
                     if met:
                         nodes_met[qnode_id] = True
@@ -436,16 +427,16 @@ class OpTableManager(AsyncDaemon):
         op_table: OperationTable,
         tiers: tuple[TierNumber, ...],
     ) -> tuple[
-        dict[SPO, MetaEdgeDict],
+        dict[SPO, MetaEdge],
         dict[SPO, dict[str, set[str]]],
-        dict[SPO, dict[int, MetaAttributeDict]],
-        set[BiolinkEntity],
+        dict[SPO, dict[str, MetaAttribute]],
+        set[Biolink.Entity],
     ]:
         """Build merged TRAPI MetaEdges from the operation table."""
-        edges = dict[SPO, MetaEdgeDict]()
+        edges = dict[SPO, MetaEdge]()
         edge_qualifiers = dict[SPO, dict[str, set[str]]]()
-        edge_attributes = dict[SPO, dict[int, MetaAttributeDict]]()
-        mentioned_nodes = set[BiolinkEntity]()
+        edge_attributes = dict[SPO, dict[str, MetaAttribute]]()
+        mentioned_nodes = set[Biolink.Entity]()
         for op in op_table.operations_flat.values():
             if op.tier not in tiers:
                 continue
@@ -459,11 +450,11 @@ class OpTableManager(AsyncDaemon):
                 qualifiers = edge_qualifiers[spo]
                 attributes = edge_attributes[spo]
             else:
-                meta_edge = MetaEdgeDict(
+                meta_edge = MetaEdge(
                     subject=sbj, predicate=pred, object=obj, knowledge_types=["lookup"]
                 )
                 qualifiers = dict[str, set[str]]()
-                attributes = dict[int, MetaAttributeDict]()
+                attributes = dict[str, MetaAttribute]()
 
             # Merge qualifiers
             if op.qualifiers is not None:
@@ -474,9 +465,7 @@ class OpTableManager(AsyncDaemon):
 
             # Merge attributes
             if op.attributes is not None:
-                attributes.update(
-                    {hash_meta_attribute(attr): attr for attr in op.attributes}
-                )
+                attributes.update({attr.hash(): attr for attr in op.attributes})
 
             if spo not in edges:
                 edges[spo] = meta_edge
@@ -487,7 +476,7 @@ class OpTableManager(AsyncDaemon):
 
     async def get_trapi_metakg(
         self, tiers: tuple[TierNumber, ...]
-    ) -> MetaKnowledgeGraphDict:
+    ) -> MetaKnowledgeGraph:
         """Convert an OperationTable to a TRAPI MetaKG dict.
 
         Because it depends on OP_TABLE_MANAGER, it can't be used with the lead manager.
@@ -500,40 +489,40 @@ class OpTableManager(AsyncDaemon):
             edge_attributes,
             mentioned_nodes,
         ) = await self.build_edges(op_table, tiers)
-        nodes = dict[BiolinkEntity, MetaNodeDict]()
+        nodes = dict[Biolink.Entity, MetaNode]()
 
         for spo, edge in edges.items():
-            qualifiers = list[MetaQualifierDict]()
+            qualifiers = list[MetaQualifier]()
             for qual_type, values in edge_qualifiers[spo].items():
-                qualifier = MetaQualifierDict(
-                    qualifier_type_id=QualifierTypeID(qual_type),
+                qualifier = MetaQualifier(
+                    qualifier_type_id=qual_type,
                 )
                 if len(values):
-                    qualifier["applicable_values"] = list(values)
+                    qualifier.applicable_values = list(values)
                 qualifiers.append(qualifier)
             if len(qualifiers):
-                edge["qualifiers"] = qualifiers
+                edge.qualifiers = qualifiers
             if len(edge_attributes[spo]):
-                edge["attributes"] = list(edge_attributes[spo].values())
+                edge.attributes = list(edge_attributes[spo].values())
 
         for category, tier_nodes in op_table.nodes.items():
             if category not in mentioned_nodes:
                 continue
             id_prefixes = set[str]()
-            attributes = dict[int, MetaAttributeDict]()
+            attributes = dict[str, MetaAttribute]()
             for tier, node in tier_nodes.items():
                 if tier not in tiers:
                     continue
                 id_prefixes.update(itertools.chain(*node.prefixes.values()))
                 attributes.update(
                     {
-                        hash_meta_attribute(attr): attr
+                        attr.hash(): attr
                         for attr in itertools.chain(*node.attributes.values())
                     }
                 )
-            nodes[category] = MetaNodeDict(
+            nodes[category] = MetaNode(
                 id_prefixes=list(id_prefixes),
                 attributes=list(attributes.values()),
             )
 
-        return MetaKnowledgeGraphDict(nodes=nodes, edges=list(edges.values()))
+        return MetaKnowledgeGraph(nodes=nodes, edges=list(edges.values()))

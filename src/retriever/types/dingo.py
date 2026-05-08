@@ -1,13 +1,7 @@
 from typing import Any, TypedDict
 
 from pydantic import TypeAdapter
-
-from retriever.types.trapi import (
-    BiolinkEntity,
-    BiolinkPredicate,
-    Infores,
-    QualifierTypeID,
-)
+from translator_tom import Biolink, Infores
 
 DistributionInfo = TypedDict(
     "DistributionInfo",
@@ -36,7 +30,7 @@ class SourceInfo(TypedDict):
 class NodeInfo(TypedDict):
     """Information about a class of nodes present in the knowledge."""
 
-    category: list[BiolinkEntity]
+    category: list[Biolink.Entity]
     count: int
     id_prefixes: dict[str, int]
     attributes: dict[str, int]
@@ -53,12 +47,12 @@ class NodeSummary(TypedDict):
 class EdgeInfo(TypedDict):
     """Information about a class of edges present in the knowledge."""
 
-    subject_category: list[BiolinkEntity]
-    predicate: BiolinkPredicate
-    object_category: list[BiolinkEntity]
+    subject_category: list[Biolink.Entity]
+    predicate: Biolink.Predicate
+    object_category: list[Biolink.Entity]
     count: int
     primary_knowledge_sources: dict[Infores, int]
-    qualifiers: dict[QualifierTypeID, int]
+    qualifiers: dict[Biolink.Qualifier, int]
     attributes: dict[str, int]
     subject_id_prefixes: dict[str, int]
     object_id_prefixes: dict[str, int]
@@ -68,10 +62,10 @@ class EdgeSummary(TypedDict):
     """A summary of all edges present in the knowledge."""
 
     total_count: int
-    predicates: dict[BiolinkPredicate, int]
+    predicates: dict[Biolink.Predicate, int]
     primary_knowledge_sources: dict[Infores, int]
-    predicates_by_knowledge_source: dict[Infores, dict[BiolinkPredicate, int]]
-    qualifiers: dict[QualifierTypeID, int]
+    predicates_by_knowledge_source: dict[Infores, dict[Biolink.Predicate, int]]
+    qualifiers: dict[Biolink.Qualifier, int]
     attributes: dict[str, int]
 
 

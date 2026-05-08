@@ -4,22 +4,18 @@ import time
 from abc import ABC, abstractmethod
 
 from opentelemetry import trace
+from translator_tom import (
+    AuxGraphID,
+    AuxiliaryGraph,
+    KnowledgeGraph,
+    QueryGraph,
+    Result,
+    infores,
+)
 
 from retriever.types.general import BackendResult, LookupArtifacts, QueryInfo
-from retriever.types.trapi import (
-    AuxGraphID,
-    AuxiliaryGraphDict,
-    Infores,
-    KnowledgeGraphDict,
-    QueryGraphDict,
-)
 from retriever.utils.logs import TRAPILogger
-from retriever.utils.trapi import (
-    append_aggregator_source,
-    initialize_kgraph,
-    normalize_kgraph,
-    update_kgraph,
-)
+from retriever.utils.trapi import initialize_kgraph
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 
@@ -27,13 +23,13 @@ tracer = trace.get_tracer("lookup.execution.tracer")
 class Tier0Query(ABC):
     """Handler class for running a single Tier 0 query."""
 
-    def __init__(self, qgraph: QueryGraphDict, query_info: QueryInfo) -> None:
+    def __init__(self, qgraph: QueryGraph, query_info: QueryInfo) -> None:
         """Initialize a Tier 0 Query instance."""
         self.ctx: QueryInfo = query_info
-        self.qgraph: QueryGraphDict = qgraph
+        self.qgraph: QueryGraph = qgraph
         self.job_log: TRAPILogger = TRAPILogger(self.ctx.job_id)
-        self.kgraph: KnowledgeGraphDict = initialize_kgraph(self.qgraph)
-        self.aux_graphs: dict[AuxGraphID, AuxiliaryGraphDict] = {}
+        self.kgraph: KnowledgeGraph = initialize_kgraph(self.qgraph)
+        self.aux_graphs: dict[AuxGraphID, AuxiliaryGraph] = {}
 
     @tracer.start_as_current_span("tier0_execute")
     async def execute(self) -> LookupArtifacts:
@@ -50,32 +46,32 @@ class Tier0Query(ABC):
                 backend_results = await self.get_results(self.qgraph)
 
             with tracer.start_as_current_span("update_kg"):
-                normalize_kgraph(
-                    backend_results["knowledge_graph"],
-                    backend_results["results"],
-                    backend_results["auxiliary_graphs"],
+                normalize_map = backend_results.knowledge_graph.normalize()
+                AuxiliaryGraph.normalize_aux_dict(
+                    backend_results.auxiliary_graphs, normalize_map
                 )
-                update_kgraph(self.kgraph, backend_results["knowledge_graph"])
+                Result.normalize_list(backend_results.results, normalize_map)
+                self.kgraph.update(backend_results.knowledge_graph)
             with tracer.start_as_current_span("update_auxgraphs"):
-                self.aux_graphs.update(backend_results["auxiliary_graphs"])
+                self.aux_graphs.update(backend_results.auxiliary_graphs)
 
             end_time = time.time()
             duration_ms = math.ceil((end_time - start_time) * 1000)
             self.job_log.info(
-                f"Tier 0: Retrieved {len(backend_results['results'])} results / {len(self.kgraph['nodes'])} nodes / {len(self.kgraph['edges'])} edges in {duration_ms}ms."
+                f"Tier 0: Retrieved {len(backend_results.results)} results / {len(self.kgraph.nodes)} nodes / {len(self.kgraph.edges)} edges in {duration_ms}ms."
             )
 
             # Add Retriever to the provenance chain
-            for edge_id, edge in backend_results["knowledge_graph"]["edges"].items():
+            for edge_id, edge in backend_results.knowledge_graph.edges.items():
                 try:
-                    append_aggregator_source(edge, Infores("infores:retriever"))
+                    edge.append_aggregator(infores("retriever"))
                 except ValueError:
                     self.job_log.warning(
                         f"Edge f{edge_id} has an invalid provenance chain."
                     )
 
             return LookupArtifacts(
-                backend_results["results"],
+                backend_results.results,
                 self.kgraph,
                 self.aux_graphs,
                 self.job_log.get_logs(),
@@ -92,8 +88,8 @@ class Tier0Query(ABC):
             )
 
     @abstractmethod
-    async def get_results(self, qgraph: QueryGraphDict) -> BackendResult:
-        """Interface with the Tier 0 backend and retrieve results, converting to ResultDict.
+    async def get_results(self, qgraph: QueryGraph) -> BackendResult:
+        """Interface with the Tier 0 backend and retrieve results, converting to Result.
 
         Note that this method is responsible for calling the appropriate transpiler,
         running the query against the appropriate driver, tranforming the response,

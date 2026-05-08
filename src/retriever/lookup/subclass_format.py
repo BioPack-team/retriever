@@ -1,97 +1,87 @@
 from typing import Literal
 
-from retriever.config.general import CONFIG
-from retriever.types.trapi import (
+from translator_tom import (
     CURIE,
-    AttributeDict,
+    Attribute,
     AuxGraphID,
-    AuxiliaryGraphDict,
-    BiolinkPredicate,
-    EdgeDict,
-    EdgeIdentifier,
-    KnowledgeGraphDict,
-    ResultDict,
-    RetrievalSourceDict,
+    AuxiliaryGraph,
+    Biolink,
+    Edge,
+    EdgeID,
+    KnowledgeGraph,
+    PathfinderAnalysis,
+    Result,
+    RetrievalSource,
+    tomhash,
 )
+
+from retriever.config.general import CONFIG
 from retriever.utils.logs import TRAPILogger
-from retriever.utils.trapi import (
-    edge_primary_knowledge_source,
-    hash_edge,
-    hash_hex,
-    hash_qualifier_set,
-    merge_results,
-)
 
-SourcelessEdgeKey = tuple[CURIE, BiolinkPredicate, str, CURIE]
-SubclassEdgesByCURIE = dict[tuple[CURIE, CURIE], tuple[EdgeIdentifier, EdgeDict]]
-AuxGraphEdgesByConstruct = dict[
-    SourcelessEdgeKey, tuple[AuxGraphID, set[EdgeIdentifier]]
-]
-ConstructEdgesMapping = dict[SourcelessEdgeKey, tuple[EdgeIdentifier, EdgeDict]]
+SourcelessEdgeKey = tuple[CURIE, Biolink.Predicate, str, CURIE]
+SubclassEdgesByCURIE = dict[tuple[CURIE, CURIE], tuple[EdgeID, Edge]]
+AuxGraphEdgesByConstruct = dict[SourcelessEdgeKey, tuple[AuxGraphID, set[EdgeID]]]
+ConstructEdgesMapping = dict[SourcelessEdgeKey, tuple[EdgeID, Edge]]
 
 
-def create_subclass_edge(
-    parent: CURIE, descendant: CURIE
-) -> tuple[EdgeIdentifier, EdgeDict]:
+def create_subclass_edge(parent: CURIE, descendant: CURIE) -> tuple[EdgeID, Edge]:
     """Create a subclass edge given the parent and its descendant."""
-    edge = EdgeDict(
+    edge = Edge.model_construct(
         predicate="biolink:subclass_of",
         subject=descendant,
         object=parent,
         sources=[
-            RetrievalSourceDict(
+            RetrievalSource.model_construct(
                 resource_id="infores:ubergraph",
                 resource_role="primary_knowledge_source",
             ),
-            RetrievalSourceDict(
+            RetrievalSource.model_construct(
                 resource_id=CONFIG.tier1.backend_infores,
                 resource_role="aggregator_knowledge_source",
                 upstream_resource_ids=["infores:ubergraph"],
             ),
-            RetrievalSourceDict(
+            RetrievalSource.model_construct(
                 resource_id="infores:retriever",
                 resource_role="aggregator_knowledge_source",
                 upstream_resource_ids=[CONFIG.tier1.backend_infores],
             ),
         ],
         attributes=[
-            AttributeDict(
+            Attribute.model_construct(
                 attribute_type_id="biolink:knowledge_level",
                 value="knowledge_assertion",
             ),
-            AttributeDict(
+            Attribute.model_construct(
                 attribute_type_id="biolink:agent_type",
                 value="manual_agent",
             ),
         ],
     )
 
-    edge_hash = hash_hex(hash_edge(edge))
-
-    return edge_hash, edge
+    return edge.hash(), edge
 
 
 def build_intermediate_support_graph(
     subclass_backmap: dict[CURIE, CURIE],
-    edge_id: EdgeIdentifier,
-    edge: EdgeDict,
-    subclass_edges: dict[tuple[CURIE, CURIE], tuple[EdgeIdentifier, EdgeDict]],
-) -> tuple[SourcelessEdgeKey, set[EdgeIdentifier] | None]:
+    edge_id: EdgeID,
+    edge: Edge,
+    subclass_edges: dict[tuple[CURIE, CURIE], tuple[EdgeID, Edge]],
+) -> tuple[SourcelessEdgeKey, set[EdgeID] | None]:
     """Create a key for the pattern of edge to be replaced, and a support graph for it."""
-    sbj_subclass = edge["subject"] in subclass_backmap and edge["subject"]
-    obj_subclass = edge["object"] in subclass_backmap and edge["object"]
+    sbj_subclass = edge.subject in subclass_backmap and edge.subject
+    obj_subclass = edge.object in subclass_backmap and edge.object
 
     edge_key = (
-        subclass_backmap[sbj_subclass] if sbj_subclass else edge["subject"],
-        edge["predicate"],
-        hash_hex(hash_qualifier_set(edge.get("qualifiers", []) or [])),
-        subclass_backmap[obj_subclass] if obj_subclass else edge["object"],
+        subclass_backmap[sbj_subclass] if sbj_subclass else edge.subject,
+        edge.predicate,
+        tomhash(edge.qualifiers),
+        subclass_backmap[obj_subclass] if obj_subclass else edge.object,
     )
 
     if not (sbj_subclass or obj_subclass):
         return edge_key, None
 
-    support_graph = set[EdgeIdentifier]((edge_id,))
+    support_graph = set[EdgeID]((edge_id,))
     for subclass in list[CURIE | Literal[False]]((sbj_subclass, obj_subclass)):
         if not subclass:
             continue
@@ -113,64 +103,63 @@ def build_intermediate_support_graph(
     return edge_key, support_graph
 
 
-def build_subclass_construct_edge(
-    edge_key: SourcelessEdgeKey, edge: EdgeDict
-) -> EdgeDict:
+def build_subclass_construct_edge(edge_key: SourcelessEdgeKey, edge: Edge) -> Edge:
     """Build a Retriever-constructed edge which asserts the subclass-driven knowledge."""
-    construct_edge = EdgeDict(
+    construct_edge = Edge.model_construct(
         subject=edge_key[0],
         object=edge_key[3],
-        predicate=edge["predicate"],
-        qualifiers=edge.get("qualifiers", []) or [],
+        predicate=edge.predicate,
+        qualifiers=edge.qualifiers,
         # BUG: this breaks 2.0-clarified attribute constraint binding rules
         # Would have to make a new construct for each edge, rather than aggregate
         attributes=[
-            AttributeDict(
+            Attribute.model_construct(
                 attribute_type_id="biolink:support_graphs",
                 value=[f"support_{'_'.join(edge_key)}_via_subclass"],
             ),
-            AttributeDict(
+            Attribute.model_construct(
                 attribute_type_id="biolink:knowledge_level",
                 value="logical_entailment",
             ),
-            AttributeDict(
+            Attribute.model_construct(
                 attribute_type_id="biolink:agent_type",
                 value="automated_agent",
             ),
         ],
         sources=[
-            RetrievalSourceDict(
+            RetrievalSource.model_construct(
                 resource_id="infores:retriever",
                 resource_role="primary_knowledge_source",
                 upstream_resource_ids=["infores:ubergraph"],
             ),
-            RetrievalSourceDict(
+            RetrievalSource.model_construct(
                 resource_id="infores:ubergraph",
                 resource_role="supporting_data_source",
             ),
         ],
     )
 
-    if edge_source := edge_primary_knowledge_source(edge):
-        construct_edge["sources"].append(
-            RetrievalSourceDict(
-                resource_id=edge_source["resource_id"],
+    if edge_source := edge.primary_knowledge_source:
+        construct_edge.sources.append(
+            RetrievalSource.model_construct(
+                resource_id=edge_source.resource_id,
                 resource_role="supporting_data_source",
             )
         )
         # Access by index because it's known
-        (construct_edge["sources"][0].get("upstream_resource_ids", []) or []).append(
-            edge_source["resource_id"]
-        )
+        construct_edge.sources[0].upstream_resource_ids = [
+            *construct_edge.sources[0].upstream_resource_ids_list,
+            edge_source.resource_id,
+        ]
 
     return construct_edge
 
 
 def insert_constructs(
     subclass_backmap: dict[CURIE, CURIE],
-    results: list[ResultDict],
-    aux_graphs: dict[AuxGraphID, AuxiliaryGraphDict],
-    edges_to_fix: dict[EdgeIdentifier, SourcelessEdgeKey],
+    results: list[Result],
+    aux_graphs: dict[AuxGraphID, AuxiliaryGraph],
+    edges_to_fix: dict[EdgeID, SourcelessEdgeKey],
     construct_edges: ConstructEdgesMapping,
 ) -> None:
     """Replace uses of subclassed knowledge edges with their associated constructs.
@@ -180,50 +169,54 @@ def insert_constructs(
     """
     # Replace edges with constructs in aux graphs
     for aux_graph in aux_graphs.values():
-        aux_graph["edges"] = [
+        aux_graph.edges = [
             edge_id
             if edge_id not in edges_to_fix
             else construct_edges[edges_to_fix[edge_id]][0]
-            for edge_id in aux_graph["edges"]
+            for edge_id in aux_graph.edges
         ]
 
     # Replace edges and nodes in results
-    merged_results = dict[int, ResultDict]()
+    merged_results = dict[str, Result]()
     for result in results:
-        for node_bindings in result["node_bindings"].values():
+        for node_bindings in result.node_bindings.values():
             for binding in node_bindings:
-                if binding["id"] in subclass_backmap:
-                    binding["id"] = subclass_backmap[binding["id"]]
+                if binding.id in subclass_backmap:
+                    binding.id = subclass_backmap[binding.id]
 
-        for analysis in result["analyses"]:
-            if "edge_bindings" not in analysis:
+        for analysis in result.analyses:
+            if isinstance(analysis, PathfinderAnalysis):
                 continue
-            for edge_bindings in analysis["edge_bindings"].values():
+            for edge_bindings in analysis.edge_bindings.values():
                 for binding in edge_bindings:
-                    if binding["id"] in edges_to_fix:
-                        binding["id"] = construct_edges[edges_to_fix[binding["id"]]][0]
+                    if binding.id in edges_to_fix:
+                        binding.id = construct_edges[edges_to_fix[binding.id]][0]
 
         # Merge the result
-        merge_results(merged_results, [result])
+        result_hash = result.hash()
+        if result_hash in merged_results:
+            merged_results[result_hash].update(result)
+        else:
+            merged_results[result_hash] = result
     results.clear()
     results.extend(merged_results.values())
 
 
 def add_new_knowledge(
-    kg: KnowledgeGraphDict,
-    aux_graphs: dict[AuxGraphID, AuxiliaryGraphDict],
+    kg: KnowledgeGraph,
+    aux_graphs: dict[AuxGraphID, AuxiliaryGraph],
     subclass_edges: SubclassEdgesByCURIE,
     support_graphs: AuxGraphEdgesByConstruct,
     construct_edges: ConstructEdgesMapping,
 ) -> None:
     """Update the kg/aux with the new format information."""
     # Merge in new edges and aux graphs
-    kg["edges"].update(dict(subclass_edges.values()))
-    kg["edges"].update(dict(construct_edges.values()))
+    kg.edges.update(dict(subclass_edges.values()))
+    kg.edges.update(dict(construct_edges.values()))
 
     aux_graphs.update(
         {
-            support_graph_id: AuxiliaryGraphDict(
+            support_graph_id: AuxiliaryGraph.model_construct(
                 edges=list(support_edges), attributes=[]
             )
             for support_graph_id, support_edges in support_graphs.values()
@@ -233,9 +226,9 @@ def add_new_knowledge(
 
 def solve_subclass_edges(
     subclass_backmap: dict[CURIE, CURIE],
-    kg: KnowledgeGraphDict,
-    results: list[ResultDict],
-    aux_graphs: dict[AuxGraphID, AuxiliaryGraphDict],
+    kg: KnowledgeGraph,
+    results: list[Result],
+    aux_graphs: dict[AuxGraphID, AuxiliaryGraph],
     job_log: TRAPILogger | None = None,
 ) -> None:
     """Given the subclass mapping, fix the kg/results/aux to use correct subclass structure.
@@ -248,13 +241,13 @@ def solve_subclass_edges(
     subclass_edges = SubclassEdgesByCURIE()
 
     # Map original edges to non-subclassed sbj/obj
-    edges_to_fix = dict[EdgeIdentifier, SourcelessEdgeKey]()
+    edges_to_fix = dict[EdgeID, SourcelessEdgeKey]()
     # Map non-subclassed sbj/obj to support graph for merging
     support_graphs = AuxGraphEdgesByConstruct()
     # Map original edges to their construct replacements
     construct_edges = ConstructEdgesMapping()
 
-    for edge_id, edge in kg["edges"].items():
+    for edge_id, edge in kg.edges.items():
         edge_key, support_graph = build_intermediate_support_graph(
             subclass_backmap, edge_id, edge, subclass_edges
         )
@@ -270,26 +263,21 @@ def solve_subclass_edges(
 
         # Don't build redundant construct edges, just append the supporting source
         if edge_key in construct_edges:
-            if edge_source := edge_primary_knowledge_source(edge):
+            if edge_source := edge.primary_knowledge_source:
                 construct_edge = construct_edges[edge_key][1]
-                if edge_source["resource_id"] not in (
-                    construct_edge["sources"][0].get("upstream_resource_ids", []) or []
+                if edge_source.resource_id not in (
+                    construct_edge.sources[0].upstream_resource_ids_list
                 ):
-                    construct_edge["sources"].append(
-                        RetrievalSourceDict(
-                            resource_id=edge_source["resource_id"],
+                    construct_edge.sources.append(
+                        RetrievalSource.model_construct(
+                            resource_id=edge_source.resource_id,
                             resource_role="supporting_data_source",
                         )
                     )
-                    construct_edge["sources"][0]["upstream_resource_ids"] = list(
+                    construct_edge.sources[0].upstream_resource_ids = list(
                         {
-                            *(
-                                construct_edge["sources"][0].get(
-                                    "upstream_resource_ids", []
-                                )
-                                or []
-                            ),
-                            edge_source["resource_id"],
+                            *(construct_edge.sources[0].upstream_resource_ids_list),
+                            edge_source.resource_id,
                         }
                     )
             continue

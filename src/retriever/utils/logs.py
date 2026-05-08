@@ -10,11 +10,11 @@ from typing import Any
 import loguru
 import orjson
 from loguru import logger
+from translator_tom import LogEntry
+from translator_tom import LogLevelEnum as TRAPILogLevel
 
 from retriever.config.general import CONFIG
 from retriever.types.general import LogLevel
-from retriever.types.trapi import LogEntryDict
-from retriever.types.trapi import LogLevel as TRAPILogLevel
 from retriever.utils.mongo import MongoQueue
 
 MONGO_QUEUE = MongoQueue()
@@ -46,27 +46,25 @@ def format_trapi_log(
     message: str,
     timestamp: str | datetime | None = None,
     trace: str | None = None,
-) -> LogEntryDict:
+) -> LogEntry:
     """Format a loguru message into a TRAPI-spec LogEntry."""
     if timestamp is None:
         timestamp = datetime.now().astimezone()
     if isinstance(timestamp, str):
         timestamp = datetime.fromisoformat(timestamp)
-    log_entry = LogEntryDict(
-        level=log_level_to_trapi(level),
+    log_entry = LogEntry(
+        level=log_level_to_trapi(level).value,
         message=message,
-        timestamp=timestamp.isoformat(timespec="milliseconds"),
+        timestamp=timestamp,
     )
     if trace:
-        log_entry["trace"] = (  # pyright:ignore[reportGeneralTypeIssues] It's allowed
-            trace
-        )
+        log_entry.extra_set("trace", trace)
     return log_entry
 
 
 async def structured_log_to_trapi(
     logs: AsyncGenerator[dict[str, Any]],
-) -> AsyncGenerator[LogEntryDict]:
+) -> AsyncGenerator[LogEntry]:
     """Take an async generator of structured logs and yield TRAPI logs asynchronously."""
     async for log in logs:
         trace = None
@@ -103,7 +101,7 @@ class TRAPILogger:
 
     def __init__(self, job_id: str) -> None:
         """Initialize an instance."""
-        self.log_deque: deque[LogEntryDict] = deque()
+        self.log_deque: deque[LogEntry] = deque()
         self.job_id: str = job_id
 
     def _log(
@@ -170,7 +168,7 @@ class TRAPILogger:
         """Log with a given exception as an ERROR-level log."""
         self._log("ERROR", message, exception, **kwargs)
 
-    def get_logs(self) -> list[LogEntryDict]:
+    def get_logs(self) -> list[LogEntry]:
         """Get a generator of stored TRAPI logs."""
         return list(self.log_deque)
 

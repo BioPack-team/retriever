@@ -4,16 +4,14 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, cast
 
-from pydantic import BaseModel, Secret, SecretBytes, SecretStr
+from pydantic import BaseModel, JsonValue, Secret, SecretBytes, SecretStr
 from pydantic_core import PydanticUndefinedType
 from pydantic_settings import BaseSettings
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
 
-from retriever.types.base import JsonSerializable
-
 yaml = YAML()
-CommentedSerializable = JsonSerializable | list[CommentedMap] | dict[str, CommentedMap]
+CommentedSerializable = JsonValue | list[CommentedMap] | dict[str, CommentedMap]
 
 
 class CommentedSettings(BaseSettings):

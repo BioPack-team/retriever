@@ -2,6 +2,10 @@ from dataclasses import dataclass
 from typing import Any, NotRequired, Self, TypedDict
 
 import orjson
+from translator_tom import (
+    Biolink,
+    RetrievalSource,
+)
 
 from retriever.data_tiers.tier_1.elasticsearch.constraints.types.attribute_types import (
     AttributeFilterQuery,
@@ -15,10 +19,6 @@ from retriever.data_tiers.utils import (
     DINGO_KG_EDGE_TOPLEVEL_VALUES,
     DINGO_KG_NODE_TOPLEVEL_VALUES,
 )
-from retriever.types.trapi import (
-    RetrievalSourceDict,
-)
-from retriever.utils import biolink
 
 
 class ESFilterClause(TypedDict):
@@ -108,7 +108,7 @@ class ESEdge:
     object: ESNode
     predicate: str
     predicate_ancestors: list[str]
-    sources: list[RetrievalSourceDict]
+    sources: list[RetrievalSource]
     source_inforeses: list[str]
     qualifiers: dict[str, str]
     attributes: dict[str, Any]
@@ -121,7 +121,7 @@ class ESEdge:
         for key, value in doc["_source"].items():
             if key in DINGO_KG_EDGE_TOPLEVEL_VALUES:
                 continue
-            if biolink.is_qualifier(key):
+            if Biolink.is_qualifier(key):
                 if not isinstance(value, str):
                     qualifiers[key] = orjson.dumps(value).decode()
                 else:
@@ -141,7 +141,10 @@ class ESEdge:
             predicate_ancestors=doc["_source"].get(
                 "predicate_ancestors", ["related_to"]
             ),
-            sources=doc["_source"].get("sources", []),
+            sources=[
+                RetrievalSource.from_dict(source)
+                for source in doc["_source"].get("sources", [])
+            ],
             source_inforeses=doc["_source"].get("source_inforeses", []),
             qualifiers=qualifiers,
             attributes=attributes,

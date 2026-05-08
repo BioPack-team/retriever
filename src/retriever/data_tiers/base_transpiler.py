@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
+from translator_tom import QueryGraph
+
 from retriever.types.general import BackendResult
-from retriever.types.trapi import QueryGraphDict
 
 
 class Transpiler(ABC):
@@ -13,12 +14,12 @@ class Transpiler(ABC):
     """
 
     def process_qgraph(
-        self, qgraph: QueryGraphDict, *additional_qgraphs: QueryGraphDict
+        self, qgraph: QueryGraph, *additional_qgraphs: QueryGraph
     ) -> Any:
         """Take in a TRAPI query graph and convert it to the target query language."""
         is_tier0 = isinstance(self, Tier0Transpiler)
         is_tier1 = isinstance(self, Tier1Transpiler)
-        multihop = any(len(qg["nodes"]) > 2 for qg in (qgraph, *additional_qgraphs))  # noqa: PLR2004
+        multihop = any(len(qg.nodes) > 2 for qg in (qgraph, *additional_qgraphs))  # noqa: PLR2004
 
         if not (is_tier0 or is_tier1):
             raise NotImplementedError(
@@ -40,7 +41,7 @@ class Transpiler(ABC):
         return convert(qgraph)
 
     @abstractmethod
-    def convert_results(self, qgraph: QueryGraphDict, results: Any) -> BackendResult:
+    def convert_results(self, qgraph: QueryGraph, results: Any) -> BackendResult:
         """Convert the backend response back to TRAPI, mapping it to the qgraph."""
 
 
@@ -48,11 +49,11 @@ class Tier1Transpiler(Transpiler, ABC):
     """A transpiler class that handles converting single-hop query graphs."""
 
     @abstractmethod
-    def convert_triple(self, qgraph: QueryGraphDict) -> Any:
+    def convert_triple(self, qgraph: QueryGraph) -> Any:
         """Convert a single-hop query graph."""
 
     @abstractmethod
-    def convert_batch_triple(self, qgraphs: list[QueryGraphDict]) -> Any:
+    def convert_batch_triple(self, qgraphs: list[QueryGraph]) -> Any:
         """Convert a list of single-hop query graphs."""
 
 
@@ -60,9 +61,9 @@ class Tier0Transpiler(Transpiler, ABC):
     """A transpiler class that handles converting multi-hop query graphs."""
 
     @abstractmethod
-    def convert_multihop(self, qgraph: QueryGraphDict) -> Any:
+    def convert_multihop(self, qgraph: QueryGraph) -> Any:
         """Convert a multi-hop query graph."""
 
     @abstractmethod
-    def convert_batch_multihop(self, qgraphs: list[QueryGraphDict]) -> Any:
+    def convert_batch_multihop(self, qgraphs: list[QueryGraph]) -> Any:
         """Convert a list of multi-hop query graphs."""

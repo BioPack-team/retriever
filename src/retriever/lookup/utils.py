@@ -2,35 +2,33 @@ import os
 
 import aiofiles
 from loguru import logger
+from translator_tom import (
+    Biolink,
+    QEdge,
+    QNodeID,
+    QueryGraph,
+)
 
 from retriever.types.general import (
     AdjacencyGraph,
     QEdgeIDMap,
     QueryInfo,
 )
-from retriever.types.trapi import (
-    BiolinkEntity,
-    BiolinkPredicate,
-    QEdgeDict,
-    QEdgeID,
-    QNodeID,
-    QueryGraphDict,
-)
 from retriever.utils.general import BatchedAction
 from retriever.utils.logs import TRAPILogger
 
 
-def expand_qgraph(qg: QueryGraphDict, job_log: TRAPILogger) -> QueryGraphDict:
+def expand_qgraph(qg: QueryGraph, job_log: TRAPILogger) -> QueryGraph:
     """Ensure all nodes in qgraph have all descendant categories.
 
     See https://biolink.github.io/biolink-model/categories.html
     """
     # biolink functions are already LRU cached :)
-    for qnode_id, qnode in qg["nodes"].items():
-        categories = set(qnode.get("categories") or {})
-        new_categories = set[BiolinkEntity]()
+    for qnode_id, qnode in qg.nodes.items():
+        categories = set(qnode.categories_list)
+        new_categories = set[Biolink.Entity]()
         if len(categories) == 0:
-            categories.add(BiolinkEntity("biolink:NamedThing"))
+            categories.add("biolink:NamedThing")
             job_log.info(
                 f"QNode {qnode_id}: Inferred NamedThing from empty category list."
             )
@@ -46,13 +44,13 @@ def expand_qgraph(qg: QueryGraphDict, job_log: TRAPILogger) -> QueryGraphDict:
                 f"QNode {qnode_id}: Added descendant categories {new_categories}."
             )
 
-        qnode["categories"] = [*categories, *new_categories]
+        qnode.categories = [*categories, *new_categories]
 
-    for qedge_id, qedge in qg["edges"].items():
-        predicates = set(qedge.get("predicates") or {})
-        new_predicates = set[BiolinkPredicate]()
+    for qedge_id, qedge in qg.edges.items():
+        predicates = set(qedge.predicates_list)
+        new_predicates = set[Biolink.Predicate]()
         if len(predicates) == 0:
-            predicates.add(BiolinkPredicate("biolink:related_to"))
+            predicates.add("biolink:related_to")
             job_log.info(
                 f"QEdge {qedge_id}: Inferred related_to from empty predicate list."
             )
@@ -68,27 +66,27 @@ def expand_qgraph(qg: QueryGraphDict, job_log: TRAPILogger) -> QueryGraphDict:
                 f"QEdge {qedge_id}: Added descendant predicates {new_predicates}."
             )
 
-        qedge["predicates"] = [*predicates, *new_predicates]
+        qedge.predicates = [*predicates, *new_predicates]
 
     return qg
 
 
-def make_mappings(qg: QueryGraphDict) -> tuple[AdjacencyGraph, QEdgeIDMap]:
+def make_mappings(qg: QueryGraph) -> tuple[AdjacencyGraph, QEdgeIDMap]:
     """Make an undirected QGraph representation in which edges are presented by their nodes."""
     agraph: AdjacencyGraph = {}
     edge_id_map: QEdgeIDMap = {}
-    for edge_id, edge in qg["edges"].items():
-        edge_id_map[id(edge)] = QEdgeID(edge_id)
-        subject_node = QNodeID(edge["subject"])
-        object_node = QNodeID(edge["object"])
+    for edge_id, edge in qg.edges.items():
+        edge_id_map[id(edge)] = edge_id
+        subject_node = edge.subject
+        object_node = edge.object
         if subject_node not in agraph:
-            agraph[subject_node] = dict[QNodeID, list[QEdgeDict]]()
+            agraph[subject_node] = dict[QNodeID, list[QEdge]]()
         if object_node not in agraph:
-            agraph[object_node] = dict[QNodeID, list[QEdgeDict]]()
+            agraph[object_node] = dict[QNodeID, list[QEdge]]()
         if object_node not in agraph[subject_node]:
-            agraph[subject_node][object_node] = list[QEdgeDict]()
+            agraph[subject_node][object_node] = list[QEdge]()
         if subject_node not in agraph[object_node]:
-            agraph[object_node][subject_node] = list[QEdgeDict]()
+            agraph[object_node][subject_node] = list[QEdge]()
         agraph[subject_node][object_node].append(edge)
         agraph[object_node][subject_node].append(edge)
 
@@ -99,8 +97,8 @@ def get_submitter(query: QueryInfo) -> str:
     """Extract the submitter from a query, if it's provided."""
     body = query.body
 
-    if submitter := body is not None and body.get("submitter"):
-        return str(submitter)
+    if submitter := body is not None and body.submitter:
+        return submitter
     else:
         return "not_provided"
 

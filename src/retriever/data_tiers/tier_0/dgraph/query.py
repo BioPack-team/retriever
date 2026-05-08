@@ -1,12 +1,12 @@
 from typing import override
 
 from opentelemetry import trace
+from translator_tom import Biolink, QueryGraph
 
 from retriever.data_tiers.tier_0.base_query import Tier0Query
 from retriever.data_tiers.tier_0.dgraph.driver import DgraphGrpcDriver
 from retriever.data_tiers.tier_0.dgraph.transpiler import DgraphTranspiler
 from retriever.types.general import BackendResult
-from retriever.types.trapi import QueryGraphDict
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 
@@ -15,12 +15,12 @@ class DgraphQuery(Tier0Query):
     """Adapter to querying Dgraph as a Tier 0 backend."""
 
     @override
-    async def get_results(self, qgraph: QueryGraphDict) -> BackendResult:
+    async def get_results(self, qgraph: QueryGraph) -> BackendResult:
         backend_driver = DgraphGrpcDriver()
         dgraph_schema_version = await backend_driver.get_active_version()
         graph_uses_subclass = any(
-            "biolink:subclass_of" in (edge.get("predicates", []) or [])
-            for edge in qgraph["edges"].values()
+            Biolink("subclass_of") in edge.predicates_list
+            for edge in qgraph.edges.values()
         )
         transpiler = DgraphTranspiler(
             version=dgraph_schema_version, enable_subclass_edges=not graph_uses_subclass

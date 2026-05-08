@@ -1,16 +1,21 @@
 import importlib
 from collections.abc import Iterator
-from typing import Any, cast
+from typing import cast
 
 import pytest
-from payload.trapi_qgraphs import (
+from elasticsearch import AsyncElasticsearch
+from payload.trapi_qgraphs import (  # pyright:ignore[reportImplicitRelativeImport]
     DINGO_QGRAPH,
     EXPANDED_QUALIFIER_QGRAPH,
     ID_BYPASS_PAYLOAD,
     INVALID_REGEX_QGRAPHS,
     VALID_REGEX_QGRAPHS,
 )
-from test_tier1_transpiler import _convert_batch_triple, _convert_triple
+from test_tier1_transpiler import (  # pyright:ignore[reportImplicitRelativeImport]
+    convert_batch_triple_for_test,
+    convert_triple_for_test,
+)
+from translator_tom import QueryGraph
 
 import retriever.config.general as general_mod
 import retriever.data_tiers.tier_1.elasticsearch.driver as driver_mod
@@ -21,11 +26,6 @@ from retriever.data_tiers.tier_1.elasticsearch.meta import (
 from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
 from retriever.data_tiers.tier_1.elasticsearch.types import ESEdge, ESNode, ESPayload
 from retriever.utils.redis import RedisClient
-
-
-def esp(d: dict[str, Any]) -> ESPayload:
-    """Cast a raw qgraph dict into a QueryGraphDict for type-checking in tests."""
-    return cast(ESPayload, cast(object, d))
 
 
 @pytest.fixture
@@ -46,56 +46,58 @@ def mock_elasticsearch_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]
     yield
 
 
-PAYLOAD_0: ESPayload = esp({
+PAYLOAD_0: ESPayload = {
     "query": {
-        "bool":
-            {"filter": [
+        "bool": {
+            "filter": [
                 {"terms": {"subject.category": ["Protein", "Gene"]}},
                 {"terms": {"object.id": ["MONDO:0012507"]}},
                 {"terms": {"object.category": ["disease"]}},
-                {"terms": {"predicate_ancestors": ["causes"]}}
+                {"terms": {"predicate_ancestors": ["causes"]}},
             ]
-            }
+        }
     }
 }
-)
-PAYLOAD_1: ESPayload = esp({
+PAYLOAD_1: ESPayload = {
     "query": {
         "bool": {
             "filter": [
                 {"terms": {"object.id": ["MONDO:0005233"]}},
-                {"terms": {"subject.id": ["CHEBI:70839", "UMLS:C1872686"]}}
+                {"terms": {"subject.id": ["CHEBI:70839", "UMLS:C1872686"]}},
             ]
         }
     }
-})
+}
 
-PAYLOAD_2: ESPayload = esp({
-    "query": {
-        "bool": {
-            "filter": [
-                {
-                    "terms": {
-                        "subject.id": [
-                            "MONDO:0030010",
-                            "MONDO:0011766",
-                            "MONDO:0009890"
-                        ]
+PAYLOAD_2: ESPayload = cast(
+    ESPayload,
+    cast(object, {
+        "query": {
+            "bool": {
+                "filter": [
+                    {
+                        "terms": {
+                            "subject.id": [
+                                "MONDO:0030010",
+                                "MONDO:0011766",
+                                "MONDO:0009890",
+                            ]
+                        }
                     }
-                }
-            ],
-            "must": [
-                {"range": {"has_total": {"gt": 0}}},
-                {"range": {"has_total": {"lte": 45}}}
-            ],
-            "should": [
-                {"term": {"sex_qualifier": "PATO:0000383"}},
-                {"term": {"frequency_qualifier": "HP:0040280"}}
-            ],
-            "minimum_should_match": 1
+                ],
+                "must": [
+                    {"range": {"has_total": {"gt": 0}}},
+                    {"range": {"has_total": {"lte": 45}}},
+                ],
+                "should": [
+                    {"term": {"sex_qualifier": "PATO:0000383"}},
+                    {"term": {"frequency_qualifier": "HP:0040280"}},
+                ],
+                "minimum_should_match": 1,
+            }
         }
-    }
-})
+    }),
+)
 
 
 @pytest.mark.usefixtures("mock_elasticsearch_config")
@@ -106,19 +108,18 @@ PAYLOAD_2: ESPayload = esp({
         (PAYLOAD_0, 0),
         (PAYLOAD_1, 2),
         (PAYLOAD_2, 32),
-        (
-                [PAYLOAD_0, PAYLOAD_1, PAYLOAD_2],
-                [0, 2, 32]
-        )
+        ([PAYLOAD_0, PAYLOAD_1, PAYLOAD_2], [0, 2, 32]),
     ],
     ids=[
         "single payload 1",
         "single payload 2",
         "single payload 3",
         "batch payload",
-    ]
+    ],
 )
-async def test_elasticsearch_driver(payload: ESPayload | list[ESPayload], expected: int | list[int]):
+async def test_elasticsearch_driver(
+    payload: ESPayload | list[ESPayload], expected: int | list[int]
+):
     driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
     try:
         await driver.connect()
@@ -128,25 +129,32 @@ async def test_elasticsearch_driver(payload: ESPayload | list[ESPayload], expect
 
     hits: list[ESEdge] | list[list[ESEdge]] = await driver.run_query(payload)
 
-    def assert_single_result(res, expected_result_num: int):
+    def assert_single_result(
+        res: list[ESEdge] | list[list[ESEdge]], expected_result_num: int
+    ) -> None:
         if not res:
             if expected_result_num != 0:
                 raise AssertionError(f"Expected empty result, got {type(res)}")
             else:
                 return
-        if not isinstance(res, list):
-            raise AssertionError(f"Expected results to be list, got {type(res)}")
+        # Defensive runtime check; the annotated type already guarantees `list`.
+        if not isinstance(res, list):  # pyright:ignore[reportUnnecessaryIsInstance]
+            raise AssertionError(f"Expected results to be list, got {type(res)}")  # pyright:ignore[reportUnreachable]
         if not len(res) == expected_result_num:
-            raise AssertionError(f"Expected {expected_result_num} results, got {len(res)}")
+            raise AssertionError(
+                f"Expected {expected_result_num} results, got {len(res)}"
+            )
 
     # check batch result
     if len(payload) > 1:
+        assert isinstance(expected, list)
         assert len(hits) == len(payload)
         assert isinstance(hits[0], list)
 
         for index, result in enumerate(cast(list[list[ESEdge]], hits)):
             assert_single_result(result, expected[index])
     else:
+        assert isinstance(expected, int)
         assert_single_result(hits, expected)
 
     await driver.close()
@@ -155,20 +163,26 @@ async def test_elasticsearch_driver(payload: ESPayload | list[ESPayload], expect
 @pytest.mark.parametrize(
     "qgraph",
     INVALID_REGEX_QGRAPHS,
-    ids=[qgraph["edges"]["e0"]["attribute_constraints"][0]["value"] for qgraph in INVALID_REGEX_QGRAPHS]
+    ids=cast(
+        list[str],
+        [
+            qgraph.edges["e0"].attribute_constraints_list[0].value
+            for qgraph in INVALID_REGEX_QGRAPHS
+        ],
+    ),
 )
-def test_invalid_regex_qgraph(qgraph):
+def test_invalid_regex_qgraph(qgraph: QueryGraph) -> None:
     transpiler = ElasticsearchTranspiler()
     with pytest.raises(ValueError):
-        _convert_triple(transpiler, qgraph)
+        convert_triple_for_test(transpiler, qgraph)
 
 
 @pytest.mark.usefixtures("mock_elasticsearch_config")
 @pytest.mark.asyncio
-async def test_valid_regex_query():
+async def test_valid_regex_query() -> None:
     transpiler = ElasticsearchTranspiler()
 
-    qgraphs_with_valid_regex = _convert_batch_triple(transpiler, VALID_REGEX_QGRAPHS)
+    qgraphs_with_valid_regex = convert_batch_triple_for_test(transpiler, VALID_REGEX_QGRAPHS)
 
     driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
 
@@ -179,7 +193,7 @@ async def test_valid_regex_query():
         pytest.skip("skipping es driver connection test: cannot connect")
 
     for payload in qgraphs_with_valid_regex:
-        hits: list[ESEdge] = await driver.run_query(payload)
+        _hits = await driver.run_query(payload)
 
     await driver.close()
 
@@ -197,17 +211,18 @@ async def test_metadata_retrieval():
 
     meta = await driver.get_metadata(bypass_cache=True)
 
+    assert meta is not None
+
     # make sure each index has metadata extracted
     indices = await get_t1_indices(driver.es_connection)
     assert len(extract_metadata_entries_from_blob(meta, indices)) == len(indices)
 
-    ops, nodes = await driver.get_operations()
+    _ops, _nodes = await driver.get_operations()
 
     # with open("output_new.json", "w", encoding="utf-8") as f:
     #     json.dump(output, f, indent=2)
 
     # _ops, _nodes = await driver.legacy_get_operations()
-
 
     # assert len(nodes) == 23
 
@@ -246,9 +261,9 @@ async def test_fetch_single_node():
         (EXPANDED_QUALIFIER_QGRAPH, 1),
     ],
 )
-async def test_end_to_end(qgraph, expected_hits):
+async def test_end_to_end(qgraph: QueryGraph, expected_hits: int):
     transpiler = ElasticsearchTranspiler()
-    payload = _convert_triple(transpiler, qgraph)
+    payload = convert_triple_for_test(transpiler, qgraph)
 
     driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
 
@@ -258,7 +273,8 @@ async def test_end_to_end(qgraph, expected_hits):
     except Exception:
         pytest.skip("skipping es driver connection test: cannot connect")
 
-    hits: list[ESEdge] = await driver.run_query(payload)
+    hits = await driver.run_query(payload)
+    assert not isinstance(hits[0], list)
 
     assert len(hits) == expected_hits
 
@@ -274,7 +290,7 @@ async def test_cache_bypass():
     Compares results with and without bypass_cache to ensure timestamp filtering works.
     """
     transpiler = ElasticsearchTranspiler()
-    payload = _convert_triple(transpiler, DINGO_QGRAPH)
+    payload = convert_triple_for_test(transpiler, DINGO_QGRAPH)
 
     driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
 
@@ -300,6 +316,7 @@ async def test_cache_bypass():
 
     await driver.close()
 
+
 @pytest.mark.usefixtures("mock_elasticsearch_config")
 @pytest.mark.asyncio
 async def test_cache_bypass_batch_query():
@@ -309,7 +326,9 @@ async def test_cache_bypass_batch_query():
     Compares results with and without bypass_cache for batch processing.
     """
     transpiler = ElasticsearchTranspiler()
-    batch_payloads = _convert_batch_triple(transpiler, [DINGO_QGRAPH, ID_BYPASS_PAYLOAD])
+    batch_payloads = convert_batch_triple_for_test(
+        transpiler, [DINGO_QGRAPH, ID_BYPASS_PAYLOAD]
+    )
 
     driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
 
@@ -320,10 +339,14 @@ async def test_cache_bypass_batch_query():
         pytest.skip("skipping batch bypass_cache test: cannot connect to elasticsearch")
 
     # Execute batch query with bypass_cache=True (should enforce timestamp on all)
-    hits_with_bypass: list[list[ESEdge]] = await driver.run_query(batch_payloads, bypass_cache=True)
+    hits_with_bypass = await driver.run_query(batch_payloads, bypass_cache=True)
+    assert isinstance(hits_with_bypass[0], list)
+    assert isinstance(hits_with_bypass[1], list)
 
     # Execute same batch query with bypass_cache=False (should not enforce timestamp)
-    hits_without_bypass: list[list[ESEdge]] = await driver.run_query(batch_payloads, bypass_cache=False)
+    hits_without_bypass = await driver.run_query(batch_payloads, bypass_cache=False)
+    assert isinstance(hits_without_bypass[0], list)
+    assert isinstance(hits_without_bypass[1], list)
 
     # Both should return list of lists with same structure
     assert isinstance(hits_with_bypass, list)
@@ -338,7 +361,6 @@ async def test_cache_bypass_batch_query():
     await driver.close()
 
 
-
 @pytest.mark.usefixtures("mock_elasticsearch_config")
 @pytest.mark.asyncio
 async def test_cache_bypass_timestamp_structure(monkeypatch: pytest.MonkeyPatch):
@@ -346,7 +368,7 @@ async def test_cache_bypass_timestamp_structure(monkeypatch: pytest.MonkeyPatch)
     from unittest.mock import AsyncMock
 
     transpiler = ElasticsearchTranspiler()
-    payload = _convert_triple(transpiler, DINGO_QGRAPH)
+    payload = convert_triple_for_test(transpiler, DINGO_QGRAPH)
 
     driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
 
@@ -355,11 +377,14 @@ async def test_cache_bypass_timestamp_structure(monkeypatch: pytest.MonkeyPatch)
     driver.es_connection = mock_es
 
     # Capture the actual query passed to run_single_query
-    captured_query = None
+    captured: list[ESPayload] = []
 
-    async def mock_run_single(es_connection, index_name, query):
-        nonlocal captured_query
-        captured_query = query
+    async def mock_run_single(
+        es_connection: AsyncElasticsearch,  # noqa: ARG001  # pyright:ignore[reportUnusedParameter]
+        index_name: str,  # noqa: ARG001  # pyright:ignore[reportUnusedParameter]
+        query: ESPayload,
+    ) -> list[ESEdge]:
+        captured.append(query)
         return []
 
     mock_run_single_obj = AsyncMock(side_effect=mock_run_single)
@@ -368,21 +393,26 @@ async def test_cache_bypass_timestamp_structure(monkeypatch: pytest.MonkeyPatch)
     await driver.run_query(payload, bypass_cache=True)
 
     # Verify timestamp was added to filters (proof that enforce_timestamp was called)
-    if captured_query is None:
-        pytest.fail("Query was not captured")
-
-    filters = captured_query["query"]["bool"].get("filter", [])
+    assert captured, "Query was not captured"
+    filters = captured[0]["query"]["bool"].get("filter", [])
 
     # Check that timestamp filter was added
     timestamp_filter_found = False
     for f in filters:
-        if isinstance(f, dict) and "bool" in f:
+        # Defensive: at runtime `filters` may be raw json from the captured query.
+        if isinstance(f, dict) and "bool" in f:  # pyright:ignore[reportUnnecessaryIsInstance]
             bool_filter = f["bool"]
             if "should" in bool_filter:
                 should_clauses = bool_filter["should"]
                 # Check for timestamp range and null check clauses
-                has_range = any("range" in clause and "update_date" in clause.get("range", {}) for clause in should_clauses)
-                has_null_check = any("bool" in clause and "must_not" in clause.get("bool", {}) for clause in should_clauses)
+                has_range = any(
+                    "range" in clause and "update_date" in clause.get("range", {})
+                    for clause in should_clauses
+                )
+                has_null_check = any(
+                    "bool" in clause and "must_not" in clause.get("bool", {})
+                    for clause in should_clauses
+                )
                 if has_range and has_null_check:
                     timestamp_filter_found = True
                     break

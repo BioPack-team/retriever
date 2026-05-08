@@ -7,6 +7,9 @@ from collections.abc import AsyncIterable, AsyncIterator, Callable, Coroutine
 from typing import Any, ClassVar, override
 
 from loguru import logger
+from translator_tom import Biolink
+
+SUBCLASS_SKIP_PREDICATES = set(Biolink.get_ancestors("biolink:subclass_of"))
 
 
 class Singleton(ABCMeta):

@@ -2,7 +2,7 @@ import asyncio
 import base64
 import json
 from contextlib import suppress
-from enum import Enum
+from enum import StrEnum
 from http import HTTPStatus
 from typing import Any, Protocol, TypedDict, cast, override
 from urllib.parse import urljoin
@@ -15,6 +15,7 @@ from aiohttp import ClientTimeout
 from cachetools import TTLCache
 from loguru import logger as log
 from opentelemetry import trace
+from translator_tom import Biolink, infores
 
 from retriever.config.general import CONFIG, DgraphSettings
 from retriever.data_tiers.base_driver import DatabaseDriver
@@ -23,10 +24,9 @@ from retriever.data_tiers.utils import parse_dingo_metadata
 from retriever.types.dingo import DINGOMetadata
 from retriever.types.general import EntityToEntityMapping
 from retriever.types.metakg import Operation, OperationNode
-from retriever.types.trapi import BiolinkEntity, Infores
 
 
-class DgraphProtocol(str, Enum):
+class DgraphProtocol(StrEnum):
     """Enum for Dgraph connection protocols."""
 
     GRPC = "grpc"
@@ -400,15 +400,17 @@ class DgraphDriver(DatabaseDriver):
     @override
     async def get_operations(
         self,
-    ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
+    ) -> tuple[list[Operation], dict[Biolink.Entity, OperationNode]]:
         metadata = await self.get_metadata()
         if metadata is None:
             raise ValueError(
                 "Unable to obtain metadata from backend, cannot parse operations."
             )
-        infores = Infores(CONFIG.tier0.backend_infores)
-        operations, nodes = parse_dingo_metadata(DINGOMetadata(**metadata), 0, infores)
-        log.success(f"Parsed {infores} as a Tier 0 resource.")
+        source_infores = infores(CONFIG.tier0.backend_infores)
+        operations, nodes = parse_dingo_metadata(
+            DINGOMetadata(**metadata), 0, source_infores
+        )
+        log.success(f"Parsed {source_infores} as a Tier 0 resource.")
         return operations, nodes
 
     @override

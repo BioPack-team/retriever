@@ -1,17 +1,16 @@
 import asyncio
 
+from translator_tom import MetaKnowledgeGraph
+
 from retriever.metadata.optable import OpTableManager
 from retriever.types.general import ErrorDetail, QueryInfo
-from retriever.types.trapi import (
-    MetaKnowledgeGraphDict,
-)
 
 OP_TABLE_MANAGER = OpTableManager()
 
 
 async def trapi_metakg(
     query: QueryInfo,
-) -> tuple[int, MetaKnowledgeGraphDict | ErrorDetail]:
+) -> tuple[int, MetaKnowledgeGraph | ErrorDetail]:
     """Obtain a TRAPI-formatted meta-kg.
 
     Returns:

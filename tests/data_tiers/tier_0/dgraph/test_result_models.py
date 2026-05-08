@@ -172,7 +172,9 @@ def _assert_root_node_fields(root_node: dg_models.Node) -> None:
 
 
 def _assert_in_edge_fields(
-    in_edge: dg_models.Edge, supporting_b64: str, supporting_obj: dict[str, Any]
+    in_edge: dg_models.Edge,
+    _supporting_b64: str,
+    supporting_obj: dict[str, Any],
 ) -> None:
     assert in_edge.binding == "e0"
     assert in_edge.direction == "in"

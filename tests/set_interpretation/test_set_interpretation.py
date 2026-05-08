@@ -7,10 +7,10 @@ here
 import random
 
 import pytest
-import _pytest
+from translator_tom import QNodeID
 
-from retriever.utils.trapi import evaluate_set_interpretation
 from retriever.utils.logs import TRAPILogger
+from retriever.utils.trapi import evaluate_set_interpretation
 
 from .conftest import MockQuery
 
@@ -18,12 +18,12 @@ from .conftest import MockQuery
 @pytest.mark.asyncio
 @pytest.mark.parametrize("mock_query", ["mock_batch_query"])
 async def test_set_interpretation_batch_handling(
-    mock_query: str, request: _pytest.fixtures.TopRequest
+    mock_query: str, request: pytest.FixtureRequest
 ):
     """Tests default set_interpretation BATCH value. Should be a no-opt"""
     mock_batch_query: MockQuery = request.getfixturevalue(mock_query)
 
-    job_log = TRAPILogger(job_id=random.randint(0, 10000))
+    job_log = TRAPILogger(job_id=str(random.randint(0, 10000)))
 
     empirical_results = evaluate_set_interpretation(
         qgraph=mock_batch_query.query,
@@ -33,13 +33,12 @@ async def test_set_interpretation_batch_handling(
     assert empirical_results == mock_batch_query.postfilter_results
 
     for expected_result in mock_batch_query.postfilter_results:
-        discovered_result_match = False
         for empirical_result in empirical_results:
             if (
-                empirical_result["node_bindings"]["n0"][0]["id"]
-                == expected_result["node_bindings"]["n0"][0]["id"]
-                and empirical_result["node_bindings"]["n1"][0]["id"]
-                == expected_result["node_bindings"]["n1"][0]["id"]
+                empirical_result.node_bindings[QNodeID("n0")][0].id
+                == expected_result.node_bindings[QNodeID("n0")][0].id
+                and empirical_result.node_bindings[QNodeID("n1")][0].id
+                == expected_result.node_bindings[QNodeID("n1")][0].id
             ):
                 assert empirical_result == expected_result
 
@@ -57,7 +56,7 @@ async def test_set_interpretation_batch_handling(
     ],
 )
 async def test_mixed_set_interpretation_values(
-    mock_query: str, request: _pytest.fixtures.TopRequest
+    mock_query: str, request: pytest.FixtureRequest
 ):
     """Test case(s) where user supplied multiple different set_interpretation values.
 
@@ -67,7 +66,7 @@ async def test_mixed_set_interpretation_values(
     mock_mixed_query: MockQuery = request.getfixturevalue(mock_query)
 
     # Ensure that the nodes have two different values for set_interpretation
-    job_log = TRAPILogger(job_id=random.randint(0, 10000))
+    job_log = TRAPILogger(job_id=str(random.randint(0, 10000)))
 
     empirical_results = evaluate_set_interpretation(
         qgraph=mock_mixed_query.query,
@@ -77,13 +76,12 @@ async def test_mixed_set_interpretation_values(
     assert len(empirical_results) == len(mock_mixed_query.postfilter_results)
 
     for expected_result in mock_mixed_query.postfilter_results:
-        discovered_result_match = False
         for empirical_result in empirical_results:
             if (
-                empirical_result["node_bindings"]["n0"][0]["id"]
-                == expected_result["node_bindings"]["n0"][0]["id"]
-                and empirical_result["node_bindings"]["n1"][0]["id"]
-                == expected_result["node_bindings"]["n1"][0]["id"]
+                empirical_result.node_bindings[QNodeID("n0")][0].id
+                == expected_result.node_bindings[QNodeID("n0")][0].id
+                and empirical_result.node_bindings[QNodeID("n1")][0].id
+                == expected_result.node_bindings[QNodeID("n1")][0].id
             ):
                 assert empirical_result == expected_result
 
@@ -96,16 +94,16 @@ async def test_mixed_set_interpretation_values(
     ],
 )
 async def test_malformed_set_identifier(
-    mock_query: str, request: _pytest.fixtures.TopRequest
+    mock_query: str, request: pytest.FixtureRequest
 ):
     """Test case where the set identifier isn't a valid UUID."""
     mock_malformed_query: MockQuery = request.getfixturevalue(mock_query)
 
     # Ensure that the nodes have two different values for set_interpretation
-    job_log = TRAPILogger(job_id=random.randint(0, 10000))
+    job_log = TRAPILogger(job_id=str(random.randint(0, 10000)))
 
     # Set the ids field for node n1 to something other than a UUID
-    mock_malformed_query.query["nodes"]["n1"]["ids"] = ["woodcarving"]
+    mock_malformed_query.query.nodes[QNodeID("n1")].ids = ["woodcarving"]
 
     empirical_results0 = evaluate_set_interpretation(
         qgraph=mock_malformed_query.query,
@@ -116,7 +114,7 @@ async def test_malformed_set_identifier(
     assert len(empirical_results0) != len(mock_malformed_query.postfilter_results)
 
     # Set the ids field for node n1 to an empty list
-    mock_malformed_query.query["nodes"]["n1"]["ids"] = []
+    mock_malformed_query.query.nodes[QNodeID("n1")].ids = []
 
     empirical_results1 = evaluate_set_interpretation(
         qgraph=mock_malformed_query.query,
@@ -127,7 +125,7 @@ async def test_malformed_set_identifier(
     assert len(empirical_results1) != len(mock_malformed_query.postfilter_results)
 
     # Set the ids field for node n1 to None
-    mock_malformed_query.query["nodes"]["n1"]["ids"] = None
+    mock_malformed_query.query.nodes[QNodeID("n1")].ids = None
 
     empirical_results1 = evaluate_set_interpretation(
         qgraph=mock_malformed_query.query,
@@ -146,25 +144,24 @@ async def test_malformed_set_identifier(
     ],
 )
 async def test_malformed_set_interpretation_value(
-    mock_query: str, request: _pytest.fixtures.TopRequest
+    mock_query: str, request: pytest.FixtureRequest
 ):
     """Test case where the set_interpretation value isn't BATCH|ALL|MANY."""
     mock_malformed_query: MockQuery = request.getfixturevalue(mock_query)
 
     # Ensure that the nodes have two different values for set_interpretation
-    job_log = TRAPILogger(job_id=random.randint(0, 10000))
+    job_log = TRAPILogger(job_id=str(random.randint(0, 10000)))
 
     # Set the set_interpretation value to an invalid value
-    mock_malformed_query.query["nodes"]["n0"]["set_interpretation"] = "SIGNAL"
-    mock_malformed_query.query["nodes"]["n1"]["set_interpretation"] = "IRONCLAD"
+    mock_malformed_query.query.nodes[QNodeID("n0")].set_interpretation = "SIGNAL"  # pyright:ignore[reportAttributeAccessIssue]
+    mock_malformed_query.query.nodes[QNodeID("n1")].set_interpretation = "IRONCLAD"  # pyright:ignore[reportAttributeAccessIssue]
 
-    empirical_results = evaluate_set_interpretation(
-        qgraph=mock_malformed_query.query,
-        results=mock_malformed_query.prefilter_results,
-        job_log=job_log,
-    )
-
-    assert len(empirical_results) != len(mock_malformed_query.postfilter_results)
+    with pytest.raises(ValueError, match="not a valid SetInterpretationEnum"):
+        evaluate_set_interpretation(
+            qgraph=mock_malformed_query.query,
+            results=mock_malformed_query.prefilter_results,
+            job_log=job_log,
+        )
 
 
 @pytest.mark.asyncio
@@ -175,17 +172,17 @@ async def test_malformed_set_interpretation_value(
     ],
 )
 async def test_malformed_member_identifiers(
-    mock_query: str, request: _pytest.fixtures.TopRequest
+    mock_query: str, request: pytest.FixtureRequest
 ):
     """Test case where the member_ids attribute is malformed."""
     mock_malformed_query: MockQuery = request.getfixturevalue(mock_query)
 
     # Ensure that the nodes have two different values for set_interpretation
-    job_log = TRAPILogger(job_id=random.randint(0, 10000))
+    job_log = TRAPILogger(job_id=str(random.randint(0, 10000)))
 
     # Set the member_ids value to a malformed entry
-    mock_malformed_query.query["nodes"]["n1"]["set_interpretation"] = "ALL"
-    mock_malformed_query.query["nodes"]["n1"]["member_ids"] = []
+    mock_malformed_query.query.nodes[QNodeID("n1")].set_interpretation = "ALL"
+    mock_malformed_query.query.nodes[QNodeID("n1")].member_ids = []
 
     empirical_results = evaluate_set_interpretation(
         qgraph=mock_malformed_query.query,
@@ -196,8 +193,8 @@ async def test_malformed_member_identifiers(
     assert len(empirical_results) != len(mock_malformed_query.postfilter_results)
 
     # Set the member_ids value to a malformed entry
-    mock_malformed_query.query["nodes"]["n1"]["set_interpretation"] = "MANY"
-    mock_malformed_query.query["nodes"]["n1"]["member_ids"] = None
+    mock_malformed_query.query.nodes[QNodeID("n1")].set_interpretation = "MANY"
+    mock_malformed_query.query.nodes[QNodeID("n1")].member_ids = None
 
     empirical_results = evaluate_set_interpretation(
         qgraph=mock_malformed_query.query,

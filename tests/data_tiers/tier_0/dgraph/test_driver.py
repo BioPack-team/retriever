@@ -1,22 +1,31 @@
+import asyncio
 import importlib
 import json
 import re
 import time
 from collections.abc import Iterator
-from typing import Any, cast, final, override
 from textwrap import dedent
-from unittest.mock import MagicMock, patch, AsyncMock
+from typing import Any, cast, final, override
+from unittest.mock import AsyncMock, MagicMock, patch
 
-import asyncio
 import aiohttp
 import grpc
 import pytest
+from translator_tom import (
+    Biolink,
+    QEdge,
+    QEdgeID,
+    QNode,
+    QNodeID,
+    Qualifier,
+    QualifierConstraint,
+    QueryGraph,
+)
 
 import retriever.config.general as general_mod
 import retriever.data_tiers.tier_0.dgraph.driver as driver_mod
 from retriever.data_tiers.tier_0.dgraph import result_models as dg_models
 from retriever.data_tiers.tier_0.dgraph.transpiler import DgraphTranspiler
-from retriever.types.trapi import QueryGraphDict
 
 
 # Test-only subclass exposing the client property
@@ -60,16 +69,11 @@ def new_grpc_driver(version: str | None = None) -> _TestDgraphGrpcDriver:
 class _TestDgraphTranspiler(DgraphTranspiler):
     """Expose protected methods for testing without modifying production code."""
 
-    def convert_multihop_public(self, qgraph: QueryGraphDict) -> str:
+    def convert_multihop_public(self, qgraph: QueryGraph) -> str:
         return self.convert_multihop(qgraph)
 
-    def convert_batch_multihop_public(self, qgraphs: list[QueryGraphDict]) -> str:
+    def convert_batch_multihop_public(self, qgraphs: list[QueryGraph]) -> str:
         return self.convert_batch_multihop(qgraphs)
-
-
-def qg(d: dict[str, Any]) -> QueryGraphDict:
-    """Cast a raw qgraph dict into a QueryGraphDict for type-checking in tests."""
-    return cast(QueryGraphDict, cast(object, d))
 
 
 def normalize(s: str) -> str:
@@ -336,6 +340,7 @@ async def test_get_schema_metadata_mapping_caching(
     Tests that get_schema_metadata_mapping properly caches results per-version.
     """
     import base64
+
     import msgpack
 
     # Create a sample mapping
@@ -592,6 +597,7 @@ async def test_fetch_mapping_from_db_mocked(
     for both gRPC and HTTP protocols using mocks.
     """
     import base64
+
     import msgpack
 
     # Create a sample mapping to use in tests
@@ -771,23 +777,7 @@ async def test_simple_one_query_live_http() -> None:
     Integration test: Run the 'simple-one' query against a live Dgraph HTTP instance.
     """
 
-    qgraph_query: QueryGraphDict = qg(
-        {
-            "nodes": {
-                "n0": {"ids": ["GO:0031410"], "constraints": []},
-                "n1": {"ids": ["NCBIGene:11276"], "constraints": []},
-            },
-            "edges": {
-                "e0": {
-                    "object": "n0",
-                    "subject": "n1",
-                    "predicates": ["located_in"],
-                    "attribute_constraints": [],
-                    "qualifier_constraints": [],
-                },
-            },
-        }
-    )
+    qgraph_query: QueryGraph = QueryGraph(nodes={QNodeID('n0'): QNode(ids=['GO:0031410'], constraints=[]), QNodeID('n1'): QNode(ids=['NCBIGene:11276'], constraints=[])}, edges={QEdgeID('e0'): QEdge(subject=QNodeID('n1'), object=QNodeID('n0'), predicates=['located_in'], attribute_constraints=[], qualifier_constraints=[])})
 
     dgraph_query_match: str = dedent("""
     {
@@ -946,23 +936,7 @@ async def test_simple_one_query_live_grpc() -> None:
     Integration test: Run the 'simple-one' query against a live Dgraph HTTP instance.
     """
 
-    qgraph_query: QueryGraphDict = qg(
-        {
-            "nodes": {
-                "n0_test": {"ids": ["GO:0031410"], "constraints": []},
-                "n1": {"ids": ["NCBIGene:11276"], "constraints": []},
-            },
-            "edges": {
-                "e0_test": {
-                    "object": "n0_test",
-                    "subject": "n1",
-                    "predicates": ["located_in"],
-                    "attribute_constraints": [],
-                    "qualifier_constraints": [],
-                },
-            },
-        }
-    )
+    qgraph_query: QueryGraph = QueryGraph(nodes={QNodeID('n0_test'): QNode(ids=['GO:0031410'], constraints=[]), QNodeID('n1'): QNode(ids=['NCBIGene:11276'], constraints=[])}, edges={QEdgeID('e0_test'): QEdge(subject=QNodeID('n1'), object=QNodeID('n0_test'), predicates=['located_in'], attribute_constraints=[], qualifier_constraints=[])})
 
     dgraph_query_match: str = dedent("""
     {
@@ -1036,45 +1010,7 @@ async def test_qualifier_constraints_with_descendant_expansion_live_grpc() -> No
     Integration test: Verify qualifier constraints expand to include descendant values.
     """
 
-    qgraph_query: QueryGraphDict = qg(
-        {
-            "nodes": {
-                "ON": {
-                    "ids": ["HGNC:3870"],
-                    "categories": ["biolink:Gene"],
-                },
-                "SN": {
-                    "ids": ["CHEBI:59173"],
-                    "categories": ["biolink:ChemicalEntity"],
-                },
-            },
-            "edges": {
-                "e0": {
-                    "subject": "SN",
-                    "object": "ON",
-                    "predicates": ["biolink:affects"],
-                    "qualifier_constraints": [
-                        {
-                            "qualifier_set": [
-                                {
-                                    "qualifier_type_id": "biolink:qualified_predicate",
-                                    "qualifier_value": "biolink:causes",
-                                },
-                                {
-                                    "qualifier_type_id": "biolink:object_aspect_qualifier",
-                                    "qualifier_value": "biolink:activity_or_abundance",
-                                },
-                                {
-                                    "qualifier_type_id": "biolink:object_direction_qualifier",
-                                    "qualifier_value": "biolink:decreased",
-                                },
-                            ]
-                        }
-                    ],
-                }
-            },
-        }
-    )
+    qgraph_query: QueryGraph = QueryGraph(nodes={QNodeID('ON'): QNode(ids=['HGNC:3870'], categories=[Biolink('Gene')]), QNodeID('SN'): QNode(ids=['CHEBI:59173'], categories=[Biolink('ChemicalEntity')])}, edges={QEdgeID('e0'): QEdge(subject=QNodeID('SN'), object=QNodeID('ON'), predicates=[Biolink('affects')], qualifier_constraints=[QualifierConstraint(qualifier_set=[Qualifier(qualifier_type_id=Biolink('qualified_predicate'), qualifier_value=Biolink('causes')), Qualifier(qualifier_type_id=Biolink('object_aspect_qualifier'), qualifier_value=Biolink('activity_or_abundance')), Qualifier(qualifier_type_id=Biolink('object_direction_qualifier'), qualifier_value=Biolink('decreased'))])])})
 
     # object_direction_qualifier "decreased" expands to ["decreased", "downregulated"]
     dgraph_query_match: str = dedent("""
@@ -1158,23 +1094,7 @@ async def test_simple_reverse_query_live_grpc() -> None:
     Integration test: Run the 'simple-one' query against a live Dgraph HTTP instance.
     """
 
-    qgraph_query: QueryGraphDict = qg(
-        {
-            "nodes": {
-                "n0": {"categories": ["biolink:NamedThing"], "constraints": []},
-                "n1": {"ids": ["DOID:0070271"], "constraints": []},
-            },
-            "edges": {
-                "e0": {
-                    "object": "n0",
-                    "subject": "n1",
-                    "predicates": ["biolink:has_phenotype"],
-                    "attribute_constraints": [],
-                    "qualifier_constraints": [],
-                }
-            },
-        }
-    )
+    qgraph_query: QueryGraph = QueryGraph(nodes={QNodeID('n0'): QNode(categories=[Biolink('NamedThing')], constraints=[]), QNodeID('n1'): QNode(ids=['DOID:0070271'], constraints=[])}, edges={QEdgeID('e0'): QEdge(subject=QNodeID('n1'), object=QNodeID('n0'), predicates=[Biolink('has_phenotype')], attribute_constraints=[], qualifier_constraints=[])})
 
     dgraph_query_match: str = dedent("""
     {
@@ -1249,23 +1169,7 @@ async def test_simple_query_with_symmetric_predicate_live_grpc() -> None:
     Integration test: Run the 'simple-one' query with symmetric predicate against a live Dgraph HTTP instance.
     """
 
-    qgraph_query: QueryGraphDict = qg(
-        {
-            "nodes": {
-                "n0": {"categories": ["biolink:NamedThing"], "constraints": []},
-                "n1": {"ids": ["NCBIGene:3778"], "constraints": []},
-            },
-            "edges": {
-                "e0": {
-                    "object": "n0",
-                    "subject": "n1",
-                    "predicates": ["biolink:related_to"],
-                    "attribute_constraints": [],
-                    "qualifier_constraints": [],
-                }
-            },
-        }
-    )
+    qgraph_query: QueryGraph = QueryGraph(nodes={QNodeID('n0'): QNode(categories=[Biolink('NamedThing')], constraints=[]), QNodeID('n1'): QNode(ids=['NCBIGene:3778'], constraints=[])}, edges={QEdgeID('e0'): QEdge(subject=QNodeID('n1'), object=QNodeID('n0'), predicates=[Biolink('related_to')], attribute_constraints=[], qualifier_constraints=[])})
 
     dgraph_query_match: str = dedent("""
     {
@@ -1376,23 +1280,7 @@ async def test_simple_one_query_grpc_parallel_live_nonblocking() -> None:
     """
     Test that two gRPC queries run in parallel and do not block each other.
     """
-    qgraph_query: QueryGraphDict = qg(
-        {
-            "nodes": {
-                "n0": {"ids": ["CHEBI:4514"], "constraints": []},
-                "n1": {"ids": ["UMLS:C1564592"], "constraints": []},
-            },
-            "edges": {
-                "e0": {
-                    "object": "n0",
-                    "subject": "n1",
-                    "predicates": ["subclass_of"],
-                    "attribute_constraints": [],
-                    "qualifier_constraints": [],
-                },
-            },
-        }
-    )
+    qgraph_query: QueryGraph = QueryGraph(nodes={QNodeID('n0'): QNode(ids=['CHEBI:4514'], constraints=[]), QNodeID('n1'): QNode(ids=['UMLS:C1564592'], constraints=[])}, edges={QEdgeID('e0'): QEdge(subject=QNodeID('n1'), object=QNodeID('n0'), predicates=['subclass_of'], attribute_constraints=[], qualifier_constraints=[])})
 
     driver = new_grpc_driver()
     await driver.connect()
@@ -1442,23 +1330,7 @@ async def test_normalization_with_special_edge_id_live_grpc() -> None:
     are normalized to safe identifiers ('e0') in the query but restored in results.
     """
 
-    qgraph_query: QueryGraphDict = qg(
-        {
-            "nodes": {
-                "n0_test!@#": {"categories": ["biolink:NamedThing"], "constraints": []},
-                "n1": {"ids": ["NCBIGene:3778"], "constraints": []},
-            },
-            "edges": {
-                "e0_bad$%^": {
-                    "object": "n0_test!@#",
-                    "subject": "n1",
-                    "predicates": ["biolink:related_to"],
-                    "attribute_constraints": [],
-                    "qualifier_constraints": [],
-                }
-            },
-        }
-    )
+    qgraph_query: QueryGraph = QueryGraph(nodes={QNodeID('n0_test!@#'): QNode(categories=[Biolink('NamedThing')], constraints=[]), QNodeID('n1'): QNode(ids=['NCBIGene:3778'], constraints=[])}, edges={QEdgeID('e0_bad$%^'): QEdge(subject=QNodeID('n1'), object=QNodeID('n0_test!@#'), predicates=[Biolink('related_to')], attribute_constraints=[], qualifier_constraints=[])})
 
     # Expected query should use normalized edge ID 'e0', not 'e0_bad$%^'
     dgraph_query_match: str = dedent("""
@@ -1578,23 +1450,7 @@ async def test_simple_one_query_http_parallel_live_nonblocking() -> None:
     """
     Test that two HTTP queries run in parallel and do not block each other.
     """
-    qgraph_query: QueryGraphDict = qg(
-        {
-            "nodes": {
-                "n0": {"ids": ["CHEBI:4514"], "constraints": []},
-                "n1": {"ids": ["UMLS:C1564592"], "constraints": []},
-            },
-            "edges": {
-                "e0": {
-                    "object": "n0",
-                    "subject": "n1",
-                    "predicates": ["subclass_of"],
-                    "attribute_constraints": [],
-                    "qualifier_constraints": [],
-                },
-            },
-        }
-    )
+    qgraph_query: QueryGraph = QueryGraph(nodes={QNodeID('n0'): QNode(ids=['CHEBI:4514'], constraints=[]), QNodeID('n1'): QNode(ids=['UMLS:C1564592'], constraints=[])}, edges={QEdgeID('e0'): QEdge(subject=QNodeID('n1'), object=QNodeID('n0'), predicates=['subclass_of'], attribute_constraints=[], qualifier_constraints=[])})
 
     driver = new_http_driver()
     await driver.connect()
@@ -1787,23 +1643,7 @@ async def test_subclass_case1_direct_path_absent_live_grpc() -> None:
     This establishes the precondition for the subclass Form B test: without
     subclass expansion the query must return zero results.
     """
-    qgraph_query: QueryGraphDict = qg(
-        {
-            "nodes": {
-                "n0": {"ids": ["GO:0051055"], "constraints": []},
-                "n1": {"ids": ["EFO:0004528"], "constraints": []},
-            },
-            "edges": {
-                "e0": {
-                    "subject": "n0",
-                    "object": "n1",
-                    "predicates": ["biolink:genetic_association"],
-                    "attribute_constraints": [],
-                    "qualifier_constraints": [],
-                }
-            },
-        }
-    )
+    qgraph_query: QueryGraph = QueryGraph(nodes={QNodeID('n0'): QNode(ids=['GO:0051055'], constraints=[]), QNodeID('n1'): QNode(ids=['EFO:0004528'], constraints=[])}, edges={QEdgeID('e0'): QEdge(subject=QNodeID('n0'), object=QNodeID('n1'), predicates=[Biolink('genetic_association')], attribute_constraints=[], qualifier_constraints=[])})
 
     dgraph_query_match: str = dedent("""
     {
@@ -1875,23 +1715,7 @@ async def test_subclass_case1_form_b_live_grpc() -> None:
     subclass edge (binding "e0", predicate "subclass_of") whose nested node
     GO:0031393 carries the actual genetic_association edge to EFO:0004528.
     """
-    qgraph_query: QueryGraphDict = qg(
-        {
-            "nodes": {
-                "n0": {"ids": ["GO:0051055"], "constraints": []},
-                "n1": {"ids": ["EFO:0004528"], "constraints": []},
-            },
-            "edges": {
-                "e0": {
-                    "subject": "n0",
-                    "object": "n1",
-                    "predicates": ["biolink:genetic_association"],
-                    "attribute_constraints": [],
-                    "qualifier_constraints": [],
-                }
-            },
-        }
-    )
+    qgraph_query: QueryGraph = QueryGraph(nodes={QNodeID('n0'): QNode(ids=['GO:0051055'], constraints=[]), QNodeID('n1'): QNode(ids=['EFO:0004528'], constraints=[])}, edges={QEdgeID('e0'): QEdge(subject=QNodeID('n0'), object=QNodeID('n1'), predicates=[Biolink('genetic_association')], attribute_constraints=[], qualifier_constraints=[])})
 
     dgraph_query_match: str = dedent("""
     {
@@ -2035,23 +1859,7 @@ async def test_subclass_case1_form_c_baseline_live_grpc() -> None:
     and GO:0031393 is a subclass_of GO:0051055 (B). Without subclass
     expansion the query must return zero results.
     """
-    qgraph_query: QueryGraphDict = qg(
-        {
-            "nodes": {
-                "n0": {"ids": ["CHEBI:4042"], "constraints": []},
-                "n1": {"ids": ["GO:0051055"], "constraints": []},
-            },
-            "edges": {
-                "e0": {
-                    "subject": "n0",
-                    "object": "n1",
-                    "predicates": ["biolink:affects"],
-                    "attribute_constraints": [],
-                    "qualifier_constraints": [],
-                }
-            },
-        }
-    )
+    qgraph_query: QueryGraph = QueryGraph(nodes={QNodeID('n0'): QNode(ids=['CHEBI:4042'], constraints=[]), QNodeID('n1'): QNode(ids=['GO:0051055'], constraints=[])}, edges={QEdgeID('e0'): QEdge(subject=QNodeID('n0'), object=QNodeID('n1'), predicates=[Biolink('affects')], attribute_constraints=[], qualifier_constraints=[])})
 
     dgraph_query_match: str = dedent("""
     {
@@ -2116,23 +1924,7 @@ async def test_subclass_case1_form_c_live_grpc() -> None:
     the intermediate B' node (reached via the affects edge) carrying the
     subclass_of tail edge that resolves to GO:0051055.
     """
-    qgraph_query: QueryGraphDict = qg(
-        {
-            "nodes": {
-                "n0": {"ids": ["CHEBI:4042"], "constraints": []},
-                "n1": {"ids": ["GO:0051055"], "constraints": []},
-            },
-            "edges": {
-                "e0": {
-                    "subject": "n0",
-                    "object": "n1",
-                    "predicates": ["biolink:affects"],
-                    "attribute_constraints": [],
-                    "qualifier_constraints": [],
-                }
-            },
-        }
-    )
+    qgraph_query: QueryGraph = QueryGraph(nodes={QNodeID('n0'): QNode(ids=['CHEBI:4042'], constraints=[]), QNodeID('n1'): QNode(ids=['GO:0051055'], constraints=[])}, edges={QEdgeID('e0'): QEdge(subject=QNodeID('n0'), object=QNodeID('n1'), predicates=[Biolink('affects')], attribute_constraints=[], qualifier_constraints=[])})
 
     dgraph_query_match: str = dedent("""
     {
@@ -2267,23 +2059,7 @@ async def test_subclass_case2_id_to_cat_baseline_live_grpc() -> None:
     edges. Without subclass expansion, querying it for PhenotypicFeature
     phenotypes must return zero results.
     """
-    qgraph_query: QueryGraphDict = qg(
-        {
-            "nodes": {
-                "n0": {"ids": ["UMLS:C3273258"], "constraints": []},
-                "n1": {"categories": ["biolink:PhenotypicFeature"], "constraints": []},
-            },
-            "edges": {
-                "e0": {
-                    "subject": "n0",
-                    "object": "n1",
-                    "predicates": ["biolink:has_phenotype"],
-                    "attribute_constraints": [],
-                    "qualifier_constraints": [],
-                }
-            },
-        }
-    )
+    qgraph_query: QueryGraph = QueryGraph(nodes={QNodeID('n0'): QNode(ids=['UMLS:C3273258'], constraints=[]), QNodeID('n1'): QNode(categories=[Biolink('PhenotypicFeature')], constraints=[])}, edges={QEdgeID('e0'): QEdge(subject=QNodeID('n0'), object=QNodeID('n1'), predicates=[Biolink('has_phenotype')], attribute_constraints=[], qualifier_constraints=[])})
 
     dgraph_query_match: str = dedent("""
     {
@@ -2347,23 +2123,7 @@ async def test_subclass_case2_id_to_cat_form_b_live_grpc() -> None:
     subclass_of edge leading to MONDO:0018551, which in turn carries the
     has_phenotype edges to PhenotypicFeature nodes.
     """
-    qgraph_query: QueryGraphDict = qg(
-        {
-            "nodes": {
-                "n0": {"ids": ["UMLS:C3273258"], "constraints": []},
-                "n1": {"categories": ["biolink:PhenotypicFeature"], "constraints": []},
-            },
-            "edges": {
-                "e0": {
-                    "subject": "n0",
-                    "object": "n1",
-                    "predicates": ["biolink:has_phenotype"],
-                    "attribute_constraints": [],
-                    "qualifier_constraints": [],
-                }
-            },
-        }
-    )
+    qgraph_query: QueryGraph = QueryGraph(nodes={QNodeID('n0'): QNode(ids=['UMLS:C3273258'], constraints=[]), QNodeID('n1'): QNode(categories=[Biolink('PhenotypicFeature')], constraints=[])}, edges={QEdgeID('e0'): QEdge(subject=QNodeID('n0'), object=QNodeID('n1'), predicates=[Biolink('has_phenotype')], attribute_constraints=[], qualifier_constraints=[])})
 
     dgraph_query_match: str = dedent("""
     {
@@ -2487,23 +2247,7 @@ async def test_subclass_case3_cat_to_id_live_grpc() -> None:
     The result surfaces GO:0051055 as root (n1) with GO:0031393 as the intermediate,
     which carries an incoming affects edge from CHEBI:4042 (SmallMolecule).
     """
-    qgraph_query: QueryGraphDict = qg(
-        {
-            "nodes": {
-                "n0": {"categories": ["biolink:SmallMolecule"], "constraints": []},
-                "n1": {"ids": ["GO:0051055"], "constraints": []}
-            },
-            "edges": {
-                "e0": {
-                    "subject": "n0",
-                    "object": "n1",
-                    "predicates": ["biolink:affects"],
-                    "attribute_constraints": [],
-                    "qualifier_constraints": []
-                }
-            }
-        }
-    )
+    qgraph_query: QueryGraph = QueryGraph(nodes={QNodeID('n0'): QNode(categories=[Biolink('SmallMolecule')], constraints=[]), QNodeID('n1'): QNode(ids=['GO:0051055'], constraints=[])}, edges={QEdgeID('e0'): QEdge(subject=QNodeID('n0'), object=QNodeID('n1'), predicates=[Biolink('affects')], attribute_constraints=[], qualifier_constraints=[])})
 
     baseline_query_match: str = dedent("""
     {

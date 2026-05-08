@@ -105,6 +105,8 @@ class AsyncRedis(Protocol, metaclass=ABCMeta):
     I'm lazy so I'm only adding what gets used. ~ Willow
     """
 
+    connection_pool: redis.ConnectionPool
+
     @abstractmethod
     async def initialize(self) -> Self:
         """Initialize the client."""

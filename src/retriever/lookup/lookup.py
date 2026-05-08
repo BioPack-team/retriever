@@ -2,12 +2,21 @@ import asyncio
 import math
 import time
 from collections import deque
-from copy import deepcopy
 from typing import Literal, overload
 
 import bmt
 import httpx
 from opentelemetry import context, propagate, trace
+from translator_tom import (
+    AuxiliaryGraphsDict,
+    KnowledgeGraph,
+    LogEntry,
+    LogLevelEnum,
+    Message,
+    PathfinderQueryGraph,
+    QueryGraph,
+    Result,
+)
 
 from retriever.config.general import CONFIG
 from retriever.config.openapi import OPENAPI_CONFIG
@@ -21,28 +30,12 @@ from retriever.metadata.optable import (
     UnsupportedConstraint,
 )
 from retriever.types.general import LookupArtifacts, QueryInfo
-from retriever.types.trapi import (
-    AuxGraphID,
-    AuxiliaryGraphDict,
-    KnowledgeGraphDict,
-    LogEntryDict,
-    LogLevel,
-    MessageDict,
-    ParametersDict,
-    PathfinderQueryGraphDict,
-    QueryGraphDict,
-    ResponseDict,
-    ResultDict,
-)
-from retriever.types.trapi_pydantic import TierNumber
+from retriever.types.trapi_overrides import AsyncQuery, Parameters, Response, TierNumber
 from retriever.utils.calls import get_callback_client
 from retriever.utils.logs import TRAPILogger, trapi_level_to_int
 from retriever.utils.mongo import MongoQueue
 from retriever.utils.trapi import (
     evaluate_set_interpretation,
-    merge_results,
-    prune_kg,
-    update_kgraph,
 )
 
 tracer = trace.get_tracer("lookup.execution.tracer")
@@ -56,18 +49,18 @@ async def async_lookup(query: QueryInfo, ctx: dict[str, str]) -> None:
     token = context.attach(propagate.extract(ctx))  # Ensure context propagates
 
     try:
-        if query.body is None or "callback" not in query.body:
+        if query.body is None or not isinstance(query.body, AsyncQuery):
             raise TypeError(f"Expected AsyncQuery, received {type(query.body)}.")
 
         job_id = query.job_id
         job_log = TRAPILogger(job_id)
         status, response = await lookup(query)
 
-        job_log.debug(f"Sending callback to `{query.body['callback']}`...")
+        job_log.debug(f"Sending callback to `{query.body.callback}`...")
         try:
             client = get_callback_client()
             callback_response = await client.post(
-                url=str(query.body["callback"]), json=response
+                url=query.body.callback, json=response
             )
             callback_response.raise_for_status()
             job_log.debug("Callback sent successfully.")
@@ -82,7 +75,7 @@ async def async_lookup(query: QueryInfo, ctx: dict[str, str]) -> None:
             )
 
         # Effectively tack the callback logs onto the end of the response
-        response_logs = response.get("logs", []) or []
+        response_logs = response.logs
         job_log.log_deque = deque(response_logs) + job_log.log_deque
 
         # Update the stored state with new logs
@@ -91,7 +84,7 @@ async def async_lookup(query: QueryInfo, ctx: dict[str, str]) -> None:
         context.detach(token)
 
 
-async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
+async def lookup(query: QueryInfo) -> tuple[int, Response]:
     """Execute a lookup query.
 
     Does job state updating regardless of asyncquery for easier debugging.
@@ -109,15 +102,17 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
             f"Begin processing job {job_id} for client {get_submitter(query)}."
         )
 
-        qgraph = query.body["message"].get("query_graph")
+        qgraph = query.body.message.query_graph
         if qgraph is None:
             raise ValueError("Query Graph is None.")
 
         # Query graph validation that isn't handled by reasoner_pydantic
-        if not passes_validation(qgraph, response, job_log) or "paths" in qgraph:
+        if not passes_validation(qgraph, response, job_log) or isinstance(
+            qgraph, PathfinderQueryGraph
+        ):
             return tracked_response(422, query, response, job_log)
 
-        expanded_qgraph = expand_qgraph(deepcopy(qgraph), job_log)
+        expanded_qgraph = expand_qgraph(qgraph.model_copy(deep=True), job_log)
 
         if not await qgraph_supported(expanded_qgraph, response, job_log, query.tiers):
             return tracked_response(424, query, response, job_log)
@@ -129,17 +124,22 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
 
         job_log.info(f"Collected {len(results)} results from query tasks.")
         evaluate_set_interpretation(qgraph, results, job_log)
-        prune_kg(results, kgraph, aux_graphs, job_log)
+        node_count, edge_count = len(kgraph.nodes), len(kgraph.edges)
+        kgraph.prune(aux_graphs, results)
+        new_node_count, new_edge_count = len(kgraph.nodes), len(kgraph.edges)
+        job_log.debug(
+            f"KG Pruning: {new_node_count} (-{new_node_count - node_count}) nodes and {new_edge_count} (-{new_edge_count - edge_count}) edges remain."
+        )
 
         end_time = time.time()
         finish_msg = f"Execution completed, obtained {len(results)} results in {math.ceil((end_time - start_time) * 1000):}ms."
         job_log.success(finish_msg)
 
-        response["status"] = "Complete"
-        response["description"] = finish_msg
-        response["message"]["results"] = results
-        response["message"]["knowledge_graph"] = kgraph
-        response["message"]["auxiliary_graphs"] = aux_graphs
+        response.status = "Complete"
+        response.description = finish_msg
+        response.message.results = results
+        response.message.knowledge_graph = kgraph
+        response.message.auxiliary_graphs = aux_graphs
         return tracked_response(200, query, response, job_log)
 
     except Exception:
@@ -147,14 +147,14 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
             f"Uncaught exception during handling of job {job_id}. Job failed."
         )
         job_log.exception("Cause of error:")
-        response["status"] = "Failed"
-        response["description"] = (
+        response.status = "Failed"
+        response.description = (
             "Execution failed due to an unhandled error. See the logs for more details."
         )
         return tracked_response(500, query, response, job_log)
 
 
-def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]:
+def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, Response]:
     """Set up a basic response to avoid some repetition."""
     job_id = query.job_id
     job_log = TRAPILogger(job_id)
@@ -163,33 +163,26 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
         raise TypeError(
             "Received body of type None, should have received Query or AsyncQuery."
         )
-    if (
-        "query_graph" not in query.body["message"]
-        or query.body["message"]["query_graph"] is None
-    ):
+    if query.body.message.query_graph is None:
         raise TypeError(
             "Received QueryGraph of type None, query graph should be present."
         )
 
-    parameters = ParametersDict(tiers=list(query.tiers))
-    if (
-        timeout := "parameters" in query.body
-        and query.body["parameters"] is not None
-        and query.body["parameters"].get("timeout")
-    ):
-        parameters["timeout"] = timeout
+    parameters = Parameters(tiers=list(query.tiers))
+    if timeout := query.body.parameters is not None and query.body.parameters.timeout:
+        parameters.timeout = timeout
     return (
         job_id,
         job_log,
-        ResponseDict(  # pyright:ignore[reportCallIssue] Extra is allowed
-            message=MessageDict(
-                query_graph=query.body["message"]["query_graph"],
-                knowledge_graph=KnowledgeGraphDict(nodes={}, edges={}),
-                results=list[ResultDict](),
+        Response(
+            message=Message(
+                query_graph=query.body.message.query_graph,
+                knowledge_graph=KnowledgeGraph.new(),
+                results=list[Result](),
             ),
             biolink_version=OPENAPI_CONFIG.x_translator.biolink_version,
             schema_version=OPENAPI_CONFIG.x_trapi.version,
-            workflow=query.body.get("workflow"),
+            workflow=query.body.workflow,
             parameters=parameters,
             submitter=get_submitter(query),
             job_id=job_id,
@@ -199,21 +192,21 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
 
 @overload
 def passes_validation(
-    qgraph: PathfinderQueryGraphDict, response: ResponseDict, job_log: TRAPILogger
+    qgraph: PathfinderQueryGraph, response: Response, job_log: TRAPILogger
 ) -> Literal[False]: ...
 
 
 @overload
 def passes_validation(
-    qgraph: QueryGraphDict,
-    response: ResponseDict,
+    qgraph: QueryGraph,
+    response: Response,
     job_log: TRAPILogger,
 ) -> bool: ...
 
 
 def passes_validation(
-    qgraph: QueryGraphDict | PathfinderQueryGraphDict,
-    response: ResponseDict,
+    qgraph: QueryGraph | PathfinderQueryGraph,
+    response: Response,
     job_log: TRAPILogger,
 ) -> bool:
     """Ensure a given query graph passes validation.
@@ -231,18 +224,18 @@ def passes_validation(
             job_log.error(f"Validation Error: {problem}")
         job_log.error("Due to the above errors, your query terminates.")
 
-        response["status"] = "QueryNotTraversable"
-        response["description"] = (
+        response.status = "QueryNotTraversable"
+        response.description = (
             "Query terminated due to validation errors. See logs for more details."
         )
-        response["logs"] = job_log.get_logs()
+        response.logs = job_log.get_logs()
         return False
     return True
 
 
 async def qgraph_supported(
-    qgraph: QueryGraphDict,
-    response: ResponseDict,
+    qgraph: QueryGraph,
+    response: Response,
     job_log: TRAPILogger,
     tiers: set[TierNumber],
 ) -> bool:
@@ -278,13 +271,13 @@ async def qgraph_supported(
             if "QueryNotTraversable" in plan_or_report.values()
             else "UnsupportedConstraint"
         )
-        response["status"] = status
+        response.status = status
         reason_desc = (
             "missing MetaEdges"
             if status == "QueryNotTraversable"
             else "unsupported constraints"
         )
-        response["description"] = (
+        response.description = (
             f"Query cannot be traversed due to {reason_desc}. See logs for details."
         )
 
@@ -294,11 +287,9 @@ async def qgraph_supported(
             job_log.warning(
                 f"Unsupported constraint(s) present in QNode `{qnode_id}` (if multiple, try a smaller combination): {reason.unmet}"
             )
-        if response.get("status") != "QueryNotTraversable":
-            response["status"] = "UnsupportedConstraint"
-            response["description"] = (
-                "Query cannot be traversed due to unsupported constraints. See logs for details."
-            )
+        if response.status != "QueryNotTraversable":
+            response.status = "UnsupportedConstraint"
+            response.description = "Query cannot be traversed due to unsupported constraints. See logs for details."
 
     supported = supported and unsupported_nodes is None
     return supported
@@ -306,13 +297,13 @@ async def qgraph_supported(
 
 @tracer.start_as_current_span("execute_lookup")
 async def run_tiered_lookups(
-    query: QueryInfo, expanded_qgraph: QueryGraphDict
+    query: QueryInfo, expanded_qgraph: QueryGraph
 ) -> LookupArtifacts:
     """Run lookups against requested tier(s) and combine results."""
-    results = dict[int, ResultDict]()
-    kgraph = KnowledgeGraphDict(nodes={}, edges={})
-    aux_graphs = dict[AuxGraphID, AuxiliaryGraphDict]()
-    logs = list[LogEntryDict]()
+    results = dict[str, Result]()
+    kgraph = KnowledgeGraph.new()
+    aux_graphs = AuxiliaryGraphsDict()
+    logs = list[LogEntry]()
 
     query_tasks = list[asyncio.Task[LookupArtifacts]]()
     job_log = TRAPILogger(query.job_id)
@@ -334,16 +325,22 @@ async def run_tiered_lookups(
             findings = await task
             logs.extend(findings.logs)
             if not findings.error:
-                merge_results(results, findings.results)
+                # Merge results
+                for result in findings.results:
+                    result_hash = result.hash()
+                    if result_hash in results:
+                        results[result_hash].update(result)
+                    else:
+                        results[result_hash] = result
                 # Small optimization: Iterate the smaller kgraph
-                kgraph_size = len(kgraph["nodes"]) + len(kgraph["edges"])
-                new_kgraph_size = len(findings.kgraph["nodes"]) + len(
-                    findings.kgraph["edges"]
+                kgraph_size = len(kgraph.nodes) + len(kgraph.edges)
+                new_kgraph_size = len(findings.kgraph.nodes) + len(
+                    findings.kgraph.edges
                 )
                 if kgraph_size > new_kgraph_size:
-                    update_kgraph(kgraph, findings.kgraph)
+                    kgraph.update(findings.kgraph, pre_normalized="both")
                 else:
-                    update_kgraph(findings.kgraph, kgraph)
+                    findings.kgraph.update(kgraph, pre_normalized="both")
                     kgraph = findings.kgraph
 
                 aux_graphs.update(findings.aux_graphs)
@@ -360,22 +357,24 @@ async def run_tiered_lookups(
 
 
 def tracked_response(
-    status: int, query: QueryInfo, response: ResponseDict, job_log: TRAPILogger
-) -> tuple[int, ResponseDict]:
+    status: int, query: QueryInfo, response: Response, job_log: TRAPILogger
+) -> tuple[int, Response]:
     """Utility function for response handling."""
     # Filter for desired log_level
     desired_log_level = trapi_level_to_int(
-        LogLevel(
-            ((query.body) or {}).get("log_level", LogLevel.DEBUG) or LogLevel.DEBUG
+        LogLevelEnum(
+            (query.body.log_level or LogLevelEnum.DEBUG.value)
+            if query.body is not None
+            else LogLevelEnum.DEBUG
         )
     )
-    response["logs"] = [
+    response.logs = [
         log
         for log in job_log.get_logs()
-        if trapi_level_to_int(log.get("level", LogLevel.DEBUG) or LogLevel.DEBUG)
+        if trapi_level_to_int(LogLevelEnum(log.level or LogLevelEnum.DEBUG.value))
         >= desired_log_level
     ]
 
-    # Cast because TypedDict has some *really annoying* interactions with more general dicts
+    # Cast because Typed has some *really annoying* interactions with more general dicts
     MONGO_QUEUE.put("job_state", response)
     return status, response

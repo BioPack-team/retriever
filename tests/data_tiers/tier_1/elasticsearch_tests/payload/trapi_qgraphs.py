@@ -1,12 +1,15 @@
 import copy
-from typing import Any, cast
 
-from retriever.types.trapi import (
-    AttributeConstraintDict,
+from translator_tom import (
+    AttributeConstraint,
+    Biolink,
+    QEdge,
     QEdgeID,
+    QNode,
     QNodeID,
-    QualifierConstraintDict,
-    QueryGraphDict,
+    Qualifier,
+    QualifierConstraint,
+    QueryGraph,
 )
 
 from .trapi_attributes import (
@@ -25,273 +28,212 @@ from .trapi_qualifiers import (
     single_qualifier_constraint_with_single_qualifier_entry,
 )
 
-
-def qg(d: dict[str, Any]) -> QueryGraphDict:
-    """Cast a raw qgraph dict into a QueryGraphDict for type-checking in tests."""
-    return cast(QueryGraphDict, cast(object, d))
-
-
 E0 = QEdgeID("e0")
 N0 = QNodeID("n0")
 N1 = QNodeID("n1")
+SN = QNodeID("sn")
+SUBJECT_NODE = QNodeID("SN")
+OBJECT_NODE = QNodeID("ON")
 
-BASE_QGRAPH = qg({
-    "nodes": {
-        N0: {"ids": ["CHEBI:4514"], "constraints": []},
-        N1: {"ids": ["UMLS:C1564592"], "constraints": []},
-    },
-    "edges": {
-        E0: {
-            "object": "n0",
-            "subject": "n1",
-            "predicates": ["subclass_of"],
-        },
-    },
-})
+BASE_QGRAPH = QueryGraph(
+    nodes={N0: QNode(ids=["CHEBI:4514"]), N1: QNode(ids=["UMLS:C1564592"])},
+    edges={E0: QEdge(subject=N0, object=N1, predicates=[Biolink("subclass_of")])},
+)
 
-DINGO_QGRAPH = qg({
-    "nodes": {
-        N0: {
-            "ids": [
-                "MONDO:0030010",
-                "MONDO:0011766",
-                "MONDO:0009890"
-            ]},
-        N1: {},
+DINGO_QGRAPH = QueryGraph(
+    nodes={
+        N0: QNode(ids=["MONDO:0030010", "MONDO:0011766", "MONDO:0009890"]),
+        N1: QNode(),
     },
-    "edges": {
-        E0: {
-            "subject": "n0",
-            "object": "n1",
-            "predicates": ["biolink:has_phenotype"],
-            "qualifier_constraints": [
+    edges={
+        E0: QEdge(
+            subject=N0,
+            object=N1,
+            predicates=[Biolink("has_phenotype")],
+            qualifier_constraints=[
                 sex_qualifier_constraint,
-                frequency_qualifier_constraint
+                frequency_qualifier_constraint,
             ],
-            "attribute_constraints": [
-                base_constraint,
-                base_negation_constraint
-            ]
-        }
-    }
-})
-
-QGRAPH_MULTIPLE_IDS = qg({
-    "nodes": {
-        "n0": {"ids": ["CHEBI:3125", "CHEBI:53448"], "constraints": []},
-        "n1": {"ids": ["UMLS:C0282090", "CHEBI:10119"], "constraints": []},
+            attribute_constraints=[base_constraint, base_negation_constraint],
+        )
     },
-    "edges": {
-        "e0": {
-            "object": "n0",
-            "subject": "n1",
-            "predicates": ["interacts_with"],
-            "attribute_constraints": [],
-            "qualifier_constraints": [],
-        },
+)
+
+QGRAPH_MULTIPLE_IDS = QueryGraph(
+    nodes={
+        N0: QNode(ids=["CHEBI:3125", "CHEBI:53448"]),
+        N1: QNode(ids=["UMLS:C0282090", "CHEBI:10119"]),
     },
-})
+    edges={E0: QEdge(subject=N0, object=N1, predicates=[Biolink("interacts_with")])},
+)
 
 
-def generate_qgraph_with_qualifier_constraints(qualifier_constraints: list[QualifierConstraintDict]):
+def generate_qgraph_with_qualifier_constraints(
+    qualifier_constraints: list[QualifierConstraint],
+):
     """Generate a QGraph with qualifier constraints."""
     _q_graph = copy.deepcopy(BASE_QGRAPH)
-    _q_graph["edges"][E0]["qualifier_constraints"] = qualifier_constraints
+    _q_graph.edges[E0].qualifier_constraints = qualifier_constraints
 
     return _q_graph
 
 
 Q_GRAPH_WITH_ATTRIBUTE_CONSTRAINTS = copy.deepcopy(BASE_QGRAPH)
-Q_GRAPH_WITH_ATTRIBUTE_CONSTRAINTS["edges"][E0]["attribute_constraints"] = ATTRIBUTE_CONSTRAINTS
+Q_GRAPH_WITH_ATTRIBUTE_CONSTRAINTS.edges[
+    E0
+].attribute_constraints = ATTRIBUTE_CONSTRAINTS
 
 
 Q_GRAPH_WITH_SUBJECT_NODE_CONSTRAINTS = copy.deepcopy(BASE_QGRAPH)
-Q_GRAPH_WITH_SUBJECT_NODE_CONSTRAINTS["nodes"][N1]["constraints"] = NODE_CONSTRAINTS
+Q_GRAPH_WITH_SUBJECT_NODE_CONSTRAINTS.nodes[N1].constraints = NODE_CONSTRAINTS
 
 Q_GRAPH_WITH_OBJECT_NODE_CONSTRAINTS = copy.deepcopy(BASE_QGRAPH)
-Q_GRAPH_WITH_OBJECT_NODE_CONSTRAINTS["nodes"][N0]["constraints"] = NODE_CONSTRAINTS
+Q_GRAPH_WITH_OBJECT_NODE_CONSTRAINTS.nodes[N0].constraints = NODE_CONSTRAINTS
 
 qualifier_constraints_variants = [
     multiple_qualifier_constraints,
     single_qualifier_constraint,
-    single_qualifier_constraint_with_single_qualifier_entry
+    single_qualifier_constraint_with_single_qualifier_entry,
 ]
 
-Q_GRAPHS_WITH_QUALIFIER_CONSTRAINTS: list[QueryGraphDict] = [
+Q_GRAPHS_WITH_QUALIFIER_CONSTRAINTS: list[QueryGraph] = [
     generate_qgraph_with_qualifier_constraints(variant)
     for variant in qualifier_constraints_variants
 ]
 
 COMPREHENSIVE_QGRAPH = copy.deepcopy(Q_GRAPHS_WITH_QUALIFIER_CONSTRAINTS[0])
-COMPREHENSIVE_QGRAPH["edges"][E0]["attribute_constraints"] = ATTRIBUTE_CONSTRAINTS
+COMPREHENSIVE_QGRAPH.edges[E0].attribute_constraints = ATTRIBUTE_CONSTRAINTS
 
 
-ALT_BASE_GRAPH = qg({
-            "nodes": {
-                "n0": {
-                    "categories": [
-                        "biolink:NamedThing"
+ALT_BASE_GRAPH = QueryGraph(
+    nodes={
+        N0: QNode(categories=[Biolink("NamedThing")]),
+        N1: QNode(ids=["NCBIGene:3778"]),
+    },
+    edges={E0: QEdge(subject=N0, object=N1, predicates=[Biolink("related_to")])},
+)
+
+
+ID_BYPASS_PAYLOAD = QueryGraph(
+    nodes={
+        SN: QNode(
+            categories=[Biolink("Gene")],
+            constraints=[],
+            ids=["CHEBI:45783"],
+        ),
+        N1: QNode(
+            categories=[Biolink("NamedThing")],
+            constraints=[],
+        ),
+    },
+    edges={E0: QEdge(subject=SN, object=N1, predicates=[Biolink("related_to")])},
+)
+
+SINGLE_EXPANDED_QUALIFIER_QGRAPH = QueryGraph(
+    nodes={
+        OBJECT_NODE: QNode(
+            ids=["HGNC:3870"],
+            categories=[Biolink("Gene")],
+        ),
+        SUBJECT_NODE: QNode(
+            ids=["CHEBI:59173"],
+            categories=[Biolink("ChemicalEntity")],
+        ),
+    },
+    edges={
+        E0: QEdge(
+            subject=SUBJECT_NODE,
+            object=OBJECT_NODE,
+            predicates=[Biolink("affects")],
+            qualifier_constraints=[
+                QualifierConstraint(
+                    qualifier_set=[
+                        Qualifier(
+                            qualifier_type_id=Biolink("qualified_predicate"),
+                            qualifier_value=Biolink("causes"),
+                        ),
                     ]
-                },
-                "n1": {
-                    "ids": [
-                        "NCBIGene:3778"
-                    ]
-                }
-            },
-            "edges": {
-                E0: {
-                    "object": "n1",
-                    "subject": "n0",
-                    "predicates": [
-                        "biolink:related_to"
-                    ]
-                }
-            }
-        })
-
-
-ID_BYPASS_PAYLOAD = qg({
-    "nodes": {
-        "sn": {
-            "categories": ["biolink:Gene"],
-            "constraints": [],
-            "ids": [
-                "CHEBI:45783"
+                )
             ],
-            "is_set": False
-        },
-        "n1": {
-            "categories": [
-                "biolink:NamedThing"
-            ],
-            "constraints": [
-                    # {
-                    #     "id": "biolink:information_content",
-                    #     "name": "information content score limit",
-                    #     "operator": OperatorEnum.GT,
-                    #     "value": 60,
-                    # }
-            ]
-        }
+        ),
     },
-    "edges": {
-        "e0": {
-            "subject": "sn",
-            "object": "n1",
-            "predicates": [
-                "biolink:related_to"
-            ]
-        }
-    }
-})
+)
 
-SINGLE_EXPANDED_QUALIFIER_QGRAPH = qg({
-    "nodes": {
-        "ON": {
-            "ids": ["HGNC:3870"],
-            "categories": ["biolink:Gene"],
-        },
-        "SN": {
-            "ids": ["CHEBI:59173"],
-            "categories": ["biolink:ChemicalEntity"],
-        },
+
+EXPANDED_QUALIFIER_QGRAPH = QueryGraph(
+    nodes={
+        OBJECT_NODE: QNode(
+            ids=["HGNC:3870"],
+            categories=[Biolink("Gene")],
+        ),
+        SUBJECT_NODE: QNode(
+            ids=["CHEBI:59173"],
+            categories=[Biolink("ChemicalEntity")],
+        ),
     },
-    "edges": {
-        "e0": {
-            "subject": "SN",
-            "object": "ON",
-            "predicates": ["biolink:affects"],
-            "qualifier_constraints": [
-                {
-                    "qualifier_set": [
-                        {
-                            "qualifier_type_id": "biolink:qualified_predicate",
-                            "qualifier_value": "biolink:causes",
-                        },
+    edges={
+        E0: QEdge(
+            subject=SUBJECT_NODE,
+            object=OBJECT_NODE,
+            predicates=[Biolink("affects")],
+            qualifier_constraints=[
+                QualifierConstraint(
+                    qualifier_set=[
+                        Qualifier(
+                            qualifier_type_id=Biolink("qualified_predicate"),
+                            qualifier_value=Biolink("causes"),
+                        ),
+                        Qualifier(
+                            qualifier_type_id=Biolink("object_aspect_qualifier"),
+                            qualifier_value="activity_or_abundance",
+                        ),
+                        Qualifier(
+                            qualifier_type_id=Biolink("object_direction_qualifier"),
+                            qualifier_value="decreased",
+                        ),
                     ]
-                }
+                )
             ],
-        },
+        ),
     },
-})
+)
 
 
-EXPANDED_QUALIFIER_QGRAPH = qg({
-    "nodes": {
-        "ON": {
-            "ids": ["HGNC:3870"],
-            "categories": ["biolink:Gene"],
-        },
-        "SN": {
-            "ids": ["CHEBI:59173"],
-            "categories": ["biolink:ChemicalEntity"],
-        },
+HYDRATION_QGRAPH = QueryGraph(
+    nodes={
+        OBJECT_NODE: QNode(
+            categories=[Biolink("Gene"), Biolink("Protein")],
+            ids=["NCBIGene:4314"],
+        ),
+        SUBJECT_NODE: QNode(
+            categories=[Biolink("ChemicalEntity")],
+            ids=["CHEBI:48927"],
+        ),
     },
-    "edges": {
-        "e0": {
-            "subject": "SN",
-            "object": "ON",
-            "predicates": ["biolink:affects"],
-            "qualifier_constraints": [
-                {
-                    "qualifier_set": [
-                        {
-                            "qualifier_type_id": "biolink:qualified_predicate",
-                            "qualifier_value": "biolink:causes",
-                        },
-                        {
-                            "qualifier_type_id": "biolink:object_aspect_qualifier",
-                            "qualifier_value": "activity_or_abundance",
-                        },
-                        {
-                            "qualifier_type_id": "biolink:object_direction_qualifier",
-                            "qualifier_value": "decreased",
-                        },
-                    ]
-                }
-            ],
-        },
+    edges={
+        QEdgeID("e00"): QEdge(
+            object=OBJECT_NODE,
+            predicates=[Biolink("affects")],
+            subject=SUBJECT_NODE,
+        )
     },
-})
+)
 
 
-HYDRATION_QGRAPH = qg({
-    "nodes": {
-        "on": {
-            "categories": ["biolink:Gene", "biolink:Protein"],
-            "ids": ["NCBIGene:4314"],
-            "is_set": False,
-        },
-        "sn": {
-            "categories": ["biolink:ChemicalEntity"],
-            "ids": ["CHEBI:48927"],
-            "is_set": False,
-        },
-    },
-    "edges": {
-        "e00": {
-            "object": "on",
-            "predicates": ["biolink:affects"],
-            "subject": "sn",
-        }
-    },
-})
-
-
-def generate_qgraph_with_attribute_constraints(constraints: list[AttributeConstraintDict]):
+def generate_qgraph_with_attribute_constraints(constraints: list[AttributeConstraint]):
     """Generate a QGraph with attribute constraints."""
     _q_graph = copy.deepcopy(ALT_BASE_GRAPH)
-    _q_graph["edges"][E0]["attribute_constraints"] = constraints
+    _q_graph.edges[E0].attribute_constraints = constraints
 
     return _q_graph
 
-VALID_REGEX_QGRAPHS: list[QueryGraphDict] = [
+
+VALID_REGEX_QGRAPHS: list[QueryGraph] = [
     generate_qgraph_with_attribute_constraints([constraint])
     for constraint in VALID_REGEX_CONSTRAINTS
 ]
 
-INVALID_REGEX_QGRAPHS: list[QueryGraphDict] = [
+INVALID_REGEX_QGRAPHS: list[QueryGraph] = [
     generate_qgraph_with_attribute_constraints([constraint])
     for constraint in INVALID_REGEX_CONSTRAINTS
 ]

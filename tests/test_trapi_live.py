@@ -9,6 +9,7 @@ Set the RETRIEVER_URL environment variable to target a non-local instance.
 """
 
 import os
+from typing import Any
 
 import httpx
 import pytest
@@ -30,14 +31,14 @@ TIERS = [pytest.param(0, id="tier0"), pytest.param(1, id="tier1")]
 # ---------------------------------------------------------------------------
 
 
-def _request(tier: int, query_graph: dict) -> dict:
+def _request(tier: int, query_graph: dict[str, Any]) -> dict[str, Any]:
     return {
         "parameters": {"tiers": [tier]},
         "message": {"query_graph": query_graph},
     }
 
 
-def _assert_ok(response: httpx.Response) -> dict:
+def _assert_ok(response: httpx.Response) -> dict[str, Any]:
     assert response.status_code == 200, (
         f"Expected HTTP 200, got {response.status_code}.\n{response.text}"
     )
@@ -49,11 +50,11 @@ def _assert_ok(response: httpx.Response) -> dict:
     return msg
 
 
-def _kg_node_ids(msg: dict) -> set[str]:
+def _kg_node_ids(msg: dict[str, Any]) -> set[str]:
     return set(msg["knowledge_graph"].get("nodes", {}))
 
 
-def _result_node_ids(msg: dict, binding: str) -> set[str]:
+def _result_node_ids(msg: dict[str, Any], binding: str) -> set[str]:
     ids: set[str] = set()
     for result in msg.get("results", []):
         for b in result.get("node_bindings", {}).get(binding, []):

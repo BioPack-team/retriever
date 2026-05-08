@@ -6,6 +6,11 @@ import sentry_sdk
 from fastapi import Request
 from loguru import logger
 from opentelemetry import context, propagate, trace
+from translator_tom import (
+    AsyncQueryResponse,
+    MetaKnowledgeGraph,
+    QueryGraph,
+)
 
 from retriever.config.general import CONFIG
 from retriever.lookup.lookup import async_lookup, lookup
@@ -14,16 +19,7 @@ from retriever.metadata.metadata import get_metadata
 from retriever.metadata.trapi_metakg import trapi_metakg
 from retriever.types.dingo import DINGOMetadata
 from retriever.types.general import APIInfo, ErrorDetail, QueryInfo
-from retriever.types.trapi import (
-    AsyncQueryDict,
-    AsyncQueryResponseDict,
-    MetaKnowledgeGraphDict,
-    QueryDict,
-    ResponseDict,
-)
-from retriever.types.trapi_pydantic import AsyncQuery as TRAPIAsyncQuery
-from retriever.types.trapi_pydantic import Query as TRAPIQuery
-from retriever.types.trapi_pydantic import TierNumber
+from retriever.types.trapi_overrides import AsyncQuery, Query, Response, TierNumber
 from retriever.utils import telemetry
 from retriever.utils.logs import TRAPILogger, structured_log_to_trapi
 from retriever.utils.mongo import MongoClient, MongoQueue
@@ -37,8 +33,8 @@ async def make_query(
     func: Literal["lookup"],
     ctx: APIInfo,
     *,
-    body: TRAPIQuery,
-) -> tuple[int, ResponseDict]: ...
+    body: Query,
+) -> tuple[int, Response]: ...
 
 
 @overload
@@ -46,8 +42,8 @@ async def make_query(
     func: Literal["lookup"],
     ctx: APIInfo,
     *,
-    body: TRAPIAsyncQuery,
-) -> tuple[int, AsyncQueryResponseDict]: ...
+    body: AsyncQuery,
+) -> tuple[int, AsyncQueryResponse]: ...
 
 
 @overload
@@ -56,7 +52,7 @@ async def make_query(
     ctx: APIInfo,
     *,
     tiers: list[TierNumber],
-) -> tuple[int, MetaKnowledgeGraphDict]: ...
+) -> tuple[int, MetaKnowledgeGraph]: ...
 
 
 @overload
@@ -72,15 +68,11 @@ async def make_query(
     func: Literal["lookup", "metakg", "metadata"],
     ctx: APIInfo,
     *,
-    body: TRAPIQuery | TRAPIAsyncQuery | None = None,
+    body: Query | AsyncQuery | None = None,
     tiers: list[TierNumber] | None = None,  # Guaranteed to be 0 <= x <= 2
 ) -> tuple[
     int,
-    ResponseDict
-    | AsyncQueryResponseDict
-    | MetaKnowledgeGraphDict
-    | DINGOMetadata
-    | ErrorDetail,
+    Response | AsyncQueryResponse | MetaKnowledgeGraph | DINGOMetadata | ErrorDetail,
 ]:
     """Process a request and await its response before returning.
 
@@ -108,12 +100,12 @@ async def make_query(
     if custom_tiers := body and body.parameters and body.parameters.tiers:
         tiers = custom_tiers
 
-    body_transformed: QueryDict | AsyncQueryDict | None = None
+    body_transformed: Query | AsyncQuery | None = None
     if body is not None:
-        if isinstance(body, TRAPIQuery):
-            body_transformed = QueryDict(**body.model_dump())
+        if isinstance(body, Query):
+            body_transformed = Query(**body.model_dump())
         else:
-            body_transformed = AsyncQueryDict(**body.model_dump())
+            body_transformed = AsyncQuery(**body.model_dump())
 
     query = QueryInfo(
         endpoint=ctx.request.url.path,
@@ -144,7 +136,7 @@ async def make_query(
         carrier = dict[str, str]()
         propagate.inject(carrier, context.get_current())
         ctx.background_tasks.add_task(async_lookup, query=query, ctx=carrier)
-        return 200, AsyncQueryResponseDict(
+        return 200, AsyncQueryResponse(
             status="Accepted",
             description="Query has been queued for processing.",
             job_id=job_id,
@@ -169,16 +161,12 @@ def contextualize_query_telemetry(query: QueryInfo, func: str, is_async: bool) -
 
     span_tags["submitter"] = get_submitter(query)
 
-    if (
-        body is not None
-        and "query_graph" in body["message"]
-        and body["message"]["query_graph"]
-    ):
-        span_tags["qnodes"] = len(body["message"]["query_graph"]["nodes"])
-        if "edges" in body["message"]["query_graph"]:
-            span_tags["qedges"] = len(body["message"]["query_graph"]["edges"])
+    if body is not None and body.message.query_graph:
+        span_tags["qnodes"] = len(body.message.query_graph.nodes)
+        if isinstance(body.message.query_graph, QueryGraph):
+            span_tags["qedges"] = len(body.message.query_graph.edges)
         else:
-            span_tags["qpaths"] = len(body["message"]["query_graph"]["paths"])
+            span_tags["qpaths"] = len(body.message.query_graph.paths)
 
     current_span = trace.get_current_span()
     current_span.set_attributes(span_tags)

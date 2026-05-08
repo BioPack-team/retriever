@@ -13,7 +13,7 @@ from retriever.data_tiers.tier_0.dgraph.query import DgraphQuery
 from retriever.data_tiers.tier_0.dgraph.transpiler import DgraphTranspiler
 from retriever.data_tiers.tier_1.elasticsearch.driver import ElasticSearchDriver
 from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
-from retriever.types.trapi_pydantic import TierNumber
+from retriever.types.trapi_overrides import TierNumber
 
 BACKEND_DRIVERS = dict[str, type[DatabaseDriver]](
     elasticsearch=ElasticSearchDriver,

@@ -44,6 +44,8 @@
 from datetime import datetime
 from typing import Any
 
+from translator_tom import AttributeConstraint, Biolink
+
 from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.meta_info import (
     EDGE_ATTR_META,
     NODE_ATTR_META,
@@ -64,8 +66,6 @@ from retriever.data_tiers.tier_1.elasticsearch.constraints.types.attribute_types
     AttrValType,
     SingleAttributeFilterQueryPayload,
 )
-from retriever.types.trapi import AttributeConstraintDict
-from retriever.utils import biolink
 
 # sample
 # {
@@ -76,12 +76,12 @@ from retriever.utils import biolink
 # }
 
 
-def validate_constraint(constraint: AttributeConstraintDict) -> None:
+def validate_constraint(constraint: AttributeConstraint) -> None:
     """Validate attribute constraint for fields."""
     required_fields = ["id", "operator", "value"]
 
     for field in required_fields:
-        if field not in constraint:
+        if not hasattr(constraint, field):
             raise AttributeError(f"Attribute constraint must have the field {field}")
 
 
@@ -128,17 +128,17 @@ def ensure_type_consistency(field_type: AttrValType, raw_value: Any) -> Any:
 
 
 def process_single_constraint(
-    constraint: AttributeConstraintDict,
+    constraint: AttributeConstraint,
     origin: AttributeOrigin,
 ) -> SingleAttributeFilterQueryPayload | None:
     """Process a single attribute constraint."""
     validate_constraint(constraint)
 
     # todo unit?
-    raw_operator = constraint.get("operator")
-    raw_value = constraint.get("value")
-    should_negate = constraint.get("not", False)
-    target_field_name = biolink.rmprefix(constraint.get("id"))
+    raw_operator = constraint.operator
+    raw_value = constraint.value
+    should_negate = bool(constraint.negated)
+    target_field_name = Biolink.rmprefix(constraint.id)
 
     validate_operator(raw_operator)
 
@@ -233,7 +233,7 @@ def process_single_constraint(
 
 
 def process_attribute_constraints(
-    constraints: list[AttributeConstraintDict],
+    constraints: list[AttributeConstraint],
     origin: AttributeOrigin = "edge",
 ) -> tuple[list[AttributeFilterQuery], list[AttributeFilterQuery]]:
     """Generate ES query for attribute constraint field."""

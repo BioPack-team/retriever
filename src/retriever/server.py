@@ -15,7 +15,15 @@ from fastapi.responses import (
     Response,
     StreamingResponse,
 )
-from reasoner_pydantic import AsyncQueryStatusResponse as TRAPIAsyncQueryStatusResponse
+from translator_tom import (
+    AsyncQueryResponse as TRAPIAsyncQueryResponse,
+)
+from translator_tom import (
+    AsyncQueryStatusResponse as TRAPIAsyncQueryStatusResponse,
+)
+from translator_tom import (
+    MetaKnowledgeGraph,
+)
 
 from retriever.config.general import CONFIG
 from retriever.config.logger import configure_logging
@@ -26,11 +34,12 @@ from retriever.lookup.subquery import SubqueryDispatcher
 from retriever.lookup.utils import QueryDumper
 from retriever.metadata.optable import OpTableManager
 from retriever.query import get_job_state, make_query
+from retriever.types.dingo import DINGOMetadata
 from retriever.types.general import APIInfo, ErrorDetail, LogLevel
-from retriever.types.trapi_pydantic import AsyncQuery as TRAPIAsyncQuery
-from retriever.types.trapi_pydantic import Query as TRAPIQuery
-from retriever.types.trapi_pydantic import Response as TRAPIResponse
-from retriever.types.trapi_pydantic import TierNumber
+from retriever.types.trapi_overrides import AsyncQuery as TRAPIAsyncQuery
+from retriever.types.trapi_overrides import Query as TRAPIQuery
+from retriever.types.trapi_overrides import Response as TRAPIResponse
+from retriever.types.trapi_overrides import TierNumber
 from retriever.utils.examples import EXAMPLE_QUERY
 from retriever.utils.exception_handlers import ensure_cors
 from retriever.utils.logs import (
@@ -146,13 +155,13 @@ async def meta_knowledge_graph(
             default_factory=lambda: [0],
         ),
     ],
-) -> ORJSONResponse:
+) -> MetaKnowledgeGraph:
     """Retrieve the Meta-Knowledge Graph."""
-    status_code, response_dict = await make_query(
+    status_code, response_body = await make_query(
         "metakg", APIInfo(request, response), tiers=tier
     )
-    return ORJSONResponse(response_dict, status_code=status_code)
-    # return {"logs": list(logs)}
+    response.status_code = status_code
+    return response_body
 
 
 @app.get(
@@ -162,12 +171,13 @@ async def meta_knowledge_graph(
 )
 async def metadata(
     request: Request, response: Response, tier: TierNumber
-) -> ORJSONResponse:
+) -> DINGOMetadata:
     """Retrieve the metadata associated with a given Data Tier."""
-    status_code, response_dict = await make_query(
+    status_code, response_body = await make_query(
         func="metadata", ctx=APIInfo(request, response), tiers=[tier]
     )
-    return ORJSONResponse(response_dict, status_code=status_code)
+    response.status_code = status_code
+    return response_body
 
 
 @app.post(
@@ -198,12 +208,13 @@ async def query(
     request: Request,
     response: Response,
     body: Annotated[TRAPIQuery, Body(examples=[EXAMPLE_QUERY])],
-) -> ORJSONResponse:
+) -> TRAPIResponse:
     """Initiate a synchronous query."""
-    status_code, response_dict = await make_query(
+    status_code, response_body = await make_query(
         "lookup", APIInfo(request, response), body=body
     )
-    return ORJSONResponse(response_dict, status_code=status_code)
+    response.status_code = status_code
+    return response_body
     # return {}
 
 
@@ -235,17 +246,19 @@ async def asyncquery(
     response: Response,
     body: TRAPIAsyncQuery,
     background_tasks: BackgroundTasks,
-) -> ORJSONResponse:
+) -> TRAPIAsyncQueryResponse:
     """Initiate an asynchronous query."""
-    status_code, response_dict = await make_query(
+    status_code, response_body = await make_query(
         "lookup", APIInfo(request, response, background_tasks), body=body
     )
-    return ORJSONResponse(response_dict, status_code=status_code)
+    response.status_code = status_code
+    return response_body
 
 
 @app.get(
     "/asyncquery_status/{job_id}",
     tags=["asyncquery_status"],
+    response_model=TRAPIAsyncQueryStatusResponse,
     response_description=OPENAPI_CONFIG.response_descriptions.asyncquery_status.get(
         "200", ""
     ),

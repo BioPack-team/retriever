@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
+from translator_tom import Biolink
+
 from retriever.types.general import EntityToEntityMapping
 from retriever.types.metakg import Operation, OperationNode
-from retriever.types.trapi import BiolinkEntity
 from retriever.utils.general import Singleton
 
 
@@ -46,7 +47,7 @@ class DatabaseDriver(ABC, metaclass=Singleton):
     @abstractmethod
     async def get_operations(
         self,
-    ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
+    ) -> tuple[list[Operation], dict[Biolink.Entity, OperationNode]]:
         """Return Operations and Nodes exposed by this driver."""
 
     @abstractmethod

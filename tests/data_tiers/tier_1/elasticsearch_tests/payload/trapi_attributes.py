@@ -1,4 +1,4 @@
-from retriever.types.trapi import AttributeConstraintDict, OperatorEnum
+from translator_tom import AttributeConstraint, OperatorEnum
 
 # sample
 # {
@@ -9,35 +9,35 @@ from retriever.types.trapi import AttributeConstraintDict, OperatorEnum
 # }
 
 
-base_constraint: AttributeConstraintDict ={
-    "id": "biolink:has_total",
-    "name": "total value must be greater than 2",
-    "operator": ">",
-    "value": 2
-}
+base_constraint = AttributeConstraint(
+    id="biolink:has_total",
+    name="total value must be greater than 2",
+    operator=">",
+    value=2,
+)
 
-base_negation_constraint: AttributeConstraintDict ={
-    "id": "biolink:has_total",
-    "name": "total value must not be greater than 4",
-    "operator": ">",
-    "value": 4,
-    "not": True
-}
+base_negation_constraint = AttributeConstraint(
+    id="biolink:has_total",
+    name="total value must not be greater than 4",
+    operator=">",
+    value=4,
+    negated=True,
+)
 
-base_node_constraint: AttributeConstraintDict ={
-    "id": "biolink:chembl_natural_product",
-    "name": "Ensure natural product",
-    "operator": OperatorEnum.STRICT_EQUAL,
-    "value": True,
-}
+base_node_constraint = AttributeConstraint(
+    id="biolink:chembl_natural_product",
+    name="Ensure natural product",
+    operator=OperatorEnum.EQ_STRICT.value,
+    value=True,
+)
 
-base_node_negation_constraint: AttributeConstraintDict ={
-    "id": "biolink:chembl_prodrug",
-    "name": "Ensure not prod drug",
-    "operator": OperatorEnum.STRICT_EQUAL,
-    "value": False,
-    "not": True
-}
+base_node_negation_constraint = AttributeConstraint(
+    id="biolink:chembl_prodrug",
+    name="Ensure not prod drug",
+    operator=OperatorEnum.EQ_STRICT.value,
+    value=False,
+    negated=True,
+)
 
 
 # Valid patterns (Should pass)
@@ -59,7 +59,7 @@ valid_regex_patterns = [
     "(foo|bar)",
     r"foo\.",
     r"\(text\)",
-    "(GO:0072).*"
+    "(GO:0072).*",
 ]
 
 # Invalid patterns (Should raise ValueError)
@@ -68,10 +68,8 @@ invalid_regex_patterns = [
     None,
     "",
     "   ",
-
     # --- Length > 50 ---
     "a" * 51,
-
     # --- Leading Wildcard / Leading Expansion ---
     ".*Q9Y3N9",
     ".+HP:0001993",
@@ -79,51 +77,52 @@ invalid_regex_patterns = [
     "[A-Z]*:Q9Y3N9",
     "(abc)+def",  # Leading group with quantifier
     "[A-Za-z0-9_:]+",  # Leading class with quantifier
-
     # --- Nested Quantifiers ---
     "(a+)+",
     "(AB*)+",
     "prefix(.+)?",
-
     # --- Lazy Quantifiers ---
     "GO:0072.*?",
     "HP:0001+?",
     "A{2,5}?",
-
     # --- Anchors ---
     "^GO:0072354",
     "HP:0001993$",
-
     # --- Lookaround ---
     "Q9(?=3)Y3N9",
     "(?!HP)",
-
     # --- Unsupported Escapes ---
     r"UniProtKB:\d+",
     r"GO:\w+",
     r"HP:\s+",
-
     # --- Unsupported ES Features (Valid in Python, Invalid/Dangerous in ES) ---
     r"(a)\1",  # Backreference
     r"(?P<id>\d+)",  # Named Group
-
     # --- Invalid Regex Syntax (or Syntax Mismatch) ---
     "GO:00{",  # Unescaped { not followed by valid quantifier
     "(",  # Unclosed group
     "HP:[0-9",  # Unclosed class
 ]
 
-def make_regex_constraint(pattern: str, field="original_subject", name="a regex test") -> AttributeConstraintDict:
-    """Wrapper for attribute constraint with regex query"""
-    return {
-        "id": f"biolink:{field}",
-        "name": f"{name}",
-        "operator": "matches",
-        "value": pattern,
-    }
 
-VALID_REGEX_CONSTRAINTS = [make_regex_constraint(pattern) for pattern in valid_regex_patterns]
-INVALID_REGEX_CONSTRAINTS = [make_regex_constraint(pattern) for pattern in invalid_regex_patterns]
+def make_regex_constraint(
+    pattern: str | None, field: str = "original_subject", name: str = "a regex test"
+) -> AttributeConstraint:
+    """Wrapper for attribute constraint with regex query"""
+    return AttributeConstraint(
+        id=f"biolink:{field}",
+        name=f"{name}",
+        operator="matches",
+        value=pattern,
+    )
+
+
+VALID_REGEX_CONSTRAINTS = [
+    make_regex_constraint(pattern) for pattern in valid_regex_patterns
+]
+INVALID_REGEX_CONSTRAINTS = [
+    make_regex_constraint(pattern) for pattern in invalid_regex_patterns
+]
 
 ATTRIBUTE_CONSTRAINTS = [base_constraint, base_negation_constraint]
 NODE_CONSTRAINTS = [base_node_constraint, base_node_negation_constraint]

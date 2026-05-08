@@ -1,9 +1,9 @@
 from typing import Annotated
 
 from pydantic import BaseModel, Field
-from reasoner_pydantic import AsyncQuery as TRAPIAsyncQuery
-from reasoner_pydantic import Query as TRAPIQuery
-from reasoner_pydantic import Response as TRAPIResponse
+from translator_tom import AsyncQuery as TRAPIAsyncQuery
+from translator_tom import Query as TRAPIQuery
+from translator_tom import Response as TRAPIResponse
 
 TierNumber = Annotated[
     int,
@@ -38,6 +38,8 @@ class AsyncQuery(TRAPIAsyncQuery):
 class Response(TRAPIResponse):
     """Response."""
 
+    submitter: str | None = None
+    job_id: str | None = None
     parameters: Annotated[
         Parameters, Field(description="Parameters used while executing the query.")
     ]

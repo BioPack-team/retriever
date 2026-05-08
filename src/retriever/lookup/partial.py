@@ -1,18 +1,20 @@
 from typing import override
 
 import orjson
-
-from retriever.types.general import KAdjacencyGraph
-from retriever.types.trapi import (
+from translator_tom import (
     CURIE,
-    AnalysisDict,
-    EdgeBindingDict,
-    Infores,
-    NodeBindingDict,
+    Analysis,
+    EdgeBinding,
+    NodeBinding,
     QEdgeID,
     QNodeID,
-    ResultDict,
+    Result,
+    infores,
+    tomhash,
+    tomhash_to_int,
 )
+
+from retriever.types.general import KAdjacencyGraph
 
 
 class Partial:
@@ -49,7 +51,7 @@ class Partial:
             f"{qedge_id}:{in_curie}:{out_curie}"
             for (qedge_id, in_curie, out_curie) in self.edge_bindings
         )
-        return hash(f"{','.join(nodes)};{','.join(edges)}")
+        return tomhash_to_int(tomhash(f"{','.join(nodes)};{','.join(edges)}"))
 
     @override
     def __eq__(self, value: object, /) -> bool:
@@ -85,19 +87,19 @@ class Partial:
             list(combined_nodes.items()), [*self.edge_bindings, *other.edge_bindings]
         )
 
-    def as_result(self, k_agraph: KAdjacencyGraph) -> ResultDict:
+    def as_result(self, k_agraph: KAdjacencyGraph) -> Result:
         """Return a result generated from the Partial's node and edge bindings."""
-        return ResultDict(
+        return Result.model_construct(
             node_bindings={
-                qnode_id: [NodeBindingDict(id=curie, attributes=[])]
+                qnode_id: [NodeBinding.model_construct(id=curie, attributes=[])]
                 for qnode_id, curie in self.node_bindings
             },
             analyses=[
-                AnalysisDict(
-                    resource_id=Infores("infores:retriever"),
+                Analysis.model_construct(
+                    resource_id=infores("retriever"),
                     edge_bindings={
                         qedge_id: [
-                            EdgeBindingDict(id=kedge_id, attributes=[])
+                            EdgeBinding.model_construct(id=kedge_id, attributes=[])
                             for kedge_id in k_agraph[qedge_id][in_id][out_id]
                         ]
                         for qedge_id, in_id, out_id in self.edge_bindings

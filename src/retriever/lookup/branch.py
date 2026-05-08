@@ -4,10 +4,19 @@ from collections.abc import Iterable
 from functools import cached_property
 from typing import override
 
+from translator_tom import (
+    CURIE,
+    QEdge,
+    QEdgeID,
+    QNodeID,
+    QueryGraph,
+    tomhash,
+    tomhash_to_int,
+)
+
 from retriever.metadata.optable import OperationPlan
 from retriever.types.general import AdjacencyGraph, QEdgeIDMap
 from retriever.types.metakg import Operation
-from retriever.types.trapi import CURIE, QEdgeDict, QEdgeID, QNodeID, QueryGraphDict
 from retriever.utils.logs import TRAPILogger
 
 BranchHop = tuple[QNodeID, QEdgeID | None]
@@ -16,7 +25,7 @@ SuperpositionHop = tuple[QNodeID, CURIE | None, QEdgeID | None]
 BranchID = tuple[BranchHop, ...]
 SuperpositionID = tuple[SuperpositionHop, ...]
 
-QGraphInfo = tuple[QueryGraphDict, AdjacencyGraph, QEdgeIDMap, OperationPlan]
+QGraphInfo = tuple[QueryGraph, AdjacencyGraph, QEdgeIDMap, OperationPlan]
 
 
 class Branch:
@@ -28,7 +37,7 @@ class Branch:
     """
 
     job_log: TRAPILogger
-    qgraph: QueryGraphDict
+    qgraph: QueryGraph
     q_agraph: AdjacencyGraph
     edge_id_map: QEdgeIDMap
     op_plan: OperationPlan
@@ -64,7 +73,7 @@ class Branch:
         """Check if self and other branch are equivalent."""
         if not isinstance(other, Branch):
             return False
-        return hash(self) == hash(other)
+        return tomhash(self) == tomhash(other)
 
     @override
     def __hash__(self) -> int:
@@ -72,7 +81,7 @@ class Branch:
 
         Does not take into account superposition.
         """
-        return hash(self.branch_name)
+        return tomhash_to_int(tomhash(self.branch_name))
 
     @override
     def __str__(self) -> str:
@@ -203,12 +212,12 @@ class Branch:
         return self.op_plan[self.current_edge]
 
     @cached_property
-    def next_edges(self) -> dict[QNodeID, list[QEdgeDict]]:
+    def next_edges(self) -> dict[QNodeID, list[QEdge]]:
         """Return the next potential edges adjacent to the current edge."""
-        edges = dict[QNodeID, list[QEdgeDict]]()
+        edges = dict[QNodeID, list[QEdge]]()
         for qnode_id, qedge in self.q_agraph[self.output_node].items():
             if qnode_id not in edges:
-                edges[qnode_id] = list[QEdgeDict]()
+                edges[qnode_id] = list[QEdge]()
             edges[qnode_id].extend(qedge)
         return edges
 
@@ -248,7 +257,7 @@ class Branch:
         """
         next_steps = list[Branch]()
 
-        current_edge = self.qgraph["edges"][self.current_edge]
+        current_edge = self.qgraph.edges[self.current_edge]
         for next_qnode_id, edges in self.next_edges.items():
             for next_edge in edges:
                 if (
@@ -264,7 +273,7 @@ class Branch:
                         next_qedge_id,
                         next_qnode_id,
                         curie,
-                        reverse=next_edge["subject"] == next_qnode_id,
+                        reverse=next_edge.subject == next_qnode_id,
                     )
                     if not claim_checked and not await branch.has_claim(
                         qedge_claims, lock
@@ -312,23 +321,16 @@ class Branch:
         """
         qg, ag, em, tiers = qgraph_info
         start = list[Branch]()
-        for node_id, node in qg["nodes"].items():
-            node_id = QNodeID(node_id)  # noqa:PLW2901
-            if (
-                "ids" not in node or node["ids"] is None
-            ):  # Only start on nodes with curies
+        for node_id, node in qg.nodes.items():
+            if node.ids is None:  # Only start on nodes with curies
                 continue
-            for curie in node["ids"]:
+            for curie in node.ids:
                 for edge in itertools.chain(*ag[node_id].values()):
                     edge_id = em[id(edge)]
-                    next_node = QNodeID(
-                        edge["object"]
-                        if edge["subject"] == node_id
-                        else edge["subject"]
-                    )
-                    reverse = edge["object"] == node_id
+                    next_node = edge.object if edge.subject == node_id else edge.subject
+                    reverse = edge.object == node_id
                     branch = Branch(
-                        node_id, CURIE(curie), (qg, ag, em, tiers), job_log
+                        node_id, curie, (qg, ag, em, tiers), job_log
                     ).advance(edge_id, next_node, reverse=reverse)
                     if await branch.has_claim(qedge_claims, lock):
                         start.append(branch)
