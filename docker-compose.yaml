@@ -29,6 +29,8 @@ services:
       MONGO__HOST: mongodb
       REDIS__HOST: dragonfly
       REDIS__PORT: 6379
+    volumes:
+      - ./debug:/app/debug
 #     secrets:
 #       - tier0__neo4j__host
 #       - tier0__neo4j__username
