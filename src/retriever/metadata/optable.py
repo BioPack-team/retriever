@@ -270,8 +270,11 @@ class OpTableManager(AsyncDaemon):
         async with self.update_lock:
             op_table = self._operation_table
         if op_table is None:
-            if retries >= 3:  # noqa: PLR2004
-                raise ValueError("Failed to retrieve a built OpTable!")
+            if retries >= 6:  # noqa: PLR2004
+                raise ValueError("Failed to retrieve or build a valid OpTable!")
+            if retries == 3:  # noqa: PLR2004
+                # Assume OpTable is not stored and rebuild it
+                await self.build_operation_table()
             await self.pull_op_table("")
             return await self.get_op_table(retries + 1)
         return op_table

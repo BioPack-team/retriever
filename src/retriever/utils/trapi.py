@@ -3,7 +3,6 @@ import uuid
 from collections import defaultdict
 from typing import cast
 
-from opentelemetry import trace
 from translator_tom import (
     CURIE,
     Analysis,
@@ -22,8 +21,6 @@ from translator_tom import (
 )
 
 from retriever.utils.logs import TRAPILogger
-
-tracer = trace.get_tracer("lookup.execution.tracer")
 
 
 def initialize_kgraph(qgraph: QueryGraph) -> KnowledgeGraph:

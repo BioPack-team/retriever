@@ -128,7 +128,7 @@ def build_subclass_construct_edge(edge_key: SourcelessEdgeKey, edge: Edge) -> Ed
         ],
         sources=[
             RetrievalSource.model_construct(
-                resource_id="infores:retriever",
+                resource_id="infores:obie",
                 resource_role="primary_knowledge_source",
                 upstream_resource_ids=["infores:ubergraph"],
             ),
