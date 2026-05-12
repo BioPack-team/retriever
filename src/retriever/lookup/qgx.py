@@ -49,6 +49,7 @@ from retriever.utils.general import EmptyIteratorError, merge_iterators
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.trapi import (
     initialize_kgraph,
+    prune_kg,
     update_kgraph,
 )
 
@@ -217,7 +218,6 @@ class QueryGraphExecutor:
                 )
             )
 
-            # TODO: cleanup (set_interpretation)
             if len(results) > 0:
                 solve_subclass_edges(
                     self.subclass_backmap,
@@ -226,6 +226,8 @@ class QueryGraphExecutor:
                     self.aux_graphs,
                     self.job_log,
                 )
+
+            prune_kg(results, self.kgraph, self.aux_graphs, self.job_log)
 
             return LookupArtifacts(
                 results, self.kgraph, self.aux_graphs, self.job_log.get_logs()

@@ -43,7 +43,6 @@ from retriever.utils.mongo import MongoQueue, ResponseState
 from retriever.utils.trapi import (
     evaluate_set_interpretation,
     merge_results,
-    prune_kg,
     update_kgraph,
 )
 
@@ -133,7 +132,6 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
 
         job_log.info(f"Collected {len(results)} results from query tasks.")
         evaluate_set_interpretation(qgraph, results, job_log)
-        prune_kg(results, kgraph, aux_graphs, job_log)
 
         end_time = time.time()
         finish_msg = f"Execution completed, obtained {len(results)} results in {math.ceil((end_time - start_time) * 1000):}ms."
