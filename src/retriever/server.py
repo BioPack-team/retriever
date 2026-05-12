@@ -45,6 +45,8 @@ from retriever.utils.telemetry import configure_telemetry
 
 configure_logging()
 
+JOB_ID_PATTERN = r"^[a-z0-9]+$"
+
 
 # Lifespan handling for each FastAPI worker (not main process, see __main__.py)
 @asynccontextmanager
@@ -96,9 +98,6 @@ async def exception_ensure_cors(request: Request, exc: Exception) -> Response:
     """Ensure CORS is not lost on exception."""
     return await ensure_cors(app, request, exc)
 
-
-# Set up Sentry and Otel
-configure_telemetry(app)
 
 # Configure profiling middleware
 if CONFIG.allow_profiler:
@@ -306,7 +305,7 @@ async def asyncquery_status(request: Request, job_id: str) -> ORJSONResponse:
     },
 )
 async def response(request: Request, job_id: str) -> ORJSONResponse:
-    """Get the response of an asynchronous query."""
+    """Get the response for a query (or logs if it's in progress)."""
     status_code, job_dict = await get_job_state(job_id, request)
     return ORJSONResponse(job_dict, status_code=status_code)
 
@@ -345,7 +344,8 @@ async def logs(  # noqa: PLR0913 Can't reduce args due to FastAPI endpoint forma
     job_id: Annotated[
         str | None,
         Query(
-            description="ID of a previously-run job to search for. Limits logs to those related to that job."
+            description="ID of a previously-run job to search for. Limits logs to those related to that job.",
+            pattern=JOB_ID_PATTERN,
         ),
     ] = None,
     fmt: Annotated[
@@ -398,3 +398,7 @@ async def config() -> ORJSONResponse:
         pass
 
     return ORJSONResponse(config)
+
+
+# Set up Sentry and Otel
+configure_telemetry(app)

@@ -1,5 +1,6 @@
 import traceback
 from datetime import datetime
+from functools import lru_cache
 from typing import cast
 
 from fastapi import FastAPI, Request
@@ -7,6 +8,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
 from retriever.config.general import CONFIG
+
+
+@lru_cache
+def get_cors(app: FastAPI) -> CORSMiddleware:
+    """Cached CORS obtain."""
+    # Have the middleware do the heavy lifting for us to parse
+    # all the config, then update our response headers
+    return CORSMiddleware(
+        app,
+        allow_origins=CONFIG.cors.allow_origins,
+        allow_credentials=CONFIG.cors.allow_credentials,
+        allow_methods=CONFIG.cors.allow_methods,
+        allow_headers=CONFIG.cors.allow_headers,
+    )
 
 
 async def ensure_cors(app: FastAPI, request: Request, exc: Exception) -> Response:
@@ -19,7 +34,7 @@ async def ensure_cors(app: FastAPI, request: Request, exc: Exception) -> Respons
             "message": {},
             "logs": [
                 {
-                    "message": f"Unhandled exepction in Retriever: {exc!r}",
+                    "message": f"Unhandled exception in Retriever: {exc!r}",
                     "level": "ERROR",
                     "timestamp": datetime.now()
                     .astimezone()
@@ -42,16 +57,7 @@ async def ensure_cors(app: FastAPI, request: Request, exc: Exception) -> Respons
     origin = request.headers.get("origin")
 
     if origin:
-        # Have the middleware do the heavy lifting for us to parse
-        # all the config, then update our response headers
-        cors = CORSMiddleware(
-            app,
-            allow_origins=CONFIG.cors.allow_origins,
-            allow_credentials=CONFIG.cors.allow_credentials,
-            allow_methods=CONFIG.cors.allow_methods,
-            allow_headers=CONFIG.cors.allow_headers,
-        )
-
+        cors = get_cors(app)
         # Logic directly from Starlette's CORSMiddleware:
         # https://github.com/encode/starlette/blob/master/starlette/middleware/cors.py#L152
 

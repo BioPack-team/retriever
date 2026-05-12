@@ -1,11 +1,13 @@
 import traceback
 import uuid
-from typing import Any, Literal, overload
+from typing import Any, Literal, NamedTuple, overload
 
+import ormsgpack
 import sentry_sdk
+import zstandard
 from fastapi import Request
 from loguru import logger
-from opentelemetry import context, trace
+from opentelemetry import context, propagate, trace
 
 from retriever.config.general import CONFIG
 from retriever.lookup.lookup import async_lookup, lookup
@@ -26,10 +28,25 @@ from retriever.types.trapi_pydantic import Query as TRAPIQuery
 from retriever.types.trapi_pydantic import TierNumber
 from retriever.utils import telemetry
 from retriever.utils.logs import TRAPILogger, structured_log_to_trapi
-from retriever.utils.mongo import MongoClient, MongoQueue
+from retriever.utils.mongo import JobDocs, MongoClient, MongoQueue, QueryState
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 MONGO_QUEUE = MongoQueue()
+ZSTD_COMPRESSOR = zstandard.ZstdCompressor()
+ZSTD_DECOMPRESSOR = zstandard.ZstdDecompressor()
+
+
+class QueryMetadata(NamedTuple):
+    """Metadata about a query."""
+
+    job_id: str
+    job_timeout: dict[str, float]
+    data_tiers: list[int]
+    query_type: str
+    submitter: str
+    qnodes: int
+    qedges: int
+    qpaths: int
 
 
 @overload
@@ -124,12 +141,22 @@ async def make_query(
         timeout=timeout,
     )
 
+    query_metadata = get_query_metadata(query, func, ctx.background_tasks is not None)
     with logger.catch(
         Exception,
         level="ERROR",
         message="Error while attempting to contextualize telemetry to query.",
     ):
-        contextualize_query_telemetry(query, func, ctx.background_tasks is not None)
+        contextualize_query_telemetry(
+            {
+                **query_metadata._asdict(),
+                "job_timeout": ", ".join(
+                    f"{tgt}: {timeout}"
+                    for tgt, timeout in query_metadata.job_timeout.items()
+                ),
+                "data_tier": ", ".join(str(tier) for tier in query_metadata.data_tiers),
+            }
+        )
 
     query_function = {
         "lookup": lookup,
@@ -137,13 +164,25 @@ async def make_query(
         "metadata": get_metadata,
     }[func]
     if func == "lookup":
-        MONGO_QUEUE.put("job_state", {"job_id": job_id, "status": "Running"})
+        MONGO_QUEUE.put(
+            "job_state",
+            QueryState(
+                query=ZSTD_COMPRESSOR.compress(ormsgpack.packb(query.body)),
+                status="Running",
+                is_async=ctx.background_tasks is not None,
+                **{
+                    k: v
+                    for k, v in query_metadata._asdict().items()
+                    if k != "query_type"
+                },
+            ),
+        )
 
     # TRAPI Async vs Sync query (client wants callback vs. will wait)
     if ctx.background_tasks is not None:  # TRAPI Asyncquery lookup
-        ctx.background_tasks.add_task(
-            async_lookup, query=query, ctx=context.get_current()
-        )
+        carrier = dict[str, str]()
+        propagate.inject(carrier, context.get_current())
+        ctx.background_tasks.add_task(async_lookup, query=query, ctx=carrier)
         return 200, AsyncQueryResponseDict(
             status="Accepted",
             description="Query has been queued for processing.",
@@ -154,36 +193,39 @@ async def make_query(
         return status_code, response_body
 
 
-def contextualize_query_telemetry(query: QueryInfo, func: str, is_async: bool) -> None:
-    """Provide some advanced information about the query for Telemetry."""
-    span_tags: dict[str, str | int] = {
-        "job_id": query.job_id,
-        "job_timeout": ", ".join(
-            f"{tgt}: {timeout}" for tgt, timeout in query.timeout.items()
-        ),
-        "data_tier": ", ".join(str(tier) for tier in sorted(query.tiers)),
-        "query_type": func if not is_async else f"{func}-async",
-    }
-
+def get_query_metadata(query: QueryInfo, func: str, is_async: bool) -> QueryMetadata:
+    """Obtain useful metrics about the query."""
+    qnodes, qedges, qpaths = 0, 0, 0
     body = query.body
-
-    span_tags["submitter"] = get_submitter(query)
-
     if (
         body is not None
         and "query_graph" in body["message"]
         and body["message"]["query_graph"]
     ):
-        span_tags["qnodes"] = len(body["message"]["query_graph"]["nodes"])
+        qnodes = len(body["message"]["query_graph"]["nodes"])
         if "edges" in body["message"]["query_graph"]:
-            span_tags["qedges"] = len(body["message"]["query_graph"]["edges"])
+            qedges = len(body["message"]["query_graph"]["edges"])
         else:
-            span_tags["qpaths"] = len(body["message"]["query_graph"]["paths"])
+            qpaths = len(body["message"]["query_graph"]["paths"])
 
+    return QueryMetadata(
+        job_id=query.job_id,
+        job_timeout={str(k): v for k, v in query.timeout.items()},
+        data_tiers=sorted(query.tiers),
+        query_type=func if not is_async else f"{func}-async",
+        submitter=get_submitter(query),
+        qnodes=qnodes,
+        qedges=qedges,
+        qpaths=qpaths,
+    )
+
+
+def contextualize_query_telemetry(info: dict[str, Any]) -> None:
+    """Provide some advanced information about the query for Telemetry."""
     current_span = trace.get_current_span()
-    current_span.set_attributes(span_tags)
+    current_span.set_attributes(info)
     # Have to set separately in Sentry to make searchable tags
-    sentry_sdk.set_tags(span_tags)
+    sentry_sdk.set_tags(info)
 
 
 async def get_job_state(job_id: str, request: Request) -> tuple[int, dict[str, Any]]:
@@ -191,7 +233,7 @@ async def get_job_state(job_id: str, request: Request) -> tuple[int, dict[str, A
 
     Returns whole job response so it can be used by either `/asyncquery_status` or `/response`.
     """
-    job: dict[str, Any] | None = None
+    job: JobDocs | None = None
     error: Exception | None = None
     ctx_log = TRAPILogger(job_id)
 
@@ -206,42 +248,45 @@ async def get_job_state(job_id: str, request: Request) -> tuple[int, dict[str, A
         )
         telemetry.capture_exception(e)
         error = e
-    if job is None:
+    if job is None or job.get("completed") is None:
         job_logs = [
             log
             async for log in structured_log_to_trapi(
                 MongoClient().get_logs(job_id=job_id)
             )
         ]
-        if len(job_logs) > 0:
-            job = {
+        if job is not None or len(job_logs) > 0:
+            return 200, {
                 "status": "Running",
-                "logs": [*job_logs, *ctx_log.get_logs()],
+                "logs": job_logs,
                 "description": "Job is running.",
             }
 
-    if job is None and error is not None:
-        return 500, {
-            "status": "Error",
-            "description": "An error occurred while attempting to retrieve job status",
-            "logs": list(ctx_log.get_logs()),
-            "error": str(error),
-            "trace": traceback.format_exc(),
-        }
-    elif job is None:
+        if error is not None:
+            return 500, {
+                "status": "Error",
+                "description": "An error occurred while attempting to retrieve job status",
+                "logs": list(ctx_log.get_logs()),
+                "error": str(error),
+                "trace": traceback.format_exc(),
+            }
+
+        # Otherwise we have no evidence job exists
         return 404, {
             "status": "Not Found",
             "description": f"The job ID you provided ({job_id}) was not found. It may have expired.",
             "logs": list(ctx_log.get_logs()),
         }
 
-    # Clean up internal-use values
-    for key in ("touched", "completed"):
-        if key in job:
-            del job[key]
-
+    # Job is terminal
+    response_bytes = job.get("doc")
+    response: dict[str, Any] = (
+        ormsgpack.unpackb(ZSTD_DECOMPRESSOR.decompress(response_bytes))
+        if response_bytes is not None
+        else {}
+    )
     return 200, {
-        **job,
+        **response,
         "response_url": f"{request.base_url}response/{job_id}",
-        "logs": job.get("logs", list(ctx_log.get_logs())),
+        "logs": response.get("logs", []),
     }

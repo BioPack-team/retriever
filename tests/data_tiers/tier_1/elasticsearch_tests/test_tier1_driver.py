@@ -3,14 +3,24 @@ from collections.abc import Iterator
 from typing import Any, cast
 
 import pytest
+from payload.trapi_qgraphs import (
+    DINGO_QGRAPH,
+    EXPANDED_QUALIFIER_QGRAPH,
+    ID_BYPASS_PAYLOAD,
+    INVALID_REGEX_QGRAPHS,
+    VALID_REGEX_QGRAPHS,
+)
+from test_tier1_transpiler import _convert_batch_triple, _convert_triple
+
 import retriever.config.general as general_mod
 import retriever.data_tiers.tier_1.elasticsearch.driver as driver_mod
-from retriever.data_tiers.tier_1.elasticsearch.meta import extract_metadata_entries_from_blob, get_t1_indices
+from retriever.data_tiers.tier_1.elasticsearch.meta import (
+    extract_metadata_entries_from_blob,
+    get_t1_indices,
+)
 from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
-from retriever.data_tiers.tier_1.elasticsearch.types import ESPayload, ESEdge, ESNode
-from payload.trapi_qgraphs import DINGO_QGRAPH, VALID_REGEX_QGRAPHS, INVALID_REGEX_QGRAPHS, ID_BYPASS_PAYLOAD
+from retriever.data_tiers.tier_1.elasticsearch.types import ESEdge, ESNode, ESPayload
 from retriever.utils.redis import RedisClient
-from test_tier1_transpiler import _convert_triple, _convert_batch_triple
 
 
 def esp(d: dict[str, Any]) -> ESPayload:
@@ -233,6 +243,7 @@ async def test_fetch_single_node():
     [
         (DINGO_QGRAPH, 8),
         (ID_BYPASS_PAYLOAD, 4176),  # <-- adjust to the real number
+        (EXPANDED_QUALIFIER_QGRAPH, 1),
     ],
 )
 async def test_end_to_end(qgraph, expected_hits):

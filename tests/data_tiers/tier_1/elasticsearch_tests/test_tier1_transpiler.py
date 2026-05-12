@@ -9,11 +9,13 @@ from payload.es_hits import (  # pyright:ignore[reportImplicitRelativeImport]
     SIMPLE_ES_HITS,
 )
 from payload.trapi_qgraphs import (  # pyright:ignore[reportImplicitRelativeImport]
-    BASE_QGRAPH, ID_BYPASS_PAYLOAD,
+    BASE_QGRAPH, EXPANDED_QUALIFIER_QGRAPH, ID_BYPASS_PAYLOAD,
+    SINGLE_EXPANDED_QUALIFIER_QGRAPH,
 )
 
 from retriever.data_tiers.tier_1.elasticsearch.constraints.types.qualifier_types import (
-    ESQueryForSingleQualifierConstraint,
+    ESBoolQueryForExpandedQualifiers,
+    ESEquivalentQualifierPairCollection,
     ESTermClause,
 )
 from retriever.data_tiers.tier_1.elasticsearch.transpiler import (
@@ -65,26 +67,62 @@ def remove_biolink_prefixes(input: list):
     return list(map(biolink.rmprefix, input))
 
 
-def verify_es_term_clause(qualifier: QualifierDict, generated_query: ESTermClause):
-    assert "term" in generated_query
-    term = generated_query["term"]
-    qualifier_name = qualifier["qualifier_type_id"]
-    qualifier_value = qualifier["qualifier_value"]
-    assert term[biolink.rmprefix(qualifier_name)] == biolink.rmprefix(qualifier_value)
-
-
-def verify_chained_es_term_clauses(
-    qualifiers: list[QualifierDict],
-    generated_query: ESQueryForSingleQualifierConstraint,
+def verify_expanded_qualifier(
+    qualifier: QualifierDict,
+    generated_query: ESEquivalentQualifierPairCollection,
 ):
+    """Verify a single qualifier's `bool.should` expansion.
+
+    The original (type, value) pair must appear among the should terms (along
+    with any biolink descendants).
+    """
+    assert "bool" in generated_query
+    inner = generated_query["bool"]
+    assert "should" in inner
+    assert inner.get("minimum_should_match") == 1
+
+    should_terms: list[ESTermClause] = inner["should"]
+    assert len(should_terms) >= 1
+
+    qtype = biolink.rmprefix(qualifier["qualifier_type_id"])
+    qvalue = biolink.rmprefix(qualifier["qualifier_value"])
+    pairs = {(k, v) for term in should_terms for k, v in term["term"].items()}
+    # every term in this should-array must be for the same qualifier type
+    assert {t for t, _ in pairs} == {qtype}
+    # and the original value must be retained alongside any descendants
+    assert qvalue in {v for _, v in pairs}
+
+
+def verify_expanded_multi_qualifiers(
+    qualifiers: list[QualifierDict],
+    generated_query: ESBoolQueryForExpandedQualifiers,
+):
+    """Verify a multi-qualifier constraint's `bool.must` expansion.
+
+    Each qualifier in the input set becomes one `bool.should` entry within the
+    must array; ordering is non-deterministic because the source code iterates
+    over a set, so we match by qualifier type.
+    """
     assert "bool" in generated_query
     assert "must" in generated_query["bool"]
-    query_terms: list[ESTermClause] = generated_query["bool"]["must"]
+    must_entries: list[ESEquivalentQualifierPairCollection] = generated_query[
+        "bool"
+    ]["must"]
 
-    assert len(query_terms) == len(qualifiers)
+    assert len(must_entries) == len(qualifiers)
 
-    for qualifier, terms in zip(qualifiers, query_terms):
-        verify_es_term_clause(qualifier, terms)
+    entries_by_type: dict[str, ESEquivalentQualifierPairCollection] = {}
+    for entry in must_entries:
+        types_in_entry = {
+            k for term in entry["bool"]["should"] for k in term["term"].keys()
+        }
+        assert len(types_in_entry) == 1
+        entries_by_type[types_in_entry.pop()] = entry
+
+    for qualifier in qualifiers:
+        qtype = biolink.rmprefix(qualifier["qualifier_type_id"])
+        assert qtype in entries_by_type
+        verify_expanded_qualifier(qualifier, entries_by_type[qtype])
 
 
 def check_single_query_payload(q_graph: QueryGraphDict, generated_payload: ESPayload):
@@ -99,18 +137,19 @@ def check_single_query_payload(q_graph: QueryGraphDict, generated_payload: ESPay
     side_type = Literal["object", "subject"]
     sides: list[side_type] = ["subject", "object"]
 
-    # qualifier checker
-    # 0. check should, if > 1 constraints; make sure minimum_should_match
-    # 1. otherwise, check filter; should have one or more filters with `term`
+    # qualifier checker (post-expansion format)
+    # 0. > 1 constraints       -> top-level `should` + `minimum_should_match: 1`
+    # 1. 1 constraint, >1 qual -> `ESBoolQueryForExpandedQualifiers` flattened into `filter`
+    # 2. 1 constraint, 1 qual  -> single `ESEquivalentQualifierPairCollection` appended to `filter`
 
-    if "qualifier_constraints" in q_edge:
+    if q_edge.get("qualifier_constraints"):
         qualifier_entries: list[QualifierConstraintDict] = q_edge[
             "qualifier_constraints"
         ]
 
         if len(qualifier_entries) > 1:
             assert "should" in query_content
-            assert "minimum_should_match" in query_content
+            assert query_content.get("minimum_should_match") == 1
 
             should_array = query_content["should"]
             assert len(should_array) == len(qualifier_entries)
@@ -120,44 +159,29 @@ def check_single_query_payload(q_graph: QueryGraphDict, generated_payload: ESPay
             ):
                 qualifiers = qualifier_entry["qualifier_set"]
                 if len(qualifiers) == 1:
-                    # assert 'bool' in generated_query and 'query' in generated_query['bool']
-                    qualifier = qualifiers[0]
-                    verify_es_term_clause(qualifier, generated_query)
+                    verify_expanded_qualifier(qualifiers[0], generated_query)
                 elif len(qualifiers) > 1:
-                    verify_chained_es_term_clauses(qualifiers, generated_query)
-        elif len(qualifier_entries) == 1:
-            # in this case qualifier query is merged with `filter`
+                    verify_expanded_multi_qualifiers(qualifiers, generated_query)
+        else:
+            # single constraint: qualifier expansion entries are in `filter`
             qualifiers = qualifier_entries[0]["qualifier_set"]
-            check_set = set(
-                [
-                    f"{
-                        '%'.join(
-                            remove_biolink_prefixes(
-                                [
-                                    qualifier['qualifier_type_id'],
-                                    qualifier['qualifier_value'],
-                                ]
-                            )
-                        )
-                    }"
-                    for qualifier in qualifiers
-                ]
-            )
+            bool_entries = [clause for clause in filter_content if "bool" in clause]
+            assert len(bool_entries) == len(qualifiers)
 
-            for term in filter_content:
-                # `terms` is usually query filter, while `term` is usually qualifier
-                if "term" in term:
-                    qualifier_query = term["term"]
-                    assert isinstance(qualifier_query, dict)
-                    assert len(qualifier_query) == 1
+            entries_by_type: dict[str, dict] = {}
+            for entry in bool_entries:
+                types_in_entry = {
+                    k
+                    for term in entry["bool"]["should"]
+                    for k in term["term"].keys()
+                }
+                assert len(types_in_entry) == 1
+                entries_by_type[types_in_entry.pop()] = entry
 
-                    for key in qualifier_query.keys():
-                        assembled_value = "%".join([key, qualifier_query[key]])
-                        if assembled_value in check_set:
-                            check_set.remove(assembled_value)
-
-            # all qualifiers should have been represented in the query
-            assert len(check_set) == 0
+            for qualifier in qualifiers:
+                qtype = biolink.rmprefix(qualifier["qualifier_type_id"])
+                assert qtype in entries_by_type
+                verify_expanded_qualifier(qualifier, entries_by_type[qtype])
 
     # hacky attribute checking for now
     if q_edge.get("attribute_constraints"):
@@ -242,6 +266,78 @@ def test_bypass_payload(
         "subject.category" in clause.get("terms", {})
         for clause in must_clauses
     )
+
+@pytest.mark.parametrize(
+    "q_graph",
+    [SINGLE_EXPANDED_QUALIFIER_QGRAPH, EXPANDED_QUALIFIER_QGRAPH],
+    ids=["single_qualifier", "multi_qualifier"],
+)
+def test_expanded_qualifier_constraints(
+    q_graph: QueryGraphDict,
+    es_transpiler: ElasticsearchTranspiler,
+) -> None:
+    """Each (type, value) pair in a qualifier_set should expand into a
+    `bool.should` clause containing the original pair plus all biolink
+    descendants. The single-qualifier case exercises the
+    `"should" in qualifier_terms["bool"]` branch in `generate_queries`
+    (bare `ESEquivalentQualifierPairCollection` appended to filter); the
+    multi-qualifier case exercises the `"must" in qualifier_terms["bool"]`
+    branch (entries extended from `ESBoolQueryForExpandedQualifiers`).
+    """
+    generated_payload = _convert_triple(es_transpiler, q_graph)
+
+    assert generated_payload is not None
+    query_content = generated_payload["query"]["bool"]
+    filter_content = query_content["filter"]
+
+    # Only a single qualifier_constraints entry -> no top-level should/minimum_should_match
+    assert "should" not in query_content
+    assert "minimum_should_match" not in query_content
+
+    q_edge = q_graph["edges"]["e0"]
+    qualifiers = q_edge["qualifier_constraints"][0]["qualifier_set"]
+
+    # Collect the bool-wrapped expansion entries (each qualifier becomes one)
+    expansion_entries = [clause for clause in filter_content if "bool" in clause]
+    assert len(expansion_entries) == len(qualifiers)
+
+    # Index expansions by the qualifier type embedded in the should-terms
+    expansions_by_type: dict[str, list[ESTermClause]] = {}
+    for entry in expansion_entries:
+        inner = entry["bool"]
+        assert "should" in inner
+        assert inner.get("minimum_should_match") == 1
+
+        should_terms = inner["should"]
+        assert len(should_terms) >= 1
+
+        types_in_should = {next(iter(term["term"].keys())) for term in should_terms}
+        # All terms in a single expansion are for the same qualifier type
+        assert len(types_in_should) == 1
+        expansions_by_type[types_in_should.pop()] = should_terms
+
+    # Every input qualifier must have a matching expansion containing the original value
+    for qualifier in qualifiers:
+        qtype = biolink.rmprefix(qualifier["qualifier_type_id"])
+        qvalue = biolink.rmprefix(qualifier["qualifier_value"])
+        assert qtype in expansions_by_type, (
+            f"Expected expansion for qualifier type {qtype}"
+        )
+
+        values = {next(iter(term["term"].values())) for term in expansions_by_type[qtype]}
+        assert qvalue in values, (
+            f"Expected original value {qvalue} to be retained among the "
+            f"descendants for {qtype}, got {values}"
+        )
+
+    # Standard term filters for the subject/object ids and predicate should still be present
+    term_fields = {
+        next(iter(clause["terms"].keys()))
+        for clause in filter_content
+        if "terms" in clause
+    }
+    assert {"subject.id", "object.id", "predicate_ancestors"}.issubset(term_fields)
+
 
 @pytest.mark.parametrize(*Q_GRAPH_CASES, ids=Q_GRAPH_CASES_IDS)
 def test_convert_triple(

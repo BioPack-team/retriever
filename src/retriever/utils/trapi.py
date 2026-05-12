@@ -6,7 +6,6 @@ from collections import defaultdict
 from collections.abc import Sequence
 from typing import cast
 
-from opentelemetry import trace
 from reasoner_pydantic import QueryGraph
 from reasoner_pydantic.utils import make_hashable
 
@@ -41,8 +40,6 @@ from retriever.types.trapi import (
 )
 from retriever.utils import biolink
 from retriever.utils.logs import TRAPILogger
-
-tracer = trace.get_tracer("lookup.execution.tracer")
 
 
 def initialize_kgraph(qgraph: QueryGraphDict | QueryGraph) -> KnowledgeGraphDict:
@@ -144,7 +141,7 @@ def append_aggregator_source(
     upstreams = set(
         itertools.chain(
             *[
-                source.get(Infores("upstream_resource_ids"), [])
+                (source.get("upstream_resource_ids", []) or [])
                 for source in edge["sources"]
             ]
         )
@@ -197,7 +194,6 @@ def hash_result(result: ResultDict) -> int:
     )
 
 
-@tracer.start_as_current_span("merge_results")
 def merge_results(
     current: dict[int, ResultDict], new: list[ResultDict], merge_analyses: bool = True
 ) -> None:
@@ -348,7 +344,6 @@ def normalize_kgraph(
                     binding["id"] = edge_id_mapping.get(binding["id"], binding["id"])
 
 
-@tracer.start_as_current_span("prune_kg")
 def prune_kg(
     results: list[ResultDict],
     kgraph: KnowledgeGraphDict,

@@ -1,13 +1,29 @@
 import copy
-from typing import cast, Any
+from typing import Any, cast
 
-from retriever.types.trapi import QueryGraphDict, QEdgeID, QualifierConstraintDict, AttributeConstraintDict, QNodeID, \
-    OperatorEnum
-from .trapi_attributes import ATTRIBUTE_CONSTRAINTS, base_constraint, \
-    base_negation_constraint, VALID_REGEX_CONSTRAINTS, INVALID_REGEX_CONSTRAINTS, NODE_CONSTRAINTS
-from .trapi_qualifiers import multiple_qualifier_constraints, \
-    single_qualifier_constraint, single_qualifier_constraint_with_single_qualifier_entry, sex_qualifier_constraint, \
-    frequency_qualifier_constraint
+from retriever.types.trapi import (
+    AttributeConstraintDict,
+    QEdgeID,
+    QNodeID,
+    QualifierConstraintDict,
+    QueryGraphDict,
+)
+
+from .trapi_attributes import (
+    ATTRIBUTE_CONSTRAINTS,
+    INVALID_REGEX_CONSTRAINTS,
+    NODE_CONSTRAINTS,
+    VALID_REGEX_CONSTRAINTS,
+    base_constraint,
+    base_negation_constraint,
+)
+from .trapi_qualifiers import (
+    frequency_qualifier_constraint,
+    multiple_qualifier_constraints,
+    sex_qualifier_constraint,
+    single_qualifier_constraint,
+    single_qualifier_constraint_with_single_qualifier_entry,
+)
 
 
 def qg(d: dict[str, Any]) -> QueryGraphDict:
@@ -169,6 +185,76 @@ ID_BYPASS_PAYLOAD = qg({
         }
     }
 })
+
+SINGLE_EXPANDED_QUALIFIER_QGRAPH = qg({
+    "nodes": {
+        "ON": {
+            "ids": ["HGNC:3870"],
+            "categories": ["biolink:Gene"],
+        },
+        "SN": {
+            "ids": ["CHEBI:59173"],
+            "categories": ["biolink:ChemicalEntity"],
+        },
+    },
+    "edges": {
+        "e0": {
+            "subject": "SN",
+            "object": "ON",
+            "predicates": ["biolink:affects"],
+            "qualifier_constraints": [
+                {
+                    "qualifier_set": [
+                        {
+                            "qualifier_type_id": "biolink:qualified_predicate",
+                            "qualifier_value": "biolink:causes",
+                        },
+                    ]
+                }
+            ],
+        },
+    },
+})
+
+
+EXPANDED_QUALIFIER_QGRAPH = qg({
+    "nodes": {
+        "ON": {
+            "ids": ["HGNC:3870"],
+            "categories": ["biolink:Gene"],
+        },
+        "SN": {
+            "ids": ["CHEBI:59173"],
+            "categories": ["biolink:ChemicalEntity"],
+        },
+    },
+    "edges": {
+        "e0": {
+            "subject": "SN",
+            "object": "ON",
+            "predicates": ["biolink:affects"],
+            "qualifier_constraints": [
+                {
+                    "qualifier_set": [
+                        {
+                            "qualifier_type_id": "biolink:qualified_predicate",
+                            "qualifier_value": "biolink:causes",
+                        },
+                        {
+                            "qualifier_type_id": "biolink:object_aspect_qualifier",
+                            "qualifier_value": "activity_or_abundance",
+                        },
+                        {
+                            "qualifier_type_id": "biolink:object_direction_qualifier",
+                            "qualifier_value": "decreased",
+                        },
+                    ]
+                }
+            ],
+        },
+    },
+})
+
 
 HYDRATION_QGRAPH = qg({
     "nodes": {

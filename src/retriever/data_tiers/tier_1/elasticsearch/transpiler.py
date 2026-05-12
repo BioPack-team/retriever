@@ -1,4 +1,4 @@
-from typing import Any, Literal, override
+from typing import Any, Literal, cast, override
 
 import orjson
 
@@ -13,6 +13,9 @@ from retriever.data_tiers.tier_1.elasticsearch.constraints.qualifiers.qualifier 
 from retriever.data_tiers.tier_1.elasticsearch.constraints.types.attribute_types import (
     AttributeFilterQuery,
     AttributeOrigin,
+)
+from retriever.data_tiers.tier_1.elasticsearch.constraints.types.qualifier_types import (
+    ESEquivalentQualifierPairCollection,
 )
 from retriever.data_tiers.tier_1.elasticsearch.types import (
     ESBooleanQuery,
@@ -220,14 +223,15 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                 )
 
             # otherwise we have either
-            # 0) `ESQueryForSingleQualifierConstraint`, a single constraint with multiple qualifiers, or
-            # 1) `ESTermClause`, a single qualifier in a single constraint
-            # in both cases, inner payload of one or more qualifier terms can be added
-            # as a single or a list of `ESQueryForOneQualifierEntry` to `filter` field
-            elif "bool" in qualifier_terms:
+            # 0) `ESEquivalentQualifierPairCollection`, a single constraint of a should array, or
+            # 1) `ESBoolQueryForExpandedQualifiers`, a single constraint of a must array
+            # in both cases, there's a bool field that can be parsed/added to existing filter query
+            elif "must" in qualifier_terms["bool"]:
                 query_kwargs["filter"].extend(qualifier_terms["bool"]["must"])
-            elif "term" in qualifier_terms:
-                query_kwargs["filter"].append(qualifier_terms)
+            elif "should" in qualifier_terms["bool"]:
+                query_kwargs["filter"].append(
+                    cast(ESEquivalentQualifierPairCollection, qualifier_terms)
+                )
 
         # generate constraint terms for edges and associated nodes
         # currently, this is DISABLED by default to favor post-processing
