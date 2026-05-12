@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 
 import git
 import yaml
-from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Path, Query, Request
+from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import (
     ORJSONResponse,
@@ -305,7 +305,7 @@ async def asyncquery_status(request: Request, job_id: str) -> ORJSONResponse:
     },
 )
 async def response(request: Request, job_id: str) -> ORJSONResponse:
-    """Get the response of an asynchronous query."""
+    """Get the response for a query (or logs if it's in progress)."""
     status_code, job_dict = await get_job_state(job_id, request)
     return ORJSONResponse(job_dict, status_code=status_code)
 
