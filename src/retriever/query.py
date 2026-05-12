@@ -152,7 +152,9 @@ async def make_query(
         MONGO_QUEUE.put(
             "job_state",
             QueryState(
-                query=ZSTD_COMPRESSOR.compress(ormsgpack.packb(query.body)),
+                query=ZSTD_COMPRESSOR.compress(
+                    (query.body or Query.new()).to_msgpack()
+                ),
                 status="Running",
                 is_async=ctx.background_tasks is not None,
                 **{

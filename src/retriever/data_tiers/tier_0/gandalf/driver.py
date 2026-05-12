@@ -6,7 +6,6 @@ from http import HTTPStatus
 from typing import Any, override
 
 import httpx
-import orjson
 from loguru import logger as log
 from opentelemetry import trace
 from translator_tom import Biolink, Infores, Query, Response
@@ -63,7 +62,7 @@ class GandalfDriver(DatabaseDriver):
 
         """
         otel_span = trace.get_current_span()  # Serialize once...
-        query_json = orjson.dumps(query).decode()
+        query_json = query.to_json()
         if otel_span and otel_span.is_recording():
             otel_span.add_event(
                 "gandalf_query_start",

@@ -6,7 +6,6 @@ from typing import Literal, overload
 
 import bmt
 import httpx
-import ormsgpack
 import zstandard
 from opentelemetry import context, propagate, trace
 from translator_tom import (
@@ -379,7 +378,7 @@ def tracked_response(
         "job_state",
         ResponseState(
             job_id=query.job_id,
-            response=ZSTD_COMPRESSOR.compress(ormsgpack.packb(response)),
+            response=ZSTD_COMPRESSOR.compress(response.to_msgpack()),
             knodes=len(kgraph.nodes),
             kedges=len(kgraph.edges),
             aux_graphs=len(response.message.auxiliary_graphs_dict),
