@@ -1,13 +1,15 @@
 import asyncio
+import math
+import time
 from contextlib import suppress
 from http import HTTPStatus
 from typing import Any, override
 
-import aiohttp
+import httpx
 import orjson
-from aiohttp import ClientTimeout
 from loguru import logger as log
 from opentelemetry import trace
+from translator_tom import Biolink, Infores, Query, Response
 
 from retriever.config.general import CONFIG, GandalfSettings
 from retriever.data_tiers.base_driver import DatabaseDriver
@@ -15,7 +17,6 @@ from retriever.data_tiers.utils import parse_dingo_metadata
 from retriever.types.dingo import DINGOMetadata
 from retriever.types.general import EntityToEntityMapping
 from retriever.types.metakg import Operation, OperationNode
-from retriever.types.trapi import BiolinkEntity, Infores, QueryDict, ResponseDict
 
 
 class GandalfDriver(DatabaseDriver):
@@ -27,7 +28,7 @@ class GandalfDriver(DatabaseDriver):
     query_timeout: float
     connect_retries: int
 
-    _http_session: aiohttp.ClientSession | None = None
+    _http_session: httpx.AsyncClient | None = None
 
     _failed: bool = False
 
@@ -48,16 +49,8 @@ class GandalfDriver(DatabaseDriver):
         self.endpoint = self.settings.http_endpoint
         self.metadata = None
 
-    def remove_none_values(self, d: Any) -> Any:
-        """Remove all None values."""
-        if not isinstance(d, dict):
-            return d
-        return {k: self.remove_none_values(v) for k, v in d.items() if v is not None}  # pyright:ignore[reportUnknownVariableType]
-
     @override
-    async def run_query(
-        self, query: QueryDict, *args: Any, **kwargs: Any
-    ) -> ResponseDict:
+    async def run_query(self, query: Query, *args: Any, **kwargs: Any) -> Response:
         """Execute a query against the Gandalf database and parse into dataclasses.
 
         Args:
@@ -69,19 +62,19 @@ class GandalfDriver(DatabaseDriver):
             TRAPI Response
 
         """
-        otel_span = trace.get_current_span()
+        otel_span = trace.get_current_span()  # Serialize once...
+        query_json = orjson.dumps(query).decode()
         if otel_span and otel_span.is_recording():
             otel_span.add_event(
                 "gandalf_query_start",
-                attributes={"gandalf_query": orjson.dumps(dict(**query)).decode()},
+                attributes={"gandalf_query": query_json},
             )
         else:
             otel_span = None
 
         try:
-            query = self.remove_none_values(query)
             result = await self._run_http_query(
-                query,
+                query_json,
             )
         except TimeoutError as e:
             if otel_span is not None:
@@ -97,37 +90,48 @@ class GandalfDriver(DatabaseDriver):
 
     async def _run_http_query(
         self,
-        query: QueryDict,
-    ) -> ResponseDict:
+        query_json: str,
+    ) -> Response:
         """Execute query using HTTP protocol with DQL.
 
         Args:
-            query: The Gandalf TRAPI query
+            query_json: The Gandalf TRAPI query in JSON format
 
         Returns:
             Parsed response
         """
         assert self._http_session is not None, "HTTP session not initialized"
 
-        async with self._http_session.post(
-            f"{self.endpoint}/query",
-            json=query,
-            timeout=ClientTimeout(total=self.query_timeout),
-        ) as response:
-            if response.status != HTTPStatus.OK:
-                text = await response.text()
-                raise RuntimeError(
-                    f"Gandalf HTTP query failed with status {response.status}: {text}"
-                )
+        start = time.time()
+        log.debug("Querying Gandalf...")
+        try:
+            response = await self._http_session.post(
+                f"{self.endpoint}/query",
+                content=query_json,
+                headers={"Content-Type": "application/json"},
+                timeout=self.query_timeout,
+            )
+            response.raise_for_status()
+            end = time.time()
+            trapi_response = Response.from_json(response.text)
+            transform = time.time()
 
-            message = await response.json()
+            log.debug(
+                f"Gandalf query took {math.ceil((end - start) * 1000)}ms. Deserialization took {math.ceil((transform - end) * 1000)}ms"
+            )
 
-            if "errors" in message:
-                raise RuntimeError(
-                    f"Gandalf query returned errors: {message['errors']}"
-                )
+            if errors := trapi_response.extra_get("errors"):
+                raise RuntimeError(f"Gandalf query returned errors: {errors}")
 
-            return message
+            return trapi_response
+        except httpx.HTTPStatusError as error:
+            raise RuntimeError(
+                f"Gandalf query failed with status {error.response.status_code} with body {error.response.text}"
+            ) from error
+        except httpx.HTTPError as error:
+            raise RuntimeError(
+                "An unhandled HTTP error occured while querying Gandalf."
+            ) from error
 
     @override
     async def connect(self, retries: int = 0) -> None:
@@ -153,25 +157,24 @@ class GandalfDriver(DatabaseDriver):
 
     async def _connect_http(self) -> None:
         """Establish HTTP connection to Gandalf."""
-        self._http_session = aiohttp.ClientSession()
+        self._http_session = httpx.AsyncClient()
         # Test connection with a simple query
-        async with self._http_session.get(
+        response = await self._http_session.get(
             f"{self.endpoint}/metadata",
-            timeout=ClientTimeout(total=self.query_timeout),
-        ) as response:
-            if response.status != HTTPStatus.OK:
-                text = await response.text()
-                raise ConnectionError(
-                    f"HTTP connection failed with status {response.status}: {text}"
-                )
-            self.metadata = await response.json()
+            timeout=self.query_timeout,
+        )
+        if response.status_code != HTTPStatus.OK:
+            raise ConnectionError(
+                f"HTTP connection failed with status {response.status_code}: {response.text}"
+            )
+        self.metadata = response.json()
 
     async def _cleanup_connections(self) -> None:
         """Clean up any open connections."""
         # Close HTTP session if open
         if self._http_session is not None:
             with suppress(Exception):
-                await self._http_session.close()
+                await self._http_session.aclose()
             self._http_session = None
 
     @override
@@ -197,7 +200,7 @@ class GandalfDriver(DatabaseDriver):
     @override
     async def get_operations(
         self,
-    ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
+    ) -> tuple[list[Operation], dict[Biolink.Entity, OperationNode]]:
         metadata = await self.get_metadata()
         if metadata is None:
             raise ValueError(
