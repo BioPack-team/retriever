@@ -128,9 +128,9 @@ async def make_query(
     body_transformed: QueryDict | AsyncQueryDict | None = None
     if body is not None:
         if isinstance(body, TRAPIQuery):
-            body_transformed = QueryDict(**body.model_dump())
+            body_transformed = QueryDict(**body.model_dump(mode="json"))
         else:
-            body_transformed = AsyncQueryDict(**body.model_dump())
+            body_transformed = AsyncQueryDict(**body.model_dump(mode="json"))
 
     query = QueryInfo(
         endpoint=ctx.request.url.path,
