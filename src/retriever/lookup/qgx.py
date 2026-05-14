@@ -296,7 +296,7 @@ class QueryGraphExecutor:
         self, qnode_id: QNodeID, curies: Iterable[CURIE]
     ) -> list[CURIE]:
         """Given a set of CURIEs, return them and any subclasses they may have."""
-        if not (
+        if self.terminate or not (
             CONFIG.job.lookup.implicit_subclassing and SUBCLASS_MAPPING.initialized
         ):
             return list(curies)
@@ -711,6 +711,8 @@ class QueryGraphExecutor:
 
         Updates tracking information as well.
         """
+        if self.terminate:
+            return []
         new_branch_tasks = list[asyncio.Task[list[Partial]]]()
         for next_branch in next_steps:
             # await asyncio.sleep(0)
