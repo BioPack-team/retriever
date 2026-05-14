@@ -138,9 +138,10 @@ class BatchedAction(AsyncDaemon, metaclass=Singleton):
         last_flush: dict[str, float] = {}
         while True:
             try:
-                for task in self.tasks:  # Clean up finished batch tasks
-                    if task.cancelled() or task.done():
-                        self.tasks.remove(task)
+                # Drop completed tasks
+                self.tasks: list[asyncio.Task[None]] = [
+                    t for t in self.tasks if not (t.done() or t.cancelled())
+                ]
                 for target, queue in self.action_queues.items():
                     now = time.time()
 

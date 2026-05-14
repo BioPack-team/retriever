@@ -48,27 +48,11 @@ class SubclassMapping(BatchedAction):
         if not self.is_leader:  # Only need leader to update the redis setup
             return await super().initialize()
 
+        if self.initialized:
+            return  # rebuild loop already running
+
         try:
-            logger.info("Initializing subclass mapping...")
-            mapping = await tier_manager.get_driver(1).get_subclass_mapping()
-
-            # Send to redis in batches to avoid overwhelming it
-            packed_mapping = dict[str, bytes]()
-            for curie, descendants in mapping.items():
-                packed_mapping[curie] = ormsgpack.packb(descendants)
-
-                if len(packed_mapping) >= self.redis_setup_batch_size:
-                    await REDIS_CLIENT.hset(
-                        MAPPING_ID,
-                        mapping=packed_mapping,
-                        ttl=CONFIG.job.metakg.build_time,
-                    )
-                    packed_mapping = {}
-
-            logger.success(
-                f"Subclass mapping initialized with {len(mapping)} ancestors."
-            )
-
+            await self._reload_mapping()
             self.tasks.append(asyncio.create_task(self.rebuild()))
         except Exception:
             logger.exception(
@@ -77,18 +61,42 @@ class SubclassMapping(BatchedAction):
 
         return await super().initialize()
 
+    async def _reload_mapping(self) -> None:
+        """Pull the full subclass mapping from tier 1 and push it to Redis in batches."""
+        logger.info("Loading subclass mapping...")
+        mapping = await tier_manager.get_driver(1).get_subclass_mapping()
+
+        # Send to redis in batches to avoid overwhelming it
+        packed_mapping = dict[str, bytes]()
+        for curie, descendants in mapping.items():
+            packed_mapping[curie] = ormsgpack.packb(descendants)
+
+            if len(packed_mapping) >= self.redis_setup_batch_size:
+                await REDIS_CLIENT.hset(
+                    MAPPING_ID,
+                    mapping=packed_mapping,
+                    ttl=CONFIG.job.metakg.build_time,
+                )
+                packed_mapping = {}
+
+        if packed_mapping:
+            await REDIS_CLIENT.hset(
+                MAPPING_ID,
+                mapping=packed_mapping,
+                ttl=CONFIG.job.metakg.build_time,
+            )
+
+        logger.success(f"Subclass mapping refreshed with {len(mapping)} ancestors.")
+
     async def get(self, curie: CURIE) -> list[CURIE]:
         """Get the descendants of a given CURIE."""
         future = asyncio.Future[list[CURIE]]()
 
         def return_result(curies: list[CURIE]) -> None:
-            self.subscriptions[curie].remove(return_result)
-            future.set_result(curies)
+            if not future.done():
+                future.set_result(curies)
 
-        if curie not in self.subscriptions:
-            self.subscriptions[curie] = []
-        self.subscriptions[curie].append(return_result)
-
+        self.subscriptions.setdefault(curie, []).append(return_result)
         self.put("batch_expand", curie)
 
         return await future
@@ -104,18 +112,25 @@ class SubclassMapping(BatchedAction):
             if desc_packed is not None:
                 descs = cast(list[CURIE], ormsgpack.unpackb(desc_packed))
 
-            for callback in self.subscriptions.get(curie, []):
+            # Pop atomically: callbacks can't be skipped by list mutation, and
+            # the key doesn't linger forever.
+            callbacks = self.subscriptions.pop(curie, None) or []
+            for callback in callbacks:
                 callback(descs)
-
-        # return ormsgpack.unpackb(descendants_packed[0])
 
     async def rebuild(self) -> None:
         """Periodically rebuild the mapping."""
         try:
-            timeout = CONFIG.job.metakg.build_time
-            if timeout < 0:
+            interval = CONFIG.job.metakg.build_time
+            if interval < 0:
                 return  # Rebuilding disabled
-            await asyncio.sleep(CONFIG.job.metakg.build_time)
-            await self.initialize()
+            while True:
+                await asyncio.sleep(interval)
+                try:
+                    await self._reload_mapping()
+                except Exception:
+                    logger.exception(
+                        f"Subclass mapping rebuild failed, rety in {interval}s."
+                    )
         except asyncio.CancelledError:
             return
