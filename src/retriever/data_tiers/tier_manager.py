@@ -11,6 +11,8 @@ from retriever.data_tiers.tier_0.base_query import Tier0Query
 from retriever.data_tiers.tier_0.dgraph.driver import DgraphGrpcDriver
 from retriever.data_tiers.tier_0.dgraph.query import DgraphQuery
 from retriever.data_tiers.tier_0.dgraph.transpiler import DgraphTranspiler
+from retriever.data_tiers.tier_0.gandalf.driver import GandalfDriver
+from retriever.data_tiers.tier_0.gandalf.query import GandalfQuery
 from retriever.data_tiers.tier_1.elasticsearch.driver import ElasticSearchDriver
 from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
 from retriever.types.trapi_pydantic import TierNumber
@@ -18,6 +20,7 @@ from retriever.types.trapi_pydantic import TierNumber
 BACKEND_DRIVERS = dict[str, type[DatabaseDriver]](
     elasticsearch=ElasticSearchDriver,
     dgraph=DgraphGrpcDriver,
+    gandalf=GandalfDriver,
 )
 
 TRANSPILERS = dict[str, type[Transpiler]](
@@ -27,6 +30,7 @@ TRANSPILERS = dict[str, type[Transpiler]](
 
 QUERY_HANDLERS = dict[str, type[Tier0Query]](
     dgraph=DgraphQuery,
+    gandalf=GandalfQuery,
 )
 
 

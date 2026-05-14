@@ -7,6 +7,8 @@ from typing import Literal, overload
 
 import bmt
 import httpx
+import ormsgpack
+import zstandard
 from opentelemetry import context, propagate, trace
 
 from retriever.config.general import CONFIG
@@ -37,11 +39,10 @@ from retriever.types.trapi import (
 from retriever.types.trapi_pydantic import TierNumber
 from retriever.utils.calls import get_callback_client
 from retriever.utils.logs import TRAPILogger, trapi_level_to_int
-from retriever.utils.mongo import MongoQueue
+from retriever.utils.mongo import MongoQueue, ResponseState
 from retriever.utils.trapi import (
     evaluate_set_interpretation,
     merge_results,
-    prune_kg,
     update_kgraph,
 )
 
@@ -49,6 +50,8 @@ tracer = trace.get_tracer("lookup.execution.tracer")
 biolink = bmt.Toolkit()
 MONGO_QUEUE = MongoQueue()
 OP_TABLE_MANAGER = OpTableManager()
+
+ZSTD_COMPRESSOR = zstandard.ZstdCompressor()
 
 
 async def async_lookup(query: QueryInfo, ctx: dict[str, str]) -> None:
@@ -129,7 +132,6 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
 
         job_log.info(f"Collected {len(results)} results from query tasks.")
         evaluate_set_interpretation(qgraph, results, job_log)
-        prune_kg(results, kgraph, aux_graphs, job_log)
 
         end_time = time.time()
         finish_msg = f"Execution completed, obtained {len(results)} results in {math.ceil((end_time - start_time) * 1000):}ms."
@@ -377,5 +379,17 @@ def tracked_response(
     ]
 
     # Cast because TypedDict has some *really annoying* interactions with more general dicts
-    MONGO_QUEUE.put("job_state", response)
+    kgraph = response["message"].get("knowledge_graph") or {}
+    MONGO_QUEUE.put(
+        "job_state",
+        ResponseState(
+            job_id=query.job_id,
+            response=ZSTD_COMPRESSOR.compress(ormsgpack.packb(response)),
+            knodes=len(kgraph.get("nodes") or {}),
+            kedges=len(kgraph.get("edges") or {}),
+            aux_graphs=len(response["message"].get("auxiliary_graphs") or {}),
+            results=len(response["message"].get("results") or []),
+            status=(response.get("status") or "Running"),
+        ),
+    )
     return status, response
