@@ -33,7 +33,8 @@ tags:
     description:
 x_translator: # Note that fields usually named with - instead use _ (e.g. x-translator -> x_translator).
   component: KP
-  team: [DOGSURF]
+  team:
+    - DOGSURF
   biolink_version: 4.3.2
   infores: infores:retriever # Unique identifier for this component, used in provenance.
   externalDocs:
@@ -44,7 +45,8 @@ x_trapi:
   multicuriesquery: false # Supports advanced set interpretation.
   pathfinderquery: false # Supports Pathfinder-type queries.
   asyncquery: true # Supports async query type.
-  operations: [lookup]
+  operations:
+    - lookup
   batch_size_limit: 300 # Maximum IDs on any one node.
   test_data_location:
     default:
