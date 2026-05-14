@@ -304,7 +304,7 @@ class GandalfSettings(BaseModel):
     query_timeout: Annotated[
         int,
         Field(
-            description="Time in seconds before a Dgraph query should time out.",
+            description="Time in seconds before a Gandalf query should time out.",
         ),
     ] = 3600
     connect_retries: Annotated[

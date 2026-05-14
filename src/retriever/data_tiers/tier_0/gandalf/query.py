@@ -1,4 +1,3 @@
-import json
 from typing import override
 
 from opentelemetry import trace
@@ -27,7 +26,6 @@ class GandalfQuery(Tier0Query):
                 query_graph=qgraph,
             )
         )
-        self.job_log.trace(json.dumps(query_payload))
 
         result = await backend_driver.run_query(query_payload)
 

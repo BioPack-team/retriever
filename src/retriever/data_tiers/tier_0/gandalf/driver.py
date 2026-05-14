@@ -35,12 +35,7 @@ class GandalfDriver(DatabaseDriver):
     def __init__(
         self,
     ) -> None:
-        """Initialize the Gandalf driver with connection settings.
-
-        Args:
-            version: An optional, fixed schema version to use, bypassing auto-detection.
-                     This parameter has the highest precedence.
-        """
+        """Initialize the Gandalf driver with connection settings."""
         self.settings = CONFIG.tier0.gandalf
         self.query_timeout = self.settings.query_timeout
         self.connect_retries = self.settings.connect_retries
