@@ -5,7 +5,7 @@ services:
     image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
     ulimits:
       memlock: -1
-    ports: [6888:6379]
+    ports: ['6888:6379']
     restart: on-failure
     # For better performance, consider `host` mode instead `port` to avoid docker NAT.
     # `host` mode is NOT currently supported in Swarm Mode.
@@ -15,20 +15,22 @@ services:
     container_name: mongo
     image: mongodb/mongodb-community-server:latest
     # environment: [MONGO_INITDB_ROOT_USERNAME=user, MONGO_INITDB_ROOT_PASSWORD=pass]
-    ports: [27017:27017]
+    ports: ['27017:27017']
     restart: on-failure
   retriever:
     container_name: retriever
     image: biopack-team/retriever
     restart: on-failure
     build: .
-    ports: [8080:8080]
+    ports: ['8080:8080']
     depends_on: [mongodb, dragonfly]
     # network_mode: host
     environment:
       MONGO__HOST: mongodb
       REDIS__HOST: dragonfly
       REDIS__PORT: 6379
+    volumes:
+      - ./debug:/app/debug
 #     secrets:
 #       - tier0__neo4j__host
 #       - tier0__neo4j__username

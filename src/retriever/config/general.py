@@ -297,12 +297,36 @@ class DgraphSettings(BaseModel):
         return f"{self.host}:{self.grpc_port}"
 
 
+class GandalfSettings(BaseModel):
+    """Settings for the Tier 0 Gandalf interface."""
+
+    host: str = "localhost"
+    query_timeout: Annotated[
+        int,
+        Field(
+            description="Time in seconds before a Gandalf query should time out.",
+        ),
+    ] = 3600
+    connect_retries: Annotated[
+        int,
+        Field(
+            description="Number of retries before declaring a connection failure.",
+        ),
+    ] = 5
+
+    @property
+    def http_endpoint(self) -> str:
+        """Get the complete HTTP endpoint URL for Gandalf HTTP API."""
+        return f"{self.host}"
+
+
 class Tier0Settings(BaseModel):
     """Settings concern Tier 0 abstraction layers."""
 
     backend: str = "dgraph"
     backend_infores: str = "infores:dogpark-tier0"
     dgraph: DgraphSettings = DgraphSettings()
+    gandalf: GandalfSettings = GandalfSettings()
     dump_queries: Annotated[
         bool,
         Field(

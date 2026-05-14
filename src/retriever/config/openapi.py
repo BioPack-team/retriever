@@ -1,6 +1,5 @@
 from typing import Annotated, Any, ClassVar, override
 
-import bmt
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel, EmailStr
@@ -11,10 +10,9 @@ from pydantic_settings import (
     SettingsConfigDict,
     YamlConfigSettingsSource,
 )
+from translator_tom.utils.biolink import TRAPI_CONFIG
 
 from retriever.config.utils import CommentedSettings
-
-biolink = bmt.Toolkit()
 
 
 class ContactInfo(BaseModel):
@@ -55,7 +53,7 @@ class XTranslator(BaseModel):
 
     component: str = "KP"
     team: list[str] = ["DOGSURF"]
-    biolink_version: str = "4.3.2"
+    biolink_version: str = TRAPI_CONFIG.biolink_version
     infores: Annotated[
         str,
         Field(description="Unique identifier for this component, used in provenance."),
@@ -82,7 +80,7 @@ class TestDataLocationObject(BaseModel):
 class XTrapi(BaseModel):
     """Trapi-specific metadata."""
 
-    version: str = "1.6.0"
+    version: str = TRAPI_CONFIG.schema_version
     multicuriesquery: Annotated[
         bool, Field(description="Supports advanced set interpretation.")
     ] = False

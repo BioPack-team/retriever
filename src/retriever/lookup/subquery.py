@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import math
 import time
 from collections.abc import Callable
@@ -73,10 +74,13 @@ class SubqueryDispatcher(BatchedAction):
                 subq_result: tuple[KnowledgeGraph, list[LogEntry]],
             ) -> None:
                 try:
-                    self.subscriptions[subq_id].remove(return_result)
-                    # Have to clean up or else memory leak since superpositions are MANY
-                    if len(self.subscriptions[subq_id]) == 0:
-                        del self.subscriptions[subq_id]
+                    # Clean up subscription if present and empty
+                    subscribers = self.subscriptions.get(subq_id)
+                    if subscribers is not None:
+                        with contextlib.suppress(ValueError):
+                            subscribers.remove(return_result)
+                        if len(subscribers) == 0:
+                            self.subscriptions.pop(subq_id, None)
 
                     end = time.time()
                     kg, logs = subq_result
@@ -158,7 +162,8 @@ class SubqueryDispatcher(BatchedAction):
                 )
 
             for subq_id, result in results.items():
-                for callback in self.subscriptions.get(subq_id, []):
+                # Pop subscriptions for cleanup
+                for callback in self.subscriptions.pop(subq_id, None) or []:
                     callback((result.knowledge_graph, job_log.get_logs()))
             end = time.time()
             logger.success(
@@ -171,7 +176,7 @@ class SubqueryDispatcher(BatchedAction):
             )
             for subq, _, _ in query_mapping:
                 subq_id = tomhash((subq.job, subq.branch.superposition_id))
-                for callback in self.subscriptions.get(subq_id, []):
+                for callback in self.subscriptions.pop(subq_id, None) or []:
                     callback(
                         (
                             KnowledgeGraph.model_construct(nodes={}, edges={}),

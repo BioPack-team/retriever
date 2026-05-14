@@ -6,6 +6,7 @@ from typing import Literal, overload
 
 import bmt
 import httpx
+import zstandard
 from opentelemetry import context, propagate, trace
 from translator_tom import (
     AuxiliaryGraphsDict,
@@ -33,7 +34,7 @@ from retriever.types.general import LookupArtifacts, QueryInfo
 from retriever.types.trapi_overrides import AsyncQuery, Parameters, Response, TierNumber
 from retriever.utils.calls import get_callback_client
 from retriever.utils.logs import TRAPILogger, trapi_level_to_int
-from retriever.utils.mongo import MongoQueue
+from retriever.utils.mongo import MongoQueue, ResponseState
 from retriever.utils.trapi import (
     evaluate_set_interpretation,
 )
@@ -42,6 +43,8 @@ tracer = trace.get_tracer("lookup.execution.tracer")
 biolink = bmt.Toolkit()
 MONGO_QUEUE = MongoQueue()
 OP_TABLE_MANAGER = OpTableManager()
+
+ZSTD_COMPRESSOR = zstandard.ZstdCompressor()
 
 
 async def async_lookup(query: QueryInfo, ctx: dict[str, str]) -> None:
@@ -124,12 +127,6 @@ async def lookup(query: QueryInfo) -> tuple[int, Response]:
 
         job_log.info(f"Collected {len(results)} results from query tasks.")
         evaluate_set_interpretation(qgraph, results, job_log)
-        node_count, edge_count = len(kgraph.nodes), len(kgraph.edges)
-        kgraph.prune(aux_graphs, results)
-        new_node_count, new_edge_count = len(kgraph.nodes), len(kgraph.edges)
-        job_log.debug(
-            f"KG Pruning: {new_node_count} (-{new_node_count - node_count}) nodes and {new_edge_count} (-{new_edge_count - edge_count}) edges remain."
-        )
 
         end_time = time.time()
         finish_msg = f"Execution completed, obtained {len(results)} results in {math.ceil((end_time - start_time) * 1000):}ms."
@@ -375,6 +372,17 @@ def tracked_response(
         >= desired_log_level
     ]
 
-    # Cast because Typed has some *really annoying* interactions with more general dicts
-    MONGO_QUEUE.put("job_state", response)
+    kgraph = response.message.knowledge_graph or KnowledgeGraph.new()
+    MONGO_QUEUE.put(
+        "job_state",
+        ResponseState(
+            job_id=query.job_id,
+            response=ZSTD_COMPRESSOR.compress(response.to_msgpack()),
+            knodes=len(kgraph.nodes),
+            kedges=len(kgraph.edges),
+            aux_graphs=len(response.message.auxiliary_graphs_dict),
+            results=len(response.message.results_list),
+            status=(response.status or "Running"),
+        ),
+    )
     return status, response
