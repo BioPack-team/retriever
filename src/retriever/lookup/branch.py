@@ -10,8 +10,6 @@ from translator_tom import (
     QEdgeID,
     QNodeID,
     QueryGraph,
-    tomhash,
-    tomhash_to_int,
 )
 
 from retriever.metadata.optable import OperationPlan
@@ -73,7 +71,7 @@ class Branch:
         """Check if self and other branch are equivalent."""
         if not isinstance(other, Branch):
             return False
-        return tomhash(self) == tomhash(other)
+        return hash(self) == hash(other)
 
     @override
     def __hash__(self) -> int:
@@ -81,7 +79,7 @@ class Branch:
 
         Does not take into account superposition.
         """
-        return tomhash_to_int(tomhash(self.branch_name))
+        return hash(self.branch_name)
 
     @override
     def __str__(self) -> str:

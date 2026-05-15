@@ -14,7 +14,6 @@ from translator_tom import (
     LogEntry,
     QueryGraph,
     infores,
-    tomhash,
 )
 
 from retriever.data_tiers import tier_manager
@@ -49,7 +48,7 @@ class SubqueryDispatcher(BatchedAction):
     multibatch: bool = True
 
     subscriptions: dict[
-        str, list[Callable[[tuple[KnowledgeGraph, list[LogEntry]]], None]]
+        int, list[Callable[[tuple[KnowledgeGraph, list[LogEntry]]], None]]
     ]
 
     def __init__(self) -> None:
@@ -61,7 +60,7 @@ class SubqueryDispatcher(BatchedAction):
         self, job_id: str, branch: Branch
     ) -> tuple[KnowledgeGraph, list[LogEntry]]:
         """Make a subquery."""
-        subq_id = tomhash((job_id, branch.superposition_id))
+        subq_id = hash((job_id, branch.superposition_id))
         job_log = TRAPILogger(job_id)
         try:
             start = time.time()
@@ -125,11 +124,11 @@ class SubqueryDispatcher(BatchedAction):
             split = time.time()
             logger.success(f"Got results in {math.ceil((split - start) * 1000)}ms")
 
-            results = dict[str, BackendResult]()
+            results = dict[int, BackendResult]()
             for record, (subq, qgraph, transpiler) in zip(
                 response_records, query_mapping, strict=True
             ):
-                subq_id = tomhash((subq.job, subq.branch.superposition_id))
+                subq_id = hash((subq.job, subq.branch.superposition_id))
 
                 result = transpiler.convert_results(qgraph, record)
 
@@ -175,7 +174,7 @@ class SubqueryDispatcher(BatchedAction):
                 "An unhandled error occurred in the query driver.", exception=e
             )
             for subq, _, _ in query_mapping:
-                subq_id = tomhash((subq.job, subq.branch.superposition_id))
+                subq_id = hash((subq.job, subq.branch.superposition_id))
                 for callback in self.subscriptions.pop(subq_id, None) or []:
                     callback(
                         (

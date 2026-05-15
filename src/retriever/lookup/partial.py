@@ -10,8 +10,6 @@ from translator_tom import (
     QNodeID,
     Result,
     infores,
-    tomhash,
-    tomhash_to_int,
 )
 
 from retriever.types.general import KAdjacencyGraph
@@ -51,7 +49,7 @@ class Partial:
             f"{qedge_id}:{in_curie}:{out_curie}"
             for (qedge_id, in_curie, out_curie) in self.edge_bindings
         )
-        return tomhash_to_int(tomhash(f"{','.join(nodes)};{','.join(edges)}"))
+        return hash(f"{','.join(nodes)};{','.join(edges)}")
 
     @override
     def __eq__(self, value: object, /) -> bool:

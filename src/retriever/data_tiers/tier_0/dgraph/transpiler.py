@@ -27,7 +27,6 @@ from translator_tom import (
     QueryGraph,
     RetrievalSource,
     infores,
-    tomhash,
 )
 
 from retriever.config.general import CONFIG
@@ -2151,7 +2150,7 @@ class DgraphTranspiler(Tier0Transpiler):
         }
 
         partial_count = 0
-        reconciled = dict[str, Partial]()
+        reconciled = set[Partial]()
 
         # Apply cascade filtering using the generated query plan when available.
         if self._query_plan is not None:
@@ -2162,12 +2161,12 @@ class DgraphTranspiler(Tier0Transpiler):
         for node in results:
             partials = self._build_results(node, qgraph)
             partial_count += len(partials)
-            reconciled.update({tomhash(part): part for part in partials})
+            reconciled.update(partials)
 
         logger.debug(
             f"Reconciled {partial_count} partials into {len(reconciled)} results."
         )
-        trapi_results = [part.as_result(self.k_agraph) for part in reconciled.values()]
+        trapi_results = [part.as_result(self.k_agraph) for part in reconciled]
 
         aux_graphs = dict[AuxGraphID, AuxiliaryGraph]()
         if len(trapi_results) > 0:

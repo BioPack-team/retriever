@@ -12,7 +12,6 @@ from translator_tom import (
     PathfinderAnalysis,
     Result,
     RetrievalSource,
-    tomhash,
 )
 
 from retriever.config.general import CONFIG
@@ -74,7 +73,14 @@ def build_intermediate_support_graph(
     edge_key = (
         subclass_backmap[sbj_subclass] if sbj_subclass else edge.subject,
         edge.predicate,
-        tomhash(edge.qualifiers),
+        str(
+            hash(
+                frozenset(
+                    (q.qualifier_type_id, q.qualifier_value)
+                    for q in (edge.qualifiers or [])
+                )
+            )
+        ),
         subclass_backmap[obj_subclass] if obj_subclass else edge.object,
     )
 

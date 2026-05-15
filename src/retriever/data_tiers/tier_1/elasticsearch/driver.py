@@ -7,7 +7,7 @@ from elasticsearch import AsyncElasticsearch
 from elasticsearch import exceptions as es_exceptions
 from loguru import logger as log
 from opentelemetry import trace
-from translator_tom import Biolink, Infores, tomhash
+from translator_tom import Biolink, Infores
 
 from retriever.config.general import CONFIG
 from retriever.data_tiers.base_driver import DatabaseDriver
@@ -247,7 +247,7 @@ class ElasticSearchDriver(DatabaseDriver):
         metadata = DINGO_ADAPTER.validate_python(raw_data)
 
         await RedisClient().set(
-            tomhash(url),
+            url,
             ormsgpack.packb(metadata),
             compress=True,
             ttl=CONFIG.job.metakg.build_time,
@@ -256,7 +256,7 @@ class ElasticSearchDriver(DatabaseDriver):
 
     async def _get_metadata(self, url: str, retries: int = 0) -> dict[str, Any] | None:
         """Obtain metadata for a given DINGO ingest."""
-        metadata_pack = await RedisClient().get(tomhash(url), compressed=True)
+        metadata_pack = await RedisClient().get(url, compressed=True)
 
         if metadata_pack is None:
             await self._pull_metadata(url)
