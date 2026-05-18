@@ -52,10 +52,11 @@ def format_trapi_log(
         timestamp = datetime.now().astimezone()
     if isinstance(timestamp, str):
         timestamp = datetime.fromisoformat(timestamp)
-    log_entry = LogEntry(
+    log_entry = LogEntry.model_construct(
         level=log_level_to_trapi(level).value,
         message=message,
-        timestamp=timestamp,
+        timestamp=timestamp.astimezone().isoformat(),
+        code=None,
     )
     if trace:
         log_entry.extra_set("trace", trace)

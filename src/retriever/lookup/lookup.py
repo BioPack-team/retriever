@@ -63,7 +63,9 @@ async def async_lookup(query: QueryInfo, ctx: dict[str, str]) -> None:
         try:
             client = get_callback_client()
             callback_response = await client.post(
-                url=query.body.callback, json=response
+                url=query.body.callback,
+                content=response.to_json(),
+                headers={"Content-Type": "application/json"},
             )
             callback_response.raise_for_status()
             job_log.debug("Callback sent successfully.")
