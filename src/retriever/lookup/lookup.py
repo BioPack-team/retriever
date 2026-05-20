@@ -120,7 +120,7 @@ async def lookup(query: QueryInfo) -> tuple[int, Response]:
         expanded_qgraph = expand_qgraph(qgraph.model_copy(deep=True), job_log)
 
         if not await qgraph_supported(expanded_qgraph, response, job_log, query.tiers):
-            return tracked_response(424, query, response, job_log)
+            return tracked_response(200, query, response, job_log)
 
         results, kgraph, aux_graphs, logs, _ = await run_tiered_lookups(
             query, expanded_qgraph

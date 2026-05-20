@@ -205,8 +205,8 @@ def _aggregate_node_groupings(
             node.set_interpretation or SetInterpretationEnum.BATCH.value
         )
         match node_set_interpretation:
-            case SetInterpretationEnum.BATCH:
-                pass  # no-op, but valid value
+            case SetInterpretationEnum.BATCH:  # None defaults to BATCH
+                pass  # no-opt, but valid value
             case SetInterpretationEnum.ALL:
                 member_identifiers = node.member_ids
                 if member_identifiers is None or len(member_identifiers) == 0:
@@ -226,6 +226,10 @@ def _aggregate_node_groupings(
                 else:
                     for node_id in member_identifiers:
                         node_group_many[node_name].add(node_id)
+            case _:  # pyright:ignore[reportUnnecessaryComparison]
+                job_log.error(  # pyright:ignore[reportUnreachable]
+                    f"Unknown value provided for set_interpretation within qgraph: {node_set_interpretation}"
+                )
     return node_group_all, node_group_many
 
 
