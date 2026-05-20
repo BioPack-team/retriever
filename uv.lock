@@ -2059,7 +2059,7 @@ requires-dist = [
     { name = "redis", specifier = ">=7,<8" },
     { name = "ruamel-yaml", specifier = ">=0.18.14" },
     { name = "sentry-sdk", extras = ["fastapi", "httpx", "loguru"], specifier = ">=2.45.0" },
-    { name = "translator-tom", specifier = ">=1.0.2,<2" },
+    { name = "translator-tom", specifier = ">=1.0.4,<2" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.1,<0.33" },
     { name = "uvloop", specifier = ">=0.21.0" },
     { name = "zstandard", specifier = ">=0.24.0" },
@@ -2354,7 +2354,7 @@ wheels = [
 
 [[package]]
 name = "translator-tom"
-version = "1.0.2"
+version = "1.0.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bmt" },
@@ -2366,9 +2366,9 @@ dependencies = [
     { name = "stablehash" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/27/40/bdaac89cfab4c7139d7684117e64f26b46a0642074c0b127199d322933c4/translator_tom-1.0.2.tar.gz", hash = "sha256:5a27cb98d877260b9a62216b8143d3ad89bb243bc0300eb7ad158008ac2f6615", size = 51021, upload-time = "2026-05-08T19:19:02.833Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/93/d8/cc55555fadc0a57606b6997e72a9ffd237bc78a9df29160eb63e22e0ecb6/translator_tom-1.0.4.tar.gz", hash = "sha256:42d4ce3541ac471a5cd64472fb51495110d904c08c3e2bec475c7566308cf90e", size = 51794, upload-time = "2026-05-20T15:30:47.991Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/82/31/e88ca0364690a9ff909a4bb7bd8d53e8165e4cd61c4bddfab4e60b74bfc9/translator_tom-1.0.2-py3-none-any.whl", hash = "sha256:8d9147a65fdaf3813083937a16a224d776ad311dddcaa8d2b9c250b8fd49acef", size = 70547, upload-time = "2026-05-08T19:19:04.174Z" },
+    { url = "https://files.pythonhosted.org/packages/b6/56/4fa0490b9d8f34f3f02cfa1433de4172a23e4e7ff82976dbe02c07dbda08/translator_tom-1.0.4-py3-none-any.whl", hash = "sha256:0768ce4b0e748dd26f4ed1c8745dc67a00b0aee96cc1916e8f21318174624c21", size = 71213, upload-time = "2026-05-20T15:30:49.268Z" },
 ]
 
 [[package]]

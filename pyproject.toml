@@ -42,7 +42,7 @@ dependencies = [
     "msgpack>=1.1.1",
     "aiofiles>=25.1.0",
     "gitpython>=3.1.46",
-    "translator-tom>=1.0.2,<2",
+    "translator-tom>=1.0.4,<2",
 ]
 
 [project.scripts]
