@@ -1,5 +1,6 @@
 import warnings
 from typing import Annotated, ClassVar, override
+from urllib.parse import urlparse
 
 from pydantic import AfterValidator, BaseModel, Field, SecretStr
 from pydantic_file_secrets import FileSecretsSettingsSource, SettingsConfigDict
@@ -301,6 +302,7 @@ class GandalfSettings(BaseModel):
     """Settings for the Tier 0 Gandalf interface."""
 
     host: str = "localhost"
+    port: int = 443
     query_timeout: Annotated[
         int,
         Field(
@@ -317,7 +319,9 @@ class GandalfSettings(BaseModel):
     @property
     def http_endpoint(self) -> str:
         """Get the complete HTTP endpoint URL for Gandalf HTTP API."""
-        return f"{self.host}"
+        url = urlparse(self.host)
+        url._replace(netloc=url.netloc.replace(str(url.port), str(self.port)))
+        return url.geturl()
 
 
 class Tier0Settings(BaseModel):

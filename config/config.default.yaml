@@ -74,7 +74,8 @@ tier0:
     enable_subclass_edges: true # Enable subclass edge expansion.
   gandalf:
     host: localhost
-    query_timeout: 3600 # Time in seconds before a Dgraph query should time out.
+    port: 443
+    query_timeout: 3600 # Time in seconds before a Gandalf query should time out.
     connect_retries: 5 # Number of retries before declaring a connection failure.
   dump_queries: false # Write out TRAPI and translated queries to a file in jsonl format.
 tier1:
