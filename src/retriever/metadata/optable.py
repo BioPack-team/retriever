@@ -36,7 +36,12 @@ from retriever.types.trapi_pydantic import TierNumber
 from retriever.utils import biolink
 from retriever.utils.biolink import expand
 from retriever.utils.general import AsyncDaemon
-from retriever.utils.redis import OP_TABLE_KEY, OP_TABLE_UPDATE_CHANNEL, RedisClient
+from retriever.utils.redis import (
+    OP_TABLE_KEY,
+    OP_TABLE_META_KEY,
+    OP_TABLE_UPDATE_CHANNEL,
+    RedisClient,
+)
 from retriever.utils.trapi import (
     hash_meta_attribute,
     meta_qualifier_meets_constraints,
@@ -139,6 +144,11 @@ class OpTableManager(AsyncDaemon):
 
         await REDIS_CLIENT.set(
             OP_TABLE_KEY, op_table_json, compress=True, ttl=CONFIG.job.metakg.build_time
+        )
+        await REDIS_CLIENT.write_freshness(
+            OP_TABLE_META_KEY,
+            count=len(op_table.operations_flat),
+            ttl=CONFIG.job.metakg.build_time,
         )
         await REDIS_CLIENT.publish(OP_TABLE_UPDATE_CHANNEL, 1)
 

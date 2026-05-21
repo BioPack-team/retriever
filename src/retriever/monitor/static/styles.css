@@ -1,0 +1,911 @@
+/* Retriever dashboard.
+   Color palette is brightness-layered: body (level 0) < pane (level 1) < inner tile (level 2).
+   Dark is the default; light is opt-in via the theme toggle. */
+
+:root {
+  /* Dark palette */
+  --bg: #0f1115;
+  --surface: #1d1d1d;
+  --surface-elev: #2a2a2a;
+  --text: #e5e7eb;
+  --text-soft: #9ca3af;
+  --text-faint: #6b7280;
+  --axis-label: #e5e7eb;
+  --axis-tick: #d8dde5;
+  --border: #2f2f33;
+  --accent: #3b82f6;
+  --accent-fg: #ffffff;
+  --good: #22c55e;
+  --warn: #f59e0b;
+  --bad: #ef4444;
+  --unknown: #6b7280;
+  --hover: rgba(255, 255, 255, 0.04);
+  --radius: 8px;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+[data-theme="light"] {
+  --bg: #e5e7eb;
+  --surface: #ffffff;
+  --surface-elev: #f3f4f6;
+  --text: #111827;
+  --text-soft: #4b5563;
+  --text-faint: #6b7280;
+  --axis-label: #374151;
+  --axis-tick: #9ca3af;
+  --border: #d1d5db;
+  --accent: #2563eb;
+  --accent-fg: #ffffff;
+  --hover: rgba(0, 0, 0, 0.04);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[x-cloak] {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+}
+
+/* ============== Header / tabs ============== */
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.tab {
+  background: transparent;
+  border: none;
+  color: var(--text-soft);
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+
+.tab:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.tab.active {
+  color: var(--accent);
+  font-weight: 600;
+  border-bottom: 2px solid var(--accent);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.theme-toggle {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.theme-toggle:hover {
+  background: var(--hover);
+}
+
+/* ============== Layout ============== */
+
+main {
+  padding: 16px;
+}
+
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px; /* gap between panes lets the body bg show through */
+}
+
+.view.placeholder {
+  color: var(--text-soft);
+}
+
+.pane {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pane-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pane-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.section-label {
+  margin: 4px 0 0 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 11px;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+/* ============== Buttons / links ============== */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn:hover {
+  background: var(--hover);
+}
+
+.btn-outline {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-outline:hover {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.btn-flat {
+  color: var(--text-soft);
+}
+
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  justify-content: center;
+  border: none;
+}
+
+.ext-icon {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* ============== Health strip ============== */
+
+.health-strip {
+  min-height: 24px;
+}
+
+.health-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.health-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--unknown);
+  display: inline-block;
+}
+
+.dot.good {
+  background: var(--good);
+}
+
+.dot.bad {
+  background: var(--bad);
+}
+
+.dot.unknown {
+  background: var(--unknown);
+}
+
+.version {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* ============== Stat cards ============== */
+
+.stat-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.stat-card {
+  background: var(--surface-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.stat-card:hover {
+  border-color: var(--accent);
+  background: var(--hover);
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
+.stat-icon {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.stat-icon-good {
+  color: var(--good);
+}
+
+.stat-icon-warn {
+  color: var(--warn);
+}
+
+.stat-icon-bad {
+  color: var(--bad);
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+/* ============== Chart ============== */
+
+.chart-container {
+  width: 100%;
+  height: 180px;
+  background: var(--surface-elev);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+/* ============== Recent failures ============== */
+
+.failures-scroll {
+  max-height: 400px; /* ~10 rows */
+  overflow-y: auto;
+  /* Container holds the columns so every .failure-row shares track
+   * widths via subgrid — the status-pill column then sizes once to the
+   * widest pill across all rows, not arbitrarily wide. */
+  display: grid;
+  grid-template-columns: 110px max-content 1fr auto;
+  column-gap: 12px;
+  row-gap: 4px;
+  background: var(--surface-elev);
+  border-radius: var(--radius);
+  padding: 6px;
+}
+
+.failure-row {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-align: left;
+}
+
+.failures-scroll > .empty {
+  grid-column: 1 / -1;
+}
+
+.failure-row:hover {
+  background: var(--hover);
+}
+
+.job-short {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+.status-pill {
+  display: inline-block;
+  justify-self: start;
+  padding: 2px 0.5em;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--bad);
+}
+
+.submitter {
+  color: var(--text-soft);
+}
+
+.time {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.empty {
+  padding: 8px 10px;
+  color: var(--text-soft);
+  font-size: 13px;
+}
+
+/* ============== Tiles (server pane) ============== */
+
+.card-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.tile {
+  background: var(--surface-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tile-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+.tile-head .ext-icon {
+  margin-left: auto;
+}
+
+.tile-link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.tile-link:hover {
+  border-color: var(--accent);
+}
+
+.tile-link:hover .ext-icon {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.tile-icon {
+  display: inline-block;
+  width: 16px;
+}
+
+.tile-title {
+  font-weight: 500;
+}
+
+.tile-big {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.tile-sub {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.tile-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+/* ============== Activity view ============== */
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  padding: 6px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.chip:hover {
+  background: var(--hover);
+}
+
+.chip.active {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+.filter-field select {
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-elev);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  min-width: 160px;
+  cursor: pointer;
+}
+
+.filter-field select:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.activity-status {
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+.data-table {
+  background: var(--surface-elev);
+  border-radius: var(--radius);
+  overflow: hidden;
+  font-size: 13px;
+}
+
+.data-row {
+  display: grid;
+  grid-template-columns: 130px 1fr 130px 110px 200px 90px;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+}
+
+.tier-table .data-row {
+  grid-template-columns: 70px 80px 100px 80px 80px 80px 80px 80px 1fr;
+}
+
+.heatmaps-submitter-table .data-row {
+  grid-template-columns: 1.4fr 70px 90px 70px 70px 1.1fr;
+}
+
+.heatmaps-tier-table .data-row {
+  grid-template-columns: 80px 70px 90px 70px 70px 1.1fr;
+}
+
+/* Slim toolbar — just the window selector, no pane chrome. */
+.heatmaps-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.heatmaps-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.heatmap {
+  display: grid;
+  gap: 2px;
+  font-size: 12px;
+  align-items: stretch;
+}
+
+.heatmap-corner {
+  background: transparent;
+}
+
+.heatmap-label-col {
+  color: var(--text-soft);
+  text-align: center;
+  font-weight: 500;
+  padding: 4px 8px;
+}
+
+.heatmap-label-row {
+  color: var(--text-soft);
+  text-align: left;
+  padding: 4px 8px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.heatmap-cell {
+  background: var(--surface-elev);
+  color: var(--text);
+  padding: 4px 8px;
+  border-radius: 3px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+  /* Drop a subtle text shadow so labels stay legible across the
+   * colored cells (light-on-dark or dark-on-light depending on theme). */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.heatmap-cell[data-empty="true"] {
+  background: var(--surface-elev);
+  color: var(--text-faint);
+  text-shadow: none;
+}
+
+.stat-card-static {
+  cursor: default;
+  background: var(--surface-elev);
+}
+
+.stat-card-static:hover {
+  background: var(--surface-elev);
+  border-color: var(--border);
+}
+
+.stat-value-sm {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.data-row:last-child {
+  border-bottom: none;
+}
+
+.data-header {
+  color: var(--text-soft);
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.col-sort {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.col-sort:hover {
+  color: var(--text);
+}
+
+.col-arrow {
+  font-size: 10px;
+  opacity: 0.85;
+  min-width: 8px;
+  display: inline-block;
+}
+
+.dir-toggle {
+  background: var(--surface-inner);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font: inherit;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  min-width: 84px;
+  text-align: center;
+}
+
+.dir-toggle:hover {
+  border-color: var(--text-soft);
+}
+
+.data-clickable {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.data-clickable:hover {
+  background: var(--hover);
+}
+
+.data-empty {
+  grid-template-columns: 1fr;
+  color: var(--text-soft);
+  font-style: italic;
+}
+
+.pagination {
+  display: flex;
+  gap: 8px;
+}
+
+.btn:disabled,
+.btn[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ============== Process "table" (CSS grid) ============== */
+
+.proc-table {
+  background: var(--surface-elev);
+  border-radius: var(--radius);
+  overflow: hidden;
+  font-size: 13px;
+}
+
+.proc-row {
+  display: grid;
+  grid-template-columns: 1fr 100px 120px 100px;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+}
+
+.proc-row:last-child {
+  border-bottom: none;
+}
+
+.proc-header {
+  color: var(--text-soft);
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.proc-empty {
+  color: var(--text-soft);
+  font-style: italic;
+  grid-template-columns: 1fr; /* take full width when empty */
+}
+
+.al {
+  text-align: left;
+}
+
+.ar {
+  text-align: right;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+/* ============== Modal ============== */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 24px;
+}
+
+.modal {
+  background: var(--surface);
+  border-radius: var(--radius);
+  /* Fixed 75% of viewport in both dimensions — no responsive resize. */
+  width: 75vw;
+  height: 75vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-header h3,
+.modal-header .modal-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.job-id-code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  font-weight: 400;
+  background: var(--surface-elev);
+  color: var(--text);
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  word-break: break-all;
+  transition: background 0.15s, color 0.15s;
+  user-select: all; /* triple-click selects the whole id */
+}
+
+.job-id-code:hover {
+  background: var(--hover);
+}
+
+.job-id-code--copied {
+  background: var(--good);
+  color: var(--accent-fg);
+}
+
+.modal-body {
+  padding: 16px;
+  /* Modal is fixed at 75vh — let the body fill the remaining space
+   * and only scroll if a tiny viewport forces it (the log preview
+   * below takes the leftover height and handles its own overflow). */
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.job-detail-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.job-detail {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 16px;
+  background: var(--surface-elev);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.job-detail dt {
+  color: var(--text-soft);
+  font-weight: 500;
+}
+
+.job-detail dd {
+  margin: 0;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.log-preview {
+  background: var(--surface-elev);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  /* Take the remaining modal-body height and scroll internally. The
+   * min-height keeps the viewport usable when metadata is bulky; if
+   * the viewport is small enough that even that won't fit, the
+   * modal-body's overflow takes over. */
+  flex: 1 1 0;
+  min-height: 160px;
+  overflow-y: auto;
+  margin: 0;
+}

@@ -1,6 +1,9 @@
+import asyncio
+import contextlib
 import math
 import multiprocessing
 import os
+from datetime import datetime
 
 import uvicorn
 import uvloop
@@ -13,6 +16,11 @@ from retriever.config.logger import configure_logging
 from retriever.config.write_configs import write_default_configs
 from retriever.utils.logs import add_mongo_sink, cleanup
 from retriever.utils.mongo import MongoClient, MongoQueue
+from retriever.utils.redis import (
+    PROCESS_TTL_SECONDS,
+    RedisClient,
+    heartbeat,
+)
 from retriever.utils.uvicorn_multiprocess import AsyncMultiprocess
 
 
@@ -25,10 +33,26 @@ async def _main_inner() -> None:
     logging_config = configure_logging()
 
     # For main process logging
+    main_heartbeat_task: asyncio.Task[None] | None = None
     if not CONFIG.debug:
         await MongoClient().initialize()
         await MongoQueue().initialize()
         add_mongo_sink()
+        await RedisClient().initialize()
+        main_pid = os.getpid()
+        main_started_at = datetime.now().astimezone()
+        await RedisClient().register_main(
+            main_pid, main_started_at, PROCESS_TTL_SECONDS
+        )
+        main_heartbeat_task = asyncio.create_task(
+            heartbeat(
+                lambda: RedisClient().register_main(
+                    main_pid, main_started_at, PROCESS_TTL_SECONDS
+                ),
+                role_label="Main",
+            ),
+            name="main-heartbeat",
+        )
 
     logger.debug(
         f"Starting with config: \n{yaml.dump(yaml.safe_load(CONFIG.model_dump_json()))}"
@@ -70,7 +94,12 @@ async def _main_inner() -> None:
     # /// POST-SERVER CLEANUP ///
 
     await background_manager.wrapup()
+    if main_heartbeat_task is not None:
+        main_heartbeat_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await main_heartbeat_task
     if not CONFIG.debug:
+        await RedisClient().wrapup()
         await MongoQueue().wrapup()
         await MongoClient().close()
 

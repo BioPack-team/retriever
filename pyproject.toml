@@ -43,6 +43,7 @@ dependencies = [
     "msgpack>=1.1.1",
     "aiofiles>=25.1.0",
     "gitpython>=3.1.46",
+    "psutil>=6.1.1",
 ]
 
 [project.scripts]
@@ -177,7 +178,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.ruff]
-include = ["src/*"]
+# Limit to Python files; the dashboard static assets (HTML/JS/CSS) live
+# under src/ and shouldn't be linted by ruff.
+include = ["src/**/*.py", "src/**/*.pyi"]
 line-length = 88
 indent-width = 4
 
@@ -245,7 +248,6 @@ reportAny = false
 reportExplicitAny = false
 reportUnusedCallResult = false # Just makes code look worse; Usually unused results are deliberately ignored
 reportMissingTypeStubs = false # Sometimes type stubs aren't available and auto-gen is incorrect
-
 
 [tool.deptry]
 extend_exclude = ["locustfile.py", "tests"]

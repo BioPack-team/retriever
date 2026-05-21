@@ -1,6 +1,8 @@
 import asyncio
+import json
 from abc import ABCMeta, abstractmethod
 from collections.abc import Awaitable, Callable, Coroutine, Iterable
+from datetime import datetime
 from types import CoroutineType, TracebackType
 from typing import (
     Any,
@@ -32,9 +34,64 @@ PREFIX = "{Retriever}:"
 OP_TABLE_KEY = f"{PREFIX}op_table"
 OP_TABLE_UPDATE_CHANNEL = f"{OP_TABLE_KEY}:update"
 
+# Sidecar timestamp keys — written alongside published artifacts so /status
+# can show freshness without inferring from TTL. Defined here (rather than
+# next to the artifact owners) so both publishers and consumers share one
+# import path and to avoid an artifact-module ↔ redis-client import cycle.
+OP_TABLE_META_KEY = f"{OP_TABLE_KEY}:meta"
+SUBCLASS_META_KEY = f"{PREFIX}SubclassHashMap:meta"
+
+# Process-registry hashes — workers / background self-report PID + start
+# time on lifespan startup and refresh on a heartbeat. Field TTL via
+# HEXPIRE so a dead process drops out automatically.
+WORKER_REGISTRY_KEY = f"{PREFIX}workers"
+BACKGROUND_REGISTRY_KEY = f"{PREFIX}background"
+MAIN_REGISTRY_KEY = f"{PREFIX}main"
+
+# Heartbeat cadence + TTL for process self-report. TTL is set to several
+# heartbeat intervals so a single missed refresh doesn't drop the entry.
+PROCESS_HEARTBEAT_INTERVAL_SECONDS = 60
+PROCESS_TTL_SECONDS = 300
+
+
+async def heartbeat(
+    on_tick: Callable[[], Awaitable[None]],
+    role_label: str,
+    interval_seconds: int = PROCESS_HEARTBEAT_INTERVAL_SECONDS,
+) -> None:
+    """Run `on_tick` on an interval, swallowing per-tick failures.
+
+    Used to drive process-registry refresh loops from the lifespan hooks.
+    Cancellation of the surrounding task exits cleanly.
+    """
+    try:
+        while True:
+            await asyncio.sleep(interval_seconds)
+            try:
+                await on_tick()
+            except Exception:
+                logger.warning(
+                    f"{role_label} heartbeat refresh failed; will retry next interval.",
+                    no_mongo_log=True,
+                )
+    except asyncio.CancelledError:
+        return
+
+
 # For better performance
 ZSTD_COMPRESSOR = zstandard.ZstdCompressor()
 ZSTD_DECOMPRESSOR = zstandard.ZstdDecompressor()
+
+
+class FreshnessRecord(TypedDict):
+    """Sidecar metadata for a Redis-published artifact.
+
+    `count` semantics vary by artifact: `op_count` for the MetaKG op
+    table, map `size` for the subclass mapping.
+    """
+
+    refreshed_at: datetime
+    count: int
 
 
 class PubSubMessage(TypedDict):
@@ -266,6 +323,20 @@ class AsyncRedis(Protocol, metaclass=ABCMeta):
         """
 
     @abstractmethod
+    async def hgetall(self, name: str) -> dict[bytes, bytes]:
+        """Return a Python dict of the hash's name/value pairs.
+
+        For more information, see https://redis.io/commands/hgetall
+        """
+
+    @abstractmethod
+    async def info(self, section: str | None = None) -> dict[str, Any]:
+        """Return server INFO (optionally restricted to a section).
+
+        For more information, see https://redis.io/commands/info
+        """
+
+    @abstractmethod
     async def hexpire(  # noqa:PLR0913
         self,
         name: KeyT,
@@ -314,6 +385,17 @@ class RedisClient(AsyncDaemon):
     def __init__(self) -> None:
         """Instantiate a client class without initializing the Redis connection."""
         super().__init__()
+        self._build_client()
+        self.subscriptions: dict[str, list[Callable[[str], Awaitable[None]]]] = {}
+
+    def _build_client(self) -> None:
+        """(Re)build the internal redis-py async client.
+
+        Called from __init__ and again from initialize() when the existing
+        client is bound to a now-closed asyncio loop. This keeps the
+        RedisClient Singleton usable across event loops (e.g. across
+        pytest-asyncio tests, where each test gets a fresh loop).
+        """
         retry = Retry(ExponentialBackoff(), CONFIG.redis.attempts)
         self._client = redis.Redis(
             host=CONFIG.redis.host,
@@ -329,7 +411,6 @@ class RedisClient(AsyncDaemon):
             AsyncRedis,
             cast(object, self._client),
         )
-        self.subscriptions: dict[str, list[Callable[[str], Awaitable[None]]]] = {}
 
     @override
     def get_task_funcs(self) -> list[Callable[[], Coroutine[None, None, None]]]:
@@ -338,16 +419,26 @@ class RedisClient(AsyncDaemon):
     @override
     async def initialize(self) -> None:
         """Initialize a connection to the redis server."""
+        log.info("Checking redis connection...")
         try:
-            log.info("Checking redis connection...")
             await self.client.initialize()
             await self.client.ping()
-            log.success("Redis connection successful!")
+        except RuntimeError as error:
+            # redis-py binds connections to the asyncio loop they were
+            # created on. If the Singleton survives a loop closure
+            # (Python test runners, in particular), rebuild and retry.
+            if "Event loop is closed" not in str(error):
+                raise
+            log.debug("Rebuilding Redis client on current event loop.")
+            self._build_client()
+            await self.client.initialize()
+            await self.client.ping()
         except RedisConnectionError as error:
             log.critical(
                 "Connection to Redis failed. Ensure an instance is running and the connection config is correct."
             )
             raise error
+        log.success("Redis connection successful!")
         return await super().initialize()
 
     @override
@@ -453,6 +544,103 @@ class RedisClient(AsyncDaemon):
         response = await self.client.delete(f"{PREFIX}{key}")
         return response > 0
 
+    async def ping(self) -> bool:
+        """Post-init liveness check. Returns True iff the server responds."""
+        try:
+            return bool(await self.client.ping())
+        except Exception:
+            return False
+
+    async def used_memory_bytes(self) -> int:
+        """Return the Dragonfly/Redis `used_memory` field from INFO MEMORY."""
+        info = await self.client.info("memory")
+        return int(info["used_memory"])
+
+    async def _read_freshness(self, key: str) -> FreshnessRecord | None:
+        """Read a JSON sidecar `{refreshed_at, count}` from the given key."""
+        data = await self.client.get(key)
+        if data is None:
+            return None
+        try:
+            payload = json.loads(data)
+            return FreshnessRecord(
+                refreshed_at=datetime.fromisoformat(payload["refreshed_at"]),
+                count=int(payload["count"]),
+            )
+        except (KeyError, ValueError, json.JSONDecodeError):
+            return None
+
+    async def write_freshness(self, key: str, count: int, ttl: int) -> None:
+        """Write a JSON sidecar `{refreshed_at, count}` with the given TTL."""
+        payload = json.dumps(
+            {"refreshed_at": datetime.now().astimezone().isoformat(), "count": count}
+        )
+        await self.client.set(key, payload, ex=ttl if ttl > 0 else None)
+
+    async def metakg_freshness(self) -> FreshnessRecord | None:
+        """Return the last-refreshed timestamp + op count for the MetaKG."""
+        return await self._read_freshness(OP_TABLE_META_KEY)
+
+    async def subclass_freshness(self) -> FreshnessRecord | None:
+        """Return the last-refreshed timestamp + map size for the subclass map."""
+        return await self._read_freshness(SUBCLASS_META_KEY)
+
+    async def _register_process(
+        self,
+        registry_key: str,
+        pid: int,
+        started_at: datetime,
+        ttl_seconds: int,
+    ) -> None:
+        """Write the JSON started-at payload to a hash field with TTL."""
+        payload = json.dumps({"started_at": started_at.astimezone().isoformat()})
+        _ = await self.client.hset(registry_key, str(pid), payload.encode())
+        _ = await self.client.hexpire(registry_key, ttl_seconds, str(pid))
+
+    async def register_worker(
+        self, pid: int, started_at: datetime, ttl_seconds: int
+    ) -> None:
+        """Register this worker's PID + start time with a TTL."""
+        await self._register_process(WORKER_REGISTRY_KEY, pid, started_at, ttl_seconds)
+
+    async def register_background(
+        self, pid: int, started_at: datetime, ttl_seconds: int
+    ) -> None:
+        """Register the background process's PID + start time with a TTL."""
+        await self._register_process(
+            BACKGROUND_REGISTRY_KEY, pid, started_at, ttl_seconds
+        )
+
+    async def register_main(
+        self, pid: int, started_at: datetime, ttl_seconds: int
+    ) -> None:
+        """Register the main entry-point process's PID + start time with a TTL."""
+        await self._register_process(MAIN_REGISTRY_KEY, pid, started_at, ttl_seconds)
+
+    async def _list_processes(self, registry_key: str) -> dict[int, datetime]:
+        """Return a mapping of pid -> started_at for the given registry hash."""
+        entries = await self.client.hgetall(registry_key)
+        out: dict[int, datetime] = {}
+        for raw_pid, raw_value in entries.items():
+            try:
+                payload = json.loads(raw_value)
+                out[int(raw_pid)] = datetime.fromisoformat(payload["started_at"])
+            except (KeyError, ValueError, json.JSONDecodeError):
+                continue
+        return out
+
+    async def list_workers(self) -> dict[int, datetime]:
+        """Return all currently-registered worker PIDs and their start times."""
+        return await self._list_processes(WORKER_REGISTRY_KEY)
+
+    async def list_background(self) -> dict[int, datetime]:
+        """Return the registered background process PID + start time (0 or 1 entries)."""
+        return await self._list_processes(BACKGROUND_REGISTRY_KEY)
+
+    async def list_main(self) -> dict[int, datetime]:
+        """Return the registered main process PID + start time (0 or 1 entries)."""
+        return await self._list_processes(MAIN_REGISTRY_KEY)
+
     @overload
     async def hset(self, key: str, field: str, value: bytes) -> None: ...
 
@@ -526,7 +714,7 @@ class RedisClient(AsyncDaemon):
                 await self.client.hexpire(f"{PREFIX}{key}", ttl, field)
         else:
             await self.client.hset(
-                key,
+                f"{PREFIX}{key}",
                 mapping=value_to_set,
             )
             if ttl > 0:
@@ -536,7 +724,7 @@ class RedisClient(AsyncDaemon):
         self, key: str, *field: str, compressed: bool = False
     ) -> list[bytes | None]:
         """Generically get a field of a mapping."""
-        values = await self.client.hmget(key, field)
+        values = await self.client.hmget(f"{PREFIX}{key}", field)
         if compressed:
             return [
                 ZSTD_DECOMPRESSOR.decompress(val) if val is not None else val
