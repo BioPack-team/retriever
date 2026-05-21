@@ -65,10 +65,12 @@ class SubclassMapping(BatchedAction):
         """Pull the full subclass mapping from tier 1 and push it to Redis in batches."""
         logger.info("Loading subclass mapping...")
         mapping = await tier_manager.get_driver(1).get_subclass_mapping()
+        total = len(mapping)
 
-        # Send to redis in batches to avoid overwhelming it
+        # Send to redis in batches to avoid overwhelming it.
         packed_mapping = dict[str, bytes]()
-        for curie, descendants in mapping.items():
+        while mapping:
+            curie, descendants = mapping.popitem()
             packed_mapping[curie] = ormsgpack.packb(descendants)
 
             if len(packed_mapping) >= self.redis_setup_batch_size:
@@ -86,7 +88,10 @@ class SubclassMapping(BatchedAction):
                 ttl=CONFIG.job.metakg.build_time,
             )
 
-        logger.success(f"Subclass mapping refreshed with {len(mapping)} ancestors.")
+        del mapping
+        del packed_mapping
+
+        logger.success(f"Subclass mapping refreshed with {total} ancestors.")
 
     async def get(self, curie: CURIE) -> list[CURIE]:
         """Get the descendants of a given CURIE."""

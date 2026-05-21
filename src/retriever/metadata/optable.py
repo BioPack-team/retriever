@@ -251,6 +251,11 @@ class OpTableManager(AsyncDaemon):
         logger.success(
             f"Built Operation Table containing {len(operations_flat)} operations / {len(nodes)} nodes."
         )
+        # The leader never reads _operation_table back — it only exists to push to
+        # Redis. Drop the reference so the snapshot doesn't sit in process memory.
+        if self.is_leader:
+            async with self.update_lock:
+                self._operation_table = None
 
     async def periodic_build_op_table(self) -> None:
         """Periodically rebuild the operation table."""
