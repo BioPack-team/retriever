@@ -1,7 +1,9 @@
 import asyncio
+import contextlib
 import os
 import signal
 import sys
+from datetime import datetime
 from multiprocessing import Process
 
 import uvloop
@@ -14,7 +16,11 @@ from retriever.lookup.subclass import SubclassMapping
 from retriever.metadata.optable import OpTableManager
 from retriever.utils.logs import add_mongo_sink
 from retriever.utils.mongo import MongoClient, MongoQueue
-from retriever.utils.redis import RedisClient
+from retriever.utils.redis import (
+    PROCESS_TTL_SECONDS,
+    RedisClient,
+    heartbeat,
+)
 from retriever.utils.telemetry import configure_telemetry
 
 
@@ -29,6 +35,22 @@ async def _background_async() -> None:
     await MongoQueue().initialize()
     add_mongo_sink()
     await RedisClient().initialize()
+
+    background_pid = os.getpid()
+    background_started_at = datetime.now().astimezone()
+    await RedisClient().register_background(
+        background_pid, background_started_at, PROCESS_TTL_SECONDS
+    )
+    heartbeat_task = asyncio.create_task(
+        heartbeat(
+            lambda: RedisClient().register_background(
+                background_pid, background_started_at, PROCESS_TTL_SECONDS
+            ),
+            role_label="Background",
+        ),
+        name="background-heartbeat",
+    )
+
     await tier_manager.connect_drivers()
     metakg_manager = OpTableManager(leader=True)
     await metakg_manager.initialize()
@@ -46,6 +68,9 @@ async def _background_async() -> None:
 
     # /// WRAPUP ///
 
+    heartbeat_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await heartbeat_task
     await SubclassMapping().wrapup()
     await metakg_manager.wrapup()
     await RedisClient().wrapup()
