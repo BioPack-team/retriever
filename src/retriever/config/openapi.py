@@ -137,22 +137,6 @@ class ResponseDescriptions(BaseModel):
     config: dict[str, str] = {
         "200": "The present config of the server, with secrets removed."
     }
-    status: dict[str, str] = {
-        "root": "Health snapshot — version, processes, dependencies, freshness.",
-        "jobs": "Full per-job status (metadata + query/response geometry).",
-        "active": "Currently in-flight jobs, newest first.",
-        "stuck": "Active jobs running past the `min_age` threshold (default 1h).",
-        "counts": "Status breakdown across three fixed windows (24h, week, all time).",
-        "timeline": "Time-bucketed throughput counts for charting.",
-        "durations": "Aggregate runtime stats (min/max/avg + percentiles).",
-        "submitters": "Per-submitter activity leaderboard.",
-        "tiers": "Per-tier activity and duration percentiles.",
-        "submitter_tier_stats": "Per-(submitter, tier) cell stats; drives the heatmaps view.",
-        "failure_breakdown": "Failure-status counts pivoted by submitter or by tier.",
-        "completed": "Paged scan of successfully-terminated jobs.",
-        "failed": "Paged scan of failed/errored terminal jobs.",
-        "server_logs": "Logs not associated with any job.",
-    }
 
 
 class ServerConfig(CommentedSettings):
@@ -183,7 +167,6 @@ class OpenAPIConfig(CommentedSettings):
             Tag(name="query"),
             Tag(name="asyncquery"),
             Tag(name="asyncquery_status"),
-            Tag(name="status"),
             Tag(name="translator"),
             Tag(name="trapi"),
             Tag(name="biothings"),

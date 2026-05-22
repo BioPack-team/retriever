@@ -99,10 +99,8 @@ def get_submitter(query: QueryInfo) -> str:
     """Extract the submitter from a query, if it's provided."""
     body = query.body
 
-    submitter = body is not None and body.get("submitter")
-
-    if submitter:
-        return submitter
+    if submitter := body is not None and body.get("submitter"):
+        return str(submitter)
     else:
         return "not_provided"
 
