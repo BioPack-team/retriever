@@ -11,7 +11,7 @@ from retriever.types.trapi import (
     CURIE,
 )
 from retriever.utils.general import BatchedAction
-from retriever.utils.redis import RedisClient
+from retriever.utils.redis import SUBCLASS_META_KEY, RedisClient
 
 REDIS_CLIENT = RedisClient()
 
@@ -87,6 +87,12 @@ class SubclassMapping(BatchedAction):
                 mapping=packed_mapping,
                 ttl=CONFIG.job.metakg.build_time,
             )
+
+        await REDIS_CLIENT.write_freshness(
+            SUBCLASS_META_KEY,
+            count=len(mapping),
+            ttl=CONFIG.job.metakg.build_time,
+        )
 
         del mapping
         del packed_mapping

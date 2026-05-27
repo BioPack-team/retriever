@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import functools
 import io
 import os
@@ -6,7 +8,6 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Annotated, Any, Literal
 
-import git
 import yaml
 from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -41,16 +42,29 @@ from retriever.utils.logs import (
     structured_log_to_trapi,
 )
 from retriever.utils.mongo import MongoClient, MongoQueue
-from retriever.utils.redis import RedisClient
+from retriever.utils.redis import (
+    PROCESS_TTL_SECONDS,
+    RedisClient,
+    heartbeat,
+)
 from retriever.utils.telemetry import configure_telemetry
 from retriever.utils.trapi import append_aggregator_source
+from retriever.utils.version import get_version
 
 configure_logging()
 
-JOB_ID_PATTERN = r"^[a-z0-9]+$"
+JOB_ID_PATTERN = r"^[a-zA-Z0-9]+$"
 
 
 # Lifespan handling for each FastAPI worker (not main process, see __main__.py)
+async def _refresh_worker_registration(pid: int, started_at: datetime) -> None:
+    """One heartbeat tick: re-register the worker (and main, in debug)."""
+    await RedisClient().register_worker(pid, started_at, PROCESS_TTL_SECONDS)
+    if CONFIG.debug:
+        # In debug mode this worker is also the main entry-point.
+        await RedisClient().register_main(pid, started_at, PROCESS_TTL_SECONDS)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     """Lifespan hook for any setup/shutdown behavior."""
@@ -60,6 +74,27 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     await MongoQueue().initialize()
     add_mongo_sink()
     await RedisClient().initialize()
+
+    worker_pid = os.getpid()
+    worker_started_at = datetime.now().astimezone()
+    await RedisClient().register_worker(
+        worker_pid, worker_started_at, PROCESS_TTL_SECONDS
+    )
+    heartbeat_task = asyncio.create_task(
+        heartbeat(
+            lambda: _refresh_worker_registration(worker_pid, worker_started_at),
+            role_label="Worker",
+        ),
+        name="worker-heartbeat",
+    )
+    # In debug mode there's no separate entry-point process — this worker
+    # *is* the main. Register it under both so /status.processes.main isn't
+    # null. In production main is registered by __main__.py.
+    if CONFIG.debug:
+        await RedisClient().register_main(
+            worker_pid, worker_started_at, PROCESS_TTL_SECONDS
+        )
+
     await OpTableManager().initialize()
     await tier_manager.connect_drivers()
     await SubclassMapping().initialize()
@@ -71,6 +106,9 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     yield  # Separates startup/shutdown phase
 
     # Shutdown
+    heartbeat_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await heartbeat_task
     await SubqueryDispatcher().wrapup()
     if query_dumper.initialized:
         await query_dumper.wrapup()
@@ -84,6 +122,24 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
 
 
 app = TRAPI(lifespan=lifespan)
+
+# Mount the /status/* dashboard API (route handlers live in retriever.status).
+from retriever.status import router as status_router  # noqa: E402
+
+app.include_router(status_router)
+
+# Mount the dashboard at /monitor — static HTML/JS/CSS that polls the
+# /status/* endpoints from the browser. No server-side session state.
+from pathlib import Path  # noqa: E402
+
+from fastapi.staticfiles import StaticFiles  # noqa: E402
+
+_MONITOR_STATIC = Path(__file__).parent / "monitor" / "static"
+app.mount(
+    "/monitor",
+    StaticFiles(directory=_MONITOR_STATIC, html=True),
+    name="monitor",
+)
 
 # Set up CORS / exception handling
 app.add_middleware(
@@ -274,6 +330,7 @@ async def asyncquery(
 )
 async def asyncquery_status(request: Request, job_id: str) -> ORJSONResponse:
     """Get the status of an asynchronous query."""
+    job_id = job_id.lower()
     status_code, job_dict = await get_job_state(job_id, request)
 
     # Remove keys not meant for asyncquery_status
@@ -313,6 +370,7 @@ async def asyncquery_status(request: Request, job_id: str) -> ORJSONResponse:
 )
 async def response(request: Request, job_id: str) -> ORJSONResponse:
     """Get the response for a query (or logs if it's in progress)."""
+    job_id = job_id.lower()
     status_code, job_dict = await get_job_state(job_id, request)
     return ORJSONResponse(job_dict, status_code=status_code)
 
@@ -382,11 +440,14 @@ async def logs(  # noqa: PLR0913 Can't reduce args due to FastAPI endpoint forma
     if not CONFIG.log.log_to_mongo:
         raise HTTPException(404, detail="Persisted logging not enabled.")
 
+    if job_id is not None:
+        job_id = job_id.lower()
+
     if lookback is not None:
-        start = datetime.now() - timedelta(seconds=lookback * 60 * 60)
+        start = datetime.now().astimezone() - timedelta(seconds=lookback * 60 * 60)
 
     elif not start and not job_id:  # Get all logs from last hour
-        start = datetime.now() - timedelta(hours=1)
+        start = datetime.now().astimezone() - timedelta(hours=1)
 
     if fmt == "flat":
         logs = MongoClient().get_flat_logs(start, end, level, job_id)
@@ -411,15 +472,13 @@ async def logs(  # noqa: PLR0913 Can't reduce args due to FastAPI endpoint forma
 async def config() -> ORJSONResponse:
     """Get the current config of the server."""
     config = yaml.safe_load(CONFIG.model_dump_json())
-    try:
-        sha = git.Repo(search_parent_directories=True).head.object.hexsha
+    sha, branch = get_version()
+    if sha != "unknown":
         config["retriever_version"] = sha
+        config["retriever_branch"] = branch
         config["retriever_version_link"] = (
             f"https://github.com/BioPack-team/retriever/tree/{sha}"
         )
-    except Exception:
-        pass
-
     return ORJSONResponse(config)
 
 
