@@ -320,8 +320,17 @@ class GandalfSettings(BaseModel):
     def http_endpoint(self) -> str:
         """Get the complete HTTP endpoint URL for Gandalf HTTP API."""
         url = urlparse(self.host)
-        url._replace(netloc=url.netloc.replace(str(url.port), str(self.port)))
-        return url.geturl()
+        host = url.hostname
+
+        if url.username or url.password:
+            auth = f"{url.username or ''}"
+            if url.password:
+                auth += f":{url.password}"
+            new_netloc = f"{auth}@{host}:{self.port}"
+        else:
+            new_netloc = f"{host}:{self.port}"
+
+        return url._replace(netloc=new_netloc).geturl()
 
 
 class Tier0Settings(BaseModel):
