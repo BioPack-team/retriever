@@ -84,7 +84,7 @@
                 <span class="stat-icon stat-icon-good">▶</span>
                 <span class="stat-label">Active</span>
               </div>
-              <div class="stat-value" x-text="(data.active || []).length"></div>
+              <div class="stat-value" x-text="data.status?.active_job_count ?? (data.active || []).length"></div>
             </button>
             <button
               class="stat-card"
@@ -94,7 +94,7 @@
                 <span class="stat-icon stat-icon-warn">⧗</span>
                 <span class="stat-label">Stuck</span>
               </div>
-              <div class="stat-value" x-text="(data.stuck || []).length"></div>
+              <div class="stat-value" x-text="data.status?.stuck_job_count ?? (data.stuck || []).length"></div>
             </button>
             <button
               class="stat-card"

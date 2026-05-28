@@ -21,6 +21,7 @@ from retriever.data_tiers import tier_manager
 from retriever.types.general import LogLevel
 from retriever.types.status import (
     ActiveJobRow,
+    ActivePage,
     CompletedJobRow,
     CompletedPage,
     CountsLinks,
@@ -288,6 +289,7 @@ async def status_root() -> StatusSnapshot:
     """Operator-glance health snapshot."""
     redis_client = RedisClient()
     mongo_client = MongoClient()
+    stuck_cutoff = _now_aware() - timedelta(hours=STUCK_DEFAULT_HOURS)
 
     # Fan out all the independent IO calls in parallel — these are the
     # bulk of the endpoint's wall time.
@@ -300,6 +302,7 @@ async def status_root() -> StatusSnapshot:
         t_redis_ping = tg.create_task(redis_client.ping())
         t_redis_mem = tg.create_task(redis_client.used_memory_bytes())
         t_in_flight = tg.create_task(mongo_client.count_in_flight())
+        t_stuck = tg.create_task(mongo_client.count_stuck(stuck_cutoff))
         t_metakg = tg.create_task(redis_client.metakg_freshness())
         t_subclass = tg.create_task(redis_client.subclass_freshness())
 
@@ -311,6 +314,7 @@ async def status_root() -> StatusSnapshot:
     redis_connected = t_redis_ping.result()
     redis_memory = t_redis_mem.result()
     active_job_count = t_in_flight.result()
+    stuck_job_count = t_stuck.result()
     metakg = t_metakg.result()
     subclass = t_subclass.result()
 
@@ -338,6 +342,7 @@ async def status_root() -> StatusSnapshot:
         version=_get_version(),
         processes=StatusProcesses(main=main, background=background, workers=workers),
         active_job_count=active_job_count,
+        stuck_job_count=stuck_job_count,
         mongo=StatusMongo(
             connected=mongo_connected,
             storage_mb=mongo_storage / _BYTES_PER_MB,
@@ -398,27 +403,38 @@ async def status_job(request: Request, job_id: str) -> JobDetail:
 
 @router.get(
     "/active",
-    response_model=list[ActiveJobRow],
+    response_model=ActivePage,
     response_description=STATUS_DESCRIPTIONS.get("active", ""),
 )
-async def status_active(request: Request) -> list[ActiveJobRow]:
-    """All currently-in-flight jobs, newest first."""
-    page = await MongoClient().get_job_statuses(
+async def status_active(
+    request: Request,
+    cursor: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = DEFAULT_LIMIT,
+) -> ActivePage:
+    """Paged scan of currently-in-flight jobs, newest first."""
+    page = await _paged_jobs(
         identity=JobIdentityFilter(status=sorted(NON_TERMINAL)),
+        times=None,
         sort={"field": "created", "direction": "desc"},
-        limit=MAX_LIMIT,
+        limit=limit,
+        cursor=cursor,
     )
     now = _now_aware()
-    return [_enrich_active(row, now, request) for row in page["items"]]
+    return ActivePage(
+        items=[_enrich_active(row, now, request) for row in page["items"]],
+        next_cursor=page["next_cursor"],
+    )
 
 
 @router.get(
     "/stuck",
-    response_model=list[ActiveJobRow],
+    response_model=ActivePage,
     response_description=STATUS_DESCRIPTIONS.get("stuck", ""),
 )
 async def status_stuck(
     request: Request,
+    cursor: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = DEFAULT_LIMIT,
     min_age: Annotated[
         float | None,
         Query(
@@ -426,18 +442,22 @@ async def status_stuck(
             description="Hours; jobs running longer than this are returned.",
         ),
     ] = None,
-) -> list[ActiveJobRow]:
-    """Active jobs older than `min_age` (default 1h)."""
+) -> ActivePage:
+    """Paged scan of active jobs older than `min_age` (default 1h)."""
     effective_min_age = min_age if min_age is not None else STUCK_DEFAULT_HOURS
     cutoff = _now_aware() - timedelta(hours=effective_min_age)
-    page = await MongoClient().get_job_statuses(
+    page = await _paged_jobs(
         identity=JobIdentityFilter(status=sorted(NON_TERMINAL)),
         times=JobTimeFilter(created={"before": cutoff}),
         sort={"field": "created", "direction": "desc"},
-        limit=MAX_LIMIT,
+        limit=limit,
+        cursor=cursor,
     )
     now = _now_aware()
-    return [_enrich_active(row, now, request) for row in page["items"]]
+    return ActivePage(
+        items=[_enrich_active(row, now, request) for row in page["items"]],
+        next_cursor=page["next_cursor"],
+    )
 
 
 # === Dashboard headlines ==================================================

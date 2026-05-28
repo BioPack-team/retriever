@@ -41,8 +41,10 @@ async def status_client(test_mongo: MongoClient):  # noqa: F811
 async def test_active_returns_in_flight(status_client: AsyncClient) -> None:
     resp = await status_client.get("/status/active")
     assert resp.status_code == 200
-    rows = resp.json()
+    page = resp.json()
+    rows = page["items"]
     assert len(rows) == 2
+    assert page["next_cursor"] is None
     for row in rows:
         assert row["age_seconds"] >= 0
         # Links should be absolute URLs so they're clickable from a browser.
@@ -236,8 +238,10 @@ async def test_stuck_with_min_age(status_client: AsyncClient) -> None:
     # should include both.
     resp = await status_client.get("/status/stuck", params={"min_age": 0.01})
     assert resp.status_code == 200
-    rows = resp.json()
+    page = resp.json()
+    rows = page["items"]
     assert len(rows) == 2
+    assert page["next_cursor"] is None
     for row in rows:
         assert row["age_seconds"] >= int(0.01 * 3600)
 

@@ -674,6 +674,16 @@ class MongoClient(metaclass=Singleton):
             {"status": {"$in": sorted(NON_TERMINAL)}}
         )
 
+    async def count_stuck(self, older_than: datetime) -> int:
+        """Count non-terminal jobs created before `older_than`."""
+        status_collection, _ = self.get_job_collection()
+        return await status_collection.count_documents(
+            {
+                "status": {"$in": sorted(NON_TERMINAL)},
+                "created": {"$lt": older_than},
+            }
+        )
+
     async def batch_write(
         self,
         operations: list[InsertOne[dict[str, Any]]] | list[UpdateOne],

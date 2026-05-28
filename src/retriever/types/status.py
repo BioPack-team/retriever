@@ -59,6 +59,13 @@ class FailedJobRow(TypedDict):
     links: Links
 
 
+class ActivePage(TypedDict):
+    """A page of in-flight job rows."""
+
+    items: list[ActiveJobRow]
+    next_cursor: str | None
+
+
 class CompletedPage(TypedDict):
     """A page of completed job rows."""
 
@@ -265,6 +272,7 @@ class StatusSnapshot(TypedDict):
     version: StatusVersion
     processes: StatusProcesses
     active_job_count: int
+    stuck_job_count: int
     mongo: StatusMongo
     redis: StatusRedis
     tiers: list[StatusTier]

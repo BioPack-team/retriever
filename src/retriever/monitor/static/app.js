@@ -760,12 +760,16 @@ function dashboard() {
       const mode = this.activity.mode;
       try {
         if (ACTIVITY_LIVE_MODES.has(mode)) {
-          // Active/Stuck — flat list, no cursor, no server-side filters.
-          // Sort is applied client-side over the in-memory list.
+          // Active/Stuck are paginated server-side too, with the same
+          // cursor protocol as Completed/Failed. The endpoints don't
+          // accept submitter/tier/sort filters (they only sort by
+          // created desc), so only forward the cursor/limit.
           const path = mode === "Active" ? "/status/active" : "/status/stuck";
-          const rows = await fetchJson(path);
-          this.activity.items = rows;
-          this.activity.nextCursor = null;
+          const p = new URLSearchParams({ limit: String(ACTIVITY_PAGE_SIZE) });
+          if (this.activity.cursor) p.set("cursor", this.activity.cursor);
+          const page = await fetchJson(`${path}?${p}`);
+          this.activity.items = page.items || [];
+          this.activity.nextCursor = page.next_cursor || null;
           return;
         }
         const endpoint =
@@ -873,14 +877,18 @@ function dashboard() {
 
     async refreshRealtime() {
       try {
+        // Request the server-side max so the Stuck home card and the
+        // data.active fallback for the Active card aren't artificially
+        // capped at the default page size. The Active count itself comes
+        // from data.status.active_job_count (uncapped Mongo count).
         const [status, active, stuck] = await Promise.all([
           fetchJson("/status"),
-          fetchJson("/status/active"),
-          fetchJson("/status/stuck"),
+          fetchJson("/status/active?limit=500"),
+          fetchJson("/status/stuck?limit=500"),
         ]);
         this.data.status = status;
-        this.data.active = active;
-        this.data.stuck = stuck;
+        this.data.active = active.items || [];
+        this.data.stuck = stuck.items || [];
       } catch (err) {
         console.warn("realtime refresh failed:", err);
       }
