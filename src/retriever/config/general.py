@@ -177,6 +177,12 @@ class JobSettings(BaseModel):
     callback: CallbackSettings = CallbackSettings()
     lookup: LookupSettings = LookupSettings()
     metakg: MetaKGSettings = MetaKGSettings()
+    orphan_check_interval: Annotated[
+        int,
+        Field(
+            description="Interval in seconds between orphan-job detection sweeps. Set to -1 to disable."
+        ),
+    ] = 120
     ttl: Annotated[
         int,
         Field(

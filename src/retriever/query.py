@@ -19,6 +19,7 @@ from retriever.types.general import APIInfo, ErrorDetail, QueryInfo
 from retriever.types.trapi import (
     AsyncQueryDict,
     AsyncQueryResponseDict,
+    LogEntryDict,
     MetaKnowledgeGraphDict,
     QueryDict,
     ResponseDict,
@@ -26,9 +27,16 @@ from retriever.types.trapi import (
 from retriever.types.trapi_pydantic import AsyncQuery as TRAPIAsyncQuery
 from retriever.types.trapi_pydantic import Query as TRAPIQuery
 from retriever.types.trapi_pydantic import TierNumber
-from retriever.utils import telemetry
+from retriever.utils import telemetry, worker
+from retriever.utils.job_status import NON_TERMINAL, TERMINAL_SUCCESS
 from retriever.utils.logs import TRAPILogger, structured_log_to_trapi
-from retriever.utils.mongo import JobDocs, MongoClient, MongoQueue, QueryState
+from retriever.utils.mongo import (
+    JobDoc,
+    JobStatus,
+    MongoClient,
+    MongoQueue,
+    QueryState,
+)
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 MONGO_QUEUE = MongoQueue()
@@ -169,6 +177,8 @@ async def make_query(
                 query=ZSTD_COMPRESSOR.compress(ormsgpack.packb(query.body)),
                 status="Running",
                 is_async=ctx.background_tasks is not None,
+                worker_pid=worker.get_pid(),
+                worker_started_at=worker.get_started_at(),
                 **{
                     k: v
                     for k, v in query_metadata._asdict().items()
@@ -227,65 +237,152 @@ def contextualize_query_telemetry(info: dict[str, Any]) -> None:
     sentry_sdk.set_tags(info)
 
 
-async def get_job_state(job_id: str, request: Request) -> tuple[int, dict[str, Any]]:
-    """Retrieve job information from MongoDB.
+_TERMINAL_STATUS_DESCRIPTIONS: dict[str, str] = {
+    "Complete": "Job is complete.",
+    "Failed": "Job failed.",
+    "QueryNotTraversable": "Query graph was not traversable.",
+    "UnsupportedConstraint": "Query graph contained an unsupported constraint.",
+}
 
-    Returns whole job response so it can be used by either `/asyncquery_status` or `/response`.
+
+async def job_logs(job_id: str) -> list[LogEntryDict]:
+    """Return all stored logs for a job, formatted as TRAPI LogEntries."""
+    return [
+        log
+        async for log in structured_log_to_trapi(MongoClient().get_logs(job_id=job_id))
+    ]
+
+
+async def fetch_job_status(
+    job_id: str, ctx_log: TRAPILogger
+) -> tuple[JobStatus | None, Exception | None]:
+    """Read the JobStatus + bump TTL."""
+    try:
+        status_doc = await MongoClient().get_job_status(job_id, touch=True)
+        if status_doc is not None:
+            ctx_log.debug(f"Got job {job_id} status from MongoDB.", no_mongo_log=True)
+    except Exception as e:
+        ctx_log.exception(
+            f"Encountered exception retrieving job {job_id} status from MongoDB.",
+            no_mongo_log=True,
+        )
+        telemetry.capture_exception(e)
+        return None, e
+    return status_doc, None
+
+
+async def in_progress_payload(
+    job_id: str,
+    ctx_log: TRAPILogger,
+    exists: bool,
+    error: Exception | None,
+) -> tuple[int, dict[str, Any]]:
+    """Return an AsyncQueryStatusResponse for in-progress or missing job.
+
+    "Running" if the row exists or there's log evidence, "Error" if the
+    fetch raised, otherwise "Not Found".
     """
-    job: JobDocs | None = None
-    error: Exception | None = None
-    ctx_log = TRAPILogger(job_id)
+    logs = await job_logs(job_id)
+    if exists or len(logs) > 0:
+        return 200, {
+            "status": "Running",
+            "logs": logs,
+            "description": "Job is running.",
+        }
+    if error is not None:
+        return 500, {
+            "status": "Error",
+            "description": "An error occurred while attempting to retrieve job status",
+            "logs": list(ctx_log.get_logs()),
+            "error": str(error),
+            "trace": traceback.format_exc(),
+        }
+    return 404, {
+        "status": "Not Found",
+        "description": f"The provided job ID ({job_id}) was not found. It may have expired.",
+        "logs": list(ctx_log.get_logs()),
+    }
 
+
+async def terminal_status_payload(
+    job_id: str, request: Request, job_status: str
+) -> dict[str, Any]:
+    """Build an AsyncQueryStatusResponse a terminal job."""
+    return {
+        "status": job_status,
+        "description": _TERMINAL_STATUS_DESCRIPTIONS.get(
+            job_status,
+            "Job is complete."
+            if job_status in TERMINAL_SUCCESS
+            else f"Job ended with status: {job_status}.",
+        ),
+        "logs": await job_logs(job_id),
+        "response_url": f"{request.base_url}response/{job_id}",
+    }
+
+
+def unpack_doc(job: JobDoc) -> dict[str, Any]:
+    """Decompress + unpack the stored doc bytes, return {} if absent."""
+    doc_bytes = job.get("doc")
+    if doc_bytes is None:
+        return {}
+    return ormsgpack.unpackb(ZSTD_DECOMPRESSOR.decompress(doc_bytes))
+
+
+async def get_job_status(job_id: str, request: Request) -> tuple[int, dict[str, Any]]:
+    """Get the current job status and return an AsyncQueryStatusResponse."""
+    ctx_log = TRAPILogger(job_id)
+    status_doc, error = await fetch_job_status(job_id, ctx_log)
+
+    job_status = (status_doc or {}).get("status") or "Running"
+    if status_doc is None or job_status in NON_TERMINAL:
+        return await in_progress_payload(
+            job_id, ctx_log, exists=status_doc is not None, error=error
+        )
+
+    return 200, await terminal_status_payload(job_id, request, job_status)
+
+
+async def get_job_response(job_id: str, request: Request) -> tuple[int, dict[str, Any]]:
+    """Return a Response if completed, or AsyncQueryStatusResponse otherwise."""
+    ctx_log = TRAPILogger(job_id)
+    status_doc, error = await fetch_job_status(job_id, ctx_log)
+
+    job_status = (status_doc or {}).get("status") or "Running"
+    if status_doc is None or job_status in NON_TERMINAL:
+        return await in_progress_payload(
+            job_id, ctx_log, exists=status_doc is not None, error=error
+        )
+
+    # Terminal status: get the response body, otherwise build a status response.
+    job: JobDoc | None = None
     try:
         job = await MongoClient().get_job_doc(job_id)
-        if job is not None:
-            ctx_log.debug(f"Got job {job_id} response from MongoDB.", no_mongo_log=True)
     except Exception as e:
         ctx_log.exception(
             f"Encountered exception retrieving job {job_id} from MongoDB.",
             no_mongo_log=True,
         )
         telemetry.capture_exception(e)
-        error = e
-    if job is None or job.get("completed") is None:
-        job_logs = [
-            log
-            async for log in structured_log_to_trapi(
-                MongoClient().get_logs(job_id=job_id)
-            )
-        ]
-        if job is not None or len(job_logs) > 0:
-            return 200, {
-                "status": "Running",
-                "logs": job_logs,
-                "description": "Job is running.",
+
+    # If job is abandoned, respond with the query
+    if status_doc.get("abandoned"):
+        payload = await terminal_status_payload(job_id, request, job_status)
+        if job is not None and job.get("doc") is not None:
+            query = unpack_doc(job)
+            payload = {
+                **{k: v for k, v in query.items() if v is not None},
+                **payload,
             }
+        return 200, payload
 
-        if error is not None:
-            return 500, {
-                "status": "Error",
-                "description": "An error occurred while attempting to retrieve job status",
-                "logs": list(ctx_log.get_logs()),
-                "error": str(error),
-                "trace": traceback.format_exc(),
-            }
+    if job is None or job.get("doc") is None:
+        return 200, await terminal_status_payload(job_id, request, job_status)
 
-        # Otherwise we have no evidence job exists
-        return 404, {
-            "status": "Not Found",
-            "description": f"The job ID you provided ({job_id}) was not found. It may have expired.",
-            "logs": list(ctx_log.get_logs()),
-        }
-
-    # Job is terminal
-    response_bytes = job.get("doc")
-    response: dict[str, Any] = (
-        ormsgpack.unpackb(ZSTD_DECOMPRESSOR.decompress(response_bytes))
-        if response_bytes is not None
-        else {}
-    )
+    response = unpack_doc(job)
     return 200, {
         **response,
+        "status": job_status,
         "response_url": f"{request.base_url}response/{job_id}",
         "logs": response.get("logs", []),
     }

@@ -17,6 +17,7 @@ from fastapi.responses import (
     Response,
     StreamingResponse,
 )
+from loguru import logger
 from reasoner_pydantic import AsyncQueryStatusResponse as TRAPIAsyncQueryStatusResponse
 
 from retriever.config.general import CONFIG
@@ -27,12 +28,13 @@ from retriever.lookup.subclass import SubclassMapping
 from retriever.lookup.subquery import SubqueryDispatcher
 from retriever.lookup.utils import QueryDumper
 from retriever.metadata.optable import OpTableManager
-from retriever.query import get_job_state, make_query
+from retriever.query import get_job_response, get_job_status, make_query
 from retriever.types.general import APIInfo, ErrorDetail, LogLevel
 from retriever.types.trapi_pydantic import AsyncQuery as TRAPIAsyncQuery
 from retriever.types.trapi_pydantic import Query as TRAPIQuery
 from retriever.types.trapi_pydantic import Response as TRAPIResponse
 from retriever.types.trapi_pydantic import TierNumber
+from retriever.utils import worker
 from retriever.utils.examples import EXAMPLE_QUERY
 from retriever.utils.exception_handlers import ensure_cors
 from retriever.utils.logs import (
@@ -77,6 +79,7 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
 
     worker_pid = os.getpid()
     worker_started_at = datetime.now().astimezone()
+    worker.init(worker_started_at)
     await RedisClient().register_worker(
         worker_pid, worker_started_at, PROCESS_TTL_SECONDS
     )
@@ -109,6 +112,15 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     heartbeat_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await heartbeat_task
+    # Deregister immediately so orphan detection doesn't have to wait for
+    # TTL. Swallow failures: the entry will expire on its own.
+    try:
+        await RedisClient().unregister_worker(worker_pid)
+    except Exception:
+        logger.warning(
+            "Worker deregistration failed; entry will expire via TTL.",
+            no_mongo_log=True,
+        )
     await SubqueryDispatcher().wrapup()
     if query_dumper.initialized:
         await query_dumper.wrapup()
@@ -330,27 +342,7 @@ async def asyncquery(
 )
 async def asyncquery_status(request: Request, job_id: str) -> ORJSONResponse:
     """Get the status of an asynchronous query."""
-    job_id = job_id.lower()
-    status_code, job_dict = await get_job_state(job_id, request)
-
-    # Remove keys not meant for asyncquery_status
-    del_keys: list[str] = [
-        key
-        for key in job_dict
-        if key
-        not in (
-            "job_id",
-            "status",
-            "description",
-            "logs",
-            "response_url",
-            "error",
-            "trace",
-        )
-    ]
-    for key in del_keys:
-        del job_dict[key]
-
+    status_code, job_dict = await get_job_status(job_id.lower(), request)
     return ORJSONResponse(job_dict, status_code=status_code)
 
 
@@ -370,8 +362,7 @@ async def asyncquery_status(request: Request, job_id: str) -> ORJSONResponse:
 )
 async def response(request: Request, job_id: str) -> ORJSONResponse:
     """Get the response for a query (or logs if it's in progress)."""
-    job_id = job_id.lower()
-    status_code, job_dict = await get_job_state(job_id, request)
+    status_code, job_dict = await get_job_response(job_id.lower(), request)
     return ORJSONResponse(job_dict, status_code=status_code)
 
 

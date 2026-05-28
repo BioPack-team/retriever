@@ -316,6 +316,13 @@ class AsyncRedis(Protocol, metaclass=ABCMeta):
         """
 
     @abstractmethod
+    async def hdel(self, name: str, *keys: str) -> int:
+        """Delete ``keys`` from hash ``name``. Returns the number of fields removed.
+
+        For more information, see https://redis.io/commands/hdel
+        """
+
+    @abstractmethod
     async def hmget(self, name: str, keys: Iterable[KeyT]) -> list[bytes | None]:
         """Returns a list of values ordered identically to ``keys``.
 
@@ -602,6 +609,14 @@ class RedisClient(AsyncDaemon):
     ) -> None:
         """Register this worker's PID + start time with a TTL."""
         await self._register_process(WORKER_REGISTRY_KEY, pid, started_at, ttl_seconds)
+
+    async def unregister_worker(self, pid: int) -> None:
+        """Remove this worker's registration entry.
+
+        Called on graceful shutdown so orphan detection picks up the
+        worker's leftover jobs immediately rather than waiting on TTL.
+        """
+        _ = await self.client.hdel(WORKER_REGISTRY_KEY, str(pid))
 
     async def register_background(
         self, pid: int, started_at: datetime, ttl_seconds: int

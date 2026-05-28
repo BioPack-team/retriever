@@ -16,6 +16,7 @@ from retriever.lookup.subclass import SubclassMapping
 from retriever.metadata.optable import OpTableManager
 from retriever.utils.logs import add_mongo_sink
 from retriever.utils.mongo import MongoClient, MongoQueue
+from retriever.utils.orphan_detection import periodically_mark_orphans
 from retriever.utils.redis import (
     PROCESS_TTL_SECONDS,
     RedisClient,
@@ -55,6 +56,9 @@ async def _background_async() -> None:
     metakg_manager = OpTableManager(leader=True)
     await metakg_manager.initialize()
     await SubclassMapping(leader=True).initialize()
+    orphan_task = asyncio.create_task(
+        periodically_mark_orphans(), name="orphan-detection"
+    )
     logger.success("Background process setup complete!")
 
     # /// MAIN LOOP ///
@@ -68,6 +72,9 @@ async def _background_async() -> None:
 
     # /// WRAPUP ///
 
+    orphan_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await orphan_task
     heartbeat_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await heartbeat_task

@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import json
 from collections.abc import AsyncGenerator
 from datetime import datetime
-from typing import Any, ClassVar, Literal, NotRequired, TypedDict, cast
+from typing import Any, ClassVar, Literal, NotRequired, TypedDict, cast, override
 
 from bson import ObjectId
 from bson.codec_options import DEFAULT_CODEC_OPTIONS
@@ -49,6 +50,8 @@ class QueryState(TypedDict):
     qedges: int
     qpaths: int
     status: str
+    worker_pid: int | None
+    worker_started_at: datetime | None
 
 
 class ResponseState(TypedDict):
@@ -63,7 +66,7 @@ class ResponseState(TypedDict):
     status: str
 
 
-class JobDocs(TypedDict):
+class JobDoc(TypedDict):
     """Job documents and some lifetime metadata."""
 
     job_id: str
@@ -73,6 +76,11 @@ class JobDocs(TypedDict):
     created: NotRequired[datetime]
     completed: NotRequired[datetime]
     touched: NotRequired[datetime]
+
+    # Set by the orphan sweep — tells `get_job_response` that `doc`, if
+    # present, still holds the original query bytes rather than a real
+    # response (the ResponseState write never landed).
+    abandoned: NotRequired[bool]
 
 
 class JobStatus(TypedDict):
@@ -100,6 +108,14 @@ class JobStatus(TypedDict):
     created: NotRequired[datetime]
     completed: NotRequired[datetime]
     touched: NotRequired[datetime]
+
+    # Worker identity (absent on pre-feature documents)
+    worker_pid: NotRequired[int | None]
+    worker_started_at: NotRequired[datetime | None]
+
+    # Set by the orphan sweep — distinguishes a Failed-from-orphan job
+    # from a Failed-from-lookup one.
+    abandoned: NotRequired[bool]
 
 
 class IntRange(TypedDict, total=False):
@@ -704,7 +720,7 @@ class MongoClient(metaclass=Singleton):
             status_data["$set"]["completed"] = update_time
 
         doc = job.get(doc_type)
-        doc_inner: JobDocs = {
+        doc_inner: JobDoc = {
             "job_id": job["job_id"],
             "touched": update_time,
         }
@@ -738,7 +754,7 @@ class MongoClient(metaclass=Singleton):
         """Create a write operation for a given log."""
         return InsertOne(log)
 
-    async def get_job_doc(self, job_id: str) -> JobDocs | None:
+    async def get_job_doc(self, job_id: str) -> JobDoc | None:
         """Retrieve a job from the database."""
         status_collection, docs_collection = self.get_job_collection()
 
@@ -758,19 +774,32 @@ class MongoClient(metaclass=Singleton):
         )
 
         del job["_id"]
-        return JobDocs(**job)
+        return JobDoc(**job)
 
-    async def get_job_status(self, job_id: str) -> JobStatus | None:
+    async def get_job_status(
+        self, job_id: str, *, touch: bool = False
+    ) -> JobStatus | None:
         """Return a single job_status doc by job_id, or None if not found.
 
-        Unlike `get_job_doc`, this only reads from the status collection
-        and does NOT update the `touched` timestamp — it's intended for
-        the dashboard, not for deliberate TRAPI interactions.
+        Reads only the status collection (no doc bytes). Pass `touch=True`
+        to bump the `touched` timestamp on both collections, extending
+        TTL — required for TRAPI interactions. Leave it `False` for
+        read-only dashboard queries.
         """
-        status_collection, _ = self.get_job_collection()
+        status_collection, docs_collection = self.get_job_collection()
         doc = await status_collection.find_one({"job_id": job_id})
         if doc is None:
             return None
+        if touch:
+            touch_time = datetime.now().astimezone()
+            await status_collection.update_one(
+                {"_id": doc["_id"]},
+                {"$set": {"touched": touch_time}},
+            )
+            await docs_collection.update_one(
+                {"job_id": job_id},
+                {"$set": {"touched": touch_time}},
+            )
         del doc["_id"]
         return JobStatus(**doc)
 
@@ -1465,6 +1494,52 @@ class MongoClient(metaclass=Singleton):
         async for line in _format_flat(self.get_server_logs(start, end, level)):
             yield line
 
+    async def get_non_terminal_with_worker_info(
+        self,
+    ) -> list[tuple[str, int | None, datetime | None]]:
+        """Return (job_id, worker_pid, worker_started_at) for all non-terminal jobs.
+
+        Jobs created before worker tracking was added will have None for both worker fields.
+        """
+        status_collection, _ = self.get_job_collection()
+        projection = {"_id": 0, "job_id": 1, "worker_pid": 1, "worker_started_at": 1}
+        cursor = status_collection.find(
+            {"status": {"$in": sorted(NON_TERMINAL)}}, projection
+        )
+        return [
+            (doc["job_id"], doc.get("worker_pid"), doc.get("worker_started_at"))
+            async for doc in cursor
+        ]
+
+    async def mark_jobs_abandoned(self, job_ids: list[str]) -> int:
+        """Mark non-terminal jobs whose worker died as Failed/abandoned.
+
+        Updates both collections so they stay in sync for TTL purposes,
+        and sets an `abandoned` flag so `get_job_response` can tell that
+        `docs.doc` (if any) still holds the original query bytes rather
+        than a response.
+
+        Each side has its own guard against the race where a job
+        completed between the orphan-detection snapshot and this write:
+        the status side checks status is still non-terminal; the docs
+        side checks `completed` hasn't been set by a ResponseState
+        write. Returns the count of status rows updated.
+        """
+        if not job_ids:
+            return 0
+        status_collection, docs_collection = self.get_job_collection()
+        now = datetime.now().astimezone()
+        fields = {"completed": now, "touched": now, "abandoned": True}
+        result = await status_collection.update_many(
+            {"job_id": {"$in": job_ids}, "status": {"$in": sorted(NON_TERMINAL)}},
+            {"$set": {"status": "Failed", **fields}},
+        )
+        await docs_collection.update_many(
+            {"job_id": {"$in": job_ids}, "completed": None},
+            {"$set": fields},
+        )
+        return result.modified_count
+
     async def close(self) -> None:
         """Clean up and close MongoDB client threads/connections."""
         self.client.close()
@@ -1478,6 +1553,27 @@ class MongoQueue(BatchedAction):
     flush_time: float = 0
 
     client: ClassVar[MongoClient] = MongoClient()
+
+    @override
+    async def wrapup(self) -> None:
+        """Flush pending writes during graceful shutdown.
+
+        The polling loop is cancelled and awaited *before* the flush, so it
+        can't race the flush by pulling items off the queue concurrently.
+        """
+        log.info(f"{type(self).__name__} wrapping up.")
+        for task in self.tasks:
+            _ = task.cancel()
+        for task in self.tasks:
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+        try:
+            async with asyncio.timeout(CONFIG.mongo.shutdown_timeout):
+                await self.flush()
+        except TimeoutError:
+            log.warning(
+                f"MongoQueue flush timed out after {CONFIG.mongo.shutdown_timeout}s; some queued writes may be lost."
+            )
 
     async def job_state(self, batch: list[QueryState | ResponseState]) -> None:
         """Send a batch of job states to MongoDB."""

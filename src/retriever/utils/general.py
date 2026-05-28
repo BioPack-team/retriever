@@ -185,6 +185,18 @@ class BatchedAction(AsyncDaemon, metaclass=Singleton):
             except asyncio.CancelledError:
                 break
 
+    async def flush(self) -> None:
+        """Drain all pending queue items and run their batch handlers directly."""
+        for target, queue in self.action_queues.items():
+            batch: list[Any] = []
+            while not queue.empty():
+                try:
+                    batch.append(queue.get_nowait())
+                except asyncio.QueueEmpty:
+                    break
+            if batch:
+                await getattr(self, target)(batch)
+
     def put(self, target: str, payload: Any) -> None:
         """Put a payload in the target action queue."""
         if not hasattr(self, target):
