@@ -241,63 +241,6 @@ class Tier1Settings(BaseModel):
     ] = False
 
 
-class DgraphSettings(BaseModel):
-    """Settings for the Tier 0 Dgraph interface."""
-
-    host: str = "localhost"
-    http_port: int = 8080
-    grpc_port: int = 9080
-    preferred_version: str | None = None
-    use_tls: bool = False
-    query_timeout: Annotated[
-        int,
-        Field(
-            description="Time in seconds before a Dgraph query should time out.",
-        ),
-    ] = 3600
-    connect_retries: Annotated[
-        int,
-        Field(
-            description="Number of retries before declaring a connection failure.",
-        ),
-    ] = 5
-    grpc_max_send_message_length: Annotated[
-        int,
-        Field(
-            description="gRPC max send message length in bytes (-1 for unlimited).",
-        ),
-    ] = -1
-    grpc_max_receive_message_length: Annotated[
-        int,
-        Field(
-            description="gRPC max receive message length in bytes (-1 for unlimited).",
-        ),
-    ] = -1
-    enable_symmetric_edges: Annotated[
-        bool,
-        Field(
-            description="Enable symmetric edge expansion.",
-        ),
-    ] = True
-    enable_subclass_edges: Annotated[
-        bool,
-        Field(
-            description="Enable subclass edge expansion.",
-        ),
-    ] = True
-
-    @property
-    def http_endpoint(self) -> str:
-        """Get the complete HTTP endpoint URL for Dgraph HTTP API."""
-        scheme = "https" if self.use_tls else "http"
-        return f"{scheme}://{self.host}:{self.http_port}"
-
-    @property
-    def grpc_endpoint(self) -> str:
-        """Get the complete gRPC endpoint URL for Dgraph gRPC API."""
-        return f"{self.host}:{self.grpc_port}"
-
-
 class GandalfSettings(BaseModel):
     """Settings for the Tier 0 Gandalf interface."""
 
@@ -336,9 +279,8 @@ class GandalfSettings(BaseModel):
 class Tier0Settings(BaseModel):
     """Settings concern Tier 0 abstraction layers."""
 
-    backend: str = "dgraph"
+    backend: str = "gandalf"
     backend_infores: str = "infores:dogpark-tier0"
-    dgraph: DgraphSettings = DgraphSettings()
     gandalf: GandalfSettings = GandalfSettings()
     dump_queries: Annotated[
         bool,
