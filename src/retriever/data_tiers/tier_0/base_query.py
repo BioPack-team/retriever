@@ -51,7 +51,9 @@ class Tier0Query(ABC):
             async with asyncio.timeout(timeout):
                 backend_results = await self.get_results(self.qgraph, self.response)
             
-            if not self.response["parameters"].get("dehydrated"):
+            parameters = self.response.get("parameters") or {}
+
+            if not parameters.get("dehydrated"):
                 with tracer.start_as_current_span("update_kg"):
                     normalize_kgraph(
                         backend_results["knowledge_graph"],
@@ -68,7 +70,7 @@ class Tier0Query(ABC):
                 f"Tier 0: Retrieved {len(backend_results['results'])} results / {len(self.kgraph['nodes'])} nodes / {len(self.kgraph['edges'])} edges in {duration_ms}ms."
             )
 
-            if not self.response["parameters"].get("dehydrated"):
+            if not parameters.get("dehydrated"):
                 # Add Retriever to the provenance chain
                 for edge_id, edge in backend_results["knowledge_graph"]["edges"].items():
                     try:

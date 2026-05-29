@@ -6,7 +6,7 @@ from retriever.data_tiers.tier_0.base_query import Tier0Query
 from retriever.data_tiers.tier_0.dgraph.driver import DgraphGrpcDriver
 from retriever.data_tiers.tier_0.dgraph.transpiler import DgraphTranspiler
 from retriever.types.general import BackendResult
-from retriever.types.trapi import QueryGraphDict
+from retriever.types.trapi import QueryGraphDict, ResponseDict
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 
@@ -15,7 +15,7 @@ class DgraphQuery(Tier0Query):
     """Adapter to querying Dgraph as a Tier 0 backend."""
 
     @override
-    async def get_results(self, qgraph: QueryGraphDict) -> BackendResult:
+    async def get_results(self, qgraph: QueryGraphDict, response: ResponseDict) -> BackendResult:
         backend_driver = DgraphGrpcDriver()
         dgraph_schema_version = await backend_driver.get_active_version()
         graph_uses_subclass = any(
