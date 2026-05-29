@@ -2,7 +2,6 @@ import math
 import time
 from collections import deque
 from copy import deepcopy
-from typing import Literal, overload
 
 import bmt
 import httpx
@@ -27,7 +26,7 @@ from retriever.types.trapi import (
     LogLevel,
     MessageDict,
     ParametersDict,
-    PathfinderQueryGraphDict,
+    QueryDict,
     QueryGraphDict,
     ResponseDict,
     ResultDict,
@@ -108,7 +107,7 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
             raise ValueError("Query Graph is None.")
 
         # Query graph validation that isn't handled by reasoner_pydantic
-        if not passes_validation(qgraph, response, job_log) or "paths" in qgraph:
+        if not passes_validation(query.body, response, job_log) or "paths" in qgraph:
             return tracked_response(422, query, response, job_log)
 
         expanded_qgraph = expand_qgraph(deepcopy(qgraph), job_log)
@@ -200,22 +199,8 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
     )
 
 
-@overload
 def passes_validation(
-    qgraph: PathfinderQueryGraphDict, response: ResponseDict, job_log: TRAPILogger
-) -> Literal[False]: ...
-
-
-@overload
-def passes_validation(
-    qgraph: QueryGraphDict,
-    response: ResponseDict,
-    job_log: TRAPILogger,
-) -> bool: ...
-
-
-def passes_validation(
-    qgraph: QueryGraphDict | PathfinderQueryGraphDict,
+    query: QueryDict,
     response: ResponseDict,
     job_log: TRAPILogger,
 ) -> bool:
@@ -223,16 +208,15 @@ def passes_validation(
 
     Prepares response with appropriate messages if not.
     """
-    warnings, errors = validate(qgraph)
+    warnings, errors = validate(query)
     for warning in warnings:
         job_log.warning(warning)
     if len(errors) > 0:
-        job_log.error(
-            f"Query validation encountered {len(errors)} error{'s' if len(errors) > 1 else ''}. Error logs to follow:"
-        )
         for problem in errors:
             job_log.error(f"Validation Error: {problem}")
-        job_log.error("Due to the above errors, your query terminates.")
+        job_log.error(
+            f"Due to the {len(errors)} above validation error(s), your query terminates."
+        )
 
         response["status"] = "QueryNotTraversable"
         response["description"] = (
