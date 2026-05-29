@@ -50,7 +50,7 @@ class Tier0Query(ABC):
             )
             async with asyncio.timeout(timeout):
                 backend_results = await self.get_results(self.qgraph, self.response)
-            
+
             parameters = self.response.get("parameters") or {}
 
             if not parameters.get("dehydrated"):
