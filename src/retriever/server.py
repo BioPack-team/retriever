@@ -142,7 +142,7 @@ async def meta_knowledge_graph(
     request: Request,
     response: Response,
     tier: Annotated[
-        list[TierNumber],
+        TierNumber,
         Query(
             description="Data Tier to use. Set multiple times to access multiple Tiers simultaneously.",
             default_factory=lambda: [0],
@@ -151,7 +151,7 @@ async def meta_knowledge_graph(
 ) -> ORJSONResponse:
     """Retrieve the Meta-Knowledge Graph."""
     status_code, response_dict = await make_query(
-        "metakg", APIInfo(request, response), tiers=tier
+        "metakg", APIInfo(request, response), tier=tier
     )
     return ORJSONResponse(response_dict, status_code=status_code)
     # return {"logs": list(logs)}
@@ -167,7 +167,7 @@ async def metadata(
 ) -> ORJSONResponse:
     """Retrieve the metadata associated with a given Data Tier."""
     status_code, response_dict = await make_query(
-        func="metadata", ctx=APIInfo(request, response), tiers=[tier]
+        func="metadata", ctx=APIInfo(request, response), tier=tier
     )
     return ORJSONResponse(response_dict, status_code=status_code)
 

@@ -20,7 +20,18 @@ class Parameters(BaseModel):
             description="Custom query timeout in seconds. Defaults to server default if not set. Set to -1 to disable timeout entirely."
         ),
     ] = None
-    tiers: list[TierNumber] | None = None
+    tiers: (
+        Annotated[
+            list[TierNumber],
+            Field(
+                max_length=1,
+                deprecated=True,
+                description="Which tier to use. Only supports 1 tier at a time. DEPRECATED: Use `tier` instead.",
+            ),
+        ]
+        | None
+    ) = None
+    tier: TierNumber | None = None
 
 
 class Query(TRAPIQuery):

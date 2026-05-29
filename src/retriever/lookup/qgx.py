@@ -42,13 +42,13 @@ from retriever.types.trapi import (
     QEdgeID,
     QNodeID,
     QueryGraphDict,
-    ResponseDict,
     ResultDict,
 )
 from retriever.utils import biolink
 from retriever.utils.general import EmptyIteratorError, merge_iterators
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.trapi import (
+    evaluate_set_interpretation,
     initialize_kgraph,
     prune_kg,
     update_kgraph,
@@ -92,9 +92,7 @@ class QueryGraphExecutor:
     start_time: float
     timeout: float
 
-    def __init__(
-        self, qgraph: QueryGraphDict, query_info: QueryInfo, response: ResponseDict
-    ) -> None:
+    def __init__(self, qgraph: QueryGraphDict, query_info: QueryInfo) -> None:
         """Initialize a QueryGraphExecutor, setting up information shared by methods."""
         self.ctx = query_info
         self.qgraph = qgraph
@@ -140,17 +138,7 @@ class QueryGraphExecutor:
         self.terminate = False
         self.start_time = 0  # replaced on execute start
 
-        # Because timeouts are configured on a per-tier basis, we take the longest timeout
-        # of the tiers we are accessing. If any of them are -1, we consider the timeout
-        # disabled.
-        timeouts = [
-            timeout
-            for tier, timeout in self.ctx.timeout.items()
-            if tier in self.ctx.tiers
-        ]
-        if -1 in timeouts:
-            self.timeout = -1
-        self.timeout = max(timeouts)
+        self.timeout = self.ctx.timeout
 
     @tracer.start_as_current_span("qgx_execute")
     async def execute(self) -> LookupArtifacts:
@@ -161,11 +149,9 @@ class QueryGraphExecutor:
         timeout_task = asyncio.create_task(self.start_timeout_clock())
         try:
             self.start_time = time.time()
-            self.job_log.info(
-                f"Starting lookup against Tier {', '.join(str(t) for t in self.ctx.tiers if t > 0)}..."
-            )
+            self.job_log.info(f"Starting lookup against Tier {self.ctx.tier}...")
             supported, operation_plan = await OP_TABLE_MANAGER.create_operation_plan(
-                self.qgraph, {t for t in self.ctx.tiers if t > 0}
+                self.qgraph, self.ctx.tier
             )
             if not supported:
                 self.job_log.warning(
@@ -213,7 +199,7 @@ class QueryGraphExecutor:
             duration_ms = math.ceil((end_time - self.start_time) * 1000)
             self.job_log.info(
                 "Tier {}: Retrieved {} results / {} nodes / {} edges in {}ms.".format(
-                    ", ".join(str(t) for t in self.ctx.tiers if t > 0),
+                    self.ctx.tier,
                     len(results),
                     len(self.kgraph["nodes"]),
                     len(self.kgraph["edges"]),
@@ -231,13 +217,14 @@ class QueryGraphExecutor:
                 )
 
             prune_kg(results, self.kgraph, self.aux_graphs, self.job_log)
+            evaluate_set_interpretation(self.qgraph, results, self.job_log)
 
             return LookupArtifacts(
                 results, self.kgraph, self.aux_graphs, self.job_log.get_logs()
             )
         except Exception:
             self.job_log.exception(
-                f"Unhandled exception occured in QGX while processing Tier {', '.join(str(t) for t in self.ctx.tiers)}. See logs for details."
+                f"Unhandled exception occured in QGX while processing Tier {self.ctx.tier}. See logs for details."
             )
             timeout_task.cancel()
             return LookupArtifacts(

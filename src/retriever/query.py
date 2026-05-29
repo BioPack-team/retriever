@@ -40,8 +40,8 @@ class QueryMetadata(NamedTuple):
     """Metadata about a query."""
 
     job_id: str
-    job_timeout: dict[str, float]
-    data_tiers: list[int]
+    job_timeout: float
+    data_tier: int
     query_type: str
     submitter: str
     qnodes: int
@@ -72,7 +72,7 @@ async def make_query(
     func: Literal["metakg"],
     ctx: APIInfo,
     *,
-    tiers: list[TierNumber],
+    tier: TierNumber,
 ) -> tuple[int, MetaKnowledgeGraphDict]: ...
 
 
@@ -81,7 +81,7 @@ async def make_query(
     func: Literal["metadata"],
     ctx: APIInfo,
     *,
-    tiers: list[TierNumber],
+    tier: TierNumber,
 ) -> tuple[int, DINGOMetadata]: ...
 
 
@@ -90,7 +90,7 @@ async def make_query(
     ctx: APIInfo,
     *,
     body: TRAPIQuery | TRAPIAsyncQuery | None = None,
-    tiers: list[TierNumber] | None = None,  # Guaranteed to be 0 <= x <= 2
+    tier: TierNumber | None = None,  # Guaranteed to be 0 <= x <= 2
 ) -> tuple[
     int,
     ResponseDict
@@ -105,25 +105,25 @@ async def make_query(
     """
     job_id = uuid.uuid4().hex
 
+    if tier is None:
+        tier = 0
+    if deprecated_tiers := body and body.parameters and body.parameters.tiers:
+        tier = deprecated_tiers[0]
+    if custom_tier := body and body.parameters and body.parameters.tier:
+        tier = custom_tier
+
     custom_timeout = (
         body is not None and body.parameters is not None and body.parameters.timeout
     )
-    timeout: dict[int, float] = {
-        -1: CONFIG.job.metakg.timeout,
-        0: custom_timeout
-        if isinstance(custom_timeout, float)
-        else CONFIG.job.lookup.tier0_timeout,
-        1: custom_timeout
-        if isinstance(custom_timeout, float)
-        else CONFIG.job.lookup.tier1_timeout,
-        2: custom_timeout
-        if isinstance(custom_timeout, float)
-        else CONFIG.job.lookup.tier2_timeout,
-    }
-    if tiers is None:
-        tiers = [0]
-    if custom_tiers := body and body.parameters and body.parameters.tiers:
-        tiers = custom_tiers
+    timeout = (
+        custom_timeout
+        or (func in ("metakg", "metadata") and CONFIG.job.metakg.timeout)
+        or {
+            0: CONFIG.job.lookup.tier0_timeout,
+            1: CONFIG.job.lookup.tier1_timeout,
+            2: CONFIG.job.lookup.tier2_timeout,
+        }[tier]
+    )
 
     body_transformed: QueryDict | AsyncQueryDict | None = None
     if body is not None:
@@ -137,7 +137,7 @@ async def make_query(
         method=ctx.request.method,
         body=body_transformed,
         job_id=job_id,
-        tiers=set(tiers),
+        tier=tier,
         timeout=timeout,
     )
 
@@ -150,11 +150,8 @@ async def make_query(
         contextualize_query_telemetry(
             {
                 **query_metadata._asdict(),
-                "job_timeout": ", ".join(
-                    f"{tgt}: {timeout}"
-                    for tgt, timeout in query_metadata.job_timeout.items()
-                ),
-                "data_tier": ", ".join(str(tier) for tier in query_metadata.data_tiers),
+                "job_timeout": timeout,
+                "data_tier": query_metadata,
             }
         )
 
@@ -210,8 +207,8 @@ def get_query_metadata(query: QueryInfo, func: str, is_async: bool) -> QueryMeta
 
     return QueryMetadata(
         job_id=query.job_id,
-        job_timeout={str(k): v for k, v in query.timeout.items()},
-        data_tiers=sorted(query.tiers),
+        job_timeout=query.timeout,
+        data_tier=query.tier,
         query_type=func if not is_async else f"{func}-async",
         submitter=get_submitter(query),
         qnodes=qnodes,
