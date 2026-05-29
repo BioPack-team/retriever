@@ -1,6 +1,6 @@
-from typing import Annotated
+from typing import Annotated, ClassVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from reasoner_pydantic import AsyncQuery as TRAPIAsyncQuery
 from reasoner_pydantic import Query as TRAPIQuery
 from reasoner_pydantic import Response as TRAPIResponse
@@ -13,6 +13,8 @@ TierNumber = Annotated[
 
 class Parameters(BaseModel):
     """Parameters that govern some elements of query execution behavior."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow")
 
     timeout: Annotated[
         float | None,
@@ -32,6 +34,12 @@ class Parameters(BaseModel):
         | None
     ) = None
     tier: TierNumber | None = None
+    dehydrated: Annotated[
+        bool | None,
+        Field(
+            description="Respond without node/edge properties for faster response. Currently only supported for Tier 0."
+        ),
+    ] = None
 
 
 class Query(TRAPIQuery):

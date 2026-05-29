@@ -43,6 +43,7 @@ class ParametersDict(TypedDict):
 
     tier: NotRequired[int]
     timeout: NotRequired[float]
+    dehydrated: NotRequired[bool]
 
 
 class QueryDict(TypedDict):
