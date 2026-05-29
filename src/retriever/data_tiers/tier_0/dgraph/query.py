@@ -15,7 +15,9 @@ class DgraphQuery(Tier0Query):
     """Adapter to querying Dgraph as a Tier 0 backend."""
 
     @override
-    async def get_results(self, qgraph: QueryGraphDict, response: ResponseDict) -> BackendResult:
+    async def get_results(
+        self, qgraph: QueryGraphDict, response: ResponseDict
+    ) -> BackendResult:
         backend_driver = DgraphGrpcDriver()
         dgraph_schema_version = await backend_driver.get_active_version()
         graph_uses_subclass = any(

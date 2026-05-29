@@ -20,7 +20,9 @@ class GandalfQuery(Tier0Query):
     """Adapter to querying Dgraph as a Tier 0 backend."""
 
     @override
-    async def get_results(self, qgraph: QueryGraphDict, response: ResponseDict) -> BackendResult:
+    async def get_results(
+        self, qgraph: QueryGraphDict, response: ResponseDict
+    ) -> BackendResult:
         backend_driver = GandalfDriver()
         query_payload = QueryDict(
             message=MessageDict(

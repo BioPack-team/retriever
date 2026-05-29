@@ -126,7 +126,9 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
             return tracked_response(200, query, response, job_log)
 
         results, kgraph, aux_graphs, logs, _ = await run_tiered_lookups(
-            query, expanded_qgraph, response,
+            query,
+            expanded_qgraph,
+            response,
         )
         job_log.log_deque.extend(logs)
 
@@ -308,7 +310,9 @@ async def qgraph_supported(
 
 @tracer.start_as_current_span("execute_lookup")
 async def run_tiered_lookups(
-    query: QueryInfo, expanded_qgraph: QueryGraphDict, response: ResponseDict,
+    query: QueryInfo,
+    expanded_qgraph: QueryGraphDict,
+    response: ResponseDict,
 ) -> LookupArtifacts:
     """Run lookups against requested tier(s) and combine results."""
     results = dict[int, ResultDict]()

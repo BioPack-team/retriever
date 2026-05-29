@@ -28,7 +28,9 @@ tracer = trace.get_tracer("lookup.execution.tracer")
 class Tier0Query(ABC):
     """Handler class for running a single Tier 0 query."""
 
-    def __init__(self, qgraph: QueryGraphDict, query_info: QueryInfo, response: ResponseDict) -> None:
+    def __init__(
+        self, qgraph: QueryGraphDict, query_info: QueryInfo, response: ResponseDict
+    ) -> None:
         """Initialize a Tier 0 Query instance."""
         self.ctx: QueryInfo = query_info
         self.qgraph: QueryGraphDict = qgraph
@@ -72,7 +74,9 @@ class Tier0Query(ABC):
 
             if not parameters.get("dehydrated"):
                 # Add Retriever to the provenance chain
-                for edge_id, edge in backend_results["knowledge_graph"]["edges"].items():
+                for edge_id, edge in backend_results["knowledge_graph"][
+                    "edges"
+                ].items():
                     try:
                         append_aggregator_source(edge, Infores("infores:retriever"))
                     except ValueError:
@@ -98,7 +102,9 @@ class Tier0Query(ABC):
             )
 
     @abstractmethod
-    async def get_results(self, qgraph: QueryGraphDict, response: ResponseDict) -> BackendResult:
+    async def get_results(
+        self, qgraph: QueryGraphDict, response: ResponseDict
+    ) -> BackendResult:
         """Interface with the Tier 0 backend and retrieve results, converting to ResultDict.
 
         Note that this method is responsible for calling the appropriate transpiler,
