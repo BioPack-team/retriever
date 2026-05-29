@@ -42,6 +42,7 @@ from retriever.types.trapi import (
     QEdgeID,
     QNodeID,
     QueryGraphDict,
+    ResponseDict,
     ResultDict,
 )
 from retriever.utils import biolink
@@ -91,7 +92,7 @@ class QueryGraphExecutor:
     start_time: float
     timeout: float
 
-    def __init__(self, qgraph: QueryGraphDict, query_info: QueryInfo) -> None:
+    def __init__(self, qgraph: QueryGraphDict, query_info: QueryInfo, response: ResponseDict) -> None:
         """Initialize a QueryGraphExecutor, setting up information shared by methods."""
         self.ctx = query_info
         self.qgraph = qgraph

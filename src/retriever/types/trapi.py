@@ -87,7 +87,7 @@ class ResponseDict(TypedDict):
     description: NotRequired[str | None]
     logs: NotRequired[list[LogEntryDict]]
     workflow: NotRequired[list[dict[str, JsonSerializable]] | None]
-    parameters: NotRequired[ParametersDict | None]
+    parameters: NotRequired[ParametersDict | dict]
     schema_version: NotRequired[str | None]
     biolink_version: NotRequired[str | None]
 

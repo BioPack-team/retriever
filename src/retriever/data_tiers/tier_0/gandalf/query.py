@@ -10,6 +10,7 @@ from retriever.types.trapi import (
     MessageDict,
     QueryDict,
     QueryGraphDict,
+    ResponseDict,
 )
 
 tracer = trace.get_tracer("lookup.execution.tracer")
@@ -19,12 +20,13 @@ class GandalfQuery(Tier0Query):
     """Adapter to querying Dgraph as a Tier 0 backend."""
 
     @override
-    async def get_results(self, qgraph: QueryGraphDict) -> BackendResult:
+    async def get_results(self, qgraph: QueryGraphDict, response: ResponseDict) -> BackendResult:
         backend_driver = GandalfDriver()
         query_payload = QueryDict(
             message=MessageDict(
                 query_graph=qgraph,
-            )
+            ),
+            parameters=response["parameters"],
         )
 
         result = await backend_driver.run_query(query_payload)

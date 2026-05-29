@@ -12,6 +12,7 @@ from retriever.types.trapi import (
     Infores,
     KnowledgeGraphDict,
     QueryGraphDict,
+    ResponseDict,
 )
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.trapi import (
@@ -27,13 +28,14 @@ tracer = trace.get_tracer("lookup.execution.tracer")
 class Tier0Query(ABC):
     """Handler class for running a single Tier 0 query."""
 
-    def __init__(self, qgraph: QueryGraphDict, query_info: QueryInfo) -> None:
+    def __init__(self, qgraph: QueryGraphDict, query_info: QueryInfo, response: ResponseDict) -> None:
         """Initialize a Tier 0 Query instance."""
         self.ctx: QueryInfo = query_info
         self.qgraph: QueryGraphDict = qgraph
         self.job_log: TRAPILogger = TRAPILogger(self.ctx.job_id)
         self.kgraph: KnowledgeGraphDict = initialize_kgraph(self.qgraph)
         self.aux_graphs: dict[AuxGraphID, AuxiliaryGraphDict] = {}
+        self.response: ResponseDict = response
 
     @tracer.start_as_current_span("tier0_execute")
     async def execute(self) -> LookupArtifacts:
@@ -47,17 +49,18 @@ class Tier0Query(ABC):
                 f"Tier 0 timeout is {'disabled' if timeout is None else f'{timeout}s'}."
             )
             async with asyncio.timeout(timeout):
-                backend_results = await self.get_results(self.qgraph)
-
-            with tracer.start_as_current_span("update_kg"):
-                normalize_kgraph(
-                    backend_results["knowledge_graph"],
-                    backend_results["results"],
-                    backend_results["auxiliary_graphs"],
-                )
-                update_kgraph(self.kgraph, backend_results["knowledge_graph"])
-            with tracer.start_as_current_span("update_auxgraphs"):
-                self.aux_graphs.update(backend_results["auxiliary_graphs"])
+                backend_results = await self.get_results(self.qgraph, self.response)
+            
+            if not self.response["parameters"].get("dehydrated"):
+                with tracer.start_as_current_span("update_kg"):
+                    normalize_kgraph(
+                        backend_results["knowledge_graph"],
+                        backend_results["results"],
+                        backend_results["auxiliary_graphs"],
+                    )
+                    update_kgraph(self.kgraph, backend_results["knowledge_graph"])
+                with tracer.start_as_current_span("update_auxgraphs"):
+                    self.aux_graphs.update(backend_results["auxiliary_graphs"])
 
             end_time = time.time()
             duration_ms = math.ceil((end_time - start_time) * 1000)
@@ -65,14 +68,15 @@ class Tier0Query(ABC):
                 f"Tier 0: Retrieved {len(backend_results['results'])} results / {len(self.kgraph['nodes'])} nodes / {len(self.kgraph['edges'])} edges in {duration_ms}ms."
             )
 
-            # Add Retriever to the provenance chain
-            for edge_id, edge in backend_results["knowledge_graph"]["edges"].items():
-                try:
-                    append_aggregator_source(edge, Infores("infores:retriever"))
-                except ValueError:
-                    self.job_log.warning(
-                        f"Edge f{edge_id} has an invalid provenance chain."
-                    )
+            if not self.response["parameters"].get("dehydrated"):
+                # Add Retriever to the provenance chain
+                for edge_id, edge in backend_results["knowledge_graph"]["edges"].items():
+                    try:
+                        append_aggregator_source(edge, Infores("infores:retriever"))
+                    except ValueError:
+                        self.job_log.warning(
+                            f"Edge f{edge_id} has an invalid provenance chain."
+                        )
 
             return LookupArtifacts(
                 backend_results["results"],
@@ -92,7 +96,7 @@ class Tier0Query(ABC):
             )
 
     @abstractmethod
-    async def get_results(self, qgraph: QueryGraphDict) -> BackendResult:
+    async def get_results(self, qgraph: QueryGraphDict, response: ResponseDict) -> BackendResult:
         """Interface with the Tier 0 backend and retrieve results, converting to ResultDict.
 
         Note that this method is responsible for calling the appropriate transpiler,

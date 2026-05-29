@@ -126,7 +126,7 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
             return tracked_response(200, query, response, job_log)
 
         results, kgraph, aux_graphs, logs, _ = await run_tiered_lookups(
-            query, expanded_qgraph
+            query, expanded_qgraph, response,
         )
         job_log.log_deque.extend(logs)
 
@@ -308,7 +308,7 @@ async def qgraph_supported(
 
 @tracer.start_as_current_span("execute_lookup")
 async def run_tiered_lookups(
-    query: QueryInfo, expanded_qgraph: QueryGraphDict
+    query: QueryInfo, expanded_qgraph: QueryGraphDict, response: ResponseDict,
 ) -> LookupArtifacts:
     """Run lookups against requested tier(s) and combine results."""
     results = dict[int, ResultDict]()
@@ -328,7 +328,7 @@ async def run_tiered_lookups(
         if tier_manager.get_driver(i).is_failed:
             job_log.error(f"Tier {i} backend connection failed, tier must be skipped.")
             continue
-        query_handler = handlers[i](expanded_qgraph, query)
+        query_handler = handlers[i](expanded_qgraph, query, response)
         query_tasks.append(asyncio.create_task(query_handler.execute()))
 
     async for task in asyncio.as_completed(query_tasks):
