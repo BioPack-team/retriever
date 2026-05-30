@@ -43,6 +43,7 @@ from retriever.utils.logs import (
 from retriever.utils.mongo import MongoClient, MongoQueue
 from retriever.utils.redis import RedisClient
 from retriever.utils.telemetry import configure_telemetry
+from retriever.utils.trapi import append_aggregator_source
 
 configure_logging()
 
@@ -323,6 +324,13 @@ async def rehydrate(body: dict[str, Any]) -> ORJSONResponse:
     # TODO: use the appropriate tier based on parameters
     driver = tier_manager.get_driver(0)
     response_dict = await driver.run_query(body)
+    for edge in (
+        response_dict.get("message", {})
+        .get("knowledge_graph", {})
+        .get("edges", {})
+        .values()
+    ):
+        append_aggregator_source(edge, "infores:retriever")
     return ORJSONResponse(response_dict)
 
 
