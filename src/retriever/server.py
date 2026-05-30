@@ -4,7 +4,7 @@ import os
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 import git
 import yaml
@@ -12,6 +12,7 @@ from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Query, Reques
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import (
     ORJSONResponse,
+    RedirectResponse,
     Response,
     StreamingResponse,
 )
@@ -118,6 +119,12 @@ if CONFIG.allow_profiler:
             speedscope_results = profiler.output(renderer=SpeedscopeRenderer())
             return Response(content=speedscope_results, media_type="application/json")
         return await call_next(request)
+
+
+@app.get("/", include_in_schema=False)
+async def redirect_to_docs() -> RedirectResponse:
+    """Redirect / to /docs."""
+    return RedirectResponse(url="/docs")
 
 
 # Add a yaml endpoint, for completeness' sake
@@ -308,6 +315,15 @@ async def response(request: Request, job_id: str) -> ORJSONResponse:
     """Get the response for a query (or logs if it's in progress)."""
     status_code, job_dict = await get_job_state(job_id, request)
     return ORJSONResponse(job_dict, status_code=status_code)
+
+
+@app.post("/rehydrate")
+async def rehydrate(body: dict[str, Any]) -> ORJSONResponse:
+    """Passthrough rehydration to backend."""
+    # TODO: use the appropriate tier based on parameters
+    driver = tier_manager.get_driver(0)
+    response_dict = await driver.run_query(body)
+    return ORJSONResponse(response_dict)
 
 
 @app.get(
