@@ -288,7 +288,7 @@ class OpTableManager(AsyncDaemon):
         return op_table
 
     async def find_operations(
-        self, edge: QEdgeDict, qgraph: QueryGraphDict, tiers: set[TierNumber]
+        self, edge: QEdgeDict, qgraph: QueryGraphDict, tier: TierNumber
     ) -> list[Operation]:
         """Find a list of operations that match a given Branch.
 
@@ -335,7 +335,7 @@ class OpTableManager(AsyncDaemon):
                 if op_list is None:
                     continue
                 for op in op_list:
-                    if op.tier not in tiers or not meta_qualifier_meets_constraints(
+                    if op.tier != tier or not meta_qualifier_meets_constraints(
                         op.qualifiers, edge.get("qualifier_constraints", [])
                     ):
                         continue
@@ -361,7 +361,7 @@ class OpTableManager(AsyncDaemon):
 
     @tracer.start_as_current_span("operation_plan")
     async def create_operation_plan(
-        self, qgraph: QueryGraphDict, tiers: set[TierNumber]
+        self, qgraph: QueryGraphDict, tier: TierNumber
     ) -> tuple[
         bool, OperationPlan | dict[QEdgeID, UnsupportedConstraint | QueryNotTraversable]
     ]:
@@ -376,7 +376,7 @@ class OpTableManager(AsyncDaemon):
         for qedge_id, qedge in qgraph["edges"].items():
             operations = []
             try:
-                operations = await self.find_operations(qedge, qgraph, tiers)
+                operations = await self.find_operations(qedge, qgraph, tier)
             except (UnsupportedConstraint, QueryNotTraversable) as e:
                 unsupported_qedges[qedge_id] = e
             plan[QEdgeID(qedge_id)] = operations
@@ -386,7 +386,7 @@ class OpTableManager(AsyncDaemon):
         return True, plan
 
     async def qnodes_supported(
-        self, qgraph: QueryGraphDict, tiers: set[TierNumber]
+        self, qgraph: QueryGraphDict, tier: TierNumber
     ) -> None | dict[QNodeID, UnsupportedConstraint]:
         """Check if any nodes contain unsupported constraints, returning a dictionary of any that are unsupported."""
         unmet_nodes = defaultdict[QNodeID, set[str]](set)
@@ -407,8 +407,8 @@ class OpTableManager(AsyncDaemon):
                 op_tier_nodes = op_table.nodes.get(category)
                 if op_tier_nodes is None:
                     continue
-                for tier, op_node in op_tier_nodes.items():
-                    if tier not in tiers:
+                for supported_tier, op_node in op_tier_nodes.items():
+                    if supported_tier != tier:
                         continue
 
                     available_attrs = itertools.chain(
@@ -442,7 +442,7 @@ class OpTableManager(AsyncDaemon):
     async def build_edges(
         self,
         op_table: OperationTable,
-        tiers: tuple[TierNumber, ...],
+        tier: TierNumber,
     ) -> tuple[
         dict[SPO, MetaEdgeDict],
         dict[SPO, dict[str, set[str]]],
@@ -455,7 +455,7 @@ class OpTableManager(AsyncDaemon):
         edge_attributes = dict[SPO, dict[int, MetaAttributeDict]]()
         mentioned_nodes = set[BiolinkEntity]()
         for op in op_table.operations_flat.values():
-            if op.tier not in tiers:
+            if op.tier != tier:
                 continue
 
             sbj, obj, pred = op.subject, op.object, op.predicate
@@ -493,9 +493,7 @@ class OpTableManager(AsyncDaemon):
 
         return edges, edge_qualifiers, edge_attributes, mentioned_nodes
 
-    async def get_trapi_metakg(
-        self, tiers: tuple[TierNumber, ...]
-    ) -> MetaKnowledgeGraphDict:
+    async def get_trapi_metakg(self, tier: TierNumber) -> MetaKnowledgeGraphDict:
         """Convert an OperationTable to a TRAPI MetaKG dict.
 
         Because it depends on OP_TABLE_MANAGER, it can't be used with the lead manager.
@@ -507,7 +505,7 @@ class OpTableManager(AsyncDaemon):
             edge_qualifiers,
             edge_attributes,
             mentioned_nodes,
-        ) = await self.build_edges(op_table, tiers)
+        ) = await self.build_edges(op_table, tier)
         nodes = dict[BiolinkEntity, MetaNodeDict]()
 
         for spo, edge in edges.items():
@@ -529,8 +527,8 @@ class OpTableManager(AsyncDaemon):
                 continue
             id_prefixes = set[str]()
             attributes = dict[int, MetaAttributeDict]()
-            for tier, node in tier_nodes.items():
-                if tier not in tiers:
+            for supported_tier, node in tier_nodes.items():
+                if supported_tier != tier:
                     continue
                 id_prefixes.update(itertools.chain(*node.prefixes.values()))
                 attributes.update(

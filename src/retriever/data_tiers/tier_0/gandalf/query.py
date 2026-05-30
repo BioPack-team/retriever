@@ -24,7 +24,8 @@ class GandalfQuery(Tier0Query):
         query_payload = QueryDict(
             message=MessageDict(
                 query_graph=qgraph,
-            )
+            ),
+            parameters=(self.ctx.body or {}).get("parameters") or {},
         )
 
         result = await backend_driver.run_query(query_payload)

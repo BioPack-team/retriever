@@ -14,10 +14,8 @@ async def get_metadata(
         A tuple of HTTP status code, response body.
     """
     try:
-        async with asyncio.timeout(
-            query.timeout[-1] if query.timeout[-1] != -1 else None
-        ):
-            driver = get_driver(next(iter(query.tiers), 0))
+        async with asyncio.timeout(query.timeout if query.timeout != -1 else None):
+            driver = get_driver(query.tier)
             metadata = await driver.get_metadata()
             if metadata is None:
                 return 500, ErrorDetail(detail="Metadata could not be retrieved.")

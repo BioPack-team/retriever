@@ -1,9 +1,7 @@
-import asyncio
 import math
 import time
 from collections import deque
 from copy import deepcopy
-from typing import Literal, overload
 
 import bmt
 import httpx
@@ -22,16 +20,13 @@ from retriever.metadata.optable import (
     QueryNotTraversable,
     UnsupportedConstraint,
 )
-from retriever.types.general import LookupArtifacts, QueryInfo
+from retriever.types.general import QueryInfo
 from retriever.types.trapi import (
-    AuxGraphID,
-    AuxiliaryGraphDict,
     KnowledgeGraphDict,
-    LogEntryDict,
     LogLevel,
     MessageDict,
     ParametersDict,
-    PathfinderQueryGraphDict,
+    QueryDict,
     QueryGraphDict,
     ResponseDict,
     ResultDict,
@@ -40,11 +35,6 @@ from retriever.types.trapi_pydantic import TierNumber
 from retriever.utils.calls import get_callback_client
 from retriever.utils.logs import TRAPILogger, trapi_level_to_int
 from retriever.utils.mongo import MongoQueue, ResponseState
-from retriever.utils.trapi import (
-    evaluate_set_interpretation,
-    merge_results,
-    update_kgraph,
-)
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 biolink = bmt.Toolkit()
@@ -117,21 +107,31 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
             raise ValueError("Query Graph is None.")
 
         # Query graph validation that isn't handled by reasoner_pydantic
-        if not passes_validation(qgraph, response, job_log) or "paths" in qgraph:
+        if not passes_validation(query.body, response, job_log) or "paths" in qgraph:
             return tracked_response(422, query, response, job_log)
 
         expanded_qgraph = expand_qgraph(deepcopy(qgraph), job_log)
 
-        if not await qgraph_supported(expanded_qgraph, response, job_log, query.tiers):
+        if not await qgraph_supported(expanded_qgraph, response, job_log, query.tier):
             return tracked_response(200, query, response, job_log)
 
-        results, kgraph, aux_graphs, logs, _ = await run_tiered_lookups(
-            query, expanded_qgraph
+        if tier_manager.get_driver(query.tier).is_failed:
+            msg = f"Tier {query.tier} backend connection failed, query terminates."
+            job_log.error(msg)
+            response["status"] = "Failed"
+            response["description"] = msg
+            return tracked_response(424, query, response, job_log)
+
+        handlers = (
+            tier_manager.QUERY_HANDLERS[CONFIG.tier0.backend],
+            QueryGraphExecutor,
         )
+        query_handler = handlers[query.tier](expanded_qgraph, query)
+        results, kgraph, aux_graphs, logs, _error = await query_handler.execute()
+
         job_log.log_deque.extend(logs)
 
-        job_log.info(f"Collected {len(results)} results from query tasks.")
-        evaluate_set_interpretation(qgraph, results, job_log)
+        job_log.info(f"Collected {len(results)} results from query task.")
 
         end_time = time.time()
         finish_msg = f"Execution completed, obtained {len(results)} results in {math.ceil((end_time - start_time) * 1000):}ms."
@@ -173,7 +173,7 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
             "Received QueryGraph of type None, query graph should be present."
         )
 
-    parameters = ParametersDict(tiers=list(query.tiers))
+    parameters = ParametersDict(tier=query.tier)
     if (
         timeout := "parameters" in query.body
         and query.body["parameters"] is not None
@@ -199,22 +199,8 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
     )
 
 
-@overload
 def passes_validation(
-    qgraph: PathfinderQueryGraphDict, response: ResponseDict, job_log: TRAPILogger
-) -> Literal[False]: ...
-
-
-@overload
-def passes_validation(
-    qgraph: QueryGraphDict,
-    response: ResponseDict,
-    job_log: TRAPILogger,
-) -> bool: ...
-
-
-def passes_validation(
-    qgraph: QueryGraphDict | PathfinderQueryGraphDict,
+    query: QueryDict,
     response: ResponseDict,
     job_log: TRAPILogger,
 ) -> bool:
@@ -222,16 +208,15 @@ def passes_validation(
 
     Prepares response with appropriate messages if not.
     """
-    warnings, errors = validate(qgraph)
+    warnings, errors = validate(query)
     for warning in warnings:
         job_log.warning(warning)
     if len(errors) > 0:
-        job_log.error(
-            f"Query validation encountered {len(errors)} error{'s' if len(errors) > 1 else ''}. Error logs to follow:"
-        )
         for problem in errors:
             job_log.error(f"Validation Error: {problem}")
-        job_log.error("Due to the above errors, your query terminates.")
+        job_log.error(
+            f"Due to the {len(errors)} above validation error(s), your query terminates."
+        )
 
         response["status"] = "QueryNotTraversable"
         response["description"] = (
@@ -246,7 +231,7 @@ async def qgraph_supported(
     qgraph: QueryGraphDict,
     response: ResponseDict,
     job_log: TRAPILogger,
-    tiers: set[TierNumber],
+    tiers: TierNumber,
 ) -> bool:
     """Check that the given query graph has metakg support for all edges.
 
@@ -304,61 +289,6 @@ async def qgraph_supported(
 
     supported = supported and unsupported_nodes is None
     return supported
-
-
-@tracer.start_as_current_span("execute_lookup")
-async def run_tiered_lookups(
-    query: QueryInfo, expanded_qgraph: QueryGraphDict
-) -> LookupArtifacts:
-    """Run lookups against requested tier(s) and combine results."""
-    results = dict[int, ResultDict]()
-    kgraph = KnowledgeGraphDict(nodes={}, edges={})
-    aux_graphs = dict[AuxGraphID, AuxiliaryGraphDict]()
-    logs = list[LogEntryDict]()
-
-    query_tasks = list[asyncio.Task[LookupArtifacts]]()
-    job_log = TRAPILogger(query.job_id)
-
-    handlers = (tier_manager.QUERY_HANDLERS[CONFIG.tier0.backend], QueryGraphExecutor)
-    for i, called_for in enumerate(
-        (0 in query.tiers, not set(query.tiers).isdisjoint({1, 2}))
-    ):
-        if not called_for:
-            continue
-        if tier_manager.get_driver(i).is_failed:
-            job_log.error(f"Tier {i} backend connection failed, tier must be skipped.")
-            continue
-        query_handler = handlers[i](expanded_qgraph, query)
-        query_tasks.append(asyncio.create_task(query_handler.execute()))
-
-    async for task in asyncio.as_completed(query_tasks):
-        try:
-            findings = await task
-            logs.extend(findings.logs)
-            if not findings.error:
-                merge_results(results, findings.results)
-                # Small optimization: Iterate the smaller kgraph
-                kgraph_size = len(kgraph["nodes"]) + len(kgraph["edges"])
-                new_kgraph_size = len(findings.kgraph["nodes"]) + len(
-                    findings.kgraph["edges"]
-                )
-                if kgraph_size > new_kgraph_size:
-                    update_kgraph(kgraph, findings.kgraph)
-                else:
-                    update_kgraph(findings.kgraph, kgraph)
-                    kgraph = findings.kgraph
-
-                aux_graphs.update(findings.aux_graphs)
-        except Exception:
-            # This is a bad exception to get because we lose detail about which tier.
-            # Idealy the Tier handler will catch almost any unhandled exception and
-            # report it with more detail.
-            job_log.exception(
-                "Unhandled exception while running Tier lookup. See other logs for details."
-            )
-            logs.append(job_log.log_deque.popleft())
-
-    return LookupArtifacts(list(results.values()), kgraph, aux_graphs, logs)
 
 
 def tracked_response(

@@ -41,8 +41,9 @@ class OperatorEnum(str, Enum):
 class ParametersDict(TypedDict):
     """Query Parameters."""
 
-    tiers: NotRequired[list[int]]
+    tier: NotRequired[int]
     timeout: NotRequired[float]
+    dehydrated: NotRequired[bool]
 
 
 class QueryDict(TypedDict):

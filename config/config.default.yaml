@@ -58,20 +58,8 @@ mongo:
   attempts: 3 # Number of attempts to accomplish operation before considering it failed.
   shutdown_timeout: 3 # Time in seconds to wait for serialize task to finish.
 tier0:
-  backend: dgraph
+  backend: gandalf
   backend_infores: infores:dogpark-tier0
-  dgraph:
-    host: localhost
-    http_port: 8080
-    grpc_port: 9080
-    preferred_version:
-    use_tls: false
-    query_timeout: 3600 # Time in seconds before a Dgraph query should time out.
-    connect_retries: 5 # Number of retries before declaring a connection failure.
-    grpc_max_send_message_length: -1 # gRPC max send message length in bytes (-1 for unlimited).
-    grpc_max_receive_message_length: -1 # gRPC max receive message length in bytes (-1 for unlimited).
-    enable_symmetric_edges: true # Enable symmetric edge expansion.
-    enable_subclass_edges: true # Enable subclass edge expansion.
   gandalf:
     host: localhost
     port: 443

@@ -18,10 +18,8 @@ async def trapi_metakg(
         A tuple of HTTP status code, response body.
     """
     try:
-        async with asyncio.timeout(
-            query.timeout[-1] if query.timeout[-1] is not -1 else None
-        ):
-            metakg = await OP_TABLE_MANAGER.get_trapi_metakg(tuple(query.tiers))
+        async with asyncio.timeout(query.timeout if query.timeout is not -1 else None):
+            metakg = await OP_TABLE_MANAGER.get_trapi_metakg(query.tier)
             return 200, metakg
     except TimeoutError:
         return 500, ErrorDetail(detail="Building TRAPI MetaKG timed out.")

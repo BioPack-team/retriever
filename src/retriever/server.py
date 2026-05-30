@@ -4,7 +4,7 @@ import os
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 import git
 import yaml
@@ -12,6 +12,7 @@ from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Query, Reques
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import (
     ORJSONResponse,
+    RedirectResponse,
     Response,
     StreamingResponse,
 )
@@ -42,6 +43,7 @@ from retriever.utils.logs import (
 from retriever.utils.mongo import MongoClient, MongoQueue
 from retriever.utils.redis import RedisClient
 from retriever.utils.telemetry import configure_telemetry
+from retriever.utils.trapi import append_aggregator_source
 
 configure_logging()
 
@@ -120,6 +122,12 @@ if CONFIG.allow_profiler:
         return await call_next(request)
 
 
+@app.get("/", include_in_schema=False)
+async def redirect_to_docs() -> RedirectResponse:
+    """Redirect / to /docs."""
+    return RedirectResponse(url="/docs")
+
+
 # Add a yaml endpoint, for completeness' sake
 @app.get("/openapi.yaml", include_in_schema=False)
 @functools.lru_cache
@@ -142,7 +150,7 @@ async def meta_knowledge_graph(
     request: Request,
     response: Response,
     tier: Annotated[
-        list[TierNumber],
+        TierNumber,
         Query(
             description="Data Tier to use. Set multiple times to access multiple Tiers simultaneously.",
             default_factory=lambda: [0],
@@ -151,7 +159,7 @@ async def meta_knowledge_graph(
 ) -> ORJSONResponse:
     """Retrieve the Meta-Knowledge Graph."""
     status_code, response_dict = await make_query(
-        "metakg", APIInfo(request, response), tiers=tier
+        "metakg", APIInfo(request, response), tier=tier
     )
     return ORJSONResponse(response_dict, status_code=status_code)
     # return {"logs": list(logs)}
@@ -167,7 +175,7 @@ async def metadata(
 ) -> ORJSONResponse:
     """Retrieve the metadata associated with a given Data Tier."""
     status_code, response_dict = await make_query(
-        func="metadata", ctx=APIInfo(request, response), tiers=[tier]
+        func="metadata", ctx=APIInfo(request, response), tier=tier
     )
     return ORJSONResponse(response_dict, status_code=status_code)
 
@@ -308,6 +316,22 @@ async def response(request: Request, job_id: str) -> ORJSONResponse:
     """Get the response for a query (or logs if it's in progress)."""
     status_code, job_dict = await get_job_state(job_id, request)
     return ORJSONResponse(job_dict, status_code=status_code)
+
+
+@app.post("/rehydrate")
+async def rehydrate(body: dict[str, Any]) -> ORJSONResponse:
+    """Passthrough rehydration to backend."""
+    # TODO: use the appropriate tier based on parameters
+    driver = tier_manager.get_driver(0)
+    response_dict = await driver.run_query(body)
+    for edge in (
+        response_dict.get("message", {})
+        .get("knowledge_graph", {})
+        .get("edges", {})
+        .values()
+    ):
+        append_aggregator_source(edge, "infores:retriever")
+    return ORJSONResponse(response_dict)
 
 
 @app.get(

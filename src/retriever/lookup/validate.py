@@ -4,19 +4,17 @@ from reasoner_pydantic.shared import KnowledgeType
 
 from retriever.config.openapi import OPENAPI_CONFIG
 from retriever.types.trapi import (
-    PathfinderQueryGraphDict,
     QEdgeDict,
     QEdgeID,
     QNodeDict,
     QNodeID,
+    QueryDict,
     QueryGraphDict,
 )
 from retriever.utils import biolink
 
 
-def validate(
-    qg: QueryGraphDict | PathfinderQueryGraphDict,
-) -> tuple[list[str], list[str]]:
+def validate(query: QueryDict) -> tuple[list[str], list[str]]:
     """Check that a given query graph is valid.
 
     Returns:
@@ -24,8 +22,15 @@ def validate(
         And a list of messages detailing validation problems.
         If the list is empty, the graph passes validation.
     """
+    qg = query["message"].get("query_graph")
+    if qg is None:
+        return [], ["query_graph missing."]
     if "paths" in qg:
         return [], ["Retriever does not support Pathfinder queries."]
+    parameters = query.get("parameters") or {}
+    if parameters.get("tier", 0) == 1 and parameters.get("dehydrated"):
+        return [], ["Tier 1 does not yet support dehydrated querying."]
+
     warnings = list[str]()
     problems = dict[str, bool]()  # False means failing
     problems["Query graph must have at least one node"] = len(qg["nodes"].values()) > 0

@@ -15,7 +15,7 @@ from retriever.types.trapi import (
 )
 
 EXAMPLE_QUERY = QueryDict(
-    parameters=ParametersDict(tiers=[0]),
+    parameters=ParametersDict(tier=0),
     submitter="someone-looking-at-examples",
     message=MessageDict(
         query_graph=QueryGraphDict(
