@@ -641,7 +641,7 @@
                   @click="jumpToActivity({ submitter: row.submitter, lookback: heatmaps.lookback })"
                   :title="`Open ${row.submitter} in Activity view`"
                 >
-                  <div x-text="row.submitter"></div>
+                  <div x-text="truncateSubmitter(row.submitter)" :title="row.submitter"></div>
                   <div class="ar mono" x-text="row.count"></div>
                   <div class="ar mono" x-text="row.completed"></div>
                   <div class="ar mono" x-text="row.failed"></div>
@@ -704,7 +704,7 @@
                   }"
                   :style="item.kind === 'cell' ? `background: ${item.color}` : ''"
                   :data-empty="item.kind === 'cell' && item.value == null"
-                  :title="item.kind === 'cell' ? item.title : ''"
+                  :title="item.title || ''"
                   x-text="item.kind === 'cell' ? item.display : (item.text || '')"
                   @click="item.jump && jumpToActivity(item.jump)"
                 ></div>
@@ -729,7 +729,7 @@
                   }"
                   :style="item.kind === 'cell' ? `background: ${item.color}` : ''"
                   :data-empty="item.kind === 'cell' && item.value == null"
-                  :title="item.kind === 'cell' ? item.title : ''"
+                  :title="item.title || ''"
                   x-text="item.kind === 'cell' ? item.display : (item.text || '')"
                   @click="item.jump && jumpToActivity(item.jump)"
                 ></div>
@@ -759,7 +759,7 @@
                   }"
                   :style="item.kind === 'cell' ? `background: ${item.color}` : ''"
                   :data-empty="item.kind === 'cell' && item.value == null"
-                  :title="item.kind === 'cell' ? item.title : ''"
+                  :title="item.title || ''"
                   x-text="item.kind === 'cell' ? item.display : (item.text || '')"
                   @click="item.jump && jumpToActivity(item.jump)"
                 ></div>
@@ -785,7 +785,7 @@
                   }"
                   :style="item.kind === 'cell' ? `background: ${item.color}` : ''"
                   :data-empty="item.kind === 'cell' && item.value == null"
-                  :title="item.kind === 'cell' ? item.title : ''"
+                  :title="item.title || ''"
                   x-text="item.kind === 'cell' ? item.display : (item.text || '')"
                   @click="item.jump && jumpToActivity(item.jump)"
                 ></div>

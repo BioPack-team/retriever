@@ -190,6 +190,15 @@ function heatmapColor(value, vmin, vmax, scale) {
   return `hsl(${h}, ${c.s}%, ${c.l}%)`;
 }
 
+// Submitters are TRAPI user-agent strings; some clients send 100+ char
+// values that wreck grid layouts. Trim the *display* form to ~30 chars
+// and keep the full value in title attrs so hover still reveals it.
+const SUBMITTER_DISPLAY_MAX = 30;
+function truncateSubmitter(s) {
+  if (typeof s !== "string" || s.length <= SUBMITTER_DISPLAY_MAX) return s;
+  return s.slice(0, SUBMITTER_DISPLAY_MAX - 1) + "…";
+}
+
 function truncateLogLines(text) {
   if (!text) return "(no logs)";
   const lines = text.split("\n");
@@ -1143,11 +1152,14 @@ function dashboard() {
           jump: { ...baseJump, tier: t },
         });
       }
-      // Each data row: row label then its cells.
+      // Each data row: row label then its cells. Submitter labels can be
+      // 100+ chars and would wreck the grid; truncate the display and keep
+      // the full value in `title` for hover.
       subRows.forEach((sub, i) => {
         flat.push({
           kind: "rowHeader",
-          text: sub,
+          text: truncateSubmitter(sub),
+          title: sub,
           jump: { ...baseJump, submitter: sub },
         });
         cellGrid[i].forEach((c, j) => {
@@ -1197,9 +1209,11 @@ function dashboard() {
       const flat = [];
       flat.push({ kind: "corner" });
       for (const col of cols) {
+        const isSubmitter = by === "submitter";
         flat.push({
           kind: "colHeader",
-          text: by === "tier" ? `tier ${col}` : col,
+          text: isSubmitter ? truncateSubmitter(col) : `tier ${col}`,
+          title: isSubmitter ? col : undefined,
           jump: colJump(col),
         });
       }
@@ -1245,6 +1259,10 @@ function dashboard() {
 
     relTime(iso) {
       return relTime(iso);
+    },
+
+    truncateSubmitter(s) {
+      return truncateSubmitter(s);
     },
 
     freshnessCount(rec) {
