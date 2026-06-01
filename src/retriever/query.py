@@ -113,7 +113,9 @@ async def make_query(
         tier = custom_tier
 
     custom_timeout = (
-        body is not None and body.parameters is not None and body.parameters.timeout
+        body.parameters.timeout
+        if body is not None and body.parameters is not None
+        else None
     )
     timeout = custom_timeout
     if timeout is None and func in ("metakg", "metadata"):
