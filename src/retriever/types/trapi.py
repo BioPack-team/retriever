@@ -14,13 +14,13 @@ A few notes:
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import NotRequired, TypedDict
 
 from retriever.types.base import JsonSerializable
 
 
-class SetInterpretationEnum(str, Enum):
+class SetInterpretationEnum(StrEnum):
     """Enumeration for set interpretation."""
 
     BATCH = "BATCH"
@@ -28,7 +28,7 @@ class SetInterpretationEnum(str, Enum):
     MANY = "MANY"
 
 
-class OperatorEnum(str, Enum):
+class OperatorEnum(StrEnum):
     """Enumeration of possible operators for attribute constraints."""
 
     EQUAL = "=="
@@ -111,7 +111,7 @@ class LogEntryDict(TypedDict):
     message: str
 
 
-class LogLevel(str, Enum):
+class LogLevel(StrEnum):
     """Log level."""
 
     ERROR = "ERROR"

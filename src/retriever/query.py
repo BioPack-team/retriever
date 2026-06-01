@@ -41,7 +41,7 @@ class QueryMetadata(NamedTuple):
 
     job_id: str
     job_timeout: float
-    data_tier: int
+    data_tier: int | None
     query_type: str
     submitter: str
     qnodes: int
@@ -72,7 +72,7 @@ async def make_query(
     func: Literal["metakg"],
     ctx: APIInfo,
     *,
-    tier: TierNumber,
+    tier: TierNumber | None,
 ) -> tuple[int, MetaKnowledgeGraphDict]: ...
 
 
@@ -105,7 +105,7 @@ async def make_query(
     """
     job_id = uuid.uuid4().hex
 
-    if tier is None:
+    if tier is None and func != "metakg":
         tier = 0
     if deprecated_tiers := body and body.parameters and body.parameters.tiers:
         tier = deprecated_tiers[0]
@@ -115,15 +115,15 @@ async def make_query(
     custom_timeout = (
         body is not None and body.parameters is not None and body.parameters.timeout
     )
-    timeout = (
-        custom_timeout
-        or (func in ("metakg", "metadata") and CONFIG.job.metakg.timeout)
-        or {
+    timeout = custom_timeout
+    if timeout is None and func in ("metakg", "metadata"):
+        timeout = CONFIG.job.metakg.timeout
+    elif timeout is None:
+        timeout = {
             0: CONFIG.job.lookup.tier0_timeout,
             1: CONFIG.job.lookup.tier1_timeout,
             2: CONFIG.job.lookup.tier2_timeout,
-        }[tier]
-    )
+        }[tier or 0]
 
     body_transformed: QueryDict | AsyncQueryDict | None = None
     if body is not None:

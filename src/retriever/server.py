@@ -150,12 +150,11 @@ async def meta_knowledge_graph(
     request: Request,
     response: Response,
     tier: Annotated[
-        TierNumber,
+        TierNumber | None,
         Query(
-            description="Data Tier to use. Set multiple times to access multiple Tiers simultaneously.",
-            default_factory=lambda: [0],
+            description="Data Tier to use. Leave unset to view all.",
         ),
-    ],
+    ] = None,
 ) -> ORJSONResponse:
     """Retrieve the Meta-Knowledge Graph."""
     status_code, response_dict = await make_query(

@@ -442,7 +442,7 @@ class OpTableManager(AsyncDaemon):
     async def build_edges(
         self,
         op_table: OperationTable,
-        tier: TierNumber,
+        tier: TierNumber | None,
     ) -> tuple[
         dict[SPO, MetaEdgeDict],
         dict[SPO, dict[str, set[str]]],
@@ -455,7 +455,7 @@ class OpTableManager(AsyncDaemon):
         edge_attributes = dict[SPO, dict[int, MetaAttributeDict]]()
         mentioned_nodes = set[BiolinkEntity]()
         for op in op_table.operations_flat.values():
-            if op.tier != tier:
+            if tier is not None and op.tier != tier:
                 continue
 
             sbj, obj, pred = op.subject, op.object, op.predicate
@@ -493,7 +493,7 @@ class OpTableManager(AsyncDaemon):
 
         return edges, edge_qualifiers, edge_attributes, mentioned_nodes
 
-    async def get_trapi_metakg(self, tier: TierNumber) -> MetaKnowledgeGraphDict:
+    async def get_trapi_metakg(self, tier: TierNumber | None) -> MetaKnowledgeGraphDict:
         """Convert an OperationTable to a TRAPI MetaKG dict.
 
         Because it depends on OP_TABLE_MANAGER, it can't be used with the lead manager.

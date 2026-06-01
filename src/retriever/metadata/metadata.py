@@ -15,7 +15,7 @@ async def get_metadata(
     """
     try:
         async with asyncio.timeout(query.timeout if query.timeout != -1 else None):
-            driver = get_driver(query.tier)
+            driver = get_driver(query.tier or 0)
             metadata = await driver.get_metadata()
             if metadata is None:
                 return 500, ErrorDetail(detail="Metadata could not be retrieved.")

@@ -112,11 +112,13 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
 
         expanded_qgraph = expand_qgraph(deepcopy(qgraph), job_log)
 
-        if not await qgraph_supported(expanded_qgraph, response, job_log, query.tier):
+        if not await qgraph_supported(
+            expanded_qgraph, response, job_log, query.tier or 0
+        ):
             return tracked_response(200, query, response, job_log)
 
-        if tier_manager.get_driver(query.tier).is_failed:
-            msg = f"Tier {query.tier} backend connection failed, query terminates."
+        if tier_manager.get_driver(query.tier or 0).is_failed:
+            msg = f"Tier {query.tier or 0} backend connection failed, query terminates."
             job_log.error(msg)
             response["status"] = "Failed"
             response["description"] = msg
@@ -126,7 +128,7 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
             tier_manager.QUERY_HANDLERS[CONFIG.tier0.backend],
             QueryGraphExecutor,
         )
-        query_handler = handlers[query.tier](expanded_qgraph, query)
+        query_handler = handlers[query.tier or 0](expanded_qgraph, query)
         results, kgraph, aux_graphs, logs, _error = await query_handler.execute()
 
         job_log.log_deque.extend(logs)
@@ -173,7 +175,7 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
             "Received QueryGraph of type None, query graph should be present."
         )
 
-    parameters = ParametersDict(tier=query.tier)
+    parameters = ParametersDict(tier=query.tier or 0)
     if (
         timeout := "parameters" in query.body
         and query.body["parameters"] is not None

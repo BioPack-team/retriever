@@ -57,7 +57,7 @@ class QueryInfo(NamedTuple):
     method: str
     body: QueryDict | AsyncQueryDict | None
     job_id: str
-    tier: TierNumber
+    tier: TierNumber | None
     timeout: float
 
 
