@@ -564,12 +564,15 @@ function dashboard() {
       redrawAllPlots();
     },
 
-    jumpToActivity({ mode, lookback, submitter, tier } = {}) {
+    jumpToActivity({ mode, lookback, submitter, tier, sortField, sortDir } = {}) {
       if (mode && ACTIVITY_MODES.includes(mode)) this.activity.mode = mode;
       if (lookback && LOOKBACK_HOURS[lookback] !== undefined)
         this.activity.lookback = lookback;
       this.activity.submitter = submitter || null;
-      this.activity.tier = tier === 0 || tier === 1 ? tier : null;
+      this.activity.tier = TIER_VALUES.has(tier) ? tier : null;
+      if (sortField && SORT_FIELD_VALUES.has(sortField))
+        this.activity.sortField = sortField;
+      if (sortDir === "asc" || sortDir === "desc") this.activity.sortDir = sortDir;
       this.activity.cursor = null;
       this.activity.history = [];
       this.view = "activity";
@@ -1117,17 +1120,37 @@ function dashboard() {
       const vmin = values.length ? Math.min(...values) : 0;
       const vmax = values.length ? Math.max(...values) : 0;
       const scale = metric === "failed_pct" ? "fail" : "duration";
+      // Click-through into Activity: failed% lands in Failed mode (default
+      // sort), p95 lands in Completed mode sorted by duration desc. Filters
+      // are limited to submitter/tier — no new "p95" or "failed%" filter.
+      const baseJump =
+        metric === "failed_pct"
+          ? { mode: "Failed", lookback: this.heatmaps.lookback }
+          : {
+              mode: "Completed",
+              lookback: this.heatmaps.lookback,
+              sortField: "duration",
+              sortDir: "desc",
+            };
       const flat = [];
       // Top-left corner.
       flat.push({ kind: "corner" });
-      // Column headers.
+      // Column headers — click filters by tier alone.
       for (const t of cols) {
-        flat.push({ kind: "colHeader", text: `tier ${t}` });
+        flat.push({
+          kind: "colHeader",
+          text: `tier ${t}`,
+          jump: { ...baseJump, tier: t },
+        });
       }
       // Each data row: row label then its cells.
       subRows.forEach((sub, i) => {
-        flat.push({ kind: "rowHeader", text: sub });
-        cellGrid[i].forEach((c) => {
+        flat.push({
+          kind: "rowHeader",
+          text: sub,
+          jump: { ...baseJump, submitter: sub },
+        });
+        cellGrid[i].forEach((c, j) => {
           flat.push({
             kind: "cell",
             value: c.value,
@@ -1137,6 +1160,7 @@ function dashboard() {
               c.value == null
                 ? `${sub}: no data`
                 : `${sub}: ${c.display}${c.count != null ? ` (n=${c.count})` : ""}`,
+            jump: { ...baseJump, submitter: sub, tier: cols[j] },
           });
         });
       });
@@ -1162,12 +1186,21 @@ function dashboard() {
       const values = raw.map((r) => r.count);
       const vmin = values.length ? Math.min(...values) : 0;
       const vmax = values.length ? Math.max(...values) : 0;
+      // Click-through lands in Failed mode filtered by the column (submitter
+      // or tier). Failure-reason rows aren't filterable from the activity
+      // tab today, so row headers don't jump.
+      const baseJump = { mode: "Failed", lookback: this.heatmaps.lookback };
+      const colJump = (col) =>
+        by === "tier"
+          ? { ...baseJump, tier: col }
+          : { ...baseJump, submitter: col };
       const flat = [];
       flat.push({ kind: "corner" });
       for (const col of cols) {
         flat.push({
           kind: "colHeader",
           text: by === "tier" ? `tier ${col}` : col,
+          jump: colJump(col),
         });
       }
       for (const status of FAILURE_STATUSES) {
@@ -1183,6 +1216,7 @@ function dashboard() {
               v === 0
                 ? `${status} × ${by === "tier" ? `tier ${col}` : col}: 0`
                 : `${status} × ${by === "tier" ? `tier ${col}` : col}: ${v}`,
+            jump: colJump(col),
           });
         }
       }

@@ -633,6 +633,17 @@ main {
   text-shadow: none;
 }
 
+/* Click-to-jump affordance for heatmap items wired to jumpToActivity.
+ * Applies to cells, row headers, and column headers — anything the
+ * matrix builder stamped with a `jump` payload. */
+.heatmap .is-clickable {
+  cursor: pointer;
+}
+.heatmap .is-clickable:hover {
+  outline: 1px solid var(--accent, currentColor);
+  outline-offset: -1px;
+}
+
 .stat-card-static {
   cursor: default;
   background: var(--surface-elev);

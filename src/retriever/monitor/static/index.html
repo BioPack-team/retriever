@@ -700,11 +700,13 @@
                     'heatmap-label-col':  item.kind === 'colHeader',
                     'heatmap-label-row':  item.kind === 'rowHeader',
                     'heatmap-cell':       item.kind === 'cell',
+                    'is-clickable':       !!item.jump,
                   }"
                   :style="item.kind === 'cell' ? `background: ${item.color}` : ''"
                   :data-empty="item.kind === 'cell' && item.value == null"
                   :title="item.kind === 'cell' ? item.title : ''"
                   x-text="item.kind === 'cell' ? item.display : (item.text || '')"
+                  @click="item.jump && jumpToActivity(item.jump)"
                 ></div>
               </template>
             </div>
@@ -723,11 +725,13 @@
                     'heatmap-label-col':  item.kind === 'colHeader',
                     'heatmap-label-row':  item.kind === 'rowHeader',
                     'heatmap-cell':       item.kind === 'cell',
+                    'is-clickable':       !!item.jump,
                   }"
                   :style="item.kind === 'cell' ? `background: ${item.color}` : ''"
                   :data-empty="item.kind === 'cell' && item.value == null"
                   :title="item.kind === 'cell' ? item.title : ''"
                   x-text="item.kind === 'cell' ? item.display : (item.text || '')"
+                  @click="item.jump && jumpToActivity(item.jump)"
                 ></div>
               </template>
             </div>
@@ -751,11 +755,13 @@
                     'heatmap-label-col':  item.kind === 'colHeader',
                     'heatmap-label-row':  item.kind === 'rowHeader',
                     'heatmap-cell':       item.kind === 'cell',
+                    'is-clickable':       !!item.jump,
                   }"
                   :style="item.kind === 'cell' ? `background: ${item.color}` : ''"
                   :data-empty="item.kind === 'cell' && item.value == null"
                   :title="item.kind === 'cell' ? item.title : ''"
                   x-text="item.kind === 'cell' ? item.display : (item.text || '')"
+                  @click="item.jump && jumpToActivity(item.jump)"
                 ></div>
               </template>
             </div>
@@ -775,11 +781,13 @@
                     'heatmap-label-col':  item.kind === 'colHeader',
                     'heatmap-label-row':  item.kind === 'rowHeader',
                     'heatmap-cell':       item.kind === 'cell',
+                    'is-clickable':       !!item.jump,
                   }"
                   :style="item.kind === 'cell' ? `background: ${item.color}` : ''"
                   :data-empty="item.kind === 'cell' && item.value == null"
                   :title="item.kind === 'cell' ? item.title : ''"
                   x-text="item.kind === 'cell' ? item.display : (item.text || '')"
+                  @click="item.jump && jumpToActivity(item.jump)"
                 ></div>
               </template>
             </div>
