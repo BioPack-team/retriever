@@ -127,7 +127,7 @@ class LookupSettings(BaseModel):
         Field(
             description="Time in seconds before a tier 1 query should time out, set to -1 to disable."
         ),
-    ] = 10
+    ] = 180
     tier2_timeout: Annotated[
         int,
         Field(
