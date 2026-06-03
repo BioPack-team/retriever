@@ -292,6 +292,7 @@ class SubqueryDispatcher(BatchedAction):
             )
             transpiler = tier_manager.get_transpiler(1)  # Transpiler isn't singleton
             reverse_query_payload = transpiler.process_qgraph(reverse_qg)
+            job_log.trace(str(reverse_query_payload))
             qgraphs.append(reverse_qg)
             queries.append(reverse_query_payload)
             transpilers.append(transpiler)
