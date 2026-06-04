@@ -2028,7 +2028,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "basedpyright", specifier = ">=1.29.4" },
-    { name = "bpython", specifier = ">=0.25" },
+    { name = "bpython", specifier = ">=0.26" },
     { name = "deptry", specifier = ">=0.23.0" },
     { name = "google-yamlfmt", specifier = ">=0.21.0" },
     { name = "locust", specifier = ">=2.33.2" },
