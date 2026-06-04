@@ -57,7 +57,7 @@ dev = [
     "pytest>=8.4.0",
     "pytest-cov>=6.2.1",
     "pytest-asyncio>=1.1.0",
-    "bpython>=0.25",
+    "bpython>=0.26",
     "msgpack-types>=0.5.0",
     "google-yamlfmt>=0.21.0",
 ]
