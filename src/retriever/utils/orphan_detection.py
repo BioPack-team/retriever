@@ -20,7 +20,7 @@ from retriever.utils.redis import RedisClient
 
 
 def _ms_since_epoch(dt: datetime) -> int:
-    """Truncate to integer ms since epoch — matches BSON datetime resolution.
+    """Truncate to integer ms since epoch - matches BSON datetime resolution.
 
     MongoDB stores datetimes at ms precision; Redis preserves the original
     microseconds via ISO-string round-trip. Comparing at ms precision lets
@@ -31,6 +31,12 @@ def _ms_since_epoch(dt: datetime) -> int:
 
 async def _mark_orphaned_jobs() -> None:
     """One sweep: find non-terminal jobs whose worker is gone and mark them Failed."""
+    if not RedisClient().up:
+        logger.debug(
+            "Orphan sweep skipped; Redis is down.",
+            no_mongo_log=True,
+        )
+        return
     try:
         # Read Mongo *before* Redis: workers register in Redis before they
         # serve any request, so any job present in the Mongo snapshot was

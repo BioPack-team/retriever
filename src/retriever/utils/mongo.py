@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import contextlib
 import json
 from collections.abc import AsyncGenerator
 from datetime import datetime
@@ -17,7 +16,8 @@ from pymongo.server_api import ServerApi
 
 from retriever.config.general import CONFIG
 from retriever.types.general import LogLevel
-from retriever.utils.general import BatchedAction, Singleton
+from retriever.utils.backend_client import BackendClient
+from retriever.utils.general import BatchedAction
 from retriever.utils.job_status import NON_TERMINAL, TERMINAL_FAILURE, TERMINAL_SUCCESS
 
 CODEC_OPTIONS = DEFAULT_CODEC_OPTIONS.with_options(tz_aware=True)
@@ -34,7 +34,7 @@ _LOG_LEVEL_THRESHOLD: dict[str, int] = {
     "ERROR": 40,
     "CRITICAL": 50,
 }
-"""Numeric thresholds for loguru levels — used to build `{level.no: {$gte}}` clauses."""
+"""Numeric thresholds for loguru levels - used to build `{level.no: {$gte}}` clauses."""
 
 
 class QueryState(TypedDict):
@@ -77,7 +77,7 @@ class JobDoc(TypedDict):
     completed: NotRequired[datetime]
     touched: NotRequired[datetime]
 
-    # Set by the orphan sweep — tells `get_job_response` that `doc`, if
+    # Set by the orphan sweep - tells `get_job_response` that `doc`, if
     # present, still holds the original query bytes rather than a real
     # response (the ResponseState write never landed).
     abandoned: NotRequired[bool]
@@ -113,7 +113,7 @@ class JobStatus(TypedDict):
     worker_pid: NotRequired[int | None]
     worker_started_at: NotRequired[datetime | None]
 
-    # Set by the orphan sweep — distinguishes a Failed-from-orphan job
+    # Set by the orphan sweep - distinguishes a Failed-from-orphan job
     # from a Failed-from-lookup one.
     abandoned: NotRequired[bool]
 
@@ -177,7 +177,7 @@ class ResponseGeometryFilter(TypedDict, total=False):
 class JobSortSpec(TypedDict):
     """How to order job-status results.
 
-    `duration` is a computed field — `completed - created` in seconds —
+    `duration` is a computed field - `completed - created` in seconds -
     and forces the underlying query through an aggregation pipeline.
     All other fields are stored on the document directly.
     """
@@ -384,7 +384,7 @@ def _encode_cursor(sort_value: SortValue, object_id: ObjectId) -> str:
     elif isinstance(sort_value, datetime):
         v_part = {"t": "datetime", "v": sort_value.isoformat()}
     elif isinstance(sort_value, bool):
-        # bool is a subclass of int — check it first.
+        # bool is a subclass of int - check it first.
         v_part = {"t": "bool", "v": sort_value}
     elif isinstance(sort_value, int):
         v_part = {"t": "int", "v": int(sort_value)}
@@ -400,7 +400,7 @@ class CursorDecodeError(ValueError):
     """Raised when an opaque pagination cursor can't be parsed.
 
     Callers (FastAPI route handlers) should translate this to HTTP 400
-    rather than letting it propagate as 500 — bad cursors are a client
+    rather than letting it propagate as 500 - bad cursors are a client
     fault, not a server fault.
     """
 
@@ -430,7 +430,7 @@ def _decode_cursor(cursor: str) -> tuple[SortValue, ObjectId]:
         elif kind == "str":
             sort_value = str(payload["v"])
         else:
-            # Backward-compat with cursors emitted before the typed payload —
+            # Backward-compat with cursors emitted before the typed payload -
             # those used `{"v": <iso>|null, "id": ...}` with datetime
             # semantics.
             raw = payload.get("v")
@@ -556,12 +556,15 @@ def _build_filter_query(
     return query
 
 
-class MongoClient(metaclass=Singleton):
+class MongoClient(BackendClient):
     """A client abstraction layer for basic operations."""
+
+    client: AsyncIOMotorClient[dict[str, Any]]
+    _supports_percentile: bool = False
 
     def __init__(self) -> None:
         """Set up the client."""
-        self.client: AsyncIOMotorClient[dict[str, Any]]
+        super().__init__()
         if CONFIG.mongo.authsource is None:
             self.client = AsyncIOMotorClient(
                 host=CONFIG.mongo.host,
@@ -589,7 +592,12 @@ class MongoClient(metaclass=Singleton):
             )
         # Patch client to get the current asyncio loop
         self.client.get_io_loop = asyncio.get_running_loop
-        self._supports_percentile: bool = False
+        self._supports_percentile = False
+
+    @override
+    async def ping(self) -> None:
+        """Probe MongoDB. Raises on failure."""
+        _ = await self.client.admin.command("ping")
 
     def get_job_collection(
         self,
@@ -608,26 +616,40 @@ class MongoClient(metaclass=Singleton):
         db = self.client.retriever_persist
         return db.get_collection("log_dump", codec_options=CODEC_OPTIONS)
 
+    @override
     async def initialize(self) -> None:
-        """Check and prepare mongo client.
-
-        Pings to check connection, then sets up collection indices.
-        """
+        """Check and prepare mongo client; idempotent on repeat invocation."""
+        if self.initialized:
+            return
         log.info("Checking mongodb connection...")
         try:
-            await self.client.admin.command("ping")
-            log.success("Mongodb connection successful!")
+            await self.ping()
         except Exception as error:
-            log.critical(
-                "Connection to MongoDB failed. Ensure an instance is running and the connection config is correct."
+            log.warning(
+                f"MongoDB unreachable at startup; continuing in degraded mode. Index setup deferred to first recovery. Error: {error}"
             )
-            raise error
+            self._handle_ping_failure(error)
+        else:
+            log.success("Mongodb connection successful!")
+            await self._setup_after_connection()
 
-        # Detect $percentile support once. Branch in aggregation methods on
-        # this flag rather than catching MongoCommandError mid-pipeline.
-        # buildInfo can be denied on locked-down clusters or return a
-        # version string we can't parse; in either case fall back to the
-        # no-percentile branch rather than blocking startup.
+        # Re-run the post-connection setup on every recovery. Index
+        # creation is idempotent in Mongo, so a startup-then-flap
+        # scenario will retry the work without harm.
+        self.on_recover(self._setup_after_connection)
+
+        await super().initialize()
+
+    async def _setup_after_connection(self) -> None:
+        """Detect `$percentile` support and create collection indexes.
+
+        Run after a successful connection (initial or recovered). Each
+        step is independently guarded so a single failure doesn't abort
+        the others; what survives is what gets re-attempted on the next
+        recovery.
+        """
+        # Detect $percentile support once. Branch in aggregation methods
+        # on this flag rather than catching MongoCommandError mid-pipeline.
         try:
             build_info = await self.client.admin.command("buildInfo")
             major = int(str(build_info["version"]).split(".", 1)[0])
@@ -638,29 +660,26 @@ class MongoClient(metaclass=Singleton):
             )
             self._supports_percentile = False
 
-        job_collections = self.get_job_collection()
-        for collection in job_collections:
-            await collection.create_index("job_id", unique=True, background=True)
-            await collection.create_index(
-                "touched", background=True, expireAfterSeconds=CONFIG.job.ttl
-            )
-            await collection.create_index(
-                "completed", background=True, expireAfterSeconds=CONFIG.job.ttl_max
-            )
-            await collection.create_index("created", background=True)
-
-        log_collection = self.get_log_collection()
-        await log_collection.create_index(
-            {"time": 1}, background=True, expireAfterSeconds=CONFIG.log.mongo_ttl
-        )
-
-    async def ping(self) -> bool:
-        """Post-init liveness check. Returns True iff the server responds."""
         try:
-            _ = await self.client.admin.command("ping")
-        except Exception:
-            return False
-        return True
+            job_collections = self.get_job_collection()
+            for collection in job_collections:
+                await collection.create_index("job_id", unique=True, background=True)
+                await collection.create_index(
+                    "touched", background=True, expireAfterSeconds=CONFIG.job.ttl
+                )
+                await collection.create_index(
+                    "completed", background=True, expireAfterSeconds=CONFIG.job.ttl_max
+                )
+                await collection.create_index("created", background=True)
+
+            log_collection = self.get_log_collection()
+            await log_collection.create_index(
+                {"time": 1}, background=True, expireAfterSeconds=CONFIG.log.mongo_ttl
+            )
+        except Exception as exc:
+            log.warning(
+                f"MongoDB index setup failed; will retry on next recovery. Error: {exc}"
+            )
 
     async def db_storage_bytes(self) -> int:
         """Return the on-disk storage size of the retriever_persist database."""
@@ -704,6 +723,9 @@ class MongoClient(metaclass=Singleton):
                     f"Failed to write batch after {CONFIG.mongo.attempts} attempts.",
                     no_mongo_log=True,
                 )
+                # Nudge the health loop so the flag flips faster than
+                # the next steady-ping cycle would on its own.
+                self.request_health_check()
 
     async def batch_job_state(
         self, job_status_ops: list[UpdateOne], job_doc_ops: list[UpdateOne]
@@ -793,7 +815,7 @@ class MongoClient(metaclass=Singleton):
 
         Reads only the status collection (no doc bytes). Pass `touch=True`
         to bump the `touched` timestamp on both collections, extending
-        TTL — required for TRAPI interactions. Leave it `False` for
+        TTL - required for TRAPI interactions. Leave it `False` for
         read-only dashboard queries.
         """
         status_collection, docs_collection = self.get_job_collection()
@@ -955,7 +977,7 @@ class MongoClient(metaclass=Singleton):
         """Return per-value counts of job_status docs grouped by `group_by`.
 
         For list-valued fields (currently `data_tiers`), the field is
-        `$unwind`ed before grouping — a job that spans multiple tiers
+        `$unwind`ed before grouping - a job that spans multiple tiers
         contributes one to each tier's count.
         """
         match_query = _build_filter_query(
@@ -993,7 +1015,7 @@ class MongoClient(metaclass=Singleton):
 
         Docs missing the bucketed `field` (e.g. running jobs when bucketing on
         `completed`) are excluded. Empty buckets between populated ones are
-        not back-filled — callers that want a continuous series can pad.
+        not back-filled - callers that want a continuous series can pad.
         """
         match_query = _build_filter_query(
             identity, times, query_geometry, response_geometry
@@ -1195,7 +1217,7 @@ class MongoClient(metaclass=Singleton):
             "max_seconds": {"$max": _DURATION_EXPR},
         }
         if self._supports_percentile:
-            # Percentile input matches avg/min/max — all terminal jobs in
+            # Percentile input matches avg/min/max - all terminal jobs in
             # window, success and failure alike. window_match has already
             # filtered to docs with non-null timestamps.
             window_group["percentiles"] = {
@@ -1460,7 +1482,7 @@ class MongoClient(metaclass=Singleton):
     ) -> AsyncGenerator[dict[str, Any]]:
         """Return a generator of logs not associated with any job.
 
-        Matches docs where `extra.job_id` is absent — the logs Retriever
+        Matches docs where `extra.job_id` is absent - the logs Retriever
         itself emits (lifecycle, background refreshes, tier drivers,
         cache activity). Sibling to `get_logs`.
         """
@@ -1550,9 +1572,15 @@ class MongoClient(metaclass=Singleton):
         )
         return result.modified_count
 
-    async def close(self) -> None:
-        """Clean up and close MongoDB client threads/connections."""
+    @override
+    async def wrapup(self) -> None:
+        """Cancel background tasks and close MongoDB client connections."""
+        await super().wrapup()
         self.client.close()
+
+
+class MongoOutage(Exception):
+    """Raised by `MongoQueue.put` when MongoClient is down; callers attach a warning."""
 
 
 class MongoQueue(BatchedAction):
@@ -1565,18 +1593,16 @@ class MongoQueue(BatchedAction):
     client: ClassVar[MongoClient] = MongoClient()
 
     @override
-    async def wrapup(self) -> None:
-        """Flush pending writes during graceful shutdown.
+    def put(self, target: str, payload: Any) -> None:
+        """Enqueue `payload` for `target`; raises `MongoOutage` if Mongo is down."""
+        if not self.client.up:
+            raise MongoOutage("MongoDB is unavailable; queued write dropped.")
+        super().put(target, payload)
 
-        The polling loop is cancelled and awaited *before* the flush, so it
-        can't race the flush by pulling items off the queue concurrently.
-        """
-        log.info(f"{type(self).__name__} wrapping up.")
-        for task in self.tasks:
-            _ = task.cancel()
-        for task in self.tasks:
-            with contextlib.suppress(asyncio.CancelledError):
-                await task
+    @override
+    async def wrapup(self) -> None:
+        """Cancel the polling loop, then flush pending writes during graceful shutdown."""
+        await super().wrapup()
         try:
             async with asyncio.timeout(CONFIG.mongo.shutdown_timeout):
                 await self.flush()

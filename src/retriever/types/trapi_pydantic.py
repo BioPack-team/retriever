@@ -34,6 +34,12 @@ class Parameters(BaseModel):
         | None
     ) = None
     tier: TierNumber | None = None
+    tier_fallback: Annotated[
+        bool,
+        Field(
+            description="When the requested tier is down, fall back to the other implemented tier (T0 ↔ T1). Set False to require the requested tier and 424 if it's unavailable. Default True. Has no effect on T2 (no fallback peer)."
+        ),
+    ] = True
     dehydrated: Annotated[
         bool | None,
         Field(

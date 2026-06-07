@@ -32,15 +32,15 @@ async def redis_client():
     try:
         yield client
     finally:
-        # Best-effort teardown — TTLs handle anything we miss.
+        # Best-effort teardown - TTLs handle anything we miss.
         with contextlib.suppress(Exception):
             await client.client.delete(WORKER_REGISTRY_KEY)
 
 
 @pytest.mark.asyncio
 async def test_ping(redis_client: RedisClient) -> None:
-    """Liveness ping should return True against a healthy server."""
-    assert await redis_client.ping() is True
+    """ping should return without raising against a healthy server."""
+    await redis_client.ping()
 
 
 @pytest.mark.asyncio

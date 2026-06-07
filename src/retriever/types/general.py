@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Annotated, Literal, NamedTuple, TypedDict
+from collections.abc import Mapping
+from typing import Annotated, Any, Literal, NamedTuple, NotRequired, TypedDict
 
 from fastapi import BackgroundTasks, Request, Response
 from pydantic import BeforeValidator
@@ -26,6 +27,7 @@ class ErrorDetail(TypedDict):
     """Basic FastAPI error response body."""
 
     detail: str
+    additional_info: NotRequired[dict[str, Any]]
 
 
 LogLevel = Annotated[
@@ -92,4 +94,4 @@ QEdgeIDMap = dict[int, QEdgeID]
 QNodeCURIEPair = tuple[QNodeID, CURIE]
 
 
-EntityToEntityMapping = dict[CURIE, list[CURIE]]
+EntityToEntityMapping = Mapping[CURIE, list[CURIE]]

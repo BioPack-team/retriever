@@ -29,20 +29,72 @@ class GandalfDriver(DatabaseDriver):
     connect_retries: int
 
     _http_session: httpx.AsyncClient | None = None
-
-    _failed: bool = False
+    _session_lock: asyncio.Lock
 
     def __init__(
         self,
     ) -> None:
         """Initialize the Gandalf driver with connection settings."""
+        super().__init__()
         self.settings = CONFIG.tier0.gandalf
         self.query_timeout = self.settings.query_timeout
         self.connect_retries = self.settings.connect_retries
         self._http_session = None
+        self._session_lock = asyncio.Lock()
 
         self.endpoint = self.settings.http_endpoint
         self.metadata = None
+
+    async def _ensure_session(self) -> None:
+        """Rebuild the HTTP session via `_establish_connection` if it has been nulled.
+
+        Locks so concurrent run_query calls don't overlap in rebuilding client.
+        """
+        if self._http_session is not None:
+            return
+        async with self._session_lock:
+            if self._http_session is not None:
+                return
+            await self._establish_connection()
+
+    @override
+    async def ping(self) -> None:
+        """HEAD the base endpoint; 405 or 2xx means up."""
+        await self._ensure_session()
+        assert self._http_session is not None
+        response = await self._http_session.head(
+            self.endpoint,
+            timeout=self.query_timeout,
+        )
+        if response.status_code == HTTPStatus.METHOD_NOT_ALLOWED:
+            return
+        response.raise_for_status()
+
+    @override
+    def is_outage_error(self, exc: BaseException) -> bool:
+        """4xx HTTP responses are query problems, not outages - except 404 (endpoint missing)."""
+        if not super().is_outage_error(exc):
+            return False
+        if isinstance(exc, httpx.HTTPStatusError):
+            code = exc.response.status_code
+            if code == HTTPStatus.NOT_FOUND:
+                return True
+            if HTTPStatus.BAD_REQUEST <= code < HTTPStatus.INTERNAL_SERVER_ERROR:
+                return False
+        return True
+
+    @override
+    def _handle_ping_failure(self, exc: BaseException) -> None:
+        super()._handle_ping_failure(exc)
+        loop_closed = isinstance(exc, RuntimeError) and "Event loop is closed" in str(
+            exc
+        )
+        if loop_closed or isinstance(exc, httpx.PoolTimeout):
+            # Loop-closed: session is bound to a dead loop, can't await aclose.
+            # PoolTimeout: httpx client is effectively dead
+            # see https://github.com/encode/httpx/discussions/2556
+            # Either way, drop the reference and let `_ensure_session` rebuild.
+            self._http_session = None
 
     @override
     async def run_query(
@@ -70,15 +122,20 @@ class GandalfDriver(DatabaseDriver):
             otel_span = None
 
         try:
+            await self._ensure_session()
             result = await self._run_http_query(
                 query_json,
             )
         except TimeoutError as e:
             if otel_span is not None:
                 otel_span.add_event("gandalf_query_timeout")
+            self.request_health_check()
             raise TimeoutError(
                 f"Gandalf query exceeded {self.query_timeout}s timeout"
             ) from e
+        except Exception:
+            self.request_health_check()
+            raise
 
         if otel_span is not None:
             otel_span.add_event("gandalf_query_end")
@@ -97,7 +154,8 @@ class GandalfDriver(DatabaseDriver):
         Returns:
             Parsed response
         """
-        assert self._http_session is not None, "HTTP session not initialized"
+        if self._http_session is None:
+            raise RuntimeError("HTTP session not initialized")
 
         start = time.time()
         log.debug("Querying Gandalf...")
@@ -133,8 +191,17 @@ class GandalfDriver(DatabaseDriver):
             ) from error
 
     @override
-    async def connect(self, retries: int = 0) -> None:
-        """Connect to Gandalf using selected protocol."""
+    async def initialize(self) -> None:
+        """Establish the HTTP session, probe Gandalf, and start the health loop."""
+        self.on_recover(self._fetch_metadata)
+        try:
+            await self._establish_connection()
+        except Exception as exc:
+            self._handle_ping_failure(exc)
+        await super().initialize()
+
+    async def _establish_connection(self, retries: int = 0) -> None:
+        """Connect to Gandalf with retry/backoff. Raises if all retries fail."""
         log.info("Checking Gandalf connection...")
         try:
             await self._connect_http()
@@ -148,23 +215,27 @@ class GandalfDriver(DatabaseDriver):
                     Could not establish connection to Gandalf via http,
                     trying again... retry {retries + 1}
                 """)
-                await self.connect(retries + 1)
+                await self._establish_connection(retries + 1)
             else:
                 log.error(f"Could not establish connection to Gandalf, error: {e}")
-                self._failed = True
                 raise e
 
     async def _connect_http(self) -> None:
-        """Establish HTTP connection to Gandalf."""
+        """Establish HTTP connection to Gandalf and load fresh metadata."""
         self._http_session = httpx.AsyncClient()
-        # Test connection with a simple query
+        await self._fetch_metadata()
+
+    async def _fetch_metadata(self) -> None:
+        """Pull fresh metadata from Gandalf into the in-process cache."""
+        if self._http_session is None:
+            raise RuntimeError("HTTP session not initialized")
         response = await self._http_session.get(
             f"{self.endpoint}/metadata",
             timeout=self.query_timeout,
         )
         if response.status_code != HTTPStatus.OK:
             raise ConnectionError(
-                f"HTTP connection failed with status {response.status_code}: {response.text}"
+                f"HTTP metadata fetch failed with status {response.status_code}: {response.text}"
             )
         self.metadata = response.json()
 
@@ -177,30 +248,29 @@ class GandalfDriver(DatabaseDriver):
             self._http_session = None
 
     @override
-    async def close(self) -> None:
-        """Close the connection to Gandalf and clean up resources."""
+    async def wrapup(self) -> None:
+        """Cancel the health loop first, then tear down the HTTP session."""
+        await super().wrapup()
         await self._cleanup_connections()
 
     @override
-    async def get_metadata(self) -> dict[str, Any] | None:
-        """Queries Gandalf for the active schema's metadata mapping.
-
-        The mapping is stored as a msgpack-serialized JSON blob in the
-        schema_metadata_mapping field. This method retrieves and deserializes it
-        for the active schema version.
-
-        The result is cached per-version with a 5-minute TTL.
-
-        Returns:
-            Deserialized mapping dictionary, or None if not found or on error.
-        """
+    async def get_metadata(self, bypass_cache: bool = False) -> dict[str, Any] | None:
+        """Cached metadata; on `bypass_cache=True` refresh first, falling back to cache on failure."""
+        if bypass_cache and self._http_session is not None:
+            try:
+                await self._fetch_metadata()
+            except Exception as exc:
+                log.warning(
+                    f"Gandalf metadata refresh failed; using cached copy. Error: {exc}"
+                )
         return self.metadata
 
     @override
     async def get_operations(
         self,
+        bypass_cache: bool = False,
     ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
-        metadata = await self.get_metadata()
+        metadata = await self.get_metadata(bypass_cache=bypass_cache)
         if metadata is None:
             raise ValueError(
                 "Unable to obtain metadata from backend, cannot parse operations."
@@ -211,5 +281,7 @@ class GandalfDriver(DatabaseDriver):
         return operations, nodes
 
     @override
-    async def get_subclass_mapping(self) -> EntityToEntityMapping:
+    async def get_subclass_mapping(
+        self, bypass_cache: bool = False
+    ) -> EntityToEntityMapping:
         raise NotImplementedError("Tier 0 does not implement subclass mapping.")

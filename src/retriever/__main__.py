@@ -1,5 +1,3 @@
-import asyncio
-import contextlib
 import math
 import multiprocessing
 import os
@@ -14,13 +12,10 @@ from retriever.background import BackgroundProcessManager
 from retriever.config.general import CONFIG
 from retriever.config.logger import configure_logging
 from retriever.config.write_configs import write_default_configs
+from retriever.utils.general import tolerate_init
 from retriever.utils.logs import add_mongo_sink, cleanup
 from retriever.utils.mongo import MongoClient, MongoQueue
-from retriever.utils.redis import (
-    PROCESS_TTL_SECONDS,
-    RedisClient,
-    heartbeat,
-)
+from retriever.utils.redis import RedisClient
 from retriever.utils.uvicorn_multiprocess import AsyncMultiprocess
 
 
@@ -33,7 +28,6 @@ async def _main_inner() -> None:
     logging_config = configure_logging()
 
     # For main process logging
-    main_heartbeat_task: asyncio.Task[None] | None = None
     if not CONFIG.debug:
         await MongoClient().initialize()
         await MongoQueue().initialize()
@@ -41,17 +35,17 @@ async def _main_inner() -> None:
         await RedisClient().initialize()
         main_pid = os.getpid()
         main_started_at = datetime.now().astimezone()
-        await RedisClient().register_main(
-            main_pid, main_started_at, PROCESS_TTL_SECONDS
-        )
-        main_heartbeat_task = asyncio.create_task(
-            heartbeat(
-                lambda: RedisClient().register_main(
-                    main_pid, main_started_at, PROCESS_TTL_SECONDS
-                ),
-                role_label="Main",
+        await tolerate_init(
+            "Main registration",
+            RedisClient().register_main(
+                main_pid, main_started_at, CONFIG.redis.process_ttl_seconds
             ),
-            name="main-heartbeat",
+        )
+        RedisClient().start_heartbeat(
+            lambda: RedisClient().register_main(
+                main_pid, main_started_at, CONFIG.redis.process_ttl_seconds
+            ),
+            role_label="Main",
         )
 
     logger.debug(
@@ -94,14 +88,11 @@ async def _main_inner() -> None:
     # /// POST-SERVER CLEANUP ///
 
     await background_manager.wrapup()
-    if main_heartbeat_task is not None:
-        main_heartbeat_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await main_heartbeat_task
+    # Main-heartbeat task lives in RedisClient().tasks; cancelled in its wrapup.
     if not CONFIG.debug:
         await RedisClient().wrapup()
         await MongoQueue().wrapup()
-        await MongoClient().close()
+        await MongoClient().wrapup()
 
     # Wait for loguru to complete
     await cleanup()

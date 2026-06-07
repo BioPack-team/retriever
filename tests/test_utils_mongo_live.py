@@ -26,7 +26,7 @@ pytestmark = pytest.mark.live
 @pytest.mark.asyncio
 async def test_ping_db_storage_count_in_flight(test_mongo: MongoClient) -> None:  # noqa: F811
     """Smoke-test the three connection/inventory methods."""
-    assert await test_mongo.ping() is True
+    await test_mongo.ping()  # raises on failure; no truthy return to assert on
     assert await test_mongo.db_storage_bytes() >= 0
     # Two in-flight jobs were seeded (one per tier).
     assert await test_mongo.count_in_flight() == 2
@@ -60,7 +60,7 @@ async def test_compute_durations_basic(test_mongo: MongoClient) -> None:  # noqa
     assert stats["avg_seconds"] > 0.0
 
     if test_mongo._supports_percentile:
-        # Approximate percentile — assert it's within the data range, not a
+        # Approximate percentile - assert it's within the data range, not a
         # specific value (Mongo uses an approximation).
         assert "p50_seconds" in stats
         assert "p95_seconds" in stats

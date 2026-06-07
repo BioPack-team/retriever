@@ -3,6 +3,7 @@ import hashlib
 import zlib
 from collections import defaultdict
 from copy import deepcopy
+from types import MappingProxyType
 from typing import Any
 
 import msgpack
@@ -25,6 +26,10 @@ from retriever.utils.redis import RedisClient
 T1MetaData = dict[str, Any]
 
 CACHE_KEY = "TIER1_META"
+
+_LOCAL_CACHE: dict[str, T1MetaData] = {}
+"""Per-process metadata cache. Fronts Redis so the worker still serves
+hits during an outage; saves populate both layers."""
 
 
 async def get_t1_indices(
@@ -53,23 +58,38 @@ def get_stable_hash(key: str) -> str:
 
 
 async def save_metadata_cache(key: str, payload: T1MetaData) -> None:
-    """Wrapper for persist metadata in Redis."""
-    await RedisClient().set(
-        get_stable_hash(key),
-        ormsgpack.packb(payload),
-        compress=True,
-        ttl=CONFIG.job.metakg.build_time,
-    )
+    """Cache `payload` locally; best-effort Redis write skipped while Redis is down."""
+    _LOCAL_CACHE[key] = payload
+    if not RedisClient().up:
+        return
+    try:
+        await RedisClient().set(
+            get_stable_hash(key),
+            ormsgpack.packb(payload),
+            compress=True,
+        )
+    except Exception:
+        log.debug(f"Redis write for {key} failed; serving from local cache.")
 
 
 async def read_metadata_cache(key: str) -> T1MetaData | None:
-    """Wrapper for retrieving persisted metadata in Redis."""
-    redis_key = get_stable_hash(key)
-    metadata_pack = await RedisClient().get(redis_key, compressed=True)
-    if metadata_pack is not None:
-        return ormsgpack.unpackb(metadata_pack)
-
-    return None
+    """Cached metadata preferring local then Redis; `None` on miss or Redis down."""
+    cached = _LOCAL_CACHE.get(key)
+    if cached is not None:
+        return cached
+    if not RedisClient().up:
+        return None
+    try:
+        redis_key = get_stable_hash(key)
+        metadata_pack = await RedisClient().get(redis_key, compressed=True)
+    except Exception:
+        log.debug(f"Redis read for {key} failed; treating as cache miss.")
+        return None
+    if metadata_pack is None:
+        return None
+    payload: T1MetaData = ormsgpack.unpackb(metadata_pack)
+    _LOCAL_CACHE[key] = payload
+    return payload
 
 
 def extract_metadata_entries_from_blob(
@@ -120,28 +140,36 @@ async def get_t1_metadata(
     bypass_cache: bool,
     retries: int = 0,
 ) -> T1MetaData | None:
-    """Caller to orchestrate retrieving t1 metadata."""
+    """T1 metadata, preferring cache; `None` if neither cache nor backend can serve."""
     meta_blob = None if bypass_cache else await read_metadata_cache(CACHE_KEY)
     if not meta_blob:
+        if es_connection is None:
+            return await _cached_fallback(bypass_cache)
         try:
-            if es_connection is None:
-                raise ValueError(
-                    "Invalid Elasticsearch connection. Driver must be initialized and connected."
-                )
             meta_blob = await retrieve_metadata_from_es(es_connection, indices_alias)
             await save_metadata_cache(CACHE_KEY, meta_blob)
-        except ValueError as e:
-            # if exceeds retries or ES connection is invalid, return None
-            if retries == RETRY_LIMIT or str(e).startswith(
-                "Invalid Elasticsearch connection"
-            ):
-                return None
+        except Exception as exc:
+            if retries >= RETRY_LIMIT:
+                log.warning(
+                    f"Failed to retrieve T1 metadata after {RETRY_LIMIT} retries: {exc}"
+                )
+                return await _cached_fallback(bypass_cache)
             return await get_t1_metadata(
                 es_connection, indices_alias, bypass_cache=True, retries=retries + 1
             )
 
     log.success("DINGO Metadata retrieved!")
     return meta_blob
+
+
+async def _cached_fallback(bypass_cache: bool) -> T1MetaData | None:
+    """When `bypass_cache=True` exhausted live retries, fall back to the cached copy."""
+    if not bypass_cache:
+        return None
+    cached = await read_metadata_cache(CACHE_KEY)
+    if cached is not None:
+        log.warning("Live T1 metadata fetch failed; falling back to cached metadata.")
+    return cached
 
 
 def hash_meta_attribute(attr: MetaAttributeDict) -> int:
@@ -294,7 +322,7 @@ async def get_ubergraph_info(
         cached_info = await read_metadata_cache(ubergraph_info_cache_key)
 
         if cached_info is not None:
-            return to_ubergraph_info(cached_info)
+            return MappingProxyType(to_ubergraph_info(cached_info))
     else:
         log.info("cache bypassed for ubergraph info retrieval")
 
@@ -321,4 +349,4 @@ async def get_ubergraph_info(
         return await get_ubergraph_info(es_connection, retries + 1, bypass_cache)
 
     log.success("ubergraph info retrieved!")
-    return cached_info
+    return MappingProxyType(cached_info)

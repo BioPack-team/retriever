@@ -4,12 +4,12 @@ Two callers (status.py for /status, server.py for /config) used to each
 spawn their own gitpython lookup on every request. Now both go through
 `get_version()`, which resolves in this order:
 
-  1. `RETRIEVER_GIT_COMMIT` / `RETRIEVER_GIT_BRANCH` env vars — an
+  1. `RETRIEVER_GIT_COMMIT` / `RETRIEVER_GIT_BRANCH` env vars - an
      explicit override for deployments that bake version info via env.
   2. `_version_commit.txt` / `_version_branch.txt` sitting next to this
-     module — the Dockerfile writes these at build time via `git
+     module - the Dockerfile writes these at build time via `git
      rev-parse` so shipped images report the real SHA out of the box.
-  3. A runtime gitpython lookup — used for editable / `uv run` dev
+  3. A runtime gitpython lookup - used for editable / `uv run` dev
      installs where the source tree's `.git` is reachable.
   4. Fallback `("unknown", None)`, logged once per worker.
 
@@ -67,7 +67,7 @@ def get_version() -> tuple[str, str | None]:
         try:
             branch = repo.active_branch.name
         except TypeError:
-            # Detached HEAD — no active branch.
+            # Detached HEAD - no active branch.
             branch = None
         return sha, branch
     except Exception:

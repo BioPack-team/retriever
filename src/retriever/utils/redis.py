@@ -1,7 +1,8 @@
 import asyncio
 import json
+import random
 from abc import ABCMeta, abstractmethod
-from collections.abc import Awaitable, Callable, Coroutine, Iterable
+from collections.abc import Awaitable, Callable, Iterable
 from datetime import datetime
 from types import CoroutineType, TracebackType
 from typing import (
@@ -20,62 +21,31 @@ from loguru import logger
 from loguru import logger as log
 from redis.asyncio.retry import Retry
 from redis.backoff import ExponentialBackoff
-from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.typing import AbsExpiryT, ChannelT, EncodableT, ExpiryT, KeyT, ResponseT
 
 from retriever.config.general import CONFIG
-from retriever.utils.general import AsyncDaemon
+from retriever.utils.backend_client import BackendClient
 
 # Required to avoid CROSSSLOT errors: https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/#hash-tags
 # Technically not needed as cluster is not supported, but worth keeping in case we need to re-add cluster support
 PREFIX = "{Retriever}:"
 
-# For consistency
-OP_TABLE_KEY = f"{PREFIX}op_table"
-OP_TABLE_UPDATE_CHANNEL = f"{OP_TABLE_KEY}:update"
+# Bare names - `RedisClient.set/get/publish/subscribe` add `PREFIX`.
+OP_TABLE_KEY = "op_table"
+OP_TABLE_UPDATE_CHANNEL = "op_table:update"
 
-# Sidecar timestamp keys — written alongside published artifacts so /status
-# can show freshness without inferring from TTL. Defined here (rather than
-# next to the artifact owners) so both publishers and consumers share one
-# import path and to avoid an artifact-module ↔ redis-client import cycle.
-OP_TABLE_META_KEY = f"{OP_TABLE_KEY}:meta"
+# Worker -> leader signal for a tier recovery; payload is the tier index as a string.
+TIER_RECOVERED_CHANNEL = "tier:recovered"
+
+# Timestamp keys written alongside published artifacts so /status
+# can show freshness without inferring from TTL.
+OP_TABLE_META_KEY = f"{PREFIX}op_table:meta"
 SUBCLASS_META_KEY = f"{PREFIX}SubclassHashMap:meta"
 
-# Process-registry hashes — workers / background self-report PID + start
-# time on lifespan startup and refresh on a heartbeat. Field TTL via
-# HEXPIRE so a dead process drops out automatically.
+# Process-registry hashes.
 WORKER_REGISTRY_KEY = f"{PREFIX}workers"
 BACKGROUND_REGISTRY_KEY = f"{PREFIX}background"
 MAIN_REGISTRY_KEY = f"{PREFIX}main"
-
-# Heartbeat cadence + TTL for process self-report. TTL is set to several
-# heartbeat intervals so a single missed refresh doesn't drop the entry.
-PROCESS_HEARTBEAT_INTERVAL_SECONDS = 60
-PROCESS_TTL_SECONDS = 300
-
-
-async def heartbeat(
-    on_tick: Callable[[], Awaitable[None]],
-    role_label: str,
-    interval_seconds: int = PROCESS_HEARTBEAT_INTERVAL_SECONDS,
-) -> None:
-    """Run `on_tick` on an interval, swallowing per-tick failures.
-
-    Used to drive process-registry refresh loops from the lifespan hooks.
-    Cancellation of the surrounding task exits cleanly.
-    """
-    try:
-        while True:
-            await asyncio.sleep(interval_seconds)
-            try:
-                await on_tick()
-            except Exception:
-                logger.warning(
-                    f"{role_label} heartbeat refresh failed; will retry next interval.",
-                    no_mongo_log=True,
-                )
-    except asyncio.CancelledError:
-        return
 
 
 # For better performance
@@ -383,7 +353,7 @@ class AsyncRedis(Protocol, metaclass=ABCMeta):
         """
 
 
-class RedisClient(AsyncDaemon):
+class RedisClient(BackendClient):
     """A client abstraction layer for basic operations."""
 
     _client: redis.Redis
@@ -394,6 +364,11 @@ class RedisClient(AsyncDaemon):
         super().__init__()
         self._build_client()
         self.subscriptions: dict[str, list[Callable[[str], Awaitable[None]]]] = {}
+
+    @override
+    async def ping(self) -> None:
+        """Probe Redis. Raises on failure."""
+        _ = await self.client.ping()
 
     def _build_client(self) -> None:
         """(Re)build the internal redis-py async client.
@@ -420,38 +395,110 @@ class RedisClient(AsyncDaemon):
         )
 
     @override
-    def get_task_funcs(self) -> list[Callable[[], Coroutine[None, None, None]]]:
-        return []
-
-    @override
     async def initialize(self) -> None:
-        """Initialize a connection to the redis server."""
+        """Initialize a connection to the redis server; degraded mode on any startup failure."""
         log.info("Checking redis connection...")
+        try:
+            await self._connect_with_loop_rebuild()
+        except Exception as error:
+            log.warning(
+                f"Redis startup failed; continuing in degraded mode. Health loop will retry. Error: {error}"
+            )
+            self._handle_ping_failure(error)
+        else:
+            log.success("Redis connection successful!")
+        return await super().initialize()
+
+    async def _connect_with_loop_rebuild(self) -> None:
+        """Run the initial connect, rebuilding once if bound to a closed loop.
+
+        redis-py binds connections to the asyncio loop they were created
+        on. When the Singleton survives a loop closure (Python test
+        runners, in particular), the first connect raises and we rebuild
+        against the current loop.
+        """
         try:
             await self.client.initialize()
             await self.client.ping()
         except RuntimeError as error:
-            # redis-py binds connections to the asyncio loop they were
-            # created on. If the Singleton survives a loop closure
-            # (Python test runners, in particular), rebuild and retry.
             if "Event loop is closed" not in str(error):
                 raise
             log.debug("Rebuilding Redis client on current event loop.")
             self._build_client()
             await self.client.initialize()
             await self.client.ping()
-        except RedisConnectionError as error:
-            log.critical(
-                "Connection to Redis failed. Ensure an instance is running and the connection config is correct."
-            )
-            raise error
-        log.success("Redis connection successful!")
-        return await super().initialize()
 
     @override
     async def wrapup(self) -> None:
         await super().wrapup()
         await self.client.aclose()
+
+    def start_heartbeat(
+        self,
+        on_tick: Callable[[], Awaitable[None]],
+        role_label: str,
+        interval_seconds: int | None = None,
+    ) -> None:
+        """Spawn a heartbeat task tracked by `self.tasks`; cancelled at wrapup."""
+        task = asyncio.create_task(
+            self._heartbeat(on_tick, role_label, interval_seconds),
+            name=f"{role_label.lower()}-heartbeat",
+        )
+        self.tasks.append(task)
+
+    async def _heartbeat(
+        self,
+        on_tick: Callable[[], Awaitable[None]],
+        role_label: str,
+        interval_seconds: int | None,
+    ) -> None:
+        """Run `on_tick` on an interval; skip ticks while Redis is down and re-fire on recovery."""
+        if interval_seconds is None:
+            interval_seconds = CONFIG.redis.heartbeat_interval_seconds
+        armed = False
+
+        async def _on_recover_fire() -> None:
+            nonlocal armed
+            try:
+                await on_tick()
+            except Exception:
+                logger.warning(
+                    f"{role_label} heartbeat refresh on recovery failed; will retry next interval.",
+                    no_mongo_log=True,
+                )
+            finally:
+                self.deregister_callback("recover", _on_recover_fire)
+                armed = False
+
+        def _arm_recovery() -> None:
+            nonlocal armed
+            if armed:
+                return
+            self.on_recover(_on_recover_fire)
+            armed = True
+
+        try:
+            while True:
+                await asyncio.sleep(interval_seconds)
+                if not self.up:
+                    logger.debug(
+                        f"{role_label} heartbeat skipped; Redis is down.",
+                        no_mongo_log=True,
+                    )
+                    _arm_recovery()
+                    continue
+                try:
+                    await on_tick()
+                except Exception:
+                    logger.warning(
+                        f"{role_label} heartbeat refresh failed; will retry next interval.",
+                        no_mongo_log=True,
+                    )
+                    self.request_health_check()
+                    _arm_recovery()
+        except asyncio.CancelledError:
+            self.deregister_callback("recover", _on_recover_fire)
+            return
 
     async def publish(self, channel: str, message: Any) -> None:
         """Publish a message to a given channel."""
@@ -487,36 +534,90 @@ class RedisClient(AsyncDaemon):
                 return False
         return True
 
-    async def subscriber(self, channel_key: str) -> None:
-        """A subscriber function that should be wrapped in an asyncio task.
+    async def _pump_messages(self, pubsub: PubSub, channel_key: str) -> None:
+        """Dispatch incoming pubsub messages on `channel_key` to its callbacks.
 
-        We wrap in an asyncio task rather than using redis-py's built in handling
-        specifically so that we can unsubscribe method-wise instead of channel-wise.
+        A callback raising non-cancellation is isolated and logged so one
+        misbehaving subscriber can't tear down the connection.
         """
-        async with self.client.pubsub() as pubsub:
-            await pubsub.subscribe(channel_key)
-            logger.trace(f"Subscribed to channel {channel_key}")
-            while True:
-                # if len(self.subscriptions[channel_key]) == 0:
-                #     break
+        while True:
+            message = await pubsub.get_message(
+                ignore_subscribe_messages=True, timeout=1.0
+            )
+            if message is None:
+                continue
+            if isinstance(message["data"], str):
+                data = message["data"]
+            elif isinstance(message["data"], bytes):
+                data = message["data"].decode()
+            else:
+                data = str(message["data"])
+            # Snapshot - a callback awaiting can yield to subscribe()/
+            # unsubscribe() mutating the underlying list mid-iteration.
+            # `.get(..., [])` defends against a future cleanup that
+            # `del`s an empty subscriptions list.
+            for callback in list(self.subscriptions.get(channel_key, [])):
                 try:
-                    message = await pubsub.get_message(
-                        ignore_subscribe_messages=True, timeout=0.01
+                    await callback(data)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logger.exception(
+                        f"Pubsub callback for {channel_key} raised; continuing."
                     )
-                    if message is not None:
-                        if isinstance(message["data"], str):
-                            data = message["data"]
-                        elif isinstance(message["data"], bytes):
-                            data = message["data"].decode()
-                        else:
-                            data = str(message["data"])
 
-                        for callback in self.subscriptions[channel_key]:
-                            await callback(data)
+    async def subscriber(self, channel_key: str) -> None:
+        """Self-healing subscriber task for a single Redis pub/sub channel.
 
-                except (ValueError, asyncio.CancelledError):
-                    await pubsub.unsubscribe(channel_key)
-                    break
+        Wrapped in an asyncio task (rather than using redis-py's built-in
+        handling) so we can unsubscribe per-callback instead of per-channel.
+
+        Resilience model: park on `_up_event` while the client believes
+        Redis is down so we don't busy-fail. On a classified outage
+        exception, nudge `request_health_check()` and retry with jittered
+        exponential backoff using a fresh `pubsub()` (its own connection -
+        distinct from the main client's). Non-outage exceptions log and
+        continue. `CancelledError` exits cleanly even if cleanup of the
+        old `pubsub()` masks it.
+        """
+        backoff = self.retry_backoff_start
+        try:
+            while True:
+                if not self.up:
+                    backoff = self.retry_backoff_start
+                    await self._up_event.wait()
+                try:
+                    async with self.client.pubsub() as pubsub:
+                        await pubsub.subscribe(channel_key)
+                        logger.trace(f"Subscribed to channel {channel_key}")
+                        backoff = self.retry_backoff_start
+                        await self._pump_messages(pubsub, channel_key)
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    # PubSub.__aexit__ can raise a ConnectionError during
+                    # cleanup of a dead connection, masking an in-flight
+                    # cancellation. Detect that and re-raise so shutdown
+                    # exits immediately instead of waiting out the backoff.
+                    task = asyncio.current_task()
+                    if task is not None and task.cancelling():
+                        raise asyncio.CancelledError from exc
+                    if self.is_outage_error(exc):
+                        self.request_health_check()
+                        jitter = 1.0 + random.uniform(
+                            -self.retry_backoff_jitter, self.retry_backoff_jitter
+                        )
+                        await asyncio.sleep(backoff * jitter)
+                        backoff = min(backoff * 2, self.retry_backoff_max)
+                    else:
+                        logger.exception(
+                            f"Pubsub non-outage error on {channel_key}; continuing."
+                        )
+                        # Short pause to avoid a tight reconnect loop if a
+                        # misclassified or transient error keeps recurring.
+                        await asyncio.sleep(self.retry_backoff_start)
+        except asyncio.CancelledError:
+            return
 
     async def set(
         self,
@@ -551,13 +652,6 @@ class RedisClient(AsyncDaemon):
         response = await self.client.delete(f"{PREFIX}{key}")
         return response > 0
 
-    async def ping(self) -> bool:
-        """Post-init liveness check. Returns True iff the server responds."""
-        try:
-            return bool(await self.client.ping())
-        except Exception:
-            return False
-
     async def used_memory_bytes(self) -> int:
         """Return the Dragonfly/Redis `used_memory` field from INFO MEMORY."""
         info = await self.client.info("memory")
@@ -577,8 +671,8 @@ class RedisClient(AsyncDaemon):
         except (KeyError, ValueError, json.JSONDecodeError):
             return None
 
-    async def write_freshness(self, key: str, count: int, ttl: int) -> None:
-        """Write a JSON sidecar `{refreshed_at, count}` with the given TTL."""
+    async def write_freshness(self, key: str, count: int, ttl: int = 0) -> None:
+        """Write a JSON sidecar `{refreshed_at, count}`; `ttl=0` for no expire."""
         payload = json.dumps(
             {"refreshed_at": datetime.now().astimezone().isoformat(), "count": count}
         )

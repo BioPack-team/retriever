@@ -1,7 +1,8 @@
 """Tests for query dispatch in retriever.query.
 
-Focused on the timeout and tier resolution that make_query performs before
-handing a QueryInfo off to the relevant query function.
+Focused on the timeout and tier resolution that the per-endpoint
+make_*_query functions perform before handing a QueryInfo off to the
+relevant query function.
 """
 
 from types import SimpleNamespace
@@ -34,8 +35,9 @@ def _lookup_body(parameters: Parameters | None = None) -> TRAPIQuery:
 
 
 async def _run(func, ctx, **kwargs) -> QueryInfo:
-    """Run make_query with all query functions mocked, returning the QueryInfo
-    that was dispatched so its resolved timeout/tier can be asserted."""
+    """Run the relevant make_*_query function with all query functions mocked,
+    returning the QueryInfo that was dispatched so its resolved timeout/tier
+    can be asserted."""
     captured: dict[str, QueryInfo] = {}
 
     async def capture(query: QueryInfo):
@@ -49,7 +51,12 @@ async def _run(func, ctx, **kwargs) -> QueryInfo:
         patch.object(query_module, "get_metadata", stub),
         patch.object(query_module.MONGO_QUEUE, "put", Mock()),
     ):
-        await query_module.make_query(func, ctx, **kwargs)
+        if func == "lookup":
+            await query_module.make_lookup_query(ctx, body=kwargs["body"])
+        elif func == "metakg":
+            await query_module.make_metakg_query(ctx, tier=kwargs.get("tier"))
+        else:  # metadata
+            await query_module.make_metadata_query(ctx, tier=kwargs["tier"])
     return captured["query"]
 
 
@@ -62,7 +69,7 @@ async def test_metadata_timeout_uses_metakg_default():
     timeout, not the boolean False (== 0) that caused instant timeouts."""
     query = await _run("metadata", _ctx(), tier=1)
     assert query.timeout == CONFIG.job.metakg.timeout
-    assert query.timeout is not False  # noqa: E712 — guard against the regression
+    assert query.timeout is not False  # noqa: E712 - guard against the regression
 
 
 @pytest.mark.asyncio
@@ -107,13 +114,6 @@ async def test_metadata_tier_passed_through():
 
 
 @pytest.mark.asyncio
-async def test_non_metakg_tier_defaults_to_zero():
-    """A missing tier defaults to 0 for non-metakg requests."""
-    query = await _run("metadata", _ctx(), tier=None)
-    assert query.tier == 0
-
-
-@pytest.mark.asyncio
 async def test_metakg_tier_stays_none():
     """metakg leaves tier unset (None) when none is provided."""
     query = await _run("metakg", _ctx(path="/meta_knowledge_graph"), tier=None)
@@ -123,9 +123,9 @@ async def test_metakg_tier_stays_none():
 @pytest.mark.asyncio
 async def test_custom_tier_param_overrides():
     """parameters.tier overrides the default/path tier."""
-    body = _lookup_body(Parameters(tier=2))
+    body = _lookup_body(Parameters(tier=1))
     query = await _run("lookup", _ctx("POST", "/query"), body=body)
-    assert query.tier == 2
+    assert query.tier == 1
 
 
 @pytest.mark.asyncio
@@ -139,6 +139,6 @@ async def test_deprecated_tiers_param_applied():
 @pytest.mark.asyncio
 async def test_custom_tier_takes_precedence_over_deprecated_tiers():
     """parameters.tier wins over the deprecated parameters.tiers."""
-    body = _lookup_body(Parameters(tiers=[1], tier=2))
+    body = _lookup_body(Parameters(tiers=[0], tier=1))
     query = await _run("lookup", _ctx("POST", "/query"), body=body)
-    assert query.tier == 2
+    assert query.tier == 1

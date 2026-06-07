@@ -1,11 +1,10 @@
-import asyncio
-import contextlib
 import functools
 import io
 import os
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
+from http import HTTPStatus
 from typing import Annotated, Any, Literal
 
 import yaml
@@ -28,15 +27,22 @@ from retriever.lookup.subclass import SubclassMapping
 from retriever.lookup.subquery import SubqueryDispatcher
 from retriever.lookup.utils import QueryDumper
 from retriever.metadata.optable import OpTableManager
-from retriever.query import get_job_response, get_job_status, make_query
+from retriever.query import (
+    get_job_response,
+    get_job_status,
+    make_lookup_query,
+    make_metadata_query,
+    make_metakg_query,
+)
 from retriever.types.general import APIInfo, ErrorDetail, LogLevel
 from retriever.types.trapi_pydantic import AsyncQuery as TRAPIAsyncQuery
 from retriever.types.trapi_pydantic import Query as TRAPIQuery
 from retriever.types.trapi_pydantic import Response as TRAPIResponse
 from retriever.types.trapi_pydantic import TierNumber
-from retriever.utils import worker
+from retriever.utils import service_health, worker
 from retriever.utils.examples import EXAMPLE_QUERY
-from retriever.utils.exception_handlers import ensure_cors
+from retriever.utils.exception_handlers import ensure_cors, http_exception_handler
+from retriever.utils.general import tolerate_init
 from retriever.utils.logs import (
     add_mongo_sink,
     cleanup,
@@ -44,11 +50,7 @@ from retriever.utils.logs import (
     structured_log_to_trapi,
 )
 from retriever.utils.mongo import MongoClient, MongoQueue
-from retriever.utils.redis import (
-    PROCESS_TTL_SECONDS,
-    RedisClient,
-    heartbeat,
-)
+from retriever.utils.redis import RedisClient
 from retriever.utils.telemetry import configure_telemetry
 from retriever.utils.trapi import append_aggregator_source
 from retriever.utils.version import get_version
@@ -61,10 +63,14 @@ JOB_ID_PATTERN = r"^[a-zA-Z0-9]+$"
 # Lifespan handling for each FastAPI worker (not main process, see __main__.py)
 async def _refresh_worker_registration(pid: int, started_at: datetime) -> None:
     """One heartbeat tick: re-register the worker (and main, in debug)."""
-    await RedisClient().register_worker(pid, started_at, PROCESS_TTL_SECONDS)
+    await RedisClient().register_worker(
+        pid, started_at, CONFIG.redis.process_ttl_seconds
+    )
     if CONFIG.debug:
         # In debug mode this worker is also the main entry-point.
-        await RedisClient().register_main(pid, started_at, PROCESS_TTL_SECONDS)
+        await RedisClient().register_main(
+            pid, started_at, CONFIG.redis.process_ttl_seconds
+        )
 
 
 @asynccontextmanager
@@ -80,27 +86,30 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     worker_pid = os.getpid()
     worker_started_at = datetime.now().astimezone()
     worker.init(worker_started_at)
-    await RedisClient().register_worker(
-        worker_pid, worker_started_at, PROCESS_TTL_SECONDS
-    )
-    heartbeat_task = asyncio.create_task(
-        heartbeat(
-            lambda: _refresh_worker_registration(worker_pid, worker_started_at),
-            role_label="Worker",
+    await tolerate_init(
+        "Worker registration",
+        RedisClient().register_worker(
+            worker_pid, worker_started_at, CONFIG.redis.process_ttl_seconds
         ),
-        name="worker-heartbeat",
     )
-    # In debug mode there's no separate entry-point process — this worker
-    # *is* the main. Register it under both so /status.processes.main isn't
+    RedisClient().start_heartbeat(
+        lambda: _refresh_worker_registration(worker_pid, worker_started_at),
+        role_label="Worker",
+    )
+    # In debug mode main and worker are the same.
+    # Register it under both so /status.processes.main isn't
     # null. In production main is registered by __main__.py.
     if CONFIG.debug:
-        await RedisClient().register_main(
-            worker_pid, worker_started_at, PROCESS_TTL_SECONDS
+        await tolerate_init(
+            "Main registration",
+            RedisClient().register_main(
+                worker_pid, worker_started_at, CONFIG.redis.process_ttl_seconds
+            ),
         )
 
-    await OpTableManager().initialize()
-    await tier_manager.connect_drivers()
-    await SubclassMapping().initialize()
+    await tolerate_init("OpTable pull", OpTableManager().initialize())
+    await tier_manager.initialize_drivers()
+    await tolerate_init("Subclass map pull", SubclassMapping().initialize())
     query_dumper = QueryDumper()
     if CONFIG.tier0.dump_queries or CONFIG.tier1.dump_queries:
         await query_dumper.initialize()
@@ -109,11 +118,6 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     yield  # Separates startup/shutdown phase
 
     # Shutdown
-    heartbeat_task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await heartbeat_task
-    # Deregister immediately so orphan detection doesn't have to wait for
-    # TTL. Swallow failures: the entry will expire on its own.
     try:
         await RedisClient().unregister_worker(worker_pid)
     except Exception:
@@ -125,11 +129,11 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     if query_dumper.initialized:
         await query_dumper.wrapup()
     await SubclassMapping().wrapup()
-    await tier_manager.close_drivers()
+    await tier_manager.wrapup_drivers()
     await OpTableManager().wrapup()
     await RedisClient().wrapup()
     await MongoQueue().wrapup()
-    await MongoClient().close()
+    await MongoClient().wrapup()
     await cleanup()
 
 
@@ -140,7 +144,7 @@ from retriever.status import router as status_router  # noqa: E402
 
 app.include_router(status_router)
 
-# Mount the dashboard at /monitor — static HTML/JS/CSS that polls the
+# Mount the dashboard at /monitor - static HTML/JS/CSS that polls the
 # /status/* endpoints from the browser. No server-side session state.
 from pathlib import Path  # noqa: E402
 
@@ -167,6 +171,9 @@ app.add_middleware(
 async def exception_ensure_cors(request: Request, exc: Exception) -> Response:
     """Ensure CORS is not lost on exception."""
     return await ensure_cors(app, request, exc)
+
+
+app.add_exception_handler(HTTPException, http_exception_handler)  # pyright: ignore[reportArgumentType]
 
 
 # Configure profiling middleware
@@ -225,11 +232,31 @@ async def meta_knowledge_graph(
     ] = None,
 ) -> ORJSONResponse:
     """Retrieve the Meta-Knowledge Graph."""
-    status_code, response_dict = await make_query(
-        "metakg", APIInfo(request, response), tier=tier
+    snap = service_health.Snapshot()
+    if tier is not None:
+        resolved = snap.select_tier(None, tier, allow_fallback=False)
+        if isinstance(resolved[0], HTTPStatus):
+            status_code, detail = resolved
+            raise HTTPException(status_code, detail=detail)
+    elif snap.http_status_for("/meta_knowledge_graph") is not None:
+        tier_statuses = [tier_manager.get_driver(n).status() for n in range(2)]
+        raise HTTPException(
+            HTTPStatus.FAILED_DEPENDENCY,
+            detail=ErrorDetail(
+                detail="No tier backends are available.",
+                additional_info={
+                    f"tier_{n}": {
+                        "outage_time": s["last_outage"],
+                        "outage_error": s["error"],
+                    }
+                    for n, s in enumerate(tier_statuses)
+                },
+            ),
+        )
+    status_code, response_dict = await make_metakg_query(
+        APIInfo(request, response), tier=tier
     )
     return ORJSONResponse(response_dict, status_code=status_code)
-    # return {"logs": list(logs)}
 
 
 @app.get(
@@ -241,8 +268,12 @@ async def metadata(
     request: Request, response: Response, tier: TierNumber
 ) -> ORJSONResponse:
     """Retrieve the metadata associated with a given Data Tier."""
-    status_code, response_dict = await make_query(
-        func="metadata", ctx=APIInfo(request, response), tier=tier
+    resolved = service_health.Snapshot().select_tier(None, tier, allow_fallback=False)
+    if isinstance(resolved[0], HTTPStatus):
+        status_code, detail = resolved
+        raise HTTPException(status_code, detail=detail)
+    status_code, response_dict = await make_metadata_query(
+        APIInfo(request, response), tier=tier
     )
     return ORJSONResponse(response_dict, status_code=status_code)
 
@@ -277,8 +308,8 @@ async def query(
     body: Annotated[TRAPIQuery, Body(examples=[EXAMPLE_QUERY])],
 ) -> ORJSONResponse:
     """Initiate a synchronous query."""
-    status_code, response_dict = await make_query(
-        "lookup", APIInfo(request, response), body=body
+    status_code, response_dict = await make_lookup_query(
+        APIInfo(request, response), body=body
     )
     return ORJSONResponse(response_dict, status_code=status_code)
     # return {}
@@ -314,8 +345,8 @@ async def asyncquery(
     background_tasks: BackgroundTasks,
 ) -> ORJSONResponse:
     """Initiate an asynchronous query."""
-    status_code, response_dict = await make_query(
-        "lookup", APIInfo(request, response, background_tasks), body=body
+    status_code, response_dict = await make_lookup_query(
+        APIInfo(request, response, background_tasks), body=body
     )
     return ORJSONResponse(response_dict, status_code=status_code)
 
@@ -342,6 +373,14 @@ async def asyncquery(
 )
 async def asyncquery_status(request: Request, job_id: str) -> ORJSONResponse:
     """Get the status of an asynchronous query."""
+    if status_code := service_health.Snapshot().http_status_for("/asyncquery_status"):
+        raise HTTPException(
+            status_code,
+            detail=service_health.outage_detail(
+                "MongoDB is unavailable; job state cannot be retrieved.",
+                MongoClient(),
+            ),
+        )
     status_code, job_dict = await get_job_status(job_id.lower(), request)
     return ORJSONResponse(job_dict, status_code=status_code)
 
@@ -362,6 +401,14 @@ async def asyncquery_status(request: Request, job_id: str) -> ORJSONResponse:
 )
 async def response(request: Request, job_id: str) -> ORJSONResponse:
     """Get the response for a query (or logs if it's in progress)."""
+    if service_health.Snapshot().http_status_for("/response") is not None:
+        raise HTTPException(
+            HTTPStatus.FAILED_DEPENDENCY,
+            detail=service_health.outage_detail(
+                "MongoDB is unavailable; the response cannot be retrieved.",
+                MongoClient(),
+            ),
+        )
     status_code, job_dict = await get_job_response(job_id.lower(), request)
     return ORJSONResponse(job_dict, status_code=status_code)
 
@@ -429,7 +476,17 @@ async def logs(  # noqa: PLR0913 Can't reduce args due to FastAPI endpoint forma
 ) -> StreamingResponse:
     """Retrieve MongoDB-saved server logs."""
     if not CONFIG.log.log_to_mongo:
-        raise HTTPException(404, detail="Persisted logging not enabled.")
+        raise HTTPException(
+            HTTPStatus.NOT_FOUND, detail="Persisted logging not enabled."
+        )
+    if service_health.Snapshot().http_status_for("/logs") is not None:
+        raise HTTPException(
+            HTTPStatus.FAILED_DEPENDENCY,
+            detail=service_health.outage_detail(
+                "MongoDB is unavailable; logs cannot be served.",
+                MongoClient(),
+            ),
+        )
 
     if job_id is not None:
         job_id = job_id.lower()

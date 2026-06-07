@@ -27,6 +27,9 @@ QUERY_HANDLERS = dict[str, type[Tier0Query]](
     gandalf=GandalfQuery,
 )
 
+IMPLEMENTED_TIERS: frozenset[TierNumber] = frozenset((0, 1))
+"""Tiers `get_driver` / `get_transpiler` resolve without raising."""
+
 
 def get_driver(tier: TierNumber) -> DatabaseDriver:
     """Get the configured driver for the given tier."""
@@ -48,28 +51,28 @@ def get_transpiler(tier: TierNumber) -> Transpiler:
         raise NotImplementedError(f"Tier {tier} is not yet implemented.")
 
 
-async def connect_drivers() -> None:
-    """Connect all drivers simultaneously, logging failures."""
-    connect_tasks: set[asyncio.Task[None]] = {
+async def initialize_drivers() -> None:
+    """Initialize all drivers simultaneously, logging failures."""
+    init_tasks: set[asyncio.Task[None]] = {
         asyncio.create_task(
-            get_driver(i).connect(), name=f"Tier {i} backend connection"
+            get_driver(i).initialize(), name=f"Tier {i} backend initialize"
         )
         for i in range(2)
     }
 
     def _cancel_tasks() -> None:
-        for task in connect_tasks:
+        for task in init_tasks:
             with contextlib.suppress(asyncio.CancelledError):
                 task.cancel()
 
-    # In case connect tasks run long and user wants to close
+    # In case init tasks run long and user wants to close
     asyncio.get_event_loop().add_signal_handler(SIGTERM, _cancel_tasks)
 
     successes = 0
 
-    while connect_tasks:
+    while init_tasks:
         done, pending = await asyncio.wait(
-            connect_tasks, return_when=asyncio.FIRST_EXCEPTION
+            init_tasks, return_when=asyncio.FIRST_EXCEPTION
         )
 
         for task in done:
@@ -78,7 +81,7 @@ async def connect_drivers() -> None:
             else:
                 successes += 1
 
-        connect_tasks = pending
+        init_tasks = pending
 
     if successes == 0:
         logger.warning(
@@ -86,10 +89,16 @@ async def connect_drivers() -> None:
         )
 
 
-async def close_drivers() -> None:
-    """Close all drivers simultaneously, skipping failures."""
+def enable_periodic_healthchecks(interval: float = 60.0) -> None:
+    """Switch each tier driver to periodic-ping mode; call before `initialize_drivers`."""
+    for tier in range(2):
+        get_driver(tier).healthcheck_interval = interval
+
+
+async def wrapup_drivers() -> None:
+    """Wrap up all drivers simultaneously, skipping failures."""
     close_tasks: set[asyncio.Task[None]] = {
-        asyncio.create_task(get_driver(i).close(), name=f"Tier {i}") for i in range(2)
+        asyncio.create_task(get_driver(i).wrapup(), name=f"Tier {i}") for i in range(2)
     }
 
     while close_tasks:

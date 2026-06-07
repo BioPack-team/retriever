@@ -1,6 +1,6 @@
 """Response shapes for the `/status/*` dashboard API.
 
-These are plain TypedDicts — the dashboard endpoints build responses from
+These are plain TypedDicts - the dashboard endpoints build responses from
 trusted internal data, so there's nothing to validate. FastAPI uses the
 return-type annotations to generate the OpenAPI schema.
 """
@@ -208,7 +208,7 @@ class CountsWindow(TypedDict):
 
 
 class CountsSnapshot(TypedDict):
-    """`/counts` response — three fixed windows (last_24h, last_week, all_time)."""
+    """`/counts` response - three fixed windows (last_24h, last_week, all_time)."""
 
     windows: dict[str, CountsWindow]
 
@@ -228,34 +228,52 @@ class StatusProcess(TypedDict):
     rss_mb: float | None
 
 
-class StatusMongo(TypedDict):
+class BackendHealth(TypedDict):
+    """Uniform health projection emitted by every BackendClient."""
+
+    up: bool
+    last_outage: datetime | None
+    last_recovery: datetime | None
+    error: str | None
+
+
+class StatusMongo(BackendHealth):
     """MongoDB liveness + capacity."""
 
-    connected: bool
-    storage_mb: float
+    storage_mb: float | None
     queue_depth: int
 
 
-class StatusRedis(TypedDict):
+class StatusRedis(BackendHealth):
     """Dragonfly liveness + capacity."""
 
-    connected: bool
-    used_memory_mb: float
+    used_memory_mb: float | None
 
 
-class StatusTier(TypedDict):
-    """One configured tier's connection state."""
+class StatusTier(BackendHealth):
+    """One configured tier's health + identity."""
 
     tier: int
     backend: str
-    connected: bool
 
 
-class StatusFreshness(TypedDict):
-    """Sidecar freshness for a Redis-published artifact."""
+class StatusMetaKG(TypedDict):
+    """Freshness of the published MetaKG plus per-worker caveats."""
 
-    refreshed_at: datetime
-    count: int
+    refreshed_at: datetime | None
+    count: int | None
+    self_reported: bool
+    """True if the answering worker served its in-memory copy instead of the Redis sidecar."""
+    stale: bool
+    """True past roughly twice the refresh cadence; signals instance-0 not refreshing."""
+
+
+class StatusSubclassMap(TypedDict):
+    """Subclass mapping freshness; `available` flips false when no map can be served."""
+
+    refreshed_at: datetime | None
+    count: int | None
+    available: bool
 
 
 class StatusProcesses(TypedDict):
@@ -264,17 +282,28 @@ class StatusProcesses(TypedDict):
     main: StatusProcess | None
     background: StatusProcess | None
     workers: list[StatusProcess]
+    """Just the answering worker if the registry isn't available."""
+    registry_available: bool
+    """False when the worker registry couldn't be read (typically a Redis outage)."""
+
+
+class StatusServedBy(TypedDict):
+    """Identity of the worker that answered this `/status` request."""
+
+    pid: int
+    started_at: datetime
 
 
 class StatusSnapshot(TypedDict):
     """Bare `/status` health snapshot."""
 
     version: StatusVersion
+    served_by: StatusServedBy
     processes: StatusProcesses
-    active_job_count: int
-    stuck_job_count: int
+    active_job_count: int | None
+    stuck_job_count: int | None
     mongo: StatusMongo
     redis: StatusRedis
     tiers: list[StatusTier]
-    metakg: StatusFreshness | None
-    subclass_map: StatusFreshness | None
+    metakg: StatusMetaKG
+    subclass_map: StatusSubclassMap

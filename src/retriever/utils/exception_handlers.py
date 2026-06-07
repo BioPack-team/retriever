@@ -1,11 +1,14 @@
 import traceback
 from datetime import datetime
 from functools import lru_cache
+from http import HTTPStatus
 from typing import cast
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
+from fastapi.utils import is_body_allowed_for_status_code
 
 from retriever.config.general import CONFIG
 
@@ -22,6 +25,19 @@ def get_cors(app: FastAPI) -> CORSMiddleware:
         allow_methods=CONFIG.cors.allow_methods,
         allow_headers=CONFIG.cors.allow_headers,
     )
+
+
+async def http_exception_handler(_request: Request, exc: HTTPException) -> Response:
+    """Like FastAPI's handler but emits a dict `detail` as the body directly, not nested."""
+    headers = getattr(exc, "headers", None)
+    if not is_body_allowed_for_status_code(exc.status_code):
+        return Response(status_code=exc.status_code, headers=headers)
+    body = (
+        jsonable_encoder(exc.detail)
+        if isinstance(exc.detail, dict)
+        else {"detail": exc.detail}
+    )
+    return JSONResponse(body, status_code=exc.status_code, headers=headers)
 
 
 async def ensure_cors(app: FastAPI, request: Request, exc: Exception) -> Response:
@@ -43,7 +59,7 @@ async def ensure_cors(app: FastAPI, request: Request, exc: Exception) -> Respons
                 },
             ],
         },
-        status_code=500,
+        status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
     )
 
     # Since the CORSMiddleware is not executed when an unhandled server exception
