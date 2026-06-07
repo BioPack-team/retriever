@@ -123,7 +123,7 @@ class BackendClient(AsyncDaemon, ABC):
         with contextlib.suppress(ValueError):
             {
                 "outage": self._outage_callbacks,
-                "recovery": self._recovery_callbacks,
+                "recover": self._recovery_callbacks,
             }[event].remove(callback)
 
     def on_outage(self, callback: Callable[[], Awaitable[None]]) -> None:
