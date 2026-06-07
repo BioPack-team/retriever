@@ -15,7 +15,7 @@ Retriever doesn't queue async jobs so `Queued` never appears in our
 storage.
 """
 
-TERMINAL_SUCCESS: frozenset[str] = frozenset({"Success"})
+TERMINAL_SUCCESS: frozenset[str] = frozenset({"Success", "Complete"})
 """Statuses for successfully-terminated jobs."""
 
 TERMINAL_FAILURE: frozenset[str] = frozenset(
