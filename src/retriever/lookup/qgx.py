@@ -316,21 +316,11 @@ class QueryGraphExecutor:
         self, qnode_id: QNodeID, curies: Iterable[CURIE]
     ) -> list[CURIE]:
         """Given a set of CURIEs, return them and any subclasses they may have."""
-        if self.terminate or not (
-            CONFIG.job.lookup.implicit_subclassing and SUBCLASS_MAPPING.initialized
-        ):
-            return list(curies)
-
-        # If the qnode is going into a predicate that can return "subclass_of",
-        # Then we can't proceed
-        if self.skip_subclassing or any(
-            any(
-                set(edge.get("predicates", []) or []).intersection(
-                    biolink.SUBCLASS_SKIP_PREDICATES
-                )
-                for edge in edges
-            )
-            for edges in self.q_agraph[qnode_id].values()
+        if (
+            self.terminate
+            or self.skip_subclassing
+            or (not CONFIG.job.lookup.implicit_subclassing)
+            or (not SUBCLASS_MAPPING.initialized)
         ):
             return list(curies)
 
