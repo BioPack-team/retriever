@@ -138,7 +138,7 @@ class ResponseDescriptions(BaseModel):
         "200": "The present config of the server, with secrets removed."
     }
     status: dict[str, str] = {
-        "root": "Health snapshot — version, processes, dependencies, freshness.",
+        "root": "Health snapshot - version, processes, dependencies, freshness.",
         "jobs": "Full per-job status (metadata + query/response geometry).",
         "active": "Currently in-flight jobs, newest first.",
         "stuck": "Active jobs running past the `min_age` threshold (default 1h).",
