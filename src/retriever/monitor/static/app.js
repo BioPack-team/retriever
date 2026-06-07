@@ -1533,6 +1533,20 @@ function dashboard() {
       return formatDurationSeconds(seconds);
     },
 
+    // Treats negative timeouts (config's -1 sentinel) as "disabled".
+    fmtTimeout(seconds) {
+      if (seconds == null || seconds < 0) return "-";
+      return formatDurationSeconds(seconds);
+    },
+
+    durationTone(detail) {
+      if (!detail) return "";
+      const d = detail.duration_seconds;
+      const t = detail.job_timeout;
+      if (d == null || t == null || t < 0) return "";
+      return d > t ? "timeout-exceeded" : "";
+    },
+
     fmtBool(v) {
       if (v == null) return "—";
       return v ? "yes" : "no";
@@ -1542,8 +1556,15 @@ function dashboard() {
       return v == null ? "—" : v;
     },
 
-    fmtTiers(arr) {
-      return !arr || arr.length === 0 ? "—" : arr.join(", ");
+    fmtTier(v) {
+      return v == null ? "-" : String(v);
+    },
+
+    statusTone(status) {
+      if (!status) return "";
+      if (TERMINAL_FAILURE.has(status)) return "modal-tag--bad";
+      if (status === "Complete") return "modal-tag--good";
+      return "modal-tag--info";
     },
 
     /** Failure percentage over terminal jobs (completed + failed).

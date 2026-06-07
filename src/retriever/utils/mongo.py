@@ -42,9 +42,9 @@ class QueryState(TypedDict):
 
     job_id: str
     query: bytes
-    job_timeout: dict[int, float]
+    job_timeout: float
     submitter: str
-    data_tiers: list[Literal[0, 1, 2]]
+    data_tier: Literal[0, 1, 2] | None
     is_async: bool
     qnodes: int
     qedges: int
@@ -90,9 +90,9 @@ class JobStatus(TypedDict):
     status: str
 
     # Query info
-    job_timeout: NotRequired[dict[int, float]]
+    job_timeout: NotRequired[float | None]
     submitter: NotRequired[str]
-    data_tiers: NotRequired[list[Literal[0, 1, 2]]]
+    data_tier: NotRequired[Literal[0, 1, 2] | None]
     is_async: NotRequired[bool]
     qnodes: NotRequired[int]
     qedges: NotRequired[int]
@@ -137,13 +137,13 @@ class JobIdentityFilter(TypedDict, total=False):
 
     `job_id` is matched as a regex (mirroring `get_logs`). `status` and
     `submitter` accept either a single value or a list (matched as any-of).
-    `data_tiers` matches jobs whose tier list intersects the given tiers.
+    `data_tier` matches jobs assigned to that tier.
     """
 
     job_id: str
     status: str | list[str]
     submitter: str | list[str]
-    data_tiers: list[Literal[0, 1, 2]]
+    data_tier: Literal[0, 1, 2]
     is_async: bool
 
 
@@ -544,8 +544,8 @@ def _build_filter_query(
             query["submitter"] = (
                 {"$in": submitter} if isinstance(submitter, list) else submitter
             )
-        if "data_tiers" in identity:
-            query["data_tiers"] = {"$in": identity["data_tiers"]}
+        if "data_tier" in identity:
+            query["data_tier"] = identity["data_tier"]
         if "is_async" in identity:
             query["is_async"] = identity["is_async"]
 
@@ -966,7 +966,7 @@ class MongoClient(BackendClient):
     async def group_jobs(  # noqa: PLR0913 Each arg is a deliberate filter group
         self,
         *,
-        group_by: Literal["status", "submitter", "is_async", "data_tiers"],
+        group_by: Literal["status", "submitter", "is_async", "data_tier"],
         identity: JobIdentityFilter | None = None,
         times: JobTimeFilter | None = None,
         query_geometry: QueryGeometryFilter | None = None,
@@ -974,20 +974,13 @@ class MongoClient(BackendClient):
         sort_by: Literal["count", "key"] = "count",
         top: int | None = None,
     ) -> list[JobGroupCount]:
-        """Return per-value counts of job_status docs grouped by `group_by`.
-
-        For list-valued fields (currently `data_tiers`), the field is
-        `$unwind`ed before grouping - a job that spans multiple tiers
-        contributes one to each tier's count.
-        """
+        """Return per-value counts of job_status docs grouped by `group_by`."""
         match_query = _build_filter_query(
             identity, times, query_geometry, response_geometry
         )
         pipeline: list[dict[str, Any]] = []
         if match_query:
             pipeline.append({"$match": match_query})
-        if group_by == "data_tiers":
-            pipeline.append({"$unwind": "$data_tiers"})
         pipeline.append({"$group": {"_id": f"${group_by}", "count": {"$sum": 1}}})
         sort_key = "count" if sort_by == "count" else "_id"
         sort_dir = -1 if sort_by == "count" else 1
@@ -1208,7 +1201,7 @@ class MongoClient(BackendClient):
         non_terminal_list = sorted(NON_TERMINAL)
 
         window_group: dict[str, Any] = {
-            "_id": "$data_tiers",
+            "_id": "$data_tier",
             "completed": _count_if_status_in(success_list),
             "failed": _count_if_status_in(failure_list),
             "last_activity": {"$max": "$completed"},
@@ -1229,13 +1222,12 @@ class MongoClient(BackendClient):
             }
 
         pipeline: list[dict[str, Any]] = [
-            {"$match": {"data_tiers": {"$exists": True, "$ne": []}}},
-            {"$unwind": "$data_tiers"},
+            {"$match": {"data_tier": {"$exists": True, "$ne": None}}},
             {
                 "$facet": {
                     "active": [
                         {"$match": {"status": {"$in": non_terminal_list}}},
-                        {"$group": {"_id": "$data_tiers", "count": {"$sum": 1}}},
+                        {"$group": {"_id": "$data_tier", "count": {"$sum": 1}}},
                     ],
                     "in_window": [
                         {"$match": window_match},
@@ -1309,19 +1301,17 @@ class MongoClient(BackendClient):
         """Per-(submitter, tier) cells for the heatmaps view.
 
         Returns one row per non-empty (submitter, tier) pair in the
-        window. A job whose `data_tiers` list spans both tiers
-        contributes to BOTH cells (mirrors `tier_stats` semantics).
-        Duration percentiles populate on Mongo 7+; otherwise `None`.
+        window. Duration percentiles populate on Mongo 7+; otherwise `None`.
         """
         match_query = _build_filter_query(times=times)
         match_query["submitter"] = {"$exists": True}
-        match_query["data_tiers"] = {"$exists": True, "$ne": []}
+        match_query["data_tier"] = {"$exists": True, "$ne": None}
 
         failure_list = sorted(TERMINAL_FAILURE)
         success_list = sorted(TERMINAL_SUCCESS)
 
         group_stage: dict[str, Any] = {
-            "_id": {"submitter": "$submitter", "tier": "$data_tiers"},
+            "_id": {"submitter": "$submitter", "tier": "$data_tier"},
             "count": {"$sum": 1},
             "completed_count": _count_if_status_in(success_list),
             "failed_count": _count_if_status_in(failure_list),
@@ -1353,7 +1343,6 @@ class MongoClient(BackendClient):
 
         pipeline: list[dict[str, Any]] = [
             {"$match": match_query},
-            {"$unwind": "$data_tiers"},
             {"$group": group_stage},
             {"$project": project_stage},
             {"$sort": {"submitter": 1, "tier": 1}},
@@ -1423,21 +1412,16 @@ class MongoClient(BackendClient):
         *,
         times: JobTimeFilter | None = None,
     ) -> list[FailureBreakdownRow]:
-        """One row per (tier, failure-status) pair with counts.
-
-        `data_tiers` is `$unwind`ed so a multi-tier job contributes to
-        each of its tiers (same semantics as `tier_stats`).
-        """
+        """One row per (tier, failure-status) pair with counts."""
         match_query = _build_filter_query(times=times)
-        match_query["data_tiers"] = {"$exists": True, "$ne": []}
+        match_query["data_tier"] = {"$exists": True, "$ne": None}
         match_query["status"] = {"$in": sorted(TERMINAL_FAILURE)}
 
         pipeline: list[dict[str, Any]] = [
             {"$match": match_query},
-            {"$unwind": "$data_tiers"},
             {
                 "$group": {
-                    "_id": {"tier": "$data_tiers", "status": "$status"},
+                    "_id": {"tier": "$data_tier", "status": "$status"},
                     "count": {"$sum": 1},
                 }
             },

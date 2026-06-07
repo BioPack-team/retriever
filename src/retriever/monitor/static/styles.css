@@ -934,6 +934,40 @@ main {
   color: var(--accent-fg);
 }
 
+/* Inline tag chips placed in the modal title bar after the job id. */
+.modal-tags {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.modal-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.8em;
+  font-weight: 500;
+  background: var(--surface-elev);
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.modal-tag--good {
+  background: color-mix(in srgb, var(--good) 18%, transparent);
+  color: var(--good);
+}
+
+.modal-tag--info {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+
+.modal-tag--bad {
+  background: color-mix(in srgb, var(--bad) 18%, transparent);
+  color: var(--bad);
+}
+
 .modal-body {
   padding: 16px;
   /* Modal is fixed at 75vh — let the body fill the remaining space
@@ -952,6 +986,27 @@ main {
   flex-direction: column;
   gap: 8px;
   margin-bottom: 16px;
+}
+
+.detail-row {
+  display: grid;
+  /* 3:4 ratio matches the 3 query-graph cards vs 4 response-graph cards,
+   * keeping individual card widths roughly equal across the two columns. */
+  grid-template-columns: 3fr 4fr;
+  gap: 16px;
+}
+
+.detail-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Stat cards inside a half-width column need a smaller minimum so 3
+ * cards still line up horizontally. */
+.detail-col .stat-cards {
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
 }
 
 .job-detail {
@@ -974,6 +1029,15 @@ main {
   margin: 0;
   color: var(--text);
   word-break: break-word;
+}
+
+.timeout-exceeded {
+  display: inline-block;
+  padding: 2px 0;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--bad) 18%, transparent);
+  color: var(--bad);
+  font-weight: 600;
 }
 
 .log-preview {

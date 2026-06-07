@@ -146,7 +146,7 @@ def _enrich_active(row: JobStatus, now: datetime, request: Request) -> ActiveJob
         job_id=row["job_id"],
         created=created,
         submitter=row.get("submitter", ""),
-        data_tiers=list(row.get("data_tiers", [])),
+        data_tier=row.get("data_tier"),
         age_seconds=int((now - created).total_seconds()),
         links=_build_links(request, row["job_id"]),
     )
@@ -162,7 +162,7 @@ def _enrich_completed(row: JobStatus, request: Request) -> CompletedJobRow:
         created=created,
         completed=completed,
         duration_seconds=float((completed - created).total_seconds()),
-        data_tiers=list(row.get("data_tiers", [])),
+        data_tier=row.get("data_tier"),
         results=int(row.get("results", 0)),
         links=_build_links(request, row["job_id"]),
     )
@@ -178,7 +178,7 @@ def _enrich_failed(row: JobStatus, request: Request) -> FailedJobRow:
         created=created,
         completed=completed,
         duration_seconds=float((completed - created).total_seconds()),
-        data_tiers=list(row.get("data_tiers", [])),
+        data_tier=row.get("data_tier"),
         status=row["status"],
         links=_build_links(request, row["job_id"]),
     )
@@ -534,8 +534,9 @@ async def status_job(request: Request, job_id: str) -> JobDetail:
         job_id=row["job_id"],
         status=row["status"],
         submitter=row.get("submitter"),
-        data_tiers=list(row.get("data_tiers", [])),
+        data_tier=row.get("data_tier"),
         is_async=row.get("is_async"),
+        job_timeout=row.get("job_timeout"),
         created=created,
         completed=completed,
         duration_seconds=duration,
@@ -677,7 +678,7 @@ async def status_timeline(  # noqa: PLR0913 Each arg is a query knob
         if resolved is not None:
             identity["status"] = resolved
         if data_tier is not None:
-            identity["data_tiers"] = [data_tier]  # pyright: ignore[reportGeneralTypeIssues]
+            identity["data_tier"] = data_tier  # pyright: ignore[reportGeneralTypeIssues]
 
     buckets = await MongoClient().bucket_jobs_over_time(
         field=field, granularity=granularity, identity=identity, times=times
@@ -858,7 +859,7 @@ def _identity_with(
     if submitter is not None:
         identity["submitter"] = submitter
     if data_tier is not None:
-        identity["data_tiers"] = [data_tier]  # pyright: ignore[reportGeneralTypeIssues]
+        identity["data_tier"] = data_tier  # pyright: ignore[reportGeneralTypeIssues]
     return identity
 
 

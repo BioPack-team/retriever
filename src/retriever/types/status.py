@@ -24,7 +24,7 @@ class ActiveJobRow(TypedDict):
     job_id: str
     created: datetime
     submitter: str
-    data_tiers: list[int]
+    data_tier: int | None
     age_seconds: int
     links: Links
 
@@ -37,7 +37,7 @@ class CompletedJobRow(TypedDict):
     created: datetime
     completed: datetime
     duration_seconds: float
-    data_tiers: list[int]
+    data_tier: int | None
     results: int
     links: Links
 
@@ -54,7 +54,7 @@ class FailedJobRow(TypedDict):
     created: datetime
     completed: datetime
     duration_seconds: float
-    data_tiers: list[int]
+    data_tier: int | None
     status: str
     links: Links
 
@@ -86,8 +86,9 @@ class JobDetail(TypedDict):
     job_id: str
     status: str
     submitter: NotRequired[str | None]
-    data_tiers: list[int]
+    data_tier: int | None
     is_async: NotRequired[bool | None]
+    job_timeout: NotRequired[float | None]
     created: NotRequired[datetime | None]
     completed: NotRequired[datetime | None]
     duration_seconds: NotRequired[float | None]

@@ -491,7 +491,7 @@
                 <div x-text="activityWhen(row)"></div>
                 <div class="ar mono" x-text="activityDuration(row)"></div>
                 <div x-text="activityOutcome(row)"></div>
-                <div class="ar mono" x-text="(row.data_tiers || []).join(',')"></div>
+                <div class="ar mono" x-text="row.data_tier ?? '-'"></div>
               </button>
             </template>
           </div>
@@ -868,6 +868,23 @@
                 :title="copied ? 'Copied!' : 'Click to copy'"
                 x-text="m.jobId"
               ></code>
+              <span class="modal-tags" x-show="m.detail">
+                <span
+                  class="modal-tag"
+                  :class="statusTone(m.detail?.status)"
+                  x-show="m.detail?.status"
+                  x-text="m.detail?.status"
+                ></span>
+                <span
+                  class="modal-tag"
+                  x-text="m.detail?.is_async ? '/asyncquery' : '/query'"
+                ></span>
+                <span
+                  class="modal-tag"
+                  x-show="m.detail?.data_tier != null"
+                  x-text="'Tier ' + m.detail?.data_tier"
+                ></span>
+              </span>
             </h3>
             <h3
               class="modal-title"
@@ -904,43 +921,63 @@
               <div class="job-detail-block">
                 <h4 class="section-label">Lifecycle</h4>
                 <dl class="job-detail">
-                  <dt>Status</dt>
-                  <dd x-text="m.detail.status"></dd>
                   <dt>Submitter</dt>
-                  <dd x-text="m.detail.submitter || '—'"></dd>
-                  <dt>Async</dt>
-                  <dd x-text="fmtBool(m.detail.is_async)"></dd>
-                  <dt>Tiers</dt>
-                  <dd x-text="fmtTiers(m.detail.data_tiers)"></dd>
+                  <dd x-text="m.detail.submitter || '-'"></dd>
                   <dt>Created</dt>
                   <dd x-text="localTime(m.detail.created)"></dd>
                   <dt>Completed</dt>
                   <dd x-text="localTime(m.detail.completed)"></dd>
+                  <dt>Timeout</dt>
+                  <dd x-text="fmtTimeout(m.detail.job_timeout)"></dd>
                   <dt>Duration</dt>
-                  <dd x-text="fmtDuration(m.detail.duration_seconds)"></dd>
+                  <dd>
+                    <span
+                      :class="durationTone(m.detail)"
+                      x-text="fmtDuration(m.detail.duration_seconds)"
+                    ></span>
+                  </dd>
                 </dl>
 
-                <h4 class="section-label">Query graph</h4>
-                <dl class="job-detail">
-                  <dt>Nodes</dt>
-                  <dd x-text="fmtNum(m.detail.qnodes)"></dd>
-                  <dt>Edges</dt>
-                  <dd x-text="fmtNum(m.detail.qedges)"></dd>
-                  <dt>Paths</dt>
-                  <dd x-text="fmtNum(m.detail.qpaths)"></dd>
-                </dl>
-
-                <h4 class="section-label">Response graph</h4>
-                <dl class="job-detail">
-                  <dt>Nodes</dt>
-                  <dd x-text="fmtNum(m.detail.knodes)"></dd>
-                  <dt>Edges</dt>
-                  <dd x-text="fmtNum(m.detail.kedges)"></dd>
-                  <dt>Aux graphs</dt>
-                  <dd x-text="fmtNum(m.detail.aux_graphs)"></dd>
-                  <dt>Results</dt>
-                  <dd x-text="fmtNum(m.detail.results)"></dd>
-                </dl>
+                <div class="detail-row">
+                  <div class="detail-col">
+                    <h4 class="section-label">Query graph</h4>
+                    <div class="stat-cards">
+                      <div class="stat-card stat-card-static">
+                        <div class="stat-label">Nodes</div>
+                        <div class="stat-value-sm mono" x-text="fmtNum(m.detail.qnodes)"></div>
+                      </div>
+                      <div class="stat-card stat-card-static">
+                        <div class="stat-label">Edges</div>
+                        <div class="stat-value-sm mono" x-text="fmtNum(m.detail.qedges)"></div>
+                      </div>
+                      <div class="stat-card stat-card-static">
+                        <div class="stat-label">Paths</div>
+                        <div class="stat-value-sm mono" x-text="fmtNum(m.detail.qpaths)"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="detail-col">
+                    <h4 class="section-label">Response graph</h4>
+                    <div class="stat-cards">
+                      <div class="stat-card stat-card-static">
+                        <div class="stat-label">Nodes</div>
+                        <div class="stat-value-sm mono" x-text="fmtNum(m.detail.knodes)"></div>
+                      </div>
+                      <div class="stat-card stat-card-static">
+                        <div class="stat-label">Edges</div>
+                        <div class="stat-value-sm mono" x-text="fmtNum(m.detail.kedges)"></div>
+                      </div>
+                      <div class="stat-card stat-card-static">
+                        <div class="stat-label">Aux graphs</div>
+                        <div class="stat-value-sm mono" x-text="fmtNum(m.detail.aux_graphs)"></div>
+                      </div>
+                      <div class="stat-card stat-card-static">
+                        <div class="stat-label">Results</div>
+                        <div class="stat-value-sm mono" x-text="fmtNum(m.detail.results)"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </template>
 
