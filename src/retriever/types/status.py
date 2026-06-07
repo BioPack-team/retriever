@@ -85,6 +85,7 @@ class JobDetail(TypedDict):
 
     job_id: str
     status: str
+    description: NotRequired[str | None]
     submitter: NotRequired[str | None]
     data_tier: int | None
     is_async: NotRequired[bool | None]

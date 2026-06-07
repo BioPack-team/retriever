@@ -64,6 +64,7 @@ class ResponseState(TypedDict):
     aux_graphs: int
     results: int
     status: str
+    description: NotRequired[str | None]
 
 
 class JobDoc(TypedDict):
@@ -88,6 +89,7 @@ class JobStatus(TypedDict):
 
     job_id: str
     status: str
+    description: NotRequired[str | None]
 
     # Query info
     job_timeout: NotRequired[float | None]

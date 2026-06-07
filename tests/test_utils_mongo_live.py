@@ -36,7 +36,7 @@ async def test_ping_db_storage_count_in_flight(test_mongo: MongoClient) -> None:
 async def test_count_jobs_with_status_filter(test_mongo: MongoClient) -> None:  # noqa: F811
     """`count_jobs` respects identity filters built via _build_filter_query."""
     completed = await test_mongo.count_jobs(
-        identity=JobIdentityFilter(status="Complete")
+        identity=JobIdentityFilter(status="Success")
     )
     # Five recent + one old completed.
     assert completed == 6
@@ -51,7 +51,7 @@ async def test_count_jobs_with_status_filter(test_mongo: MongoClient) -> None:  
 async def test_compute_durations_basic(test_mongo: MongoClient) -> None:  # noqa: F811
     """`compute_durations` returns sensible stats; percentile fields only when supported."""
     stats = await test_mongo.compute_durations(
-        identity=JobIdentityFilter(status="Complete")
+        identity=JobIdentityFilter(status="Success")
     )
     # 5 recent (1..5s) + 1 old (30s) = 6 samples; min 1.0, max 30.0.
     assert stats["sample_size"] == 6

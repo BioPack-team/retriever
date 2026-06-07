@@ -76,7 +76,8 @@ class Tier0Query(ABC):
 
             return LookupArtifacts(results, kgraph, aux_graphs, self.job_log.get_logs())
         except Exception as e:
-            if isinstance(e, TimeoutError):
+            timed_out = isinstance(e, TimeoutError)
+            if timed_out:
                 self.job_log.error("Tier 0 operation timed out.")
             elif not isinstance(e, asyncio.exceptions.CancelledError):
                 self.job_log.exception(
@@ -87,7 +88,7 @@ class Tier0Query(ABC):
                 KnowledgeGraphDict(nodes={}, edges={}),
                 {},
                 self.job_log.get_logs(),
-                error=True,
+                status="TimedOut" if timed_out else "Failed",
             )
 
     @abstractmethod

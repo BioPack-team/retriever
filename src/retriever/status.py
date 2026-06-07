@@ -533,6 +533,7 @@ async def status_job(request: Request, job_id: str) -> JobDetail:
     return JobDetail(
         job_id=row["job_id"],
         status=row["status"],
+        description=row.get("description"),
         submitter=row.get("submitter"),
         data_tier=row.get("data_tier"),
         is_async=row.get("is_async"),
@@ -552,11 +553,11 @@ async def status_job(request: Request, job_id: str) -> JobDetail:
 
 
 @router.get(
-    "/active",
+    "/running",
     response_model=ActivePage,
     response_description=STATUS_DESCRIPTIONS.get("active", ""),
 )
-async def status_active(
+async def status_running(
     request: Request,
     cursor: str | None = None,
     limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = DEFAULT_LIMIT,
@@ -657,7 +658,12 @@ async def status_timeline(  # noqa: PLR0913 Each arg is a query knob
     ] = 24.0,
     status: Annotated[
         str | None,
-        Query(description="Specific status or alias 'failed'."),
+        Query(
+            description=(
+                "AsyncQueryStatusResponse lifecycle code "
+                "(Running, Completed, Failed); maps to stored outcome internally."
+            ),
+        ),
     ] = None,
     data_tier: Annotated[
         int | None,
@@ -703,8 +709,13 @@ async def status_durations(
     ] = 24.0,
     status: Annotated[
         str | None,
-        Query(description="Specific status or alias 'failed'."),
-    ] = "Complete",
+        Query(
+            description=(
+                "AsyncQueryStatusResponse lifecycle code "
+                "(Running, Completed, Failed); maps to stored outcome internally."
+            ),
+        ),
+    ] = "Completed",
 ) -> DurationsResponse:
     """Aggregate runtime stats over terminal jobs in the window."""
     service_health.require_mongo(

@@ -14,8 +14,8 @@ const AGGREGATE_INTERVAL_MS = 60_000;
 const TIMELINE_LOOKBACK_HOURS = 24;
 const RECENT_FAILURES_LIMIT = 25;
 const ACTIVITY_PAGE_SIZE = 25;
-const ACTIVITY_MODES = ["Active", "Stuck", "Completed", "Failed"];
-const ACTIVITY_LIVE_MODES = new Set(["Active", "Stuck"]);
+const ACTIVITY_MODES = ["Running", "Stuck", "Completed", "Failed"];
+const ACTIVITY_LIVE_MODES = new Set(["Running", "Stuck"]);
 const LOOKBACK_OPTIONS = ["Last 24h", "Last 3 days", "Last week", "All time"];
 const LOOKBACK_HOURS = {
   "Last 24h": 24,
@@ -31,10 +31,10 @@ const FAILURE_STATUSES = ["Failed", "QueryNotTraversable", "UnsupportedConstrain
 
 // Performance view filters. Lookback is shared with the activity LOOKBACK_*
 // vocabulary (so URL state survives a tab switch); the status filter is
-// either "Complete" or "any-failure" (matches `/status/durations`).
+// either "Success" or "any-failure" (matches `/status/durations`).
 const PERFORMANCE_STATUS_OPTIONS = [
-  { value: "Complete", label: "Completed" },
-  { value: "failed", label: "Failed" },
+  { value: "Completed", label: "Completed" },
+  { value: "Failed", label: "Failed" },
 ];
 const PERFORMANCE_STATUS_VALUES = new Set(
   PERFORMANCE_STATUS_OPTIONS.map((o) => o.value),
@@ -427,7 +427,7 @@ function dashboard() {
     },
     performance: {
       lookback: "Last 24h",
-      status: "Complete",
+      status: "Success",
       durations: null,
       tiers: [],
       timeline: [],
@@ -652,7 +652,7 @@ function dashboard() {
       } else if (this.view === "performance") {
         if (this.performance.lookback !== "Last 24h")
           p.set("window", this.performance.lookback);
-        if (this.performance.status !== "Complete")
+        if (this.performance.status !== "Success")
           p.set("status", this.performance.status);
       } else if (this.view === "heatmaps") {
         if (this.heatmaps.lookback !== "Last week")
@@ -784,7 +784,7 @@ function dashboard() {
           // cursor protocol as Completed/Failed. The endpoints don't
           // accept submitter/tier/sort filters (they only sort by
           // created desc), so only forward the cursor/limit.
-          const path = mode === "Active" ? "/status/active" : "/status/stuck";
+          const path = mode === "Running" ? "/status/running" : "/status/stuck";
           const p = new URLSearchParams({ limit: String(ACTIVITY_PAGE_SIZE) });
           if (this.activity.cursor) p.set("cursor", this.activity.cursor);
           const page = await fetchJson(`${path}?${p}`);
@@ -879,7 +879,7 @@ function dashboard() {
 
     activityOutcome(row) {
       const m = this.activity.mode;
-      if (m === "Active") return "running";
+      if (m === "Running") return "running";
       if (m === "Stuck") return "stuck";
       if (m === "Failed") return row.status || "";
       const r = row.results;
@@ -904,7 +904,7 @@ function dashboard() {
       // from data.status.active_job_count (uncapped Mongo count).
       const [statusR, activeR, stuckR] = await Promise.allSettled([
         fetchJson("/status"),
-        fetchJson("/status/active?limit=500"),
+        fetchJson("/status/running?limit=500"),
         fetchJson("/status/stuck?limit=500"),
       ]);
       if (statusR.status === "fulfilled") {
@@ -1155,8 +1155,9 @@ function dashboard() {
       const vmax = values.length ? Math.max(...values) : 0;
       const scale = metric === "failed_pct" ? "fail" : "duration";
       // Click-through into Activity: failed% lands in Failed mode (default
-      // sort), p95 lands in Completed mode sorted by duration desc. Filters
-      // are limited to submitter/tier — no new "p95" or "failed%" filter.
+      // sort), p95 lands in Completed mode sorted by duration desc.
+      // Filters are limited to submitter/tier — no new "p95" or "failed%"
+      // filter.
       const baseJump =
         metric === "failed_pct"
           ? { mode: "Failed", lookback: this.heatmaps.lookback }
@@ -1272,7 +1273,8 @@ function dashboard() {
 
     last24Completed() {
       const c = this.data.counts?.windows?.last_24h?.counts || {};
-      return c.Complete ?? 0;
+      // Read both new ("Success") and legacy ("Complete") stored values.
+      return (c.Success ?? 0) + (c.Complete ?? 0);
     },
 
     last24Failed() {
@@ -1563,7 +1565,8 @@ function dashboard() {
     statusTone(status) {
       if (!status) return "";
       if (TERMINAL_FAILURE.has(status)) return "modal-tag--bad";
-      if (status === "Complete") return "modal-tag--good";
+      // "Complete" recognized for back-compat with pre-rename docs in MongoDB.
+      if (status === "Success" || status === "Complete") return "modal-tag--good";
       return "modal-tag--info";
     },
 

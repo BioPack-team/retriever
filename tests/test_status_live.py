@@ -39,7 +39,7 @@ async def status_client(test_mongo: MongoClient):  # noqa: F811
 
 @pytest.mark.asyncio
 async def test_active_returns_in_flight(status_client: AsyncClient) -> None:
-    resp = await status_client.get("/status/active")
+    resp = await status_client.get("/status/running")
     assert resp.status_code == 200
     page = resp.json()
     rows = page["items"]
@@ -59,8 +59,8 @@ async def test_counts_breakdown(status_client: AsyncClient) -> None:
     body = resp.json()
     all_time = body["windows"]["all_time"]
     counts: dict[str, int] = all_time["counts"]
-    # Seed has 6 Complete, 3 failure-statuses, 2 Running.
-    assert counts.get("Complete") == 6
+    # Seed has 6 Success, 3 failure-statuses, 2 Running.
+    assert counts.get("Success") == 6
     assert counts.get("Failed") == 1
     assert counts.get("QueryNotTraversable") == 1
     assert counts.get("UnsupportedConstraint") == 1
@@ -100,9 +100,10 @@ async def test_failed_with_reason_filter(status_client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_durations_default_complete(status_client: AsyncClient) -> None:
-    # Default status="Complete", default lookback=24h; the older completed
-    # job is outside the window. So expect 5 samples, not 6.
+async def test_durations_default_completed(status_client: AsyncClient) -> None:
+    # Default status="Completed" (mapped to stored "Success"); default
+    # lookback=24h. The older completed job is outside the window, so we
+    # expect 5 samples, not 6.
     resp = await status_client.get("/status/durations")
     assert resp.status_code == 200
     body = resp.json()

@@ -74,9 +74,9 @@ async def _seed(collection: AsyncIOMotorCollection[dict[str, Any]]) -> None:
         duration = timedelta(seconds=i + 1)
         docs.append(
             _status_doc(
-                status="Complete",
+                status="Success",
                 submitter="alice",
-                tiers=[0],
+                tier=0,
                 created=created,
                 completed=created + duration,
                 results=10 + i,
@@ -95,7 +95,7 @@ async def _seed(collection: AsyncIOMotorCollection[dict[str, Any]]) -> None:
             _status_doc(
                 status=failure_status,
                 submitter="bob",
-                tiers=[1],
+                tier=1,
                 created=created,
                 completed=created + duration,
                 results=0,
@@ -107,7 +107,7 @@ async def _seed(collection: AsyncIOMotorCollection[dict[str, Any]]) -> None:
         _status_doc(
             status="Running",
             submitter="alice" if tier == 0 else "bob",
-            tiers=[tier],
+            tier=tier,
             created=now - timedelta(minutes=2),
             completed=None,
             results=0,
@@ -119,9 +119,9 @@ async def _seed(collection: AsyncIOMotorCollection[dict[str, Any]]) -> None:
     old = now - timedelta(days=7)
     docs.append(
         _status_doc(
-            status="Complete",
+            status="Success",
             submitter="alice",
-            tiers=[0],
+            tier=0,
             created=old,
             completed=old + timedelta(seconds=30),
             results=100,
@@ -135,7 +135,7 @@ def _status_doc(  # noqa: PLR0913
     *,
     status: str,
     submitter: str,
-    tiers: list[int],
+    tier: int,
     created: datetime,
     completed: datetime | None,
     results: int,
@@ -145,12 +145,12 @@ def _status_doc(  # noqa: PLR0913
         "job_id": uuid.uuid4().hex,
         "status": status,
         "submitter": submitter,
-        "data_tiers": tiers,
+        "data_tier": tier,
         "is_async": False,
         "qnodes": 2,
         "qedges": 1,
         "qpaths": 0,
-        "job_timeout": {"0": 30.0, "1": 60.0},
+        "job_timeout": 30.0,
         "created": created,
         "touched": created,
     }

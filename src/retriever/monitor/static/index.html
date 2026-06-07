@@ -88,11 +88,11 @@
           <div class="stat-cards">
             <button
               class="stat-card"
-              @click="jumpToActivity({ mode: 'Active' })"
+              @click="jumpToActivity({ mode: 'Running' })"
             >
               <div class="stat-row">
                 <span class="stat-icon stat-icon-good">▶</span>
-                <span class="stat-label">Active</span>
+                <span class="stat-label">Running</span>
               </div>
               <div class="stat-value" x-text="activeCardValue()"></div>
             </button>
@@ -921,6 +921,8 @@
               <div class="job-detail-block">
                 <h4 class="section-label">Lifecycle</h4>
                 <dl class="job-detail">
+                  <dt>Description</dt>
+                  <dd x-text="m.detail.description || '-'"></dd>
                   <dt>Submitter</dt>
                   <dd x-text="m.detail.submitter || '-'"></dd>
                   <dt>Created</dt>

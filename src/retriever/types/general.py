@@ -81,7 +81,7 @@ class LookupArtifacts(NamedTuple):
     kgraph: KnowledgeGraphDict
     aux_graphs: dict[AuxGraphID, AuxiliaryGraphDict]
     logs: list[LogEntryDict]
-    error: bool | None = None
+    status: str = "Success"
 
 
 AdjacencyGraph = dict[QNodeID, dict[QNodeID, list[QEdgeDict]]]

@@ -31,7 +31,11 @@ from retriever.types.trapi_pydantic import AsyncQuery as TRAPIAsyncQuery
 from retriever.types.trapi_pydantic import Query as TRAPIQuery
 from retriever.types.trapi_pydantic import TierNumber
 from retriever.utils import service_health, telemetry, worker
-from retriever.utils.job_status import NON_TERMINAL, TERMINAL_SUCCESS
+from retriever.utils.job_status import (
+    NON_TERMINAL,
+    TERMINAL_SUCCESS,
+    to_async_lifecycle,
+)
 from retriever.utils.logs import TRAPILogger, structured_log_to_trapi
 from retriever.utils.mongo import (
     JobDoc,
@@ -274,7 +278,7 @@ def contextualize_query_telemetry(info: dict[str, Any]) -> None:
 
 
 _TERMINAL_STATUS_DESCRIPTIONS: dict[str, str] = {
-    "Complete": "Job is complete.",
+    "Success": "Job is complete.",
     "Failed": "Job failed.",
     "QueryNotTraversable": "Query graph was not traversable.",
     "UnsupportedConstraint": "Query graph contained an unsupported constraint.",
@@ -341,17 +345,27 @@ async def in_progress_payload(
 
 
 async def terminal_status_payload(
-    job_id: str, request: Request, job_status: str
+    job_id: str, request: Request, status_doc: JobStatus
 ) -> dict[str, Any]:
-    """Build an AsyncQueryStatusResponse a terminal job."""
+    """Build an AsyncQueryStatusResponse for a terminal job.
+
+    Stored status is an outcome shortcode (Success, QueryNotTraversable, ...);
+    we emit its TRAPI 1.6 lifecycle equivalent (Completed / Failed) on the
+    response. Description prefers the per-job string written by the lookup
+    engine (which can include constraint names, edge ids, etc.) and falls
+    back to a status-keyed default for legacy docs that pre-date the field.
+    """
+    job_status = status_doc["status"]
+    stored_description = status_doc.get("description")
+    description = stored_description or _TERMINAL_STATUS_DESCRIPTIONS.get(
+        job_status,
+        "Job is complete."
+        if job_status in TERMINAL_SUCCESS
+        else f"Job ended with status: {job_status}.",
+    )
     return {
-        "status": job_status,
-        "description": _TERMINAL_STATUS_DESCRIPTIONS.get(
-            job_status,
-            "Job is complete."
-            if job_status in TERMINAL_SUCCESS
-            else f"Job ended with status: {job_status}.",
-        ),
+        "status": to_async_lifecycle(job_status),
+        "description": description,
         "logs": await job_logs(job_id),
         "response_url": f"{request.base_url}response/{job_id}",
     }
@@ -378,7 +392,7 @@ async def get_job_status(
             job_id, ctx_log, exists=status_doc is not None, error=error
         )
 
-    return HTTPStatus.OK, await terminal_status_payload(job_id, request, job_status)
+    return HTTPStatus.OK, await terminal_status_payload(job_id, request, status_doc)
 
 
 async def get_job_response(
@@ -407,7 +421,7 @@ async def get_job_response(
 
     # If job is abandoned, respond with the query
     if status_doc.get("abandoned"):
-        payload = await terminal_status_payload(job_id, request, job_status)
+        payload = await terminal_status_payload(job_id, request, status_doc)
         if job is not None and job.get("doc") is not None:
             query = unpack_doc(job)
             payload = {
@@ -417,7 +431,7 @@ async def get_job_response(
         return HTTPStatus.OK, payload
 
     if job is None or job.get("doc") is None:
-        return HTTPStatus.OK, await terminal_status_payload(job_id, request, job_status)
+        return HTTPStatus.OK, await terminal_status_payload(job_id, request, status_doc)
 
     response = unpack_doc(job)
     return HTTPStatus.OK, {

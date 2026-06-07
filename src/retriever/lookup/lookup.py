@@ -103,6 +103,48 @@ async def async_lookup(
         context.detach(token)
 
 
+def _summarize_execution(
+    ctx: QueryInfo,
+    status: str,
+    results_count: int,
+    duration_ms: int,
+    job_log: TRAPILogger,
+) -> str:
+    """Build the post-execution description and emit a status-appropriate log line.
+
+    `TimedOut` is an internal-only status the query handlers can emit; the
+    caller is expected to collapse it to `Failed` before storing / responding.
+    """
+    match status:
+        case "Success":
+            finish_msg = (
+                f"Execution completed, obtained {results_count} results "
+                f"in {duration_ms}ms."
+            )
+            job_log.success(finish_msg)
+        case "QueryNotTraversable":
+            finish_msg = (
+                "Execution terminated: query graph was not traversable "
+                f"with the current MetaKG (took {duration_ms}ms)."
+            )
+            job_log.warning(finish_msg)
+        case "TimedOut":
+            finish_msg = f"Execution exceeded timeout ({duration_ms}ms > {ctx.timeout * 1000}ms)."
+            job_log.error(finish_msg)
+        case "Failed":
+            finish_msg = (
+                "Execution failed in query handling; see logs "
+                f"for details (took {duration_ms}ms)."
+            )
+            job_log.error(finish_msg)
+        case _:
+            finish_msg = (
+                f"Execution ended with status {status!r} (took {duration_ms}ms)."
+            )
+            job_log.warning(finish_msg)
+    return finish_msg
+
+
 async def lookup(query: QueryInfo) -> tuple[HTTPStatus, ResponseDict]:
     """Execute a lookup query.
 
@@ -152,17 +194,23 @@ async def lookup(query: QueryInfo) -> tuple[HTTPStatus, ResponseDict]:
             QueryGraphExecutor,
         )
         query_handler = handlers[query.tier or 0](expanded_qgraph, query)
-        results, kgraph, aux_graphs, logs, _error = await query_handler.execute()
+        results, kgraph, aux_graphs, logs, status = await query_handler.execute()
 
         job_log.log_deque.extend(logs)
 
         job_log.info(f"Collected {len(results)} results from query task.")
 
-        end_time = time.time()
-        finish_msg = f"Execution completed, obtained {len(results)} results in {math.ceil((end_time - start_time) * 1000):}ms."
-        job_log.success(finish_msg)
+        duration_ms = math.ceil((time.time() - start_time) * 1000)
+        finish_msg = _summarize_execution(
+            query, status, len(results), duration_ms, job_log
+        )
 
-        response["status"] = "Complete"
+        # `TimedOut` is an internal signal driving the description above;
+        # the wire/storage status collapses to `Failed` per spec.
+        if status == "TimedOut":
+            status = "Failed"
+
+        response["status"] = status
         response["description"] = finish_msg
         response["message"]["results"] = results
         response["message"]["knowledge_graph"] = kgraph
@@ -351,6 +399,7 @@ def tracked_response(
                 aux_graphs=len(response["message"].get("auxiliary_graphs") or {}),
                 results=len(response["message"].get("results") or []),
                 status=(response.get("status") or "Running"),
+                description=response.get("description"),
             ),
         )
     except MongoOutage:

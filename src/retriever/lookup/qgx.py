@@ -4,7 +4,7 @@ import math
 import time
 from asyncio.tasks import Task
 from collections.abc import AsyncGenerator, Hashable, Iterable
-from typing import cast
+from typing import Literal, cast
 
 from opentelemetry import trace
 
@@ -63,6 +63,14 @@ DISPATCHER = SubqueryDispatcher()
 
 CompletePathName = str
 
+TerminateReason = Literal[
+    "timeout",
+    "subclass_cutoff",
+    "branch_empty_iterator",
+    "no_supporting_knowledge",
+]
+"""Why the QGX was terminated. Used for internal signaling choices."""
+
 
 class QueryGraphExecutor:
     """Handler class for running the QGX algorithm."""
@@ -90,6 +98,7 @@ class QueryGraphExecutor:
 
     locks: dict[Hashable, asyncio.Lock]
     terminate: bool
+    terminate_reason: TerminateReason | None
     start_time: float
     timeout: float
 
@@ -138,6 +147,7 @@ class QueryGraphExecutor:
         }
 
         self.terminate = False
+        self.terminate_reason = None
         self.start_time = 0  # replaced on execute start
 
         self.timeout = self.ctx.timeout
@@ -160,7 +170,11 @@ class QueryGraphExecutor:
                     f"Failed for find operations supporting query edge(s): {list(operation_plan.keys())}"
                 )
                 return LookupArtifacts(
-                    [], self.kgraph, self.aux_graphs, self.job_log.get_logs()
+                    [],
+                    self.kgraph,
+                    self.aux_graphs,
+                    self.job_log.get_logs(),
+                    status="QueryNotTraversable",
                 )
 
             await self.expand_initial_subclasses()
@@ -222,7 +236,17 @@ class QueryGraphExecutor:
             evaluate_set_interpretation(self.qgraph, results, self.job_log)
 
             return LookupArtifacts(
-                results, self.kgraph, self.aux_graphs, self.job_log.get_logs()
+                results,
+                self.kgraph,
+                self.aux_graphs,
+                self.job_log.get_logs(),
+                status=(
+                    "TimedOut"
+                    if self.terminate_reason == "timeout"
+                    else "Failed"
+                    if self.terminate_reason == "subclass_cutoff"
+                    else "Success"
+                ),
             )
         except Exception:
             self.job_log.exception(
@@ -230,7 +254,11 @@ class QueryGraphExecutor:
             )
             timeout_task.cancel()
             return LookupArtifacts(
-                [], self.kgraph, self.aux_graphs, self.job_log.get_logs(), error=True
+                [],
+                self.kgraph,
+                self.aux_graphs,
+                self.job_log.get_logs(),
+                status="Failed",
             )
 
     async def hydrate_missing_nodes(self) -> None:
@@ -338,6 +366,7 @@ class QueryGraphExecutor:
                     f"Qnode `{qnode_id}` curie {curie} found {len(descendants)} descendants, exceeding cutoff of {CONFIG.job.lookup.subclass_cutoff}. For stability, your query terminates."
                 )
                 self.terminate = True
+                self.terminate_reason = "subclass_cutoff"
                 return []
 
             if not descendants:
@@ -373,6 +402,7 @@ class QueryGraphExecutor:
                 f"Branch {Branch.branch_id_to_name(initial_id)} terminated in an unexpected manner."
             )
             self.terminate = True
+            self.terminate_reason = "branch_empty_iterator"
 
         return partials, reconciled
 
@@ -423,6 +453,7 @@ class QueryGraphExecutor:
                     f"QEdge {longest_branch[-2][1]} found no supporting knowledge. No results can be reconciled. Query terminates."
                 )
                 self.terminate = True
+                self.terminate_reason = "no_supporting_knowledge"
                 break
 
             # await asyncio.sleep(0)
@@ -824,5 +855,6 @@ class QueryGraphExecutor:
             await asyncio.sleep(self.timeout)
             self.job_log.error("QGX hit timeout, attempting wrapup...")
             self.terminate = True
+            self.terminate_reason = "timeout"
         except asyncio.CancelledError:
             return
