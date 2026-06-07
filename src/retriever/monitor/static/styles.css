@@ -100,8 +100,32 @@ body {
   border-radius: var(--radius) var(--radius) 0 0;
 }
 
-.theme-toggle {
+.outage-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border: 2px solid var(--bad);
+  border-radius: var(--radius);
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--bad);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.outage-banner-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.header-right {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.theme-toggle {
   background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -258,6 +282,13 @@ main {
 
 .version {
   margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.served-by,
+.heartbeat {
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-faint);
@@ -477,6 +508,33 @@ main {
   align-items: center;
   gap: 6px;
   font-size: 13px;
+}
+
+.tile-bad {
+  border-color: var(--bad);
+}
+
+.tile-sub-bad {
+  color: var(--bad);
+}
+
+.tile-flag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.flag-warn {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warn);
+}
+
+.flag-bad {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--bad);
 }
 
 /* ============== Activity view ============== */
@@ -780,6 +838,21 @@ main {
   color: var(--text-soft);
   font-style: italic;
   grid-template-columns: 1fr; /* take full width when empty */
+}
+
+.proc-stale {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.proc-banner {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid var(--bad);
+  color: var(--bad);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-size: 12px;
+  margin-bottom: 8px;
 }
 
 .al {

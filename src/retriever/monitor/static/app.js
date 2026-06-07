@@ -403,6 +403,14 @@ function dashboard() {
       counts: null,
       timeline: [],
       failures: [],
+      // Timestamp of the last successful /status fetch — drives the
+      // "last heartbeat" indicator on the Server health pane so viewers
+      // can see when fresh data stops arriving (e.g. workers all down).
+      lastStatusUpdate: null,
+      // Last-known sibling workers carried across a Redis outage so the
+      // Processes panel can grey them out as cached rather than blanking
+      // entirely. Self-only when `registry_available` is false.
+      cachedWorkers: [],
     },
     activity: {
       mode: "Completed",
@@ -888,43 +896,59 @@ function dashboard() {
     },
 
     async refreshRealtime() {
-      try {
-        // Request the server-side max so the Stuck home card and the
-        // data.active fallback for the Active card aren't artificially
-        // capped at the default page size. The Active count itself comes
-        // from data.status.active_job_count (uncapped Mongo count).
-        const [status, active, stuck] = await Promise.all([
-          fetchJson("/status"),
-          fetchJson("/status/active?limit=500"),
-          fetchJson("/status/stuck?limit=500"),
-        ]);
+      // Settled, not all — so a Mongo-down 424 on /active/stuck still
+      // lets the /status snapshot reach the UI (and vice versa).
+      // Request the server-side max so the Stuck home card and the
+      // data.active fallback for the Active card aren't artificially
+      // capped at the default page size. The Active count itself comes
+      // from data.status.active_job_count (uncapped Mongo count).
+      const [statusR, activeR, stuckR] = await Promise.allSettled([
+        fetchJson("/status"),
+        fetchJson("/status/active?limit=500"),
+        fetchJson("/status/stuck?limit=500"),
+      ]);
+      if (statusR.status === "fulfilled") {
+        const status = statusR.value;
         this.data.status = status;
-        this.data.active = active.items || [];
-        this.data.stuck = stuck.items || [];
-      } catch (err) {
-        console.warn("realtime refresh failed:", err);
+        this.data.lastStatusUpdate = new Date().toISOString();
+        // Cache sibling workers while the registry is fresh so a later
+        // Redis outage still has something to render alongside the
+        // self-reporting worker.
+        if (status?.processes?.registry_available) {
+          this.data.cachedWorkers = (status.processes.workers || []).map(
+            (w) => ({ ...w, cachedAt: this.data.lastStatusUpdate }),
+          );
+        }
+      } else {
+        console.warn("realtime /status fetch failed:", statusR.reason);
+      }
+      if (activeR.status === "fulfilled") {
+        this.data.active = activeR.value.items || [];
+      }
+      if (stuckR.status === "fulfilled") {
+        this.data.stuck = stuckR.value.items || [];
       }
     },
 
     async refreshAggregates() {
-      try {
-        const [counts, timeline, failures] = await Promise.all([
-          fetchJson("/status/counts"),
-          fetchJson(
-            `/status/timeline?field=completed&granularity=hour&lookback=${TIMELINE_LOOKBACK_HOURS}`,
-          ),
-          fetchJson(`/status/failed?limit=${RECENT_FAILURES_LIMIT}`),
-        ]);
-        this.data.counts = counts;
-        this.data.timeline = timeline;
-        this.data.failures = failures.items || [];
+      const [countsR, timelineR, failuresR] = await Promise.allSettled([
+        fetchJson("/status/counts"),
+        fetchJson(
+          `/status/timeline?field=completed&granularity=hour&lookback=${TIMELINE_LOOKBACK_HOURS}`,
+        ),
+        fetchJson(`/status/failed?limit=${RECENT_FAILURES_LIMIT}`),
+      ]);
+      if (countsR.status === "fulfilled") this.data.counts = countsR.value;
+      if (timelineR.status === "fulfilled") {
+        this.data.timeline = timelineR.value;
         applyTimelineData(
           throughputPlot,
-          timeline,
-          computeTimelineRange(TIMELINE_LOOKBACK_HOURS, timeline),
+          timelineR.value,
+          computeTimelineRange(TIMELINE_LOOKBACK_HOURS, timelineR.value),
         );
-      } catch (err) {
-        console.warn("aggregate refresh failed:", err);
+      }
+      if (failuresR.status === "fulfilled") {
+        this.data.failures = failuresR.value.items || [];
       }
       // Refresh the submitter dropdown on the same cadence so a
       // long-lived session picks up new submitters without a reload.
@@ -968,32 +992,33 @@ function dashboard() {
     async fetchPerformance() {
       const lookback = this.performanceLookbackHours();
       const status = this.performance.status;
-      try {
-        const [durations, tiers, timeline] = await Promise.all([
-          fetchJson(buildUrl("/status/durations", { status, lookback })),
-          fetchJson(buildUrl("/status/tiers", { lookback })),
-          fetchJson(
-            buildUrl("/status/timeline", {
-              field: "completed",
-              granularity: "hour",
-              lookback,
-            }),
-          ),
-        ]);
-        this.performance.durations = durations;
-        this.performance.tiers = tiers;
-        this.performance.timeline = timeline;
+      const [durationsR, tiersR, timelineR] = await Promise.allSettled([
+        fetchJson(buildUrl("/status/durations", { status, lookback })),
+        fetchJson(buildUrl("/status/tiers", { lookback })),
+        fetchJson(
+          buildUrl("/status/timeline", {
+            field: "completed",
+            granularity: "hour",
+            lookback,
+          }),
+        ),
+      ]);
+      if (durationsR.status === "fulfilled")
+        this.performance.durations = durationsR.value;
+      if (tiersR.status === "fulfilled") this.performance.tiers = tiersR.value;
+      if (timelineR.status === "fulfilled") {
+        this.performance.timeline = timelineR.value;
         // Compute the shared x-range for every chart on the page.
         // Lookback gives an exact window; "All time" derives it from
         // the union timeline so tier charts still line up.
-        const range = computeTimelineRange(lookback, timeline);
+        const range = computeTimelineRange(lookback, timelineR.value);
         this.performance.xRange = range;
-        applyTimelineData(performancePlot, timeline, range);
+        applyTimelineData(performancePlot, timelineR.value, range);
         // Per-tier timelines fan out in parallel after we know which
         // tiers showed activity.
-        await this.fetchTierTimelines(tiers, range);
-      } catch (err) {
-        console.warn("performance fetch failed:", err);
+        if (tiersR.status === "fulfilled") {
+          await this.fetchTierTimelines(tiersR.value, range);
+        }
       }
     },
 
@@ -1064,8 +1089,8 @@ function dashboard() {
 
     async fetchHeatmaps() {
       const lookback = LOOKBACK_HOURS[this.heatmaps.lookback];
-      try {
-        const [submitters, tiers, st, failsSub, failsTier] = await Promise.all([
+      const [submittersR, tiersR, stR, failsSubR, failsTierR] =
+        await Promise.allSettled([
           fetchJson(buildUrl("/status/submitters", { top: 100, lookback })),
           fetchJson(buildUrl("/status/tiers", { lookback })),
           fetchJson(buildUrl("/status/submitter_tier_stats", { lookback })),
@@ -1076,14 +1101,14 @@ function dashboard() {
             buildUrl("/status/failure_breakdown", { by: "tier", lookback }),
           ),
         ]);
-        this.heatmaps.submitterTable = submitters;
-        this.heatmaps.tierTable = tiers;
-        this.heatmaps.submitterTier = st;
-        this.heatmaps.failuresBySubmitter = failsSub.rows || [];
-        this.heatmaps.failuresByTier = failsTier.rows || [];
-      } catch (err) {
-        console.warn("heatmaps fetch failed:", err);
-      }
+      if (submittersR.status === "fulfilled")
+        this.heatmaps.submitterTable = submittersR.value;
+      if (tiersR.status === "fulfilled") this.heatmaps.tierTable = tiersR.value;
+      if (stR.status === "fulfilled") this.heatmaps.submitterTier = stR.value;
+      if (failsSubR.status === "fulfilled")
+        this.heatmaps.failuresBySubmitter = failsSubR.value.rows || [];
+      if (failsTierR.status === "fulfilled")
+        this.heatmaps.failuresByTier = failsTierR.value.rows || [];
     },
 
     setHeatmapsLookback(value) {
@@ -1296,6 +1321,84 @@ function dashboard() {
       return tiers.find((t) => t.tier === n);
     },
 
+    /** Human-readable lines for a BackendHealth-shaped block when down.
+     * Returned as an array so the template can render one per div. */
+    healthDetails(block) {
+      if (!block || block.up) return [];
+      const lines = [];
+      if (block.error) lines.push(block.error);
+      if (block.last_outage) lines.push(`down since ${relTime(block.last_outage)}`);
+      if (block.last_recovery)
+        lines.push(`last recovery ${relTime(block.last_recovery)}`);
+      return lines;
+    },
+
+    /** Flags to surface beside the MetaKG tile heading. Each carries its
+     * own severity so the renderer doesn't have to map label → CSS class. */
+    metakgFlags() {
+      const m = this.data.status?.metakg;
+      if (!m) return [];
+      const flags = [];
+      if (m.self_reported)
+        flags.push({ label: "self-reported", severity: "warn" });
+      if (m.stale) flags.push({ label: "stale", severity: "bad" });
+      return flags;
+    },
+
+    /** Text for the subclass-map tile big-line. Replaces the count when
+     * the map can't be served at all. */
+    subclassBig() {
+      const s = this.data.status?.subclass_map;
+      if (!s) return "—";
+      if (!s.available) return "unavailable";
+      return `${s.count} entries`;
+    },
+
+    /** Sub-text for the subclass-map tile. Distinguishes the
+     * unavailable state (no map at all) from the "serving cached"
+     * state (map present but Tier 1 is down so it can't refresh). */
+    subclassSub() {
+      const s = this.data.status?.subclass_map;
+      if (!s) return "not yet published";
+      if (!s.available) return "Redis outage — subclass expansion skipped";
+      const tier1 = this.tierRow(1);
+      const refreshed = relTime(s.refreshed_at);
+      if (tier1 && !tier1.up) return `serving cached from ${refreshed}`;
+      return `refreshed ${refreshed}`;
+    },
+
+    /** Top-of-pane "served by" / "last update" indicator. Returns null
+     * when no status data has arrived yet. */
+    servedByText() {
+      const sb = this.data.status?.served_by;
+      if (!sb) return null;
+      return `worker ${sb.pid}`;
+    },
+
+    lastUpdateText() {
+      return this.data.lastStatusUpdate
+        ? `updated ${relTime(this.data.lastStatusUpdate)}`
+        : "no data yet";
+    },
+
+    registryAvailable() {
+      return this.data.status?.processes?.registry_available !== false;
+    },
+
+    /** Active card value — null from /status means Mongo is down; render "—". */
+    activeCardValue() {
+      const n = this.data.status?.active_job_count;
+      if (n === null) return "—";
+      return n ?? (this.data.active || []).length;
+    },
+
+    /** Stuck card value — null from /status means Mongo is down; render "—". */
+    stuckCardValue() {
+      const n = this.data.status?.stuck_job_count;
+      if (n === null) return "—";
+      return n ?? (this.data.stuck || []).length;
+    },
+
     processesEmptyHint() {
       if (this.data.status === null) return "Loading…";
       if (!this.data.status.processes)
@@ -1311,6 +1414,7 @@ function dashboard() {
     processRows() {
       const p = this.data.status?.processes;
       if (!p) return [];
+      const selfPid = this.data.status?.served_by?.pid;
       const out = [];
       if (p.main) {
         out.push({
@@ -1318,6 +1422,7 @@ function dashboard() {
           pid: p.main.pid,
           uptime: formatUptime(p.main.uptime_seconds),
           rss: formatMb(p.main.rss_mb),
+          stale: false,
         });
       }
       if (p.background) {
@@ -1326,14 +1431,44 @@ function dashboard() {
           pid: p.background.pid,
           uptime: formatUptime(p.background.uptime_seconds),
           rss: formatMb(p.background.rss_mb),
+          stale: false,
         });
       }
-      (p.workers || []).forEach((w, i) => {
+      // When the registry is available, render workers as-is. When it's
+      // not, the answering worker self-reports as the only fresh row;
+      // cached siblings (from a prior healthy poll) ride along marked
+      // stale so the operator can see who *was* up.
+      const liveWorkers = p.workers || [];
+      if (p.registry_available !== false) {
+        liveWorkers.forEach((w, i) => {
+          out.push({
+            role: `worker [${i}]`,
+            pid: w.pid,
+            uptime: formatUptime(w.uptime_seconds),
+            rss: formatMb(w.rss_mb),
+            stale: false,
+          });
+        });
+        return out;
+      }
+      const livePids = new Set(liveWorkers.map((w) => w.pid));
+      liveWorkers.forEach((w, i) => {
         out.push({
-          role: `worker [${i}]`,
+          role: `worker [${i}] (self)`,
           pid: w.pid,
           uptime: formatUptime(w.uptime_seconds),
           rss: formatMb(w.rss_mb),
+          stale: false,
+        });
+      });
+      this.data.cachedWorkers.forEach((w) => {
+        if (livePids.has(w.pid) || w.pid === selfPid) return;
+        out.push({
+          role: `worker (cached, last seen ${relTime(w.cachedAt)})`,
+          pid: w.pid,
+          uptime: formatUptime(w.uptime_seconds),
+          rss: formatMb(w.rss_mb),
+          stale: true,
         });
       });
       return out;

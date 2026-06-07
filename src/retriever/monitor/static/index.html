@@ -57,13 +57,23 @@
           Heatmaps
         </button>
       </nav>
-      <button
-        class="theme-toggle"
-        @click="toggleTheme()"
-        :title="theme === 'dark' ? 'Switch to light' : 'Switch to dark'"
-      >
-        <span x-text="theme === 'dark' ? '☀' : '🌙'"></span>
-      </button>
+      <div class="header-right">
+        <div
+          class="outage-banner"
+          role="alert"
+          x-show="data.status?.mongo && !data.status.mongo.up"
+        >
+          <span class="outage-banner-icon" aria-hidden="true">⚠</span>
+          <span>MongoDB down: Job tracking is unavailable!</span>
+        </div>
+        <button
+          class="theme-toggle"
+          @click="toggleTheme()"
+          :title="theme === 'dark' ? 'Switch to light' : 'Switch to dark'"
+        >
+          <span x-text="theme === 'dark' ? '🌙' : '☀️'"></span>
+        </button>
+      </div>
     </header>
 
     <main>
@@ -84,7 +94,7 @@
                 <span class="stat-icon stat-icon-good">▶</span>
                 <span class="stat-label">Active</span>
               </div>
-              <div class="stat-value" x-text="data.status?.active_job_count ?? (data.active || []).length"></div>
+              <div class="stat-value" x-text="activeCardValue()"></div>
             </button>
             <button
               class="stat-card"
@@ -94,7 +104,7 @@
                 <span class="stat-icon stat-icon-warn">⧗</span>
                 <span class="stat-label">Stuck</span>
               </div>
-              <div class="stat-value" x-text="data.status?.stuck_job_count ?? (data.stuck || []).length"></div>
+              <div class="stat-value" x-text="stuckCardValue()"></div>
             </button>
             <button
               class="stat-card"
@@ -148,6 +158,12 @@
           <header class="pane-header">
             <h3>Server health</h3>
             <span class="version" x-text="versionLabel()"></span>
+            <span
+              class="served-by"
+              x-show="servedByText()"
+              x-text="servedByText()"
+            ></span>
+            <span class="heartbeat" x-text="lastUpdateText()"></span>
             <span class="spacer"></span>
             <a
               class="btn btn-outline"
@@ -180,6 +196,13 @@
               <div class="tile-head">
                 <span class="tile-icon">⌬</span>
                 <span class="tile-title">MetaKG</span>
+                <template x-for="flag in metakgFlags()" :key="flag.label">
+                  <span
+                    class="tile-flag"
+                    :class="flag.severity === 'bad' ? 'flag-bad' : 'flag-warn'"
+                    x-text="flag.label"
+                  ></span>
+                </template>
                 <span class="ext-icon">↗</span>
               </div>
               <div
@@ -191,25 +214,25 @@
                 x-text="freshnessSub(data.status?.metakg)"
               ></div>
             </a>
-            <div class="tile">
+            <div
+              class="tile"
+              :class="data.status?.subclass_map && !data.status.subclass_map.available ? 'tile-bad' : ''"
+            >
               <div class="tile-head">
                 <span class="tile-icon">⌬</span>
                 <span class="tile-title">Subclass map</span>
               </div>
-              <div
-                class="tile-big"
-                x-text="freshnessCount(data.status?.subclass_map)"
-              ></div>
-              <div
-                class="tile-sub"
-                x-text="freshnessSub(data.status?.subclass_map)"
-              ></div>
+              <div class="tile-big" x-text="subclassBig()"></div>
+              <div class="tile-sub" x-text="subclassSub()"></div>
             </div>
           </div>
 
           <h4 class="section-label">Dependencies</h4>
           <div class="card-row">
-            <div class="tile">
+            <div
+              class="tile"
+              :class="data.status?.mongo && !data.status.mongo.up ? 'tile-bad' : ''"
+            >
               <div class="tile-head">
                 <span class="tile-icon">⛁</span>
                 <span class="tile-title">MongoDB</span>
@@ -217,12 +240,18 @@
               <div class="tile-row">
                 <span
                   class="dot"
-                  :class="data.status?.mongo?.connected ? 'good' : 'bad'"
+                  :class="data.status?.mongo?.up ? 'good' : 'bad'"
                 ></span>
                 <span x-text="mongoDetail()"></span>
               </div>
+              <template x-for="line in healthDetails(data.status?.mongo)" :key="line">
+                <div class="tile-sub tile-sub-bad" x-text="line"></div>
+              </template>
             </div>
-            <div class="tile">
+            <div
+              class="tile"
+              :class="data.status?.redis && !data.status.redis.up ? 'tile-bad' : ''"
+            >
               <div class="tile-head">
                 <span class="tile-icon">⚡</span>
                 <span class="tile-title">Dragonfly</span>
@@ -230,10 +259,13 @@
               <div class="tile-row">
                 <span
                   class="dot"
-                  :class="data.status?.redis?.connected ? 'good' : 'bad'"
+                  :class="data.status?.redis?.up ? 'good' : 'bad'"
                 ></span>
                 <span x-text="redisDetail()"></span>
               </div>
+              <template x-for="line in healthDetails(data.status?.redis)" :key="line">
+                <div class="tile-sub tile-sub-bad" x-text="line"></div>
+              </template>
             </div>
           </div>
 
@@ -242,6 +274,7 @@
             <template x-for="n in TIERS" :key="n">
               <a
                 class="tile tile-link"
+                :class="tierRow(n) && !tierRow(n).up ? 'tile-bad' : ''"
                 :href="`/metadata/tier_${n}`"
                 target="_blank"
                 rel="noopener"
@@ -254,15 +287,22 @@
                 <div class="tile-row">
                   <span
                     class="dot"
-                    :class="tierRow(n)?.connected ? 'good' : (tierRow(n) ? 'bad' : 'unknown')"
+                    :class="tierRow(n)?.up ? 'good' : (tierRow(n) ? 'bad' : 'unknown')"
                   ></span>
                   <span x-text="tierRow(n)?.backend || 'not configured'"></span>
                 </div>
+                <template x-for="line in healthDetails(tierRow(n))" :key="line">
+                  <div class="tile-sub tile-sub-bad" x-text="line"></div>
+                </template>
               </a>
             </template>
           </div>
 
           <h4 class="section-label">Processes</h4>
+          <div class="proc-banner" x-show="!registryAvailable()">
+            Process registry unavailable (Redis down). Showing this worker
+            + last-known siblings from cache.
+          </div>
           <div class="proc-table">
             <div class="proc-row proc-header">
               <div>Role</div>
@@ -276,7 +316,7 @@
               </div>
             </template>
             <template x-for="row in processRows()" :key="row.role + ':' + row.pid">
-              <div class="proc-row">
+              <div class="proc-row" :class="row.stale ? 'proc-stale' : ''">
                 <div x-text="row.role"></div>
                 <div class="ar mono" x-text="row.pid"></div>
                 <div class="ar mono" x-text="row.uptime"></div>
