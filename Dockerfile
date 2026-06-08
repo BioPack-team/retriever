@@ -1,14 +1,17 @@
 # Build via compose: docker compose build
 # Build manual: docker build --rm --force-rm --compress -t biopack-team/retriever .
-FROM python:3.13-alpine
+# DO NOT USE ALPINE, breaks with otel+other deps
+FROM python:3.13-slim
 
-# Ensure requirements
-RUN apk add --no-cache git
-# Build requirements
-RUN apk add --no-cache rust cargo g++ gcc file make python3-dev musl-dev linux-headers
+# Ensure requirements. git is also used below to bake in the build's commit/branch.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+# No build toolchain needed: every native dependency ships a manylinux (glibc)
+# wheel for cp313, so `uv sync` installs prebuilt wheels rather than compiling.
 RUN pip install --upgrade pip
 
-RUN adduser -D python
+RUN useradd --create-home --shell /bin/bash python
 USER python
 
 WORKDIR /usr/src/app
