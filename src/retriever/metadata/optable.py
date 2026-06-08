@@ -1,7 +1,8 @@
 import asyncio
+import contextlib
 import itertools
 from collections import defaultdict
-from collections.abc import Callable, Coroutine, Iterable
+from collections.abc import Awaitable, Callable, Coroutine, Iterable
 from typing import NamedTuple, override
 
 import ormsgpack
@@ -36,7 +37,13 @@ from retriever.types.trapi_pydantic import TierNumber
 from retriever.utils import biolink
 from retriever.utils.biolink import expand
 from retriever.utils.general import AsyncDaemon
-from retriever.utils.redis import OP_TABLE_KEY, OP_TABLE_UPDATE_CHANNEL, RedisClient
+from retriever.utils.redis import (
+    OP_TABLE_KEY,
+    OP_TABLE_META_KEY,
+    OP_TABLE_UPDATE_CHANNEL,
+    TIER_RECOVERED_CHANNEL,
+    RedisClient,
+)
 from retriever.utils.trapi import (
     hash_meta_attribute,
     meta_qualifier_meets_constraints,
@@ -87,13 +94,21 @@ class OpTableManager(AsyncDaemon):
     """Utility class that keeps an up-to-date OperationTable."""
 
     _operation_table: OperationTable | None = None
-    update_lock: asyncio.Lock = asyncio.Lock()
-    is_leader: bool
+    update_lock: asyncio.Lock
+    _refresh_lock: asyncio.Lock
+    _pending_refresh: bool = False
+    is_leader: bool = False
 
-    def __init__(self, leader: bool = False) -> None:
-        """Initialize with leader setting."""
-        self.is_leader = leader
+    def __init__(self) -> None:
+        """Initialize without leader role; call `promote_to_leader()` to flip the flag."""
+        self.update_lock = asyncio.Lock()
+        self._refresh_lock = asyncio.Lock()
+        self._pending_refresh = False
         super().__init__()
+
+    def promote_to_leader(self) -> None:
+        """Flip this instance to leader mode. Must be called before `initialize()`."""
+        self.is_leader = True
 
     @override
     def get_task_funcs(self) -> list[Callable[[], Coroutine[None, None, None]]]:
@@ -106,19 +121,112 @@ class OpTableManager(AsyncDaemon):
     async def initialize(self) -> None:
         """Start the appropriate tasks for a given process."""
         if self.is_leader:
-            await self.build_operation_table()
+            # Register hooks before the initial refresh so a startup
+            # against a down dependency still recovers later.
+            REDIS_CLIENT.on_recover(self.refresh)
+            for tier in range(0, 2):
+                tier_manager.get_driver(tier).on_recover(self.refresh)
+            with contextlib.suppress(Exception):
+                await REDIS_CLIENT.subscribe(
+                    TIER_RECOVERED_CHANNEL, self._on_remote_tier_recover
+                )
+            try:
+                await self.refresh()
+            except Exception:
+                logger.exception(
+                    "Initial OpTable refresh failed; on_recover will retry once dependencies are back."
+                )
         else:
-            await self.pull_op_table("")
-            await REDIS_CLIENT.subscribe(OP_TABLE_UPDATE_CHANNEL, self.pull_op_table)
+            with contextlib.suppress(Exception):
+                await self.pull_op_table("")
+            with contextlib.suppress(Exception):
+                await REDIS_CLIENT.subscribe(
+                    OP_TABLE_UPDATE_CHANNEL, self.pull_op_table
+                )
+            REDIS_CLIENT.on_recover(self._on_redis_recover)
+            for tier_idx in range(0, 2):
+                driver = tier_manager.get_driver(tier_idx)
+                driver.on_recover(self._on_tier_recover)
+                # Tell the leader so it rebuilds without waiting on its periodic ping.
+                driver.on_recover(self._make_remote_publisher(tier_idx))
         return await super().initialize()
+
+    def _make_remote_publisher(self, tier: int) -> Callable[[], Awaitable[None]]:
+        """Build a tier-specific on_recover hook that broadcasts to Redis."""
+
+        async def _publish() -> None:
+            if not REDIS_CLIENT.up:
+                return
+            try:
+                await REDIS_CLIENT.publish(TIER_RECOVERED_CHANNEL, str(tier))
+            except Exception:
+                logger.debug(f"Failed to publish tier {tier} recovery notice to Redis.")
+
+        return _publish
+
+    async def _on_remote_tier_recover(self, _message: str) -> None:
+        """Leader-side subscriber callback for cross-process tier recovery."""
+        await self.refresh()
+
+    async def refresh(self) -> None:
+        """Rebuild and publish the OpTable; concurrent calls collapse to one trailing rebuild."""
+        self._pending_refresh = True
+        if self._refresh_lock.locked():
+            logger.debug(
+                "OpTable rebuild already in progress; trailing rebuild queued."
+            )
+            return
+        async with self._refresh_lock:
+            while self._pending_refresh:
+                self._pending_refresh = False
+                await self.build_operation_table()
+
+    async def _on_redis_recover(self) -> None:
+        """Worker hook: re-pull the published OpTable on Redis recovery."""
+        try:
+            await self.pull_op_table("")
+        except Exception:
+            logger.exception("Failed to re-pull OpTable on Redis recovery.")
+
+    async def _on_tier_recover(self) -> None:
+        """Worker hook: locally rebuild on tier recovery, but only while Redis is down."""
+        if REDIS_CLIENT.up:
+            return
+        try:
+            await self.degraded_local_build()
+        except Exception:
+            logger.exception("Local OpTable rebuild on tier recovery failed.")
+
+    async def degraded_local_build(self) -> None:
+        """Worker-side local OpTable build when Redis is unavailable; not published."""
+        logger.info(
+            "Building local OpTable from available tiers (Redis unavailable)..."
+        )
+        op_table = await self._collect_tier_ops(bypass_cache=True)
+        async with self.update_lock:
+            if REDIS_CLIENT.up:
+                logger.debug(
+                    "Redis recovered mid-local-build; discarding local OpTable."
+                )
+                return
+            self._operation_table = op_table
+        logger.success(
+            f"Local OpTable built with {len(op_table.operations_flat)} operations / {len(op_table.nodes)} nodes."
+        )
 
     @override
     async def wrapup(self) -> None:
         """Cancel running tasks so connections can close."""
-        try:
-            await REDIS_CLIENT.unsubscribe(OP_TABLE_UPDATE_CHANNEL, self.pull_op_table)
-        except Exception:
-            logger.exception("Exception occurred stopping OpTable task.")
+        if self.is_leader:
+            with contextlib.suppress(Exception):
+                await REDIS_CLIENT.unsubscribe(
+                    TIER_RECOVERED_CHANNEL, self._on_remote_tier_recover
+                )
+        else:
+            with contextlib.suppress(Exception):
+                await REDIS_CLIENT.unsubscribe(
+                    OP_TABLE_UPDATE_CHANNEL, self.pull_op_table
+                )
         return await super().wrapup()
 
     async def store_operation_table(self, op_table: OperationTable) -> None:
@@ -137,8 +245,10 @@ class OpTableManager(AsyncDaemon):
             }
         )
 
-        await REDIS_CLIENT.set(
-            OP_TABLE_KEY, op_table_json, compress=True, ttl=CONFIG.job.metakg.build_time
+        await REDIS_CLIENT.set(OP_TABLE_KEY, op_table_json, compress=True)
+        await REDIS_CLIENT.write_freshness(
+            OP_TABLE_META_KEY,
+            count=len(op_table.operations_flat),
         )
         await REDIS_CLIENT.publish(OP_TABLE_UPDATE_CHANNEL, 1)
 
@@ -223,48 +333,82 @@ class OpTableManager(AsyncDaemon):
                         attr["attribute_type_id"]
                     )
 
+    async def _collect_tier_ops(self, *, bypass_cache: bool = False) -> OperationTable:
+        """Collect operations from all implemented tiers concurrently.
+
+        Per-tier failures are logged and skipped so a single tier outage
+        doesn't waste the work of the others. Raises `ValueError` only
+        when no tier contributed - callers should treat that as "preserve
+        the previous OpTable" rather than overwrite with an empty one.
+
+        `bypass_cache=True` propagates to each driver so periodic rebuilds
+        pull fresh upstream metadata; drivers fall back to their own
+        cache when the live fetch fails.
+        """
+        results = await asyncio.gather(
+            *(
+                tier_manager.get_driver(tier).get_operations(bypass_cache=bypass_cache)
+                for tier in range(0, 2)
+            ),
+            return_exceptions=True,
+        )
+
+        operations_flat = FlatOperations()
+        operations_sorted = SortedOperations()
+        nodes = dict[BiolinkEntity, dict[TierNumber, OperationNode]]()
+        succeeded = 0
+        for tier, result in enumerate(results):
+            if isinstance(result, BaseException):
+                logger.warning(
+                    f"OpTable build: Tier {tier} get_operations failed; skipping. Error: {result!r}"
+                )
+                continue
+            new_operations, new_nodes = result
+            self.merge_operations(operations_flat, operations_sorted, new_operations)
+            self.merge_nodes(nodes, new_nodes, tier)
+            succeeded += 1
+
+        if succeeded == 0:
+            raise ValueError("No tier drivers succeeded; preserving previous OpTable.")
+        return OperationTable(operations_sorted, operations_flat, nodes)
+
     async def build_operation_table(self) -> None:
         """Build Retriever's internal OperationTable and store it to Redis."""
         if CONFIG.instance_idx != 0:
             return
 
         logger.info("Building Operation Table...")
-
-        operations_flat = FlatOperations()
-        operations_sorted = SortedOperations()
-        nodes = dict[BiolinkEntity, dict[TierNumber, OperationNode]]()
-
-        driver_ops = [
-            await tier_manager.get_driver(tier).get_operations() for tier in range(0, 2)
-        ]
-
-        for tier, (new_operations, new_nodes) in enumerate(driver_ops):
-            self.merge_operations(operations_flat, operations_sorted, new_operations)
-            self.merge_nodes(nodes, new_nodes, tier)
-
+        op_table = await self._collect_tier_ops(bypass_cache=True)
         async with self.update_lock:
-            self._operation_table = OperationTable(
-                operations_sorted, operations_flat, nodes
-            )
+            self._operation_table = op_table
 
         await self.store_operation_table(self._operation_table)
         logger.success(
-            f"Built Operation Table containing {len(operations_flat)} operations / {len(nodes)} nodes."
+            f"Built Operation Table containing {len(op_table.operations_flat)} operations / {len(op_table.nodes)} nodes."
         )
-        # The leader never reads _operation_table back — it only exists to push to
+        # The leader never reads _operation_table back - it only exists to push to
         # Redis. Drop the reference so the snapshot doesn't sit in process memory.
         if self.is_leader:
             async with self.update_lock:
                 self._operation_table = None
 
     async def periodic_build_op_table(self) -> None:
-        """Periodically rebuild the operation table."""
-        while True:
-            try:
-                await self.build_operation_table()
+        """Periodically rebuild the operation table; build failures log and retry next interval."""
+        try:
+            while True:
+                try:
+                    await self.build_operation_table()
+                except ValueError:
+                    logger.warning(
+                        "OpTable rebuild had no successful tiers; will retry next interval."
+                    )
+                except Exception:
+                    logger.exception(
+                        "OpTable rebuild failed; will retry next interval."
+                    )
                 await asyncio.sleep(CONFIG.job.metakg.build_time)
-            except (ValueError, asyncio.CancelledError):
-                break
+        except asyncio.CancelledError:
+            return
 
     async def pull_op_table(self, _message: str) -> None:
         """Start a subscriber that updates the local operation table."""
@@ -273,19 +417,26 @@ class OpTableManager(AsyncDaemon):
             self._operation_table = await self.retrieve_stored_operation_table()
         logger.success("In-memory OpTable updated.")
 
-    async def get_op_table(self, retries: int = 0) -> OperationTable:
-        """Return the currently-stored Operation Table."""
-        async with self.update_lock:
-            op_table = self._operation_table
-        if op_table is None:
-            if retries >= 6:  # noqa: PLR2004
-                raise ValueError("Failed to retrieve or build a valid OpTable!")
-            if retries == 3:  # noqa: PLR2004
-                # Assume OpTable is not stored and rebuild it
-                await self.build_operation_table()
-            await self.pull_op_table("")
-            return await self.get_op_table(retries + 1)
-        return op_table
+    async def get_op_table(self) -> OperationTable:
+        """Return the currently-stored Operation Table; worker-builds locally if Redis is down."""
+        # Phase 1: try pulling from Redis up to 3 times.
+        # Phase 2: build then pull up to 3 more times.
+        # Worker fallback (Redis down): build locally and re-check.
+        for phase in range(2):
+            for _ in range(3):
+                async with self.update_lock:
+                    op_table = self._operation_table
+                if op_table is not None:
+                    return op_table
+                if not REDIS_CLIENT.up and not self.is_leader:
+                    # Worker can't pull the published copy; build from
+                    # available tiers and re-check.
+                    await self.degraded_local_build()
+                    continue
+                if phase == 1:
+                    await self.build_operation_table()
+                await self.pull_op_table("")
+        raise ValueError("Failed to retrieve or build a valid OpTable!")
 
     async def find_operations(
         self, edge: QEdgeDict, qgraph: QueryGraphDict, tier: TierNumber

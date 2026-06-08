@@ -1,19 +1,24 @@
 import asyncio
+import contextlib
 import os
 import signal
 import sys
+from datetime import datetime
 from multiprocessing import Process
 
 import uvloop
 from loguru import logger
 from uvicorn.supervisors.multiprocess import SIGNALS
 
+from retriever.config.general import CONFIG
 from retriever.config.logger import configure_logging
 from retriever.data_tiers import tier_manager
 from retriever.lookup.subclass import SubclassMapping
 from retriever.metadata.optable import OpTableManager
+from retriever.utils.general import tolerate_init
 from retriever.utils.logs import add_mongo_sink
 from retriever.utils.mongo import MongoClient, MongoQueue
+from retriever.utils.orphan_detection import periodically_mark_orphans
 from retriever.utils.redis import RedisClient
 from retriever.utils.telemetry import configure_telemetry
 
@@ -29,10 +34,34 @@ async def _background_async() -> None:
     await MongoQueue().initialize()
     add_mongo_sink()
     await RedisClient().initialize()
-    await tier_manager.connect_drivers()
-    metakg_manager = OpTableManager(leader=True)
-    await metakg_manager.initialize()
-    await SubclassMapping(leader=True).initialize()
+
+    background_pid = os.getpid()
+    background_started_at = datetime.now().astimezone()
+    await tolerate_init(
+        "Background registration",
+        RedisClient().register_background(
+            background_pid, background_started_at, CONFIG.redis.process_ttl_seconds
+        ),
+    )
+    RedisClient().start_heartbeat(
+        lambda: RedisClient().register_background(
+            background_pid, background_started_at, CONFIG.redis.process_ttl_seconds
+        ),
+        role_label="Background",
+    )
+
+    # The leader doesn't see query traffic, so opt into periodic backend pings.
+    tier_manager.enable_periodic_healthchecks()
+    await tier_manager.initialize_drivers()
+    metakg_manager = OpTableManager()
+    metakg_manager.promote_to_leader()
+    await tolerate_init("OpTable build", metakg_manager.initialize())
+    subclass_manager = SubclassMapping()
+    subclass_manager.promote_to_leader()
+    await tolerate_init("Subclass map build", subclass_manager.initialize())
+    orphan_task = asyncio.create_task(
+        periodically_mark_orphans(), name="orphan-detection"
+    )
     logger.success("Background process setup complete!")
 
     # /// MAIN LOOP ///
@@ -46,11 +75,15 @@ async def _background_async() -> None:
 
     # /// WRAPUP ///
 
+    orphan_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await orphan_task
+    # Heartbeat task lives in RedisClient().tasks; cancelled in its wrapup.
     await SubclassMapping().wrapup()
     await metakg_manager.wrapup()
     await RedisClient().wrapup()
     await MongoQueue().wrapup()
-    await MongoClient().close()
+    await MongoClient().wrapup()
 
 
 def background_process() -> None:

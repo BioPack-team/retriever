@@ -62,6 +62,18 @@ class RedisSettings(BaseModel):
             description="Time in seconds to wait for batched tasks to finish before force-quitting."
         ),
     ] = 3
+    heartbeat_interval_seconds: Annotated[
+        int,
+        Field(
+            description="Cadence at which workers / background / main re-register their process entry."
+        ),
+    ] = 60
+    process_ttl_seconds: Annotated[
+        int,
+        Field(
+            description="TTL on each registered process entry; set to several heartbeat intervals so a single missed refresh doesn't drop the entry."
+        ),
+    ] = 300
 
 
 class MongoSettings(BaseModel):
@@ -177,6 +189,12 @@ class JobSettings(BaseModel):
     callback: CallbackSettings = CallbackSettings()
     lookup: LookupSettings = LookupSettings()
     metakg: MetaKGSettings = MetaKGSettings()
+    orphan_check_interval: Annotated[
+        int,
+        Field(
+            description="Interval in seconds between orphan-job detection sweeps. Set to -1 to disable."
+        ),
+    ] = 120
     ttl: Annotated[
         int,
         Field(
@@ -244,7 +262,7 @@ class Tier1Settings(BaseModel):
 class GandalfSettings(BaseModel):
     """Settings for the Tier 0 Gandalf interface."""
 
-    host: str = "localhost"
+    host: str = "http://localhost"
     port: int = 443
     query_timeout: Annotated[
         int,

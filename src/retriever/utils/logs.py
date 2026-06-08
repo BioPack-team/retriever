@@ -15,7 +15,7 @@ from retriever.config.general import CONFIG
 from retriever.types.general import LogLevel
 from retriever.types.trapi import LogEntryDict
 from retriever.types.trapi import LogLevel as TRAPILogLevel
-from retriever.utils.mongo import MongoQueue
+from retriever.utils.mongo import MongoOutage, MongoQueue
 
 MONGO_QUEUE = MongoQueue()
 
@@ -218,7 +218,7 @@ def add_mongo_sink() -> None:
 
         try:
             MONGO_QUEUE.put("log_dump", log)
-        except ValueError:
+        except (ValueError, MongoOutage):
             return
 
     # Allow an out via no_mongo_log to avoid feedback loops

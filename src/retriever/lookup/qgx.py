@@ -4,7 +4,7 @@ import math
 import time
 from asyncio.tasks import Task
 from collections.abc import AsyncGenerator, Hashable, Iterable
-from typing import cast
+from typing import Literal, cast
 
 from opentelemetry import trace
 
@@ -44,8 +44,10 @@ from retriever.types.trapi import (
     QueryGraphDict,
     ResultDict,
 )
+from retriever.utils import service_health
 from retriever.utils.general import EmptyIteratorError, merge_iterators
 from retriever.utils.logs import TRAPILogger
+from retriever.utils.redis import RedisClient
 from retriever.utils.trapi import (
     evaluate_set_interpretation,
     initialize_kgraph,
@@ -58,9 +60,16 @@ OP_TABLE_MANAGER = OpTableManager()
 SUBCLASS_MAPPING = SubclassMapping()
 DISPATCHER = SubqueryDispatcher()
 
-# TODO: Set interpretation
 
 CompletePathName = str
+
+TerminateReason = Literal[
+    "timeout",
+    "subclass_cutoff",
+    "branch_empty_iterator",
+    "no_supporting_knowledge",
+]
+"""Why the QGX was terminated. Used for internal signaling choices."""
 
 
 class QueryGraphExecutor:
@@ -85,9 +94,11 @@ class QueryGraphExecutor:
 
     skip_subclassing: bool
     subclass_backmap: dict[CURIE, CURIE]
+    subclass_warning_emitted: bool
 
     locks: dict[Hashable, asyncio.Lock]
     terminate: bool
+    terminate_reason: TerminateReason | None
     start_time: float
     timeout: float
 
@@ -125,6 +136,7 @@ class QueryGraphExecutor:
             for edge in self.qgraph["edges"].values()
         )
         self.subclass_backmap = {}
+        self.subclass_warning_emitted = False
 
         # Initialize locks for accessing some of the above
         self.locks = {
@@ -135,6 +147,7 @@ class QueryGraphExecutor:
         }
 
         self.terminate = False
+        self.terminate_reason = None
         self.start_time = 0  # replaced on execute start
 
         self.timeout = self.ctx.timeout
@@ -157,7 +170,11 @@ class QueryGraphExecutor:
                     f"Failed for find operations supporting query edge(s): {list(operation_plan.keys())}"
                 )
                 return LookupArtifacts(
-                    [], self.kgraph, self.aux_graphs, self.job_log.get_logs()
+                    [],
+                    self.kgraph,
+                    self.aux_graphs,
+                    self.job_log.get_logs(),
+                    status="QueryNotTraversable",
                 )
 
             await self.expand_initial_subclasses()
@@ -219,7 +236,17 @@ class QueryGraphExecutor:
             evaluate_set_interpretation(self.qgraph, results, self.job_log)
 
             return LookupArtifacts(
-                results, self.kgraph, self.aux_graphs, self.job_log.get_logs()
+                results,
+                self.kgraph,
+                self.aux_graphs,
+                self.job_log.get_logs(),
+                status=(
+                    "TimedOut"
+                    if self.terminate_reason == "timeout"
+                    else "Failed"
+                    if self.terminate_reason == "subclass_cutoff"
+                    else "Success"
+                ),
             )
         except Exception:
             self.job_log.exception(
@@ -227,7 +254,11 @@ class QueryGraphExecutor:
             )
             timeout_task.cancel()
             return LookupArtifacts(
-                [], self.kgraph, self.aux_graphs, self.job_log.get_logs(), error=True
+                [],
+                self.kgraph,
+                self.aux_graphs,
+                self.job_log.get_logs(),
+                status="Failed",
             )
 
     async def hydrate_missing_nodes(self) -> None:
@@ -293,9 +324,29 @@ class QueryGraphExecutor:
         ):
             return list(curies)
 
+        # No subclass mapping when Redis is down. Warn once per query,
+        # then skip expansion.
+        if not RedisClient().up:
+            if not self.subclass_warning_emitted:
+                self.job_log.log_deque.append(
+                    service_health.subclass_unavailable_warning()
+                )
+                self.subclass_warning_emitted = True
+            return list(curies)
+
         new_curies = set[CURIE](curies)
         for curie in curies:
             descendants = await SUBCLASS_MAPPING.get(curie)
+
+            # `None` signals Redis went down mid-flight. Attach the warning once and
+            # continue without expansion.
+            if descendants is None:
+                if not self.subclass_warning_emitted:
+                    self.job_log.log_deque.append(
+                        service_health.subclass_unavailable_warning()
+                    )
+                    self.subclass_warning_emitted = True
+                continue
 
             if (
                 CONFIG.job.lookup.subclass_cutoff > 0
@@ -305,6 +356,7 @@ class QueryGraphExecutor:
                     f"Qnode `{qnode_id}` curie {curie} found {len(descendants)} descendants, exceeding cutoff of {CONFIG.job.lookup.subclass_cutoff}. For stability, your query terminates."
                 )
                 self.terminate = True
+                self.terminate_reason = "subclass_cutoff"
                 return []
 
             if not descendants:
@@ -340,6 +392,7 @@ class QueryGraphExecutor:
                 f"Branch {Branch.branch_id_to_name(initial_id)} terminated in an unexpected manner."
             )
             self.terminate = True
+            self.terminate_reason = "branch_empty_iterator"
 
         return partials, reconciled
 
@@ -390,6 +443,7 @@ class QueryGraphExecutor:
                     f"QEdge {longest_branch[-2][1]} found no supporting knowledge. No results can be reconciled. Query terminates."
                 )
                 self.terminate = True
+                self.terminate_reason = "no_supporting_knowledge"
                 break
 
             # await asyncio.sleep(0)
@@ -791,5 +845,6 @@ class QueryGraphExecutor:
             await asyncio.sleep(self.timeout)
             self.job_log.error("QGX hit timeout, attempting wrapup...")
             self.terminate = True
+            self.terminate_reason = "timeout"
         except asyncio.CancelledError:
             return

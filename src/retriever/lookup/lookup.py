@@ -2,6 +2,7 @@ import math
 import time
 from collections import deque
 from copy import deepcopy
+from http import HTTPStatus
 
 import bmt
 import httpx
@@ -23,6 +24,7 @@ from retriever.metadata.optable import (
 from retriever.types.general import QueryInfo
 from retriever.types.trapi import (
     KnowledgeGraphDict,
+    LogEntryDict,
     LogLevel,
     MessageDict,
     ParametersDict,
@@ -32,9 +34,10 @@ from retriever.types.trapi import (
     ResultDict,
 )
 from retriever.types.trapi_pydantic import TierNumber
+from retriever.utils import service_health
 from retriever.utils.calls import get_callback_client
 from retriever.utils.logs import TRAPILogger, trapi_level_to_int
-from retriever.utils.mongo import MongoQueue, ResponseState
+from retriever.utils.mongo import MongoOutage, MongoQueue, ResponseState
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 biolink = bmt.Toolkit()
@@ -43,8 +46,16 @@ OP_TABLE_MANAGER = OpTableManager()
 
 ZSTD_COMPRESSOR = zstandard.ZstdCompressor()
 
+CALLBACK_BODY_LOG_LIMIT = 500
+"""Truncate logged callback response bodies to this many chars."""
 
-async def async_lookup(query: QueryInfo, ctx: dict[str, str]) -> None:
+
+async def async_lookup(
+    query: QueryInfo,
+    ctx: dict[str, str],
+    *,
+    extra_warnings: list[LogEntryDict] | None = None,
+) -> None:
     """Handle running lookup as an async query where the client receives a callback."""
     token = context.attach(propagate.extract(ctx))  # Ensure context propagates
 
@@ -55,24 +66,32 @@ async def async_lookup(query: QueryInfo, ctx: dict[str, str]) -> None:
         job_id = query.job_id
         job_log = TRAPILogger(job_id)
         status, response = await lookup(query)
+        if extra_warnings:
+            response["logs"] = [*(response.get("logs") or []), *extra_warnings]
 
         job_log.debug(f"Sending callback to `{query.body['callback']}`...")
         try:
-            client = get_callback_client()
-            callback_response = await client.post(
-                url=str(query.body["callback"]), json=response
-            )
-            callback_response.raise_for_status()
-            job_log.debug("Callback sent successfully.")
+            async with get_callback_client() as client:
+                callback_response = await client.post(
+                    url=str(query.body["callback"]), json=response
+                )
+                callback_response.raise_for_status()
+                job_log.debug("Callback sent successfully.")
         except httpx.HTTPStatusError as error:
             job_log.exception(
                 f"Callback returned erroneous status {error.response.status_code}"
             )
-            job_log.error(f"Response body was {error.response.text}")
+            job_log.error(
+                f"Response body was {error.response.text[:CALLBACK_BODY_LOG_LIMIT]}"
+            )
         except httpx.HTTPError:
             job_log.exception(
-                "An unhandled exception occured while making response callback."
+                "An unhandled httpx error occurred while making response callback."
             )
+        except Exception:
+            # Anything not modeled by httpx (e.g. serialization issues)
+            # gets logged so the background task doesn't crash unnoticed.
+            job_log.exception("Unexpected error during callback delivery.")
 
         # Effectively tack the callback logs onto the end of the response
         response_logs = response.get("logs", []) or []
@@ -84,7 +103,49 @@ async def async_lookup(query: QueryInfo, ctx: dict[str, str]) -> None:
         context.detach(token)
 
 
-async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
+def _summarize_execution(
+    ctx: QueryInfo,
+    status: str,
+    results_count: int,
+    duration_ms: int,
+    job_log: TRAPILogger,
+) -> str:
+    """Build the post-execution description and emit a status-appropriate log line.
+
+    `TimedOut` is an internal-only status the query handlers can emit; the
+    caller is expected to collapse it to `Failed` before storing / responding.
+    """
+    match status:
+        case "Success":
+            finish_msg = (
+                f"Execution completed, obtained {results_count} results "
+                f"in {duration_ms}ms."
+            )
+            job_log.success(finish_msg)
+        case "QueryNotTraversable":
+            finish_msg = (
+                "Execution terminated: query graph was not traversable "
+                f"with the current MetaKG (took {duration_ms}ms)."
+            )
+            job_log.warning(finish_msg)
+        case "TimedOut":
+            finish_msg = f"Execution exceeded timeout ({duration_ms}ms > {ctx.timeout * 1000}ms)."
+            job_log.error(finish_msg)
+        case "Failed":
+            finish_msg = (
+                "Execution failed in query handling; see logs "
+                f"for details (took {duration_ms}ms)."
+            )
+            job_log.error(finish_msg)
+        case _:
+            finish_msg = (
+                f"Execution ended with status {status!r} (took {duration_ms}ms)."
+            )
+            job_log.warning(finish_msg)
+    return finish_msg
+
+
+async def lookup(query: QueryInfo) -> tuple[HTTPStatus, ResponseDict]:
     """Execute a lookup query.
 
     Does job state updating regardless of asyncquery for easier debugging.
@@ -108,43 +169,53 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
 
         # Query graph validation that isn't handled by reasoner_pydantic
         if not passes_validation(query.body, response, job_log) or "paths" in qgraph:
-            return tracked_response(422, query, response, job_log)
+            return tracked_response(
+                HTTPStatus.UNPROCESSABLE_ENTITY, query, response, job_log
+            )
 
         expanded_qgraph = expand_qgraph(deepcopy(qgraph), job_log)
 
         if not await qgraph_supported(
             expanded_qgraph, response, job_log, query.tier or 0
         ):
-            return tracked_response(200, query, response, job_log)
+            return tracked_response(HTTPStatus.OK, query, response, job_log)
 
-        if tier_manager.get_driver(query.tier or 0).is_failed:
+        if not tier_manager.get_driver(query.tier or 0).up:
             msg = f"Tier {query.tier or 0} backend connection failed, query terminates."
             job_log.error(msg)
             response["status"] = "Failed"
             response["description"] = msg
-            return tracked_response(424, query, response, job_log)
+            return tracked_response(
+                HTTPStatus.FAILED_DEPENDENCY, query, response, job_log
+            )
 
         handlers = (
             tier_manager.QUERY_HANDLERS[CONFIG.tier0.backend],
             QueryGraphExecutor,
         )
         query_handler = handlers[query.tier or 0](expanded_qgraph, query)
-        results, kgraph, aux_graphs, logs, _error = await query_handler.execute()
+        results, kgraph, aux_graphs, logs, status = await query_handler.execute()
 
         job_log.log_deque.extend(logs)
 
         job_log.info(f"Collected {len(results)} results from query task.")
 
-        end_time = time.time()
-        finish_msg = f"Execution completed, obtained {len(results)} results in {math.ceil((end_time - start_time) * 1000):}ms."
-        job_log.success(finish_msg)
+        duration_ms = math.ceil((time.time() - start_time) * 1000)
+        finish_msg = _summarize_execution(
+            query, status, len(results), duration_ms, job_log
+        )
 
-        response["status"] = "Complete"
+        # `TimedOut` is an internal signal driving the description above;
+        # the wire/storage status collapses to `Failed` per spec.
+        if status == "TimedOut":
+            status = "Failed"
+
+        response["status"] = status
         response["description"] = finish_msg
         response["message"]["results"] = results
         response["message"]["knowledge_graph"] = kgraph
         response["message"]["auxiliary_graphs"] = aux_graphs
-        return tracked_response(200, query, response, job_log)
+        return tracked_response(HTTPStatus.OK, query, response, job_log)
 
     except Exception:
         job_log.error(
@@ -155,7 +226,9 @@ async def lookup(query: QueryInfo) -> tuple[int, ResponseDict]:
         response["description"] = (
             "Execution failed due to an unhandled error. See the logs for more details."
         )
-        return tracked_response(500, query, response, job_log)
+        return tracked_response(
+            HTTPStatus.INTERNAL_SERVER_ERROR, query, response, job_log
+        )
 
 
 def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]:
@@ -294,8 +367,11 @@ async def qgraph_supported(
 
 
 def tracked_response(
-    status: int, query: QueryInfo, response: ResponseDict, job_log: TRAPILogger
-) -> tuple[int, ResponseDict]:
+    status: HTTPStatus,
+    query: QueryInfo,
+    response: ResponseDict,
+    job_log: TRAPILogger,
+) -> tuple[HTTPStatus, ResponseDict]:
     """Utility function for response handling."""
     # Filter for desired log_level
     desired_log_level = trapi_level_to_int(
@@ -312,16 +388,23 @@ def tracked_response(
 
     # Cast because TypedDict has some *really annoying* interactions with more general dicts
     kgraph = response["message"].get("knowledge_graph") or {}
-    MONGO_QUEUE.put(
-        "job_state",
-        ResponseState(
-            job_id=query.job_id,
-            response=ZSTD_COMPRESSOR.compress(ormsgpack.packb(response)),
-            knodes=len(kgraph.get("nodes") or {}),
-            kedges=len(kgraph.get("edges") or {}),
-            aux_graphs=len(response["message"].get("auxiliary_graphs") or {}),
-            results=len(response["message"].get("results") or []),
-            status=(response.get("status") or "Running"),
-        ),
-    )
+    try:
+        MONGO_QUEUE.put(
+            "job_state",
+            ResponseState(
+                job_id=query.job_id,
+                response=ZSTD_COMPRESSOR.compress(ormsgpack.packb(response)),
+                knodes=len(kgraph.get("nodes") or {}),
+                kedges=len(kgraph.get("edges") or {}),
+                aux_graphs=len(response["message"].get("auxiliary_graphs") or {}),
+                results=len(response["message"].get("results") or []),
+                status=(response.get("status") or "Running"),
+                description=response.get("description"),
+            ),
+        )
+    except MongoOutage:
+        response["logs"] = [
+            *(response.get("logs") or []),
+            service_health.mongo_outage_warning(),
+        ]
     return status, response
