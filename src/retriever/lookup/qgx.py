@@ -44,7 +44,7 @@ from retriever.types.trapi import (
     QueryGraphDict,
     ResultDict,
 )
-from retriever.utils import biolink, service_health
+from retriever.utils import service_health
 from retriever.utils.general import EmptyIteratorError, merge_iterators
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.redis import RedisClient
