@@ -370,6 +370,7 @@ class RedisClient(BackendClient):
         """Probe Redis. Raises on failure."""
         _ = await self.client.ping()
 
+    @override
     def _build_client(self) -> None:
         """(Re)build the internal redis-py async client.
 
@@ -395,19 +396,8 @@ class RedisClient(BackendClient):
         )
 
     @override
-    async def initialize(self) -> None:
-        """Initialize a connection to the redis server; degraded mode on any startup failure."""
-        log.info("Checking redis connection...")
-        try:
-            await self._connect_with_loop_rebuild()
-        except Exception as error:
-            log.warning(
-                f"Redis startup failed; continuing in degraded mode. Health loop will retry. Error: {error}"
-            )
-            self._handle_ping_failure(error)
-        else:
-            log.success("Redis connection successful!")
-        return await super().initialize()
+    async def _connect(self) -> None:
+        await self._connect_with_loop_rebuild()
 
     async def _connect_with_loop_rebuild(self) -> None:
         """Run the initial connect, rebuilding once if bound to a closed loop.
@@ -421,7 +411,7 @@ class RedisClient(BackendClient):
             await self.client.initialize()
             await self.client.ping()
         except RuntimeError as error:
-            if "Event loop is closed" not in str(error):
+            if not self._is_dead_loop_error(error):
                 raise
             log.debug("Rebuilding Redis client on current event loop.")
             self._build_client()

@@ -232,10 +232,13 @@ class ElasticSearchSettings(BaseModel):
             description="Time in seconds before a Elasticsearch query should time out."
         ),
     ] = 180
-    connect_retries: Annotated[
-        int,
-        Field(description="Number of retries before declaring a connection failure."),
-    ] = 5
+    connect_timeout: Annotated[
+        float,
+        Field(
+            gt=0,
+            description="Time in seconds before an Elasticsearch connect/health ping times out.",
+        ),
+    ] = 5.0
     host: str = ""
     port: int = 9200
     database_name: str = "elasticsearch"
@@ -270,12 +273,13 @@ class GandalfSettings(BaseModel):
             description="Time in seconds before a Gandalf query should time out.",
         ),
     ] = 3600
-    connect_retries: Annotated[
-        int,
+    connect_timeout: Annotated[
+        float,
         Field(
-            description="Number of retries before declaring a connection failure.",
+            gt=0,
+            description="Time in seconds before a Gandalf connect/health probe times out.",
         ),
-    ] = 5
+    ] = 30.0
 
     @property
     def http_endpoint(self) -> str:
