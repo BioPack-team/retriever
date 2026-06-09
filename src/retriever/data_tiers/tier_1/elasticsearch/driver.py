@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
-from typing import Any, cast, override
+from collections.abc import Awaitable, Callable
+from typing import Any, override
 
 import orjson
 import ormsgpack
@@ -55,100 +56,44 @@ class ElasticSearchDriver(DatabaseDriver):
 
     @override
     async def ping(self) -> None:
-        """Probe Elasticsearch via the client `ping()`; raises on failure."""
-        if self.es_connection is None:
-            self.setup_es_connection()
-        if self.es_connection is None:
-            raise RuntimeError("ES connection not initialized")
-        if not await self.es_connection.ping():
-            raise ConnectionError("Elasticsearch ping returned False.")
+        """Probe Elasticsearch via the client `ping()`; raises on failure.
 
-    @override
-    def is_outage_error(self, exc: BaseException) -> bool:
-        """ES 4xx ApiError responses are query problems, not outages - except 404."""
-        if not super().is_outage_error(exc):
-            return False
-        if isinstance(exc, es_exceptions.ApiError):
-            code = exc.status_code
-            if code == 404:  # noqa: PLR2004
-                return True
-            if 400 <= code < 500:  # noqa: PLR2004
-                return False
-        return True
+        Probes with the short connect timeout rather than the query
+        timeout, so an unreachable backend is declared down in seconds
+        instead of hanging for a full query timeout.
+        """
+        await self._ensure_client()
+        assert self.es_connection is not None
+        probe = self.es_connection.options(
+            request_timeout=CONFIG.tier1.elasticsearch.connect_timeout
+        )
+        if not await probe.ping():
+            raise ConnectionError("Elasticsearch ping returned False.")
 
     @override
     def _handle_ping_failure(self, exc: BaseException) -> None:
         super()._handle_ping_failure(exc)
-        if isinstance(exc, RuntimeError) and "Event loop is closed" in str(exc):
+        if self._is_dead_loop_error(exc):
             # Stale client is bound to the dead loop; can't await close on it.
             # Drop the reference and let the next ping lazy-create a fresh client.
             self.es_connection = None
 
-    def setup_es_connection(self) -> None:
-        """Setup connection to Elasticsearch instance."""
-        # TODO: auth details: token? user/pass?
+    @override
+    def _client_present(self) -> bool:
+        return self.es_connection is not None
 
+    @override
+    def _build_client(self) -> None:
+        """Build the Elasticsearch client with the query request timeout."""
+        # TODO: auth details: token? user/pass?
         es_url = f"http://{CONFIG.tier1.elasticsearch.host}:{CONFIG.tier1.elasticsearch.port}"
         self.es_connection = AsyncElasticsearch(
             es_url, request_timeout=CONFIG.tier1.elasticsearch.query_timeout
         )
 
-    async def check_es_connection(self) -> bool:
-        """A thin layer around es.ping() method to check es connection."""
-        # es.ping() always resolves to True/False, no try-catch needed
-        if self.es_connection is None:
-            raise ValueError(
-                "ES Connection must be initialized before it can be tested."
-            )
-        is_connected = await self.es_connection.ping()
-
-        if is_connected:
-            log.success("Elasticsearch connection successful!")
-            log.info(f"Using ES index: {CONFIG.tier1.elasticsearch.index_name}")
-
-        return is_connected
-
-    async def retry_es_connection(self, retries: int) -> None:
-        """Retry connection to Elasticsearch and raise exception if retries exceeded."""
-        # Keep trying to connect, if allowed
-        if retries <= CONFIG.tier1.elasticsearch.connect_retries:
-            await self._close_connection()
-            await asyncio.sleep(1)
-            log.error(
-                f"Could not establish connection to elasticsearch_tests, trying again... retry {retries + 1}"
-            )
-            return await self._establish_connection(retries + 1)
-
-        # Retry limit reached
-        try:
-            # Connection will always be non-None by this point
-            connection_info = await cast(AsyncElasticsearch, self.es_connection).info()
-        except Exception as e:
-            # Failed to get connection info
-            log.error(
-                f"Could not establish connection to elasticsearch_tests, error: {e}"
-            )
-            raise e
-        finally:
-            await self._close_connection()
-
-        # Theoretical corner case, when ping() failed but connection_info() succeeded
-        log.error(
-            f"Could not establish connection to elasticsearch_tests, more info: {connection_info}"
-        )
-        raise Exception(
-            f"Could not establish connection to elasticsearch_tests, error: {connection_info}"
-        )
-
     @override
-    async def initialize(self) -> None:
-        """Establish the ES connection, probe, and start the health loop."""
-        self.on_recover(self._refresh_metadata_cache)
-        try:
-            await self._establish_connection()
-        except Exception as exc:
-            self._handle_ping_failure(exc)
-        await super().initialize()
+    def _recovery_callback(self) -> Callable[[], Awaitable[None]]:
+        return self._refresh_metadata_cache
 
     async def _refresh_metadata_cache(self) -> None:
         """Repopulate the in-process metadata + ubergraph cache from live ES."""
@@ -162,21 +107,8 @@ class ElasticSearchDriver(DatabaseDriver):
             )
             _ = await get_ubergraph_info(self.es_connection, bypass_cache=True)
 
-    async def _establish_connection(self, retries: int = 0) -> None:
-        """Connect to Elasticsearch with retry/backoff. Raises if all retries fail."""
-        log.info("Checking ElasticSearch connection...")
-
-        if self.es_connection is None:
-            self.setup_es_connection()
-
-        is_connected = await self.check_es_connection()
-
-        # Evoke retry logic
-        if not is_connected:
-            await self.retry_es_connection(retries)
-
     async def _close_connection(self) -> None:
-        """Close the ES client connection. Reusable from retry paths."""
+        """Close the ES client connection and drop the reference."""
         if self.es_connection is not None:
             await self.es_connection.close()
         self.es_connection = None
@@ -253,15 +185,12 @@ class ElasticSearchDriver(DatabaseDriver):
                 "Must use ElasticSearchDriver.initialize() before fetching node metadata."
             )
 
-        try:
+        with self.nudge_on_failure():
             response = await self.es_connection.search(
                 index=index_name,
                 size=1,
                 query={"term": {"id": _curie}},
             )
-        except Exception:
-            self.request_health_check()
-            raise
         hits = response["hits"]["hits"]
         if len(hits) == 0:
             return None
@@ -289,11 +218,8 @@ class ElasticSearchDriver(DatabaseDriver):
             )
 
         bypass_cache = kwargs.get("bypass_cache", False)
-        try:
+        with self.nudge_on_failure():
             query_result = await self.run(query, bypass_cache)
-        except Exception:
-            self.request_health_check()
-            raise
         if otel_span is not None:
             otel_span.add_event("elasticsearch_query_end")
 
