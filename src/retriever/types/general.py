@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from typing import Annotated, Any, Literal, NamedTuple, NotRequired, TypedDict
 
 from fastapi import BackgroundTasks, Request, Response
+from fastapi.datastructures import Headers
 from pydantic import BeforeValidator
 
 from retriever.types.trapi import (
@@ -57,6 +58,7 @@ class QueryInfo(NamedTuple):
 
     endpoint: str
     method: str
+    headers: Headers
     body: QueryDict | AsyncQueryDict | None
     job_id: str
     tier: TierNumber | None
