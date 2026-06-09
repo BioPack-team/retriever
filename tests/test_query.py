@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from starlette.datastructures import Headers
 
 from retriever import query as query_module
 from retriever.config.general import CONFIG
@@ -19,7 +20,9 @@ from retriever.types.trapi_pydantic import Query as TRAPIQuery
 
 def _ctx(method: str = "GET", path: str = "/metadata/tier_1") -> APIInfo:
     """Build a minimal APIInfo for a synchronous (non-background) request."""
-    request = SimpleNamespace(url=SimpleNamespace(path=path), method=method)
+    request = SimpleNamespace(
+        url=SimpleNamespace(path=path), method=method, headers=Headers()
+    )
     response = SimpleNamespace()
     return APIInfo(request=request, response=response, background_tasks=None)  # pyright: ignore[reportArgumentType]
 
@@ -69,7 +72,7 @@ async def test_metadata_timeout_uses_metakg_default():
     timeout, not the boolean False (== 0) that caused instant timeouts."""
     query = await _run("metadata", _ctx(), tier=1)
     assert query.timeout == CONFIG.job.metakg.timeout
-    assert query.timeout is not False  # noqa: E712 - guard against the regression
+    assert query.timeout is not False
 
 
 @pytest.mark.asyncio

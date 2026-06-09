@@ -162,6 +162,7 @@ async def make_lookup_query(
 
     query = QueryInfo(
         endpoint=ctx.request.url.path,
+        headers=ctx.request.headers,
         method=ctx.request.method,
         body=body_transformed,
         job_id=job_id,
@@ -205,6 +206,7 @@ async def make_metakg_query(
 
     query = QueryInfo(
         endpoint=ctx.request.url.path,
+        headers=ctx.request.headers,
         method=ctx.request.method,
         body=None,
         job_id=job_id,
@@ -230,6 +232,7 @@ async def make_metadata_query(
 
     query = QueryInfo(
         endpoint=ctx.request.url.path,
+        headers=ctx.request.headers,
         method=ctx.request.method,
         body=None,
         job_id=job_id,
