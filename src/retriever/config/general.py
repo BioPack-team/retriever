@@ -276,6 +276,7 @@ class GandalfSettings(BaseModel):
             description="Number of retries before declaring a connection failure.",
         ),
     ] = 5
+    compress_query: bool = False
 
     @property
     def http_endpoint(self) -> str:

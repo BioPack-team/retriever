@@ -163,14 +163,22 @@ class GandalfDriver(DatabaseDriver):
         start = time.time()
         log.debug("Querying Gandalf...")
         try:
+            payload = (
+                ZSTD_COMPRESSOR.compress(query_json.encode())
+                if CONFIG.tier0.gandalf.compress_query
+                else query_json
+            )
+            headers = {
+                "Content-Type": "application/json",
+            }
+            if CONFIG.tier0.gandalf.compress_query:
+                headers["Content-Encoding"] = "zstd"
+
             response = await self._http_session.post(
                 f"{self.endpoint}/query",
-                content=ZSTD_COMPRESSOR.compress(query_json.encode()),
-                headers={
-                    "Content-Type": "application/json",
-                    "Content-Encoding": "zstd",
-                },
+                content=payload,
                 timeout=self.query_timeout,
+                headers=headers,
             )
             response.raise_for_status()
             end = time.time()
