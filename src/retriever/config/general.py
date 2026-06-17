@@ -342,6 +342,12 @@ class GeneralConfig(CommentedSettings):
     trust_proxy: Annotated[
         bool, Field(description="Use proxy IP headers (such as in nginx cases)")
     ] = True
+    forwarded_allow_ips: Annotated[
+        str | list[str],
+        Field(
+            description="Upstream IPs whose X-Forwarded-* headers are trusted when trust_proxy is set. '*' trusts all, appropriate when the app is only reachable through the proxy."
+        ),
+    ] = "*"
     cors: CORSSettings = CORSSettings()
     workers: Annotated[
         int | None,

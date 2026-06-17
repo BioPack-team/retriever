@@ -71,6 +71,7 @@ async def _main_inner() -> None:
         workers=n_workers,
         loop="uvloop",
         proxy_headers=CONFIG.trust_proxy,
+        forwarded_allow_ips=CONFIG.forwarded_allow_ips,
     )
     server = uvicorn.Server(config)
 
