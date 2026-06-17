@@ -1499,20 +1499,34 @@ class MongoClient(BackendClient):
         async for line in _format_flat(self.get_server_logs(start, end, level)):
             yield line
 
-    async def get_non_terminal_with_worker_info(
+    async def get_non_terminal_for_orphan_sweep(
         self,
-    ) -> list[tuple[str, int | None, datetime | None]]:
-        """Return (job_id, worker_pid, worker_started_at) for all non-terminal jobs.
+    ) -> list[tuple[str, int | None, datetime | None, datetime | None]]:
+        """Return (job_id, worker_pid, worker_started_at, created) per non-terminal job.
 
-        Jobs created before worker tracking was added will have None for both worker fields.
+        The orphan sweep uses the worker fields to detect dead workers and
+        `created` for the age-based fallback. Jobs created before worker
+        tracking was added have None for both worker fields, so only the
+        age fallback can reach them.
         """
         status_collection, _ = self.get_job_collection()
-        projection = {"_id": 0, "job_id": 1, "worker_pid": 1, "worker_started_at": 1}
+        projection = {
+            "_id": 0,
+            "job_id": 1,
+            "worker_pid": 1,
+            "worker_started_at": 1,
+            "created": 1,
+        }
         cursor = status_collection.find(
             {"status": {"$in": sorted(NON_TERMINAL)}}, projection
         )
         return [
-            (doc["job_id"], doc.get("worker_pid"), doc.get("worker_started_at"))
+            (
+                doc["job_id"],
+                doc.get("worker_pid"),
+                doc.get("worker_started_at"),
+                doc.get("created"),
+            )
             async for doc in cursor
         ]
 
