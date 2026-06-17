@@ -195,6 +195,12 @@ class JobSettings(BaseModel):
             description="Interval in seconds between orphan-job detection sweeps. Set to -1 to disable."
         ),
     ] = 120
+    orphan_max_age: Annotated[
+        int,
+        Field(
+            description="Time in seconds after which a non-terminal job is considered dead regardless of worker info. Set to -1 to disable."
+        ),
+    ] = 172_800
     ttl: Annotated[
         int,
         Field(

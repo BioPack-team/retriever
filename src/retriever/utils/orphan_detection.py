@@ -5,12 +5,16 @@ configured by `CONFIG.job.orphan_check_interval`. A job is considered
 orphaned when its `worker_pid` is no longer in the Redis worker registry,
 or when the registered start time at that PID differs from the one
 recorded on the job (PID reuse).
+
+As a fallback, any non-terminal job older than `CONFIG.job.orphan_max_age`
+is treated as dead regardless of worker info. We can assume no job legitimately runs
+that long.
 """
 
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from loguru import logger
 
@@ -44,16 +48,29 @@ async def _mark_orphaned_jobs() -> None:
         # if it's still alive. Reading the other way around would risk
         # marking a freshly-created job orphaned because its worker
         # registered between the two reads.
-        non_terminal = await MongoClient().get_non_terminal_with_worker_info()
+        non_terminal = await MongoClient().get_non_terminal_for_orphan_sweep()
         live_workers = await RedisClient().list_workers()
     except Exception:
         logger.exception("Orphan sweep failed to read state; skipping.")
         return
 
+    max_age = CONFIG.job.orphan_max_age
+    age_cutoff = (
+        datetime.now().astimezone() - timedelta(seconds=max_age)
+        if max_age >= 0
+        else None
+    )
+
     orphaned_ids: list[str] = []
-    for job_id, wpid, wstarted in non_terminal:
+    for job_id, wpid, wstarted, created in non_terminal:
+        if age_cutoff is not None and created is not None and created < age_cutoff:
+            # Older than any legitimate job could run -> dead, whatever the
+            # worker fields say. This is the only arm that reaches jobs
+            # predating worker tracking (no worker info to check otherwise).
+            orphaned_ids.append(job_id)
+            continue
         if wpid is None:
-            continue  # pre-feature doc; no worker info to check
+            continue  # no worker info and not old enough to call dead
         live_started = live_workers.get(wpid)
         if live_started is None:
             # Worker PID is no longer in the registry → worker died.
