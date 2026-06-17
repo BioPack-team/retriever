@@ -76,7 +76,7 @@ async def async_lookup(
             async with get_callback_client() as client:
                 callback_json = orjson.dumps(response)
                 headers = {"Content-Type": "application/json"}
-                if accepts_zstd(query.headers.get("Accept-Encoding", "")):
+                if accepts_zstd(query.headers.get("Callback-Accept-Encoding", "")):
                     callback_json = ZSTD_COMPRESSOR.compress(callback_json)
                     headers["Content-Encoding"] = "zstd"
                 callback_response = await client.post(
