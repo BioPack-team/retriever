@@ -4,7 +4,7 @@ import asyncio
 import contextlib
 import random
 from abc import ABC, abstractmethod
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine, Generator
 from datetime import datetime
 from typing import Literal, TypedDict, override
 
@@ -63,6 +63,9 @@ class BackendClient(AsyncDaemon, ABC):
     _callback_tasks: set[asyncio.Task[None]]
     """Callback task storage to prevent early GC."""
 
+    _client_lock: asyncio.Lock
+    """Serializes lazy client (re)builds in `_ensure_client`."""
+
     def __init__(self) -> None:
         """Initialize state. Assume up until failure."""
         super().__init__()
@@ -76,6 +79,7 @@ class BackendClient(AsyncDaemon, ABC):
         self._up_event = asyncio.Event()
         self._up_event.set()
         self._callback_tasks = set()
+        self._client_lock = asyncio.Lock()
 
     @abstractmethod
     async def ping(self) -> None:
@@ -96,6 +100,15 @@ class BackendClient(AsyncDaemon, ABC):
         """
         return not isinstance(exc, asyncio.CancelledError)
 
+    @staticmethod
+    def _is_dead_loop_error(exc: BaseException) -> bool:
+        """True if `exc` signals the client is bound to a now-closed event loop.
+
+        A stale client can't be awaited on the dead loop; callers drop the
+        reference so the next `_ensure_client` rebuilds against the live loop.
+        """
+        return isinstance(exc, RuntimeError) and "Event loop is closed" in str(exc)
+
     def request_health_check(self) -> None:
         """Schedule a one-shot ping ASAP.
 
@@ -103,6 +116,26 @@ class BackendClient(AsyncDaemon, ABC):
         No-op if a check is already pending
         """
         self._check_event.set()
+
+    @contextlib.contextmanager
+    def nudge_on_failure(self, *exc_types: type[BaseException]) -> Generator[None]:
+        """Schedule a health check if the wrapped block raises, then re-raise.
+
+        Wrap any client operation (or external caller code) whose failure
+        should prompt a fresh liveness probe. With no arguments, any
+        `Exception` triggers the nudge; pass one or more exception types to
+        nudge only on those (and their subclasses) and let other exceptions
+        propagate without scheduling a check. `CancelledError` always
+        propagates untouched so shutdown isn't mistaken for a backend failure.
+        """
+        guarded = exc_types or (Exception,)
+        try:
+            yield
+        except asyncio.CancelledError:
+            raise
+        except guarded:
+            self.request_health_check()
+            raise
 
     def on_recover(self, callback: Callable[[], Awaitable[None]]) -> None:
         """Register a coroutine fired on every recovery; duplicate registrations are ignored.
@@ -144,6 +177,76 @@ class BackendClient(AsyncDaemon, ABC):
         )
 
     # Integrate with AsyncDaemon for Lifecycle
+    @override
+    async def initialize(self) -> None:
+        """Probe once, degrade to outage on failure, register recovery, then start tasks.
+
+        Customize via the `_connect` / `_on_connected` / `_recovery_callback`
+        hooks rather than overriding this method: a failed initial probe is
+        recorded as an outage (not retried inline), so the health loop owns
+        reconnection with backoff and a slow backend doesn't block startup.
+        """
+        if self.initialized:
+            return
+        name = type(self).__name__
+        logger.info(f"{name}: checking connection.")
+        try:
+            await self._connect()
+        except Exception as exc:
+            logger.warning(
+                f"{name}: initial connection failed; starting in degraded mode, health loop will retry. Error: {exc}"
+            )
+            self._handle_ping_failure(exc)
+        else:
+            logger.success(f"{name}: connection established.")
+            await self._on_connected()
+
+        # Register default recovery callback (if provided)
+        if (callback := self._recovery_callback()) is not None:
+            self.on_recover(callback)
+        await super().initialize()
+
+    async def _connect(self) -> None:
+        """Run the initial startup probe. Default is a single `ping()`.
+
+        Override to also warm caches/metadata as part of connecting.
+        """
+        await self.ping()
+
+    async def _on_connected(self) -> None:
+        """Run once after a successful initial connect (not on later recoveries).
+
+        Default is a no-op; recovery-time work belongs in `_recovery_callback`.
+        """
+
+    def _recovery_callback(self) -> Callable[[], Awaitable[None]] | None:
+        """Return the coroutine to register via `on_recover`, fired on every recovery.
+
+        Default is none. Override to refresh caches/metadata after reconnection.
+        """
+        return None
+
+    async def _ensure_client(self) -> None:
+        """Build the client if absent; double-checked-locked, performs no network I/O.
+
+        Backed by the `_client_present` / `_build_client` hooks. Lets a client
+        be rebuilt lazily (e.g. after a dead-loop drop) without racing.
+        """
+        if self._client_present():
+            return
+        async with self._client_lock:
+            if self._client_present():
+                return
+            self._build_client()
+
+    def _client_present(self) -> bool:
+        """Whether the client object currently exists. Override to use `_ensure_client`."""
+        raise NotImplementedError
+
+    def _build_client(self) -> None:
+        """Construct the client object, performing no network I/O. Override to use `_ensure_client`."""
+        raise NotImplementedError
+
     @override
     def get_task_funcs(self) -> list[Callable[[], Coroutine[None, None, None]]]:
         """Append the health loop to whatever the parent class returns."""

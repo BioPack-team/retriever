@@ -36,7 +36,7 @@ def mock_elasticsearch_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]
     # monkeypatch.setenv("TIER0__DGRAPH__GRPC_PORT", "9080")
     # monkeypatch.setenv("TIER0__DGRAPH__USE_TLS", "false")
     # monkeypatch.setenv("TIER0__DGRAPH__QUERY_TIMEOUT", "3")
-    monkeypatch.setenv("TIER1__ELASTICSEARCH__CONNECT_RETRIES", "0")
+    monkeypatch.setenv("TIER1__ELASTICSEARCH__CONNECT_TIMEOUT", "1")
 
     # Rebuild CONFIG from env and reload driver so classes bind to the new CONFIG
     importlib.reload(general_mod)
@@ -122,7 +122,7 @@ async def test_elasticsearch_driver(payload: ESPayload | list[ESPayload], expect
     driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
     try:
         await driver.initialize()
-        assert driver.es_connection is not None
+        assert driver.up
     except Exception:
         pytest.skip("skipping es driver connection test: cannot connect")
 
@@ -174,7 +174,7 @@ async def test_valid_regex_query():
 
     try:
         await driver.initialize()
-        assert driver.es_connection is not None
+        assert driver.up
     except Exception:
         pytest.skip("skipping es driver connection test: cannot connect")
 
@@ -191,7 +191,7 @@ async def test_metadata_retrieval():
 
     try:
         await driver.initialize()
-        assert driver.es_connection is not None
+        assert driver.up
     except Exception:
         pytest.skip("skipping es driver connection test: cannot connect")
 
@@ -221,7 +221,7 @@ async def test_fetch_single_node():
 
     try:
         await driver.initialize()
-        assert driver.es_connection is not None
+        assert driver.up
     except Exception:
         pytest.skip("skipping fetch_single_node test: cannot connect")
 
@@ -256,7 +256,7 @@ async def test_end_to_end(qgraph, min_hits):
 
     try:
         await driver.initialize()
-        assert driver.es_connection is not None
+        assert driver.up
     except Exception:
         pytest.skip("skipping es driver connection test: cannot connect")
 
@@ -282,7 +282,7 @@ async def test_cache_bypass():
 
     try:
         await driver.initialize()
-        assert driver.es_connection is not None
+        assert driver.up
     except Exception:
         pytest.skip("skipping bypass_cache test: cannot connect to elasticsearch")
 
@@ -317,7 +317,7 @@ async def test_cache_bypass_batch_query():
 
     try:
         await driver.initialize()
-        assert driver.es_connection is not None
+        assert driver.up
     except Exception:
         pytest.skip("skipping batch bypass_cache test: cannot connect to elasticsearch")
 
@@ -406,7 +406,7 @@ async def test_ubergraph_info_retrieval():
     driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
     try:
         await driver.initialize()
-        assert driver.es_connection is not None
+        assert driver.up
     except Exception:
         pytest.skip("skipping es driver connection test: cannot connect")
 
