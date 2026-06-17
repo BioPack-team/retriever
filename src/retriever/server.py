@@ -18,6 +18,7 @@ from fastapi.responses import (
 )
 from loguru import logger
 from reasoner_pydantic import AsyncQueryStatusResponse as TRAPIAsyncQueryStatusResponse
+from zstd_asgi import ZstdMiddleware
 
 from retriever.config.general import CONFIG
 from retriever.config.logger import configure_logging
@@ -40,6 +41,7 @@ from retriever.types.trapi_pydantic import Query as TRAPIQuery
 from retriever.types.trapi_pydantic import Response as TRAPIResponse
 from retriever.types.trapi_pydantic import TierNumber
 from retriever.utils import service_health, worker
+from retriever.utils.compression import ZstdRequestMiddleware
 from retriever.utils.examples import EXAMPLE_QUERY
 from retriever.utils.exception_handlers import ensure_cors, http_exception_handler
 from retriever.utils.general import tolerate_init
@@ -155,6 +157,16 @@ app.mount(
     "/monitor",
     StaticFiles(directory=_MONITOR_STATIC, html=True),
     name="monitor",
+)
+
+# Compress responses with zstd (gzip fallback), and decompress zstd request
+# bodies. Starlette wraps the last-added middleware outermost, so these go
+# before CORS to keep CORS the outermost layer (its headers must reach every
+# response, including the error responses these middlewares may emit).
+app.add_middleware(ZstdMiddleware)
+app.add_middleware(
+    ZstdRequestMiddleware,
+    max_request_size=CONFIG.max_request_size,
 )
 
 # Set up CORS / exception handling

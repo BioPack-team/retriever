@@ -6,6 +6,7 @@ from http import HTTPStatus
 
 import bmt
 import httpx
+import orjson
 import ormsgpack
 import zstandard
 from opentelemetry import context, propagate, trace
@@ -36,6 +37,7 @@ from retriever.types.trapi import (
 from retriever.types.trapi_pydantic import TierNumber
 from retriever.utils import service_health
 from retriever.utils.calls import get_callback_client
+from retriever.utils.compression import accepts_zstd
 from retriever.utils.logs import TRAPILogger, trapi_level_to_int
 from retriever.utils.mongo import MongoOutage, MongoQueue, ResponseState
 
@@ -72,8 +74,15 @@ async def async_lookup(
         job_log.debug(f"Sending callback to `{query.body['callback']}`...")
         try:
             async with get_callback_client() as client:
+                callback_json = orjson.dumps(response)
+                headers = {"Content-Type": "application/json"}
+                if accepts_zstd(query.headers.get("Callback-Accept-Encoding", "")):
+                    callback_json = ZSTD_COMPRESSOR.compress(callback_json)
+                    headers["Content-Encoding"] = "zstd"
                 callback_response = await client.post(
-                    url=str(query.body["callback"]), json=response
+                    url=str(query.body["callback"]),
+                    headers=headers,
+                    content=callback_json,
                 )
                 callback_response.raise_for_status()
                 job_log.debug("Callback sent successfully.")

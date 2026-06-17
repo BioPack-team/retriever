@@ -285,7 +285,8 @@ class GandalfSettings(BaseModel):
             gt=0,
             description="Time in seconds before a Gandalf connect/health probe times out.",
         ),
-    ] = 30.0
+    ] = 5
+    compress_query: bool = False
 
     @property
     def http_endpoint(self) -> str:
@@ -339,6 +340,12 @@ class GeneralConfig(CommentedSettings):
             description="Instance index. Use when multiple Retriever instances are run, so a leader can be determined."
         ),
     ] = 0
+    max_request_size: Annotated[
+        int,
+        Field(
+            description="Maximum request body size in bytes, post-decompression. Larger bodies are rejected with 413."
+        ),
+    ] = 2 * 1024**3
 
     log_level: Annotated[
         LogLevel,

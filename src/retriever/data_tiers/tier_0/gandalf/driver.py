@@ -7,6 +7,7 @@ from typing import Any, override
 
 import httpx
 import orjson
+import zstandard
 from loguru import logger as log
 from opentelemetry import trace
 
@@ -17,6 +18,8 @@ from retriever.types.dingo import DINGOMetadata
 from retriever.types.general import EntityToEntityMapping
 from retriever.types.metakg import Operation, OperationNode
 from retriever.types.trapi import BiolinkEntity, Infores, QueryDict, ResponseDict
+
+ZSTD_COMPRESSOR = zstandard.ZstdCompressor()
 
 
 class GandalfDriver(DatabaseDriver):
@@ -146,10 +149,22 @@ class GandalfDriver(DatabaseDriver):
         start = time.time()
         log.debug("Querying Gandalf...")
         try:
+            payload = (
+                ZSTD_COMPRESSOR.compress(query_json.encode())
+                if CONFIG.tier0.gandalf.compress_query
+                else query_json
+            )
+            headers = {
+                "Content-Type": "application/json",
+            }
+            if CONFIG.tier0.gandalf.compress_query:
+                headers["Content-Encoding"] = "zstd"
+
             response = await self._http_session.post(
                 f"{self.endpoint}/query",
-                content=query_json,
-                headers={"Content-Type": "application/json"},
+                content=payload,
+                timeout=self.query_timeout,
+                headers=headers,
             )
             response.raise_for_status()
             end = time.time()
