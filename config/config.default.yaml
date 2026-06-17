@@ -11,7 +11,7 @@ log_level: DEBUG # Level of application logs to print/keep.
 host: 0.0.0.0 # Uvicorn listen host.
 port: 8080 # Uvicorn listen port.
 trust_proxy: true # Use proxy IP headers (such as in nginx cases)
-forwarded_allow_ips: '' # Upstream IPs whose X-Forwarded-* headers are trusted when trust_proxy is set. '*' trusts all, appropriate when the app is only reachable through the proxy.
+forwarded_allow_ips: # Upstream IPs whose X-Forwarded-* headers are trusted when trust_proxy is set. '*' trusts all, appropriate when the app is only reachable through the proxy.
 cors:
   allow_origins: # Origins allowed to make cross-origin requests.
     - '*'
@@ -39,11 +39,12 @@ job:
     timeout: 10 # Time in seconds before a job should time out, set to -1 to disable.
     build_time: 3600 # Time in seconds before MetaKG should be rebuilt. Set to -1 to only build at start.
   orphan_check_interval: 120 # Interval in seconds between orphan-job detection sweeps. Set to -1 to disable.
+  orphan_max_age: 172800 # Time in seconds after which a non-terminal job is considered dead regardless of worker info. Set to -1 to disable.
   ttl: 2592000 # Time in seconds for job state to remain after it was last touched
-  ttl_max: 31536000 # Time in seconds after which job state is cleared, regardless of last touch
+  ttl_max: 7776000 # Time in seconds after which job state is cleared, regardless of last touch
 log:
   log_to_mongo: true # Persist logs in MongoDB.
-  mongo_ttl: 1209600 # Time in seconds for a log to persist.
+  mongo_ttl: 604800 # Time in seconds for a log to persist.
 redis:
   host: localhost
   port: 6379
@@ -69,7 +70,8 @@ tier0:
     host: http://localhost
     port: 443
     query_timeout: 3600 # Time in seconds before a Gandalf query should time out.
-    connect_timeout: 30.0 # Time in seconds before a Gandalf connect/health probe times out.
+    connect_timeout: 5 # Time in seconds before a Gandalf connect/health probe times out.
+    compress_query: false
   dump_queries: false # Write out TRAPI and translated queries to a file in jsonl format.
 tier1:
   backend: elasticsearch

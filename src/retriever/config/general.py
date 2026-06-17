@@ -212,7 +212,7 @@ class JobSettings(BaseModel):
         Field(
             description="Time in seconds after which job state is cleared, regardless of last touch"
         ),
-    ] = 31_536_000
+    ] = 7_776_000
 
 
 class LogSettings(BaseModel):
@@ -221,7 +221,7 @@ class LogSettings(BaseModel):
     log_to_mongo: Annotated[bool, Field(description="Persist logs in MongoDB.")] = True
     mongo_ttl: Annotated[
         int, Field(description="Time in seconds for a log to persist.")
-    ] = 1_209_600
+    ] = 604_800
 
 
 def uppercase(value: str) -> str:
