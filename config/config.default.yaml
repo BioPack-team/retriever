@@ -68,7 +68,7 @@ tier0:
     host: http://localhost
     port: 443
     query_timeout: 3600 # Time in seconds before a Gandalf query should time out.
-    connect_retries: 5 # Number of retries before declaring a connection failure.
+    connect_timeout: 30.0 # Time in seconds before a Gandalf connect/health probe times out.
   dump_queries: false # Write out TRAPI and translated queries to a file in jsonl format.
 tier1:
   backend: elasticsearch
@@ -76,7 +76,7 @@ tier1:
   backend_infores: infores:dogpark-tier1
   elasticsearch:
     query_timeout: 180 # Time in seconds before a Elasticsearch query should time out.
-    connect_retries: 5 # Number of retries before declaring a connection failure.
+    connect_timeout: 5.0 # Time in seconds before an Elasticsearch connect/health ping times out.
     host: ''
     port: 9200
     database_name: elasticsearch

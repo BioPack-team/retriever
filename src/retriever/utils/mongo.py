@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import datetime
 from typing import Any, ClassVar, Literal, NotRequired, TypedDict, cast, override
 
@@ -619,28 +619,15 @@ class MongoClient(BackendClient):
         return db.get_collection("log_dump", codec_options=CODEC_OPTIONS)
 
     @override
-    async def initialize(self) -> None:
-        """Check and prepare mongo client; idempotent on repeat invocation."""
-        if self.initialized:
-            return
-        log.info("Checking mongodb connection...")
-        try:
-            await self.ping()
-        except Exception as error:
-            log.warning(
-                f"MongoDB unreachable at startup; continuing in degraded mode. Index setup deferred to first recovery. Error: {error}"
-            )
-            self._handle_ping_failure(error)
-        else:
-            log.success("Mongodb connection successful!")
-            await self._setup_after_connection()
+    async def _on_connected(self) -> None:
+        await self._setup_after_connection()
 
-        # Re-run the post-connection setup on every recovery. Index
-        # creation is idempotent in Mongo, so a startup-then-flap
-        # scenario will retry the work without harm.
-        self.on_recover(self._setup_after_connection)
-
-        await super().initialize()
+    @override
+    def _recovery_callback(self) -> Callable[[], Awaitable[None]]:
+        # Re-run post-connection setup on every recovery. Index creation is
+        # idempotent in Mongo, so a startup-then-flap scenario retries it
+        # without harm.
+        return self._setup_after_connection
 
     async def _setup_after_connection(self) -> None:
         """Detect `$percentile` support and create collection indexes.
@@ -1512,20 +1499,34 @@ class MongoClient(BackendClient):
         async for line in _format_flat(self.get_server_logs(start, end, level)):
             yield line
 
-    async def get_non_terminal_with_worker_info(
+    async def get_non_terminal_for_orphan_sweep(
         self,
-    ) -> list[tuple[str, int | None, datetime | None]]:
-        """Return (job_id, worker_pid, worker_started_at) for all non-terminal jobs.
+    ) -> list[tuple[str, int | None, datetime | None, datetime | None]]:
+        """Return (job_id, worker_pid, worker_started_at, created) per non-terminal job.
 
-        Jobs created before worker tracking was added will have None for both worker fields.
+        The orphan sweep uses the worker fields to detect dead workers and
+        `created` for the age-based fallback. Jobs created before worker
+        tracking was added have None for both worker fields, so only the
+        age fallback can reach them.
         """
         status_collection, _ = self.get_job_collection()
-        projection = {"_id": 0, "job_id": 1, "worker_pid": 1, "worker_started_at": 1}
+        projection = {
+            "_id": 0,
+            "job_id": 1,
+            "worker_pid": 1,
+            "worker_started_at": 1,
+            "created": 1,
+        }
         cursor = status_collection.find(
             {"status": {"$in": sorted(NON_TERMINAL)}}, projection
         )
         return [
-            (doc["job_id"], doc.get("worker_pid"), doc.get("worker_started_at"))
+            (
+                doc["job_id"],
+                doc.get("worker_pid"),
+                doc.get("worker_started_at"),
+                doc.get("created"),
+            )
             async for doc in cursor
         ]
 
