@@ -1,6 +1,6 @@
-import asyncio
 import math
 import time
+from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from http import HTTPStatus
 from typing import Any, override
@@ -29,10 +29,9 @@ class GandalfDriver(DatabaseDriver):
     settings: GandalfSettings
     endpoint: str
     query_timeout: float
-    connect_retries: int
+    connect_timeout: float
 
     _http_session: httpx.AsyncClient | None = None
-    _session_lock: asyncio.Lock
 
     def __init__(
         self,
@@ -41,62 +40,54 @@ class GandalfDriver(DatabaseDriver):
         super().__init__()
         self.settings = CONFIG.tier0.gandalf
         self.query_timeout = self.settings.query_timeout
-        self.connect_retries = self.settings.connect_retries
+        self.connect_timeout = self.settings.connect_timeout
         self._http_session = None
-        self._session_lock = asyncio.Lock()
 
         self.endpoint = self.settings.http_endpoint
         self.metadata = None
 
-    async def _ensure_session(self) -> None:
-        """Rebuild the HTTP session via `_establish_connection` if it has been nulled.
+    @override
+    def _client_present(self) -> bool:
+        return self._http_session is not None
 
-        Locks so concurrent run_query calls don't overlap in rebuilding client.
+    @override
+    def _build_client(self) -> None:
+        """Build the httpx client with a split connect/read timeout.
+
+        Connects fail fast (`connect_timeout`) so an unreachable backend is
+        detected quickly, while reads get the full `query_timeout` for
+        long-running queries.
         """
-        if self._http_session is not None:
-            return
-        async with self._session_lock:
-            if self._http_session is not None:
-                return
-            await self._establish_connection()
+        self._http_session = httpx.AsyncClient(
+            timeout=httpx.Timeout(self.query_timeout, connect=self.connect_timeout)
+        )
 
     @override
     async def ping(self) -> None:
-        """HEAD the base endpoint; 405 or 2xx means up."""
-        await self._ensure_session()
+        """HEAD the base endpoint; 405 or 2xx means up.
+
+        Bounds the whole probe by `connect_timeout` rather than the query
+        timeout, so an unreachable backend is declared down in seconds
+        instead of hanging for a full query timeout.
+        """
+        await self._ensure_client()
         assert self._http_session is not None
         response = await self._http_session.head(
             self.endpoint,
-            timeout=self.query_timeout,
+            timeout=self.connect_timeout,
         )
         if response.status_code == HTTPStatus.METHOD_NOT_ALLOWED:
             return
         response.raise_for_status()
 
     @override
-    def is_outage_error(self, exc: BaseException) -> bool:
-        """4xx HTTP responses are query problems, not outages - except 404 (endpoint missing)."""
-        if not super().is_outage_error(exc):
-            return False
-        if isinstance(exc, httpx.HTTPStatusError):
-            code = exc.response.status_code
-            if code == HTTPStatus.NOT_FOUND:
-                return True
-            if HTTPStatus.BAD_REQUEST <= code < HTTPStatus.INTERNAL_SERVER_ERROR:
-                return False
-        return True
-
-    @override
     def _handle_ping_failure(self, exc: BaseException) -> None:
         super()._handle_ping_failure(exc)
-        loop_closed = isinstance(exc, RuntimeError) and "Event loop is closed" in str(
-            exc
-        )
-        if loop_closed or isinstance(exc, httpx.PoolTimeout):
+        if self._is_dead_loop_error(exc) or isinstance(exc, httpx.PoolTimeout):
             # Loop-closed: session is bound to a dead loop, can't await aclose.
             # PoolTimeout: httpx client is effectively dead
             # see https://github.com/encode/httpx/discussions/2556
-            # Either way, drop the reference and let `_ensure_session` rebuild.
+            # Either way, drop the reference and let `_ensure_client` rebuild.
             self._http_session = None
 
     @override
@@ -125,20 +116,15 @@ class GandalfDriver(DatabaseDriver):
             otel_span = None
 
         try:
-            await self._ensure_session()
-            result = await self._run_http_query(
-                query_json,
-            )
+            with self.nudge_on_failure():
+                await self._ensure_client()
+                result = await self._run_http_query(query_json)
         except TimeoutError as e:
             if otel_span is not None:
                 otel_span.add_event("gandalf_query_timeout")
-            self.request_health_check()
             raise TimeoutError(
                 f"Gandalf query exceeded {self.query_timeout}s timeout"
             ) from e
-        except Exception:
-            self.request_health_check()
-            raise
 
         if otel_span is not None:
             otel_span.add_event("gandalf_query_end")
@@ -199,54 +185,32 @@ class GandalfDriver(DatabaseDriver):
             raise RuntimeError(
                 f"Gandalf query failed with status {error.response.status_code} with body {error.response.text}"
             ) from error
+        except httpx.TimeoutException as error:
+            # Surface as TimeoutError so run_query's timeout handler fires;
+            # httpx timeouts don't subclass the builtin TimeoutError.
+            raise TimeoutError(
+                f"Gandalf query timed out after {self.query_timeout}s"
+            ) from error
         except httpx.HTTPError as error:
             raise RuntimeError(
                 "An unhandled HTTP error occured while querying Gandalf."
             ) from error
 
     @override
-    async def initialize(self) -> None:
-        """Establish the HTTP session, probe Gandalf, and start the health loop."""
-        self.on_recover(self._fetch_metadata)
-        try:
-            await self._establish_connection()
-        except Exception as exc:
-            self._handle_ping_failure(exc)
-        await super().initialize()
-
-    async def _establish_connection(self, retries: int = 0) -> None:
-        """Connect to Gandalf with retry/backoff. Raises if all retries fail."""
-        log.info("Checking Gandalf connection...")
-        try:
-            await self._connect_http()
-            log.success("Gandalf http connection successful!")
-
-        except Exception as e:
-            await self._cleanup_connections()
-            if retries < self.connect_retries:
-                await asyncio.sleep(1)
-                log.error(f"""
-                    Could not establish connection to Gandalf via http,
-                    trying again... retry {retries + 1}
-                """)
-                await self._establish_connection(retries + 1)
-            else:
-                log.error(f"Could not establish connection to Gandalf, error: {e}")
-                raise e
-
-    async def _connect_http(self) -> None:
-        """Establish HTTP connection to Gandalf and load fresh metadata."""
-        self._http_session = httpx.AsyncClient()
+    async def _connect(self) -> None:
+        """Build the HTTP client and load fresh metadata."""
+        await self._ensure_client()
         await self._fetch_metadata()
+
+    @override
+    def _recovery_callback(self) -> Callable[[], Awaitable[None]]:
+        return self._fetch_metadata
 
     async def _fetch_metadata(self) -> None:
         """Pull fresh metadata from Gandalf into the in-process cache."""
         if self._http_session is None:
             raise RuntimeError("HTTP session not initialized")
-        response = await self._http_session.get(
-            f"{self.endpoint}/metadata",
-            timeout=self.query_timeout,
-        )
+        response = await self._http_session.get(f"{self.endpoint}/metadata")
         if response.status_code != HTTPStatus.OK:
             raise ConnectionError(
                 f"HTTP metadata fetch failed with status {response.status_code}: {response.text}"

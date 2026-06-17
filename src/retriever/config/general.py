@@ -195,6 +195,12 @@ class JobSettings(BaseModel):
             description="Interval in seconds between orphan-job detection sweeps. Set to -1 to disable."
         ),
     ] = 120
+    orphan_max_age: Annotated[
+        int,
+        Field(
+            description="Time in seconds after which a non-terminal job is considered dead regardless of worker info. Set to -1 to disable."
+        ),
+    ] = 172_800
     ttl: Annotated[
         int,
         Field(
@@ -232,10 +238,13 @@ class ElasticSearchSettings(BaseModel):
             description="Time in seconds before a Elasticsearch query should time out."
         ),
     ] = 180
-    connect_retries: Annotated[
-        int,
-        Field(description="Number of retries before declaring a connection failure."),
-    ] = 5
+    connect_timeout: Annotated[
+        float,
+        Field(
+            gt=0,
+            description="Time in seconds before an Elasticsearch connect/health ping times out.",
+        ),
+    ] = 5.0
     host: str = ""
     port: int = 9200
     database_name: str = "elasticsearch"
@@ -270,10 +279,11 @@ class GandalfSettings(BaseModel):
             description="Time in seconds before a Gandalf query should time out.",
         ),
     ] = 3600
-    connect_retries: Annotated[
-        int,
+    connect_timeout: Annotated[
+        float,
         Field(
-            description="Number of retries before declaring a connection failure.",
+            gt=0,
+            description="Time in seconds before a Gandalf connect/health probe times out.",
         ),
     ] = 5
     compress_query: bool = False
@@ -349,6 +359,12 @@ class GeneralConfig(CommentedSettings):
     trust_proxy: Annotated[
         bool, Field(description="Use proxy IP headers (such as in nginx cases)")
     ] = True
+    forwarded_allow_ips: Annotated[
+        str | list[str],
+        Field(
+            description="Upstream IPs whose X-Forwarded-* headers are trusted when trust_proxy is set. '*' trusts all, appropriate when the app is only reachable through the proxy."
+        ),
+    ] = "*"
     cors: CORSSettings = CORSSettings()
     workers: Annotated[
         int | None,

@@ -11,6 +11,7 @@ log_level: DEBUG # Level of application logs to print/keep.
 host: 0.0.0.0 # Uvicorn listen host.
 port: 8080 # Uvicorn listen port.
 trust_proxy: true # Use proxy IP headers (such as in nginx cases)
+forwarded_allow_ips: '*' # Upstream IPs whose X-Forwarded-* headers are trusted when trust_proxy is set. '*' trusts all, appropriate when the app is only reachable through the proxy.
 cors:
   allow_origins: # Origins allowed to make cross-origin requests.
     - '*'
@@ -68,8 +69,7 @@ tier0:
     host: http://localhost
     port: 443
     query_timeout: 3600 # Time in seconds before a Gandalf query should time out.
-    connect_retries: 5 # Number of retries before declaring a connection failure.
-    compress_query: false
+    connect_timeout: 30.0 # Time in seconds before a Gandalf connect/health probe times out.
   dump_queries: false # Write out TRAPI and translated queries to a file in jsonl format.
 tier1:
   backend: elasticsearch
@@ -77,7 +77,7 @@ tier1:
   backend_infores: infores:dogpark-tier1
   elasticsearch:
     query_timeout: 180 # Time in seconds before a Elasticsearch query should time out.
-    connect_retries: 5 # Number of retries before declaring a connection failure.
+    connect_timeout: 5.0 # Time in seconds before an Elasticsearch connect/health ping times out.
     host: ''
     port: 9200
     database_name: elasticsearch
