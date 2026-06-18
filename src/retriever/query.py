@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import traceback
 import uuid
+from datetime import datetime
 from http import HTTPStatus
 from typing import Any, NamedTuple, cast
 
@@ -114,6 +115,7 @@ def _record_initial_state(
             QueryState(
                 query=ZSTD_COMPRESSOR.compress(ormsgpack.packb(query.body)),
                 status="Running",
+                event_time=datetime.now().astimezone(),
                 is_async=ctx.background_tasks is not None,
                 worker_pid=worker.get_pid(),
                 worker_started_at=worker.get_started_at(),

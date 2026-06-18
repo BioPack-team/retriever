@@ -52,6 +52,7 @@ class QueryState(TypedDict):
     status: str
     worker_pid: int | None
     worker_started_at: datetime | None
+    event_time: datetime
 
 
 class ResponseState(TypedDict):
@@ -65,6 +66,7 @@ class ResponseState(TypedDict):
     results: int
     status: str
     description: NotRequired[str | None]
+    event_time: datetime
 
 
 class JobDoc(TypedDict):
@@ -726,12 +728,14 @@ class MongoClient(BackendClient):
 
     def job_state(self, job: QueryState | ResponseState) -> tuple[UpdateOne, UpdateOne]:
         """Create an operation for upserting a job state doc."""
-        # Tz-aware. Naive datetime.now() would be treated as already-UTC by
-        # pymongo and shift readers by the local offset.
-        update_time = datetime.now().astimezone()
+        update_time = job["event_time"]
         status_data = {
             "$set": JobStatus(
-                **{k: v for k, v in job.items() if k not in ("query", "response")},  # pyright:ignore[reportArgumentType] We know it's valid
+                **{
+                    k: v
+                    for k, v in job.items()
+                    if k not in ("query", "response", "event_time")
+                },  # pyright:ignore[reportArgumentType] We know it's valid
                 touched=update_time,
             ),
             "$setOnInsert": {"created": update_time},

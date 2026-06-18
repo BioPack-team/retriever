@@ -2,6 +2,7 @@ import math
 import time
 from collections import deque
 from copy import deepcopy
+from datetime import datetime
 from http import HTTPStatus
 
 import bmt
@@ -403,6 +404,7 @@ def tracked_response(
             ResponseState(
                 job_id=query.job_id,
                 response=ZSTD_COMPRESSOR.compress(ormsgpack.packb(response)),
+                event_time=datetime.now().astimezone(),
                 knodes=len(kgraph.get("nodes") or {}),
                 kedges=len(kgraph.get("edges") or {}),
                 aux_graphs=len(response["message"].get("auxiliary_graphs") or {}),
