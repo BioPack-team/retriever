@@ -9,6 +9,8 @@ recorded on the job (PID reuse).
 As a fallback, any non-terminal job older than `CONFIG.job.orphan_max_age`
 is treated as dead regardless of worker info. We can assume no job legitimately runs
 that long.
+The same loop also reaps GridFS job-doc blobs whose parent `job_docs`
+document has been TTL-expired (which Mongo's TTL monitor can't do for us).
 """
 
 from __future__ import annotations
@@ -96,8 +98,24 @@ async def _mark_orphaned_jobs() -> None:
             logger.exception("Orphan sweep failed to write Failed status.")
 
 
+async def _reap_orphaned_doc_blobs() -> None:
+    """One sweep: delete GridFS job-doc blobs whose parent job is gone."""
+    if not MongoClient().up:
+        return
+    try:
+        count = await MongoClient().reap_orphaned_doc_blobs()
+    except Exception:
+        logger.exception("GridFS blob reap failed.")
+        return
+    if count:
+        logger.info(
+            f"GridFS reap: deleted {count} orphaned job-doc blob(s).",
+            no_mongo_log=True,
+        )
+
+
 async def periodically_mark_orphans() -> None:
-    """Periodic driver for orphan detection.
+    """Periodic driver for orphan detection and GridFS blob reaping.
 
     Runs immediately on startup so jobs left behind by a previous run get
     cleaned up without waiting a full interval. There's no startup race:
@@ -110,6 +128,7 @@ async def periodically_mark_orphans() -> None:
             return
         while True:
             await _mark_orphaned_jobs()
+            await _reap_orphaned_doc_blobs()
             await asyncio.sleep(interval)
     except asyncio.CancelledError:
         return

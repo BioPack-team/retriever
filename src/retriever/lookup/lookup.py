@@ -47,7 +47,7 @@ biolink = bmt.Toolkit()
 MONGO_QUEUE = MongoQueue()
 OP_TABLE_MANAGER = OpTableManager()
 
-ZSTD_COMPRESSOR = zstandard.ZstdCompressor()
+ZSTD_COMPRESSOR = zstandard.ZstdCompressor(level=CONFIG.mongo.compression_level)
 
 CALLBACK_BODY_LOG_LIMIT = 500
 """Truncate logged callback response bodies to this many chars."""
@@ -172,6 +172,10 @@ async def lookup(query: QueryInfo) -> tuple[HTTPStatus, ResponseDict]:
         job_log.info(
             f"Begin processing job {job_id} for client {get_submitter(query)}."
         )
+        if (query.body.get("parameters") or {}).get("dehydrated"):
+            job_log.info(
+                "Query running in dehydrated mode. Response will not be stored."
+            )
 
         qgraph = query.body["message"].get("query_graph")
         if qgraph is None:
@@ -398,21 +402,22 @@ def tracked_response(
 
     # Cast because TypedDict has some *really annoying* interactions with more general dicts
     kgraph = response["message"].get("knowledge_graph") or {}
+    # Don't store dehydrated job responses, they're usually huge
+    dehydrated = bool(((query.body or {}).get("parameters") or {}).get("dehydrated"))
+    state = ResponseState(
+        job_id=query.job_id,
+        event_time=datetime.now().astimezone(),
+        knodes=len(kgraph.get("nodes") or {}),
+        kedges=len(kgraph.get("edges") or {}),
+        aux_graphs=len(response["message"].get("auxiliary_graphs") or {}),
+        results=len(response["message"].get("results") or []),
+        status=(response.get("status") or "Running"),
+        description=response.get("description"),
+    )
+    if not dehydrated:
+        state["response"] = ZSTD_COMPRESSOR.compress(ormsgpack.packb(response))
     try:
-        MONGO_QUEUE.put(
-            "job_state",
-            ResponseState(
-                job_id=query.job_id,
-                response=ZSTD_COMPRESSOR.compress(ormsgpack.packb(response)),
-                event_time=datetime.now().astimezone(),
-                knodes=len(kgraph.get("nodes") or {}),
-                kedges=len(kgraph.get("edges") or {}),
-                aux_graphs=len(response["message"].get("auxiliary_graphs") or {}),
-                results=len(response["message"].get("results") or []),
-                status=(response.get("status") or "Running"),
-                description=response.get("description"),
-            ),
-        )
+        MONGO_QUEUE.put("job_state", state)
     except MongoOutage:
         response["logs"] = [
             *(response.get("logs") or []),
