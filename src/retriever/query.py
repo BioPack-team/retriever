@@ -49,7 +49,7 @@ from retriever.utils.mongo import (
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 MONGO_QUEUE = MongoQueue()
-ZSTD_COMPRESSOR = zstandard.ZstdCompressor()
+ZSTD_COMPRESSOR = zstandard.ZstdCompressor(level=CONFIG.mongo.compression_level)
 ZSTD_DECOMPRESSOR = zstandard.ZstdDecompressor()
 
 
@@ -119,6 +119,9 @@ def _record_initial_state(
                 is_async=ctx.background_tasks is not None,
                 worker_pid=worker.get_pid(),
                 worker_started_at=worker.get_started_at(),
+                dehydrated=bool(
+                    ((query.body or {}).get("parameters") or {}).get("dehydrated")
+                ),
                 **{
                     k: v
                     for k, v in query_metadata._asdict().items()
