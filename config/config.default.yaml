@@ -40,8 +40,8 @@ job:
     build_time: 3600 # Time in seconds before MetaKG should be rebuilt. Set to -1 to only build at start.
   orphan_check_interval: 120 # Interval in seconds between orphan-job detection sweeps. Set to -1 to disable.
   orphan_max_age: 172800 # Time in seconds after which a non-terminal job is considered dead regardless of worker info. Set to -1 to disable.
-  ttl: 2592000 # Time in seconds for job state to remain after it was last touched
-  ttl_max: 7776000 # Time in seconds after which job state is cleared, regardless of last touch
+  ttl: 259200 # Time in seconds for job state to remain after it was last touched
+  ttl_max: 604800 # Time in seconds after which job state is cleared, regardless of last touch
 log:
   log_to_mongo: true # Persist logs in MongoDB.
   mongo_ttl: 604800 # Time in seconds for a log to persist.

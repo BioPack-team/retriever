@@ -218,13 +218,13 @@ class JobSettings(BaseModel):
         Field(
             description="Time in seconds for job state to remain after it was last touched"
         ),
-    ] = 2_592_000
+    ] = 259_200
     ttl_max: Annotated[
         int,
         Field(
             description="Time in seconds after which job state is cleared, regardless of last touch"
         ),
-    ] = 7_776_000
+    ] = 604_800
 
 
 class LogSettings(BaseModel):
