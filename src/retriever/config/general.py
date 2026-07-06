@@ -104,7 +104,7 @@ class MongoSettings(BaseModel):
         Field(
             description="Compressed job-docs at or above this size are not persisted."
         ),
-    ] = 1024**3
+    ] = 128 * 1024**2
 
 
 class TelemetrySettings(BaseModel):
