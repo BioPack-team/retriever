@@ -44,9 +44,6 @@ async def test_mongo(monkeypatch):  # noqa: ANN001
         )
 
     monkeypatch.setattr(client, "get_job_collection", patched_get_job_collection)
-    # Redirect the GridFS bucket (job-doc spillover) at the same throwaway DB so
-    # large-blob tests don't write into the real persistence DB.
-    monkeypatch.setattr(client, "_persist_db", lambda: test_db)
 
     status_collection, _ = patched_get_job_collection()
     await status_collection.create_index("job_id", unique=True, background=True)

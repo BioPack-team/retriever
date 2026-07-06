@@ -63,8 +63,6 @@ mongo:
   authsource:
   attempts: 3 # Number of attempts to accomplish operation before considering it failed.
   shutdown_timeout: 3 # Time in seconds to wait for serialize task to finish.
-  compression_level: 10 # zstd level used to compress stored job documents. Higher means greater compression, at greater CPU cost.
-  max_stored_doc_bytes: 1073741824 # Compressed job-docs at or above this size are not persisted.
 tier0:
   backend: gandalf
   backend_infores: infores:dogpark-tier0

@@ -93,18 +93,6 @@ class MongoSettings(BaseModel):
     shutdown_timeout: Annotated[
         int, Field(description="Time in seconds to wait for serialize task to finish.")
     ] = 3
-    compression_level: Annotated[
-        int,
-        Field(
-            description="zstd level used to compress stored job documents. Higher means greater compression, at greater CPU cost."
-        ),
-    ] = 10
-    max_stored_doc_bytes: Annotated[
-        int,
-        Field(
-            description="Compressed job-docs at or above this size are not persisted."
-        ),
-    ] = 1024**3
 
 
 class TelemetrySettings(BaseModel):
