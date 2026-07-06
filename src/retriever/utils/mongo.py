@@ -2,15 +2,20 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import json
 from collections.abc import AsyncGenerator, Awaitable, Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, ClassVar, Literal, NotRequired, TypedDict, cast, override
 
 from bson import ObjectId
 from bson.codec_options import DEFAULT_CODEC_OPTIONS
 from loguru import logger as log
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
+from motor.motor_asyncio import (
+    AsyncIOMotorClient,
+    AsyncIOMotorCollection,
+    AsyncIOMotorGridFSBucket,
+)
 from pymongo.operations import InsertOne, UpdateOne
 from pymongo.server_api import ServerApi
 
@@ -21,6 +26,22 @@ from retriever.utils.general import BatchedAction
 from retriever.utils.job_status import NON_TERMINAL, TERMINAL_FAILURE, TERMINAL_SUCCESS
 
 CODEC_OPTIONS = DEFAULT_CODEC_OPTIONS.with_options(tz_aware=True)
+
+JOB_DOCS_FS_BUCKET = "job_docs_fs"
+"""GridFS bucket name for job-doc blobs too large to store inline."""
+
+GRIDFS_INLINE_LIMIT = 8 * 1024 * 1024
+"""Spill a job-doc blob to GridFS past this size. Kept well under Mongo's 16MB
+per-document cap so a doc stays valid, and so a flushed batch of inline docs
+stays under the ~48MB write-command cap."""
+
+GRIDFS_REAP_GRACE = timedelta(minutes=5)
+"""Only reap GridFS files older than this, so the sweep can't race a freshly
+uploaded blob whose parent `job_docs` document hasn't been written yet."""
+
+GRIDFS_REAP_BATCH = 1000
+"""Candidate files resolved per reap batch - bounds the parent-lookup `$in` and
+the surviving-id set so neither scales with the total number of stored blobs."""
 
 _PERCENTILE_MIN_MAJOR = 7
 """Mongo major version where `$percentile` became available."""
@@ -53,13 +74,17 @@ class QueryState(TypedDict):
     worker_pid: int | None
     worker_started_at: datetime | None
     event_time: datetime
+    # True when the query ran dehydrated; recorded at enqueue so the marker
+    # survives even if the job is abandoned before a response write.
+    dehydrated: NotRequired[bool]
 
 
 class ResponseState(TypedDict):
     """Required info about a response for the job state."""
 
     job_id: str
-    response: bytes
+    # Omitted for dehydrated queries, whose responses are delivered but never stored.
+    response: NotRequired[bytes]
     knodes: int
     kedges: int
     aux_graphs: int
@@ -67,6 +92,8 @@ class ResponseState(TypedDict):
     status: str
     description: NotRequired[str | None]
     event_time: datetime
+    # True when the query ran in dehydrated mode; the body is not persisted.
+    dehydrated: NotRequired[bool]
 
 
 class JobDoc(TypedDict):
@@ -74,6 +101,12 @@ class JobDoc(TypedDict):
 
     job_id: str
     doc: NotRequired[bytes]
+
+    # Set when the blob was too large to store inline and was spilled to the
+    # `job_docs_fs` GridFS bucket instead; `doc_ref` is the GridFS file id and
+    # `get_job_doc` hydrates `doc` from it on read. Mutually exclusive with `doc`.
+    doc_ref: NotRequired[ObjectId]
+    doc_size: NotRequired[int]
 
     # Lifetime tracking
     created: NotRequired[datetime]
@@ -107,6 +140,8 @@ class JobStatus(TypedDict):
     kedges: NotRequired[int]
     aux_graphs: NotRequired[int]
     results: NotRequired[int]
+    # True when the query ran dehydrated; the response body was deliberately not stored.
+    dehydrated: NotRequired[bool]
 
     # Lifetime tracking
     created: NotRequired[datetime]
@@ -603,17 +638,121 @@ class MongoClient(BackendClient):
         """Probe MongoDB. Raises on failure."""
         _ = await self.client.admin.command("ping")
 
+    def _persist_db(self) -> Any:
+        """The persistence database.
+
+        Single accessor so the job collections and their GridFS bucket always
+        resolve to the same DB (and tests can redirect both at once).
+        """
+        return self.client.retriever_persist
+
     def get_job_collection(
         self,
     ) -> tuple[
         AsyncIOMotorCollection[dict[str, Any]], AsyncIOMotorCollection[dict[str, Any]]
     ]:
         """Get job_state collection with standard options."""
-        db = self.client.retriever_persist
+        db = self._persist_db()
         return (
             db.get_collection("job_status", codec_options=CODEC_OPTIONS),
             db.get_collection("job_docs", codec_options=CODEC_OPTIONS),
         )
+
+    def _doc_blob_bucket(self) -> AsyncIOMotorGridFSBucket:
+        """GridFS bucket for job-doc blobs spilled out of `job_docs`.
+
+        Constructed per call - the bucket object is a cheap wrapper over its
+        backing collections and binds to whatever loop the client is on, so
+        this avoids caching one against a stale loop after a recovery.
+        """
+        return AsyncIOMotorGridFSBucket(
+            self._persist_db(), bucket_name=JOB_DOCS_FS_BUCKET
+        )
+
+    def _doc_blob_files(self) -> AsyncIOMotorCollection[dict[str, Any]]:
+        """The GridFS `*.files` collection, for metadata lookups and the reaper."""
+        return self._persist_db().get_collection(
+            f"{JOB_DOCS_FS_BUCKET}.files", codec_options=CODEC_OPTIONS
+        )
+
+    async def delete_doc_blobs(self, job_id: str) -> None:
+        """Delete every GridFS file (and its chunks) tagged with `job_id`."""
+        bucket = self._doc_blob_bucket()
+        async for file in self._doc_blob_files().find(
+            {"metadata.job_id": job_id}, {"_id": 1}
+        ):
+            with contextlib.suppress(Exception):
+                await bucket.delete(file["_id"])
+
+    async def offload_doc_blob(self, job_id: str, blob: bytes) -> ObjectId:
+        """Store an oversized job-doc blob in GridFS and return its file id.
+
+        Drops any prior file for `job_id` first so a query->response overwrite
+        doesn't leak the earlier upload.
+        """
+        await self.delete_doc_blobs(job_id)
+        return await self._doc_blob_bucket().upload_from_stream(
+            job_id, blob, metadata={"job_id": job_id}
+        )
+
+    async def download_doc_blob(self, file_id: ObjectId) -> bytes:
+        """Read a job-doc blob back from GridFS."""
+        stream = await self._doc_blob_bucket().open_download_stream(file_id)
+        return await stream.read()
+
+    async def reap_orphaned_doc_blobs(self) -> int:
+        """Delete GridFS blobs whose parent `job_docs` document is gone.
+
+        `job_docs` is reaped by Mongo TTL indexes, which don't touch GridFS (and
+        a TTL index on the files collection would orphan its chunks). This sweep
+        closes that gap: for files older than `GRIDFS_REAP_GRACE` whose `job_id`
+        no longer has a `job_docs` document, `bucket.delete` drops the file and
+        its chunks together. Returns the number of files deleted.
+
+        Candidates are streamed and resolved in fixed-size batches so neither the
+        parent-lookup `$in` nor the surviving-id set grows with the (potentially
+        large) number of stored blobs. Only already-streamed files are deleted,
+        so deleting from the collection being iterated can't skip a candidate.
+        """
+        cutoff = datetime.now().astimezone() - GRIDFS_REAP_GRACE
+        deleted = 0
+        batch: dict[ObjectId, str | None] = {}
+        async for file in self._doc_blob_files().find(
+            {"uploadDate": {"$lt": cutoff}}, {"_id": 1, "metadata.job_id": 1}
+        ):
+            metadata: dict[str, Any] = file.get("metadata") or {}
+            batch[file["_id"]] = metadata.get("job_id")
+            if len(batch) >= GRIDFS_REAP_BATCH:
+                deleted += await self._reap_doc_blob_batch(batch)
+                batch = {}
+        if batch:
+            deleted += await self._reap_doc_blob_batch(batch)
+        return deleted
+
+    async def _reap_doc_blob_batch(self, batch: dict[ObjectId, str | None]) -> int:
+        """Delete the orphans within one batch of candidate GridFS files.
+
+        `batch` maps file id -> the `job_id` it was tagged with. A bounded `$in`
+        finds which of those jobs still exist; the rest are deleted.
+        """
+        _, docs_collection = self.get_job_collection()
+        job_ids = {jid for jid in batch.values() if jid is not None}
+        alive: set[str] = set()
+        if job_ids:
+            async for doc in docs_collection.find(
+                {"job_id": {"$in": sorted(job_ids)}}, {"job_id": 1}
+            ):
+                alive.add(doc["job_id"])
+
+        bucket = self._doc_blob_bucket()
+        deleted = 0
+        for file_id, job_id in batch.items():
+            if job_id in alive:
+                continue
+            with contextlib.suppress(Exception):
+                await bucket.delete(file_id)
+                deleted += 1
+        return deleted
 
     def get_log_collection(self) -> AsyncIOMotorCollection[dict[str, Any]]:
         """Get log_dump collection with standard options."""
@@ -662,6 +801,12 @@ class MongoClient(BackendClient):
                     "completed", background=True, expireAfterSeconds=CONFIG.job.ttl_max
                 )
                 await collection.create_index("created", background=True)
+
+            # Backs the `metadata.job_id` lookups in `delete_doc_blobs` and the
+            # reaper; the bucket creates its own file/chunk indexes on first upload.
+            await self._doc_blob_files().create_index(
+                "metadata.job_id", background=True
+            )
 
             log_collection = self.get_log_collection()
             await log_collection.create_index(
@@ -726,8 +871,20 @@ class MongoClient(BackendClient):
         await self.batch_write(job_status_ops, job_status)
         await self.batch_write(job_doc_ops, job_docs)
 
-    def job_state(self, job: QueryState | ResponseState) -> tuple[UpdateOne, UpdateOne]:
-        """Create an operation for upserting a job state doc."""
+    def job_state(
+        self,
+        job: QueryState | ResponseState,
+        *,
+        doc_ref: ObjectId | None = None,
+        store_doc: bool = True,
+    ) -> tuple[UpdateOne, UpdateOne]:
+        """Create an operation for upserting a job state doc.
+
+        Pass `doc_ref` when the caller has already spilled the doc blob to
+        GridFS; the op then stores that reference in place of the inline bytes.
+        Pass `store_doc=False` when the blob is too large to persist at all;
+        the op then keeps only metadata and clears any previously stored body.
+        """
         update_time = job["event_time"]
         status_data = {
             "$set": JobStatus(
@@ -751,12 +908,27 @@ class MongoClient(BackendClient):
         }
         if doc_type == "response":
             doc_inner["completed"] = update_time
-        if doc is not None:
+        # `doc` and `doc_ref` are mutually exclusive; clear the other side so a
+        # later write (e.g. inline query then GridFS response) leaves no stale field.
+        unset: dict[str, str] = {}
+        if not store_doc:
+            # Blob too large to persist: keep metadata only and drop any prior body.
+            unset = {"doc": "", "doc_ref": "", "doc_size": ""}
+        elif doc_ref is not None:
+            doc_inner["doc_ref"] = doc_ref
+            if doc is not None:
+                doc_inner["doc_size"] = len(doc)
+            unset["doc"] = ""
+        elif doc is not None:
             doc_inner["doc"] = doc
-        doc_data = {
+            unset["doc_ref"] = ""
+            unset["doc_size"] = ""
+        doc_data: dict[str, Any] = {
             "$set": doc_inner,
             "$setOnInsert": {"created": update_time},
         }
+        if unset:
+            doc_data["$unset"] = unset
         return (
             UpdateOne(
                 {"job_id": job["job_id"]},
@@ -799,6 +971,11 @@ class MongoClient(BackendClient):
         )
 
         del job["_id"]
+        # Blob was spilled to GridFS: hydrate `doc` so callers (`unpack_doc`)
+        # see the same shape as an inline doc.
+        doc_ref = job.get("doc_ref")
+        if doc_ref is not None and job.get("doc") is None:
+            job["doc"] = await self.download_doc_blob(doc_ref)
         return JobDoc(**job)
 
     async def get_job_status(
@@ -1603,12 +1780,43 @@ class MongoQueue(BatchedAction):
             )
 
     async def job_state(self, batch: list[QueryState | ResponseState]) -> None:
-        """Send a batch of job states to MongoDB."""
+        """Send a batch of job states to MongoDB.
+
+        Blobs larger than `GRIDFS_INLINE_LIMIT` are spilled to GridFS and stored
+        by reference, keeping every `job_docs` document under Mongo's cap. Blobs
+        at or above `CONFIG.mongo.max_stored_doc_bytes`, and dehydrated-query
+        responses, are not persisted at all - the response is still delivered
+        upstream, only the stored copy is dropped.
+        """
         if len(batch) == 0:
             return
-        status_ops, doc_ops = map(
-            list, zip(*(self.client.job_state(state) for state in batch), strict=True)
-        )
+        ops: list[tuple[UpdateOne, UpdateOne]] = []
+        for state in batch:
+            doc_type = "query" if "query" in state else "response"
+            blob = cast("bytes | None", state.get(doc_type))
+            size = len(blob) if blob is not None else 0
+            dehydrated = doc_type == "response" and bool(
+                cast("ResponseState", state).get("dehydrated")
+            )
+            doc_ref: ObjectId | None = None
+            store_doc = True
+            if dehydrated:
+                # Dehydrated queries deliver their response but never persist it.
+                store_doc = False
+            elif size >= CONFIG.mongo.max_stored_doc_bytes:
+                store_doc = False
+                # Drop any earlier body for this job so nothing stale is served back.
+                await self.client.delete_doc_blobs(state["job_id"])
+                log.warning(
+                    f"Job {state['job_id']} {doc_type} is {size} bytes (>= {CONFIG.mongo.max_stored_doc_bytes} cap); delivering without storing it.",
+                    no_mongo_log=True,
+                )
+            elif size > GRIDFS_INLINE_LIMIT:
+                doc_ref = await self.client.offload_doc_blob(state["job_id"], blob)  # pyright: ignore[reportArgumentType] size>0 implies blob is not None
+            ops.append(
+                self.client.job_state(state, doc_ref=doc_ref, store_doc=store_doc)
+            )
+        status_ops, doc_ops = map(list, zip(*ops, strict=True))
         await self.client.batch_job_state(status_ops, doc_ops)
 
     async def log_dump(self, batch: list[dict[str, Any]]) -> None:
