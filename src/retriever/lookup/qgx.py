@@ -348,17 +348,9 @@ class QueryGraphExecutor:
                     self.subclass_warning_emitted = True
                 continue
 
-            if (
-                CONFIG.job.lookup.subclass_cutoff > 0
-                and len(descendants) > CONFIG.job.lookup.subclass_cutoff
-            ):
-                self.job_log.error(
-                    f"Qnode `{qnode_id}` curie {curie} found {len(descendants)} descendants, exceeding cutoff of {CONFIG.job.lookup.subclass_cutoff}. For stability, your query terminates."
-                )
-                self.terminate = True
-                self.terminate_reason = "subclass_cutoff"
-                return []
-
+            # Nodes with more than `CONFIG.job.lookup.subclass_cutoff` descendants are
+            # dropped from the map when it is built, so they arrive here as an empty
+            # list and simply skip expansion below rather than terminating the query.
             if not descendants:
                 self.job_log.trace(
                     f"Found no descendants for {curie} on QNode {qnode_id}"

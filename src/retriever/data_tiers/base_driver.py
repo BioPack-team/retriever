@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from typing import Any
 
-from retriever.types.general import EntityToEntityMapping
 from retriever.types.metakg import Operation, OperationNode
-from retriever.types.trapi import BiolinkEntity
+from retriever.types.trapi import CURIE, BiolinkEntity
 from retriever.utils.backend_client import BackendClient
 
 
@@ -29,7 +29,12 @@ class DatabaseDriver(BackendClient, ABC):
         """Operations and Nodes from this driver; `bypass_cache=True` forces a live fetch."""
 
     @abstractmethod
-    async def get_subclass_mapping(
-        self, bypass_cache: bool = False
-    ) -> EntityToEntityMapping:
-        """Nodes to ontological descendants; `bypass_cache=True` forces a live fetch."""
+    def stream_subclass_mapping(
+        self, cutoff: int
+    ) -> AsyncIterator[tuple[CURIE, list[CURIE]]]:
+        """Stream (CURIE, descendants) pairs, dropping over-`cutoff` entries.
+
+        `cutoff <= 0` keeps everything. The leader only streams from the tier-1
+        driver; other backends raise `NotImplementedError`.
+        """
+        ...

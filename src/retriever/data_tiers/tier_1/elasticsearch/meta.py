@@ -1,9 +1,10 @@
+import asyncio
 import base64
 import hashlib
 import zlib
 from collections import defaultdict
+from collections.abc import AsyncIterator
 from copy import deepcopy
-from types import MappingProxyType
 from typing import Any
 
 import msgpack
@@ -18,9 +19,8 @@ from retriever.data_tiers.utils import (
     parse_dingo_metadata_unhashed,
 )
 from retriever.types.dingo import DINGOMetadata
-from retriever.types.general import EntityToEntityMapping
 from retriever.types.metakg import Operation, OperationNode, UnhashedOperation
-from retriever.types.trapi import BiolinkEntity, Infores, MetaAttributeDict
+from retriever.types.trapi import CURIE, BiolinkEntity, Infores, MetaAttributeDict
 from retriever.utils.redis import RedisClient
 
 T1MetaData = dict[str, Any]
@@ -280,73 +280,114 @@ async def generate_operations(
     return operations, nodes
 
 
-async def retrieve_ubergraph_info_from_es(
+UBERGRAPH_MAPPING_INDEX = "ubergraph_nodes_mapping"
+"""ES index holding the base64/zlib/msgpack-chunked UBERGRAPH subclass mapping."""
+
+UBERGRAPH_CHUNK_PAGE = 1000
+"""Chunks fetched per `search_after` page when reading the mapping."""
+
+
+async def iter_ubergraph_chunks(
     es_connection: AsyncElasticsearch,
-) -> EntityToEntityMapping:
-    """Retrieve Ubergraph info from Elasticsearch."""
-    index_name = "ubergraph_nodes_mapping"
-    resp = await es_connection.search(
-        index=index_name,
-        size=10000,
-        query={"match_all": {}},
-        sort=[{"chunk_index": {"order": "asc"}}],
-    )
+    page_size: int = UBERGRAPH_CHUNK_PAGE,
+) -> AsyncIterator[str]:
+    """Yield the mapping's base64 chunks in `chunk_index` order.
 
-    b64 = "".join(hit["_source"]["value"] for hit in resp["hits"]["hits"])
-
-    obj = msgpack.unpackb(zlib.decompress(base64.b64decode(b64)), raw=False)
-    return obj.get("mapping", {})
-
-
-def to_ubergraph_info(data: T1MetaData) -> EntityToEntityMapping:
-    """Casting method to satisfy our linter overlord."""
-    return data.get("mapping", {})
-
-
-def from_ubergraph_info(info: EntityToEntityMapping) -> T1MetaData:
-    """Reverse of `to_ubergraph_info`."""
-    return {
-        "mapping": info,
-    }
+    Pages with `search_after` so the fetch can't silently truncate the way a fixed
+    `size=` search does once the chunk count exceeds the page cap.
+    """
+    search_after: list[Any] | None = None
+    while True:
+        body: dict[str, Any] = {
+            "size": page_size,
+            "query": {"match_all": {}},
+            "sort": [{"chunk_index": {"order": "asc"}}],
+        }
+        if search_after is not None:
+            body["search_after"] = search_after
+        resp = await es_connection.search(index=UBERGRAPH_MAPPING_INDEX, body=body)
+        hits = resp["hits"]["hits"]
+        for hit in hits:
+            yield hit["_source"]["value"]
+        if len(hits) < page_size:
+            break
+        search_after = hits[-1]["sort"]
 
 
-async def get_ubergraph_info(
-    es_connection: AsyncElasticsearch | None,
-    retries: int = 0,
-    bypass_cache: bool = False,
-) -> EntityToEntityMapping:
-    """Assemble ubergraph related info from ES."""
-    ubergraph_info_cache_key = "TIER1_UBERGRAPH_INFO"
+async def stream_ubergraph_mapping(
+    es_connection: AsyncElasticsearch,
+    cutoff: int,
+) -> AsyncIterator[tuple[CURIE, list[CURIE]]]:
+    """Stream the CURIE->descendants mapping, dropping entries over `cutoff`.
 
-    if not bypass_cache:
-        cached_info = await read_metadata_cache(ubergraph_info_cache_key)
+    Walks the chunked, base64/zlib/msgpack-encoded blob with a streaming
+    `msgpack.Unpacker`, materializing one descendant list at a time so the full
+    mapping is never resident (peak stays in the low hundreds of MB). Entries whose
+    descendant count exceeds `cutoff` are skipped; `cutoff <= 0` keeps everything.
+    Raises `ValueError` if the chunk stream ends mid-object (a truncated blob).
+    """
+    unpacker = msgpack.Unpacker(raw=False)
+    inflator = zlib.decompressobj()
+    chunks = iter_ubergraph_chunks(es_connection)
+    b64_tail = ""
 
-        if cached_info is not None:
-            return MappingProxyType(to_ubergraph_info(cached_info))
-    else:
-        log.info("cache bypassed for ubergraph info retrieval")
+    async def pump() -> bool:
+        """Decode+inflate the next chunk into the unpacker; False once exhausted."""
+        nonlocal b64_tail
+        try:
+            text = await chunks.__anext__()
+        except StopAsyncIteration:
+            if b64_tail:
+                unpacker.feed(inflator.decompress(base64.b64decode(b64_tail)))
+                b64_tail = ""
+            unpacker.feed(inflator.flush())
+            return False
+        # base64 decodes in 4-char groups; carry any partial group to the next chunk.
+        b64_tail += text
+        aligned = len(b64_tail) - (len(b64_tail) % 4)
+        raw = base64.b64decode(b64_tail[:aligned])
+        b64_tail = b64_tail[aligned:]
+        if raw:
+            unpacker.feed(inflator.decompress(raw))
+        return True
 
-    try:
-        if es_connection is None:
-            raise ValueError(
-                "Invalid Elasticsearch connection. Driver must be initialized and connected."
-            )
-        cached_info = await retrieve_ubergraph_info_from_es(es_connection)
-        await save_metadata_cache(
-            ubergraph_info_cache_key, from_ubergraph_info(cached_info)
+    async def take() -> Any:
+        while True:
+            try:
+                return unpacker.unpack()
+            except msgpack.OutOfData:
+                if not await pump():
+                    raise ValueError(
+                        "UBERGRAPH mapping ended mid-object; blob is truncated."
+                    ) from None
+
+    async def take_map_header() -> int:
+        while True:
+            try:
+                return unpacker.read_map_header()
+            except msgpack.OutOfData:
+                if not await pump():
+                    raise ValueError(
+                        "UBERGRAPH mapping ended before a map header; blob is empty or truncated."
+                    ) from None
+
+    for _ in range(await take_map_header()):  # top-level {"mapping": ..., "size": ...}
+        if await take() != "mapping":
+            _ = await take()  # consume the other value (e.g. "size")
+            continue
+        for index in range(await take_map_header()):
+            curie = await take()
+            descendants = await take()
+            if cutoff <= 0 or len(descendants) <= cutoff:
+                yield curie, descendants
+            if index % 10000 == 0:
+                await asyncio.sleep(
+                    0
+                )  # keep the event loop responsive on the long walk
+
+    while await pump():  # drain any trailing chunks so the zlib trailer is validated
+        pass
+    if not inflator.eof:
+        raise ValueError(
+            "UBERGRAPH mapping compressed stream is incomplete; blob is truncated."
         )
-        log.success("ubergraph info saved to cache!")
-    except ValueError as e:
-        # if exceeds retries or ES connection is invalid, return None
-        if retries == RETRY_LIMIT:
-            raise ValueError(
-                "Failed to retrieve UBERGRAPH info from Elasticsearch due to retries exceeded."
-            ) from e
-        if str(e).startswith("Invalid Elasticsearch connection"):
-            raise ValueError(
-                "Failed to retrieve UBERGRAPH info from Elasticsearch due to invalid ES connection."
-            ) from e
-        return await get_ubergraph_info(es_connection, retries + 1, bypass_cache)
-
-    log.success("ubergraph info retrieved!")
-    return MappingProxyType(cached_info)

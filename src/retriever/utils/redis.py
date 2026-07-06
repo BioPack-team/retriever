@@ -266,6 +266,13 @@ class AsyncRedis(Protocol, metaclass=ABCMeta):
         """Delete one or more keys specified by ``names``."""
 
     @abstractmethod
+    async def rename(self, src: KeyT, dst: KeyT) -> bool:
+        """Rename key ``src`` to ``dst``, replacing ``dst`` if it exists.
+
+        For more information, see https://redis.io/commands/rename
+        """
+
+    @abstractmethod
     async def hset(
         self,
         name: str,
@@ -641,6 +648,10 @@ class RedisClient(BackendClient):
         """Generically delete a key-value pair."""
         response = await self.client.delete(f"{PREFIX}{key}")
         return response > 0
+
+    async def rename(self, src: str, dst: str) -> None:
+        """Atomically rename `src` onto `dst`, replacing (and dropping) any existing `dst`."""
+        await self.client.rename(f"{PREFIX}{src}", f"{PREFIX}{dst}")
 
     async def used_memory_bytes(self) -> int:
         """Return the Dragonfly/Redis `used_memory` field from INFO MEMORY."""

@@ -17,6 +17,8 @@ from retriever.utils.redis import SUBCLASS_META_KEY, TIER_RECOVERED_CHANNEL, Red
 REDIS_CLIENT = RedisClient()
 
 MAPPING_ID = "SubclassHashMap"
+MAPPING_BUILD_ID = f"{MAPPING_ID}:next"
+"""Temp key the leader builds into, then atomically renames onto `MAPPING_ID`."""
 
 
 class SubclassMapping(BatchedAction):
@@ -108,30 +110,51 @@ class SubclassMapping(BatchedAction):
                 await self._reload_mapping()
 
     async def _reload_mapping(self) -> None:
-        """Pull the subclass mapping live from tier 1 and write it to Redis in batches."""
-        logger.info("Loading subclass mapping...")
-        # bypass_cache: rebuild must reflect live upstream state, not the
-        # in-process cache (which `meta._LOCAL_CACHE` returns by reference).
-        mapping = await tier_manager.get_driver(1).get_subclass_mapping(
-            bypass_cache=True
-        )
-        total = len(mapping)
+        """Stream the subclass mapping from tier 1 into Redis, swapped in atomically.
 
-        packed_mapping = dict[str, bytes]()
-        for curie, descendants in mapping.items():
-            packed_mapping[curie] = ormsgpack.packb(descendants)
-            if len(packed_mapping) >= self.redis_setup_batch_size:
-                await REDIS_CLIENT.hset(MAPPING_ID, mapping=packed_mapping)
-                packed_mapping = {}
+        Consumes the driver's streaming generator so the full mapping is never
+        materialized, applying `subclass_cutoff` to drop oversized descendant lists.
+        New mapping is built into a temporary key, then
+        `RENAME`d over the live one so old keys are dropped.
+        An empty or failed build leaves the previous map untouched.
+        """
+        cutoff = CONFIG.job.lookup.subclass_cutoff
+        logger.info(f"Loading subclass mapping (streaming, cutoff={cutoff})...")
 
-        if packed_mapping:
-            await REDIS_CLIENT.hset(MAPPING_ID, mapping=packed_mapping)
+        # Clear any temp key left behind by a previously-crashed build.
+        await REDIS_CLIENT.delete(MAPPING_BUILD_ID)
 
-        await REDIS_CLIENT.write_freshness(SUBCLASS_META_KEY, count=total)
+        kept = 0
+        packed_batch = dict[str, bytes]()
+        try:
+            async for curie, descendants in tier_manager.get_driver(
+                1
+            ).stream_subclass_mapping(cutoff=cutoff):
+                packed_batch[curie] = ormsgpack.packb(descendants)
+                kept += 1
+                if len(packed_batch) >= self.redis_setup_batch_size:
+                    await REDIS_CLIENT.hset(MAPPING_BUILD_ID, mapping=packed_batch)
+                    packed_batch = {}
+            if packed_batch:
+                await REDIS_CLIENT.hset(MAPPING_BUILD_ID, mapping=packed_batch)
+        except Exception:
+            # A partial build must never replace the live map; drop the temp key.
+            with contextlib.suppress(Exception):
+                await REDIS_CLIENT.delete(MAPPING_BUILD_ID)
+            raise
 
-        del packed_mapping
+        if kept == 0:
+            # Nothing to swap in; drop the empty temp key and keep the live map.
+            await REDIS_CLIENT.delete(MAPPING_BUILD_ID)
+            logger.warning(
+                "Subclass mapping stream returned no entries; keeping the previous map."
+            )
+            return
 
-        logger.success(f"Subclass mapping refreshed with {total} ancestors.")
+        # Atomic swap: replaces the live hash wholesale, dropping any stale keys.
+        await REDIS_CLIENT.rename(MAPPING_BUILD_ID, MAPPING_ID)
+        await REDIS_CLIENT.write_freshness(SUBCLASS_META_KEY, count=kept)
+        logger.success(f"Subclass mapping refreshed: {kept} entries kept.")
 
     async def get(self, curie: CURIE) -> list[CURIE] | None:
         """Descendants of `curie`; `None` when the mapping is unavailable, `[]` when none exist."""

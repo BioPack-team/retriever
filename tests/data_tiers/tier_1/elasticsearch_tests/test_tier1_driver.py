@@ -1,7 +1,10 @@
+import base64
 import importlib
+import zlib
 from collections.abc import Iterator
 from typing import Any, cast
 
+import msgpack
 import pytest
 from payload.trapi_qgraphs import (
     DINGO_QGRAPH,
@@ -17,6 +20,8 @@ import retriever.data_tiers.tier_1.elasticsearch.driver as driver_mod
 from retriever.data_tiers.tier_1.elasticsearch.meta import (
     extract_metadata_entries_from_blob,
     get_t1_indices,
+    iter_ubergraph_chunks,
+    stream_ubergraph_mapping,
 )
 from retriever.data_tiers.tier_1.elasticsearch.transpiler import ElasticsearchTranspiler
 from retriever.data_tiers.tier_1.elasticsearch.types import ESEdge, ESNode, ESPayload
@@ -410,11 +415,198 @@ async def test_ubergraph_info_retrieval():
     except Exception:
         pytest.skip("skipping es driver connection test: cannot connect")
 
-    info = await driver.get_subclass_mapping(bypass_cache=True)
-
-    # Lower-bound floor: ubergraph grows over time; verify the load
-    # happened and produced a non-trivial mapping rather than locking
-    # to a moment-in-time count.
-    assert len(info) > 100_000
+    # Ubergraph grows over time; assert a non-trivial mapping streamed through
+    # rather than locking to a moment-in-time count.
+    streamed = 0
+    async for _curie, _descendants in driver.stream_subclass_mapping(cutoff=-1):
+        streamed += 1
+    assert streamed > 100_000
 
     await driver.wrapup()
+
+
+def _chunk_ubergraph(mapping: dict[str, list[str]], chunk_len: int = 16) -> list[str]:
+    """Encode a mapping the way ES stores it: base64(zlib(msgpack)) split into chunks.
+
+    `chunk_len` is a multiple of 4 so chunk boundaries land on base64 quartets.
+    """
+    blob = base64.b64encode(
+        zlib.compress(msgpack.packb({"mapping": mapping, "size": len(mapping)}))
+    ).decode()
+    return [blob[i : i + chunk_len] for i in range(0, len(blob), chunk_len)] or [""]
+
+
+class _FakeUbergraphES:
+    """Minimal AsyncElasticsearch stand-in serving chunk docs with `search_after`."""
+
+    def __init__(self, chunks: list[str]) -> None:
+        self.docs = [
+            {"_source": {"value": c}, "chunk_index": i, "sort": [i]}
+            for i, c in enumerate(chunks)
+        ]
+        self.search_calls = 0
+
+    async def search(self, index: str, body: dict[str, Any]) -> dict[str, Any]:
+        self.search_calls += 1
+        size = body["size"]
+        after = body.get("search_after")
+        start = (after[0] + 1) if after is not None else 0
+        return {"hits": {"hits": self.docs[start : start + size]}}
+
+
+async def _drain(es: Any, cutoff: int) -> dict[str, list[str]]:
+    return {curie: desc async for curie, desc in stream_ubergraph_mapping(es, cutoff)}
+
+
+@pytest.mark.asyncio
+async def test_stream_ubergraph_mapping_drops_over_cutoff():
+    mapping = {
+        "small:1": ["d1", "d2"],
+        "small:2": ["d3"],
+        "root:huge": [f"x{i}" for i in range(50)],
+    }
+    result = await _drain(_FakeUbergraphES(_chunk_ubergraph(mapping)), cutoff=5)
+    assert set(result) == {"small:1", "small:2"}  # over-cutoff entry dropped
+    assert result["small:1"] == ["d1", "d2"]
+
+
+@pytest.mark.asyncio
+async def test_stream_ubergraph_mapping_cutoff_disabled_keeps_all():
+    mapping = {"a": [str(i) for i in range(100)], "b": ["x"]}
+    result = await _drain(_FakeUbergraphES(_chunk_ubergraph(mapping)), cutoff=-1)
+    assert set(result) == {"a", "b"}
+    assert len(result["a"]) == 100
+
+
+@pytest.mark.asyncio
+async def test_stream_ubergraph_mapping_truncated_blob_raises():
+    mapping = {f"k{i}": [f"d{i}_{j}" for j in range(i % 5)] for i in range(120)}
+    chunks = _chunk_ubergraph(mapping, chunk_len=16)
+    # Dropping the tail truncates the compressed stream; the stream must raise
+    # rather than silently yield a partial mapping.
+    with pytest.raises(ValueError):
+        await _drain(_FakeUbergraphES(chunks[:-1]), cutoff=-1)
+
+
+@pytest.mark.asyncio
+async def test_iter_ubergraph_chunks_paginates_without_truncating():
+    mapping = {f"k{i}": ["d"] for i in range(40)}
+    chunks = _chunk_ubergraph(mapping, chunk_len=8)
+    es = _FakeUbergraphES(chunks)
+    fetched = [chunk async for chunk in iter_ubergraph_chunks(es, page_size=4)]
+    assert fetched == chunks  # every chunk, in order (no size= truncation)
+    assert es.search_calls > 1  # actually paged via search_after
+
+
+class _FakeStreamDriver:
+    """Driver stand-in whose `stream_subclass_mapping` yields fixed pairs."""
+
+    def __init__(self, pairs: list[tuple[str, list[str]]]) -> None:
+        self._pairs = pairs
+
+    def stream_subclass_mapping(self, cutoff: int) -> Any:
+        async def gen() -> Any:
+            for pair in self._pairs:
+                yield pair
+
+        return gen()
+
+
+class _FakeRedis:
+    """In-memory stand-in modeling the hash ops `_reload_mapping` uses."""
+
+    def __init__(self) -> None:
+        self.hashes: dict[str, dict[str, bytes]] = {}
+        self.freshness_writes: list[int] = []
+        self.hset_calls: list[int] = []  # batch sizes, to assert batching
+
+    async def hset(self, key: str, *, mapping: dict[str, bytes]) -> None:
+        self.hset_calls.append(len(mapping))
+        self.hashes.setdefault(key, {}).update(mapping)
+
+    async def delete(self, key: str) -> bool:
+        return self.hashes.pop(key, None) is not None
+
+    async def rename(self, src: str, dst: str) -> None:
+        self.hashes[dst] = self.hashes.pop(src)  # KeyError if src missing, as in Redis
+
+    async def write_freshness(self, key: str, count: int, ttl: int = 0) -> None:
+        self.freshness_writes.append(count)
+
+
+def _install_reload(monkeypatch: pytest.MonkeyPatch, fake_redis: _FakeRedis) -> Any:
+    """Wire a SubclassMapping to the fake Redis (small batch size); return the instance."""
+    import retriever.lookup.subclass as subclass_mod
+
+    sm = subclass_mod.SubclassMapping()
+    monkeypatch.setattr(subclass_mod, "REDIS_CLIENT", fake_redis)
+    monkeypatch.setattr(sm, "redis_setup_batch_size", 2)
+    return sm
+
+
+@pytest.mark.asyncio
+async def test_reload_mapping_streams_kept_entries_to_redis(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    import retriever.lookup.subclass as subclass_mod
+
+    fake_redis = _FakeRedis()
+    sm = _install_reload(monkeypatch, fake_redis)
+    pairs = [(f"c{i}", [f"d{i}"]) for i in range(5)]
+    monkeypatch.setattr(
+        subclass_mod.tier_manager, "get_driver", lambda _tier: _FakeStreamDriver(pairs)
+    )
+
+    await sm._reload_mapping()
+
+    live = fake_redis.hashes[subclass_mod.MAPPING_ID]
+    assert set(live) == {f"c{i}" for i in range(5)}  # every kept entry, swapped in
+    assert all(size <= 2 for size in fake_redis.hset_calls)  # batched under the cap
+    assert fake_redis.freshness_writes == [5]  # freshness = kept count
+    assert subclass_mod.MAPPING_BUILD_ID not in fake_redis.hashes  # temp consumed by rename
+
+
+@pytest.mark.asyncio
+async def test_reload_mapping_swaps_not_merges(monkeypatch: pytest.MonkeyPatch):
+    import retriever.lookup.subclass as subclass_mod
+
+    fake_redis = _FakeRedis()
+    sm = _install_reload(monkeypatch, fake_redis)
+
+    monkeypatch.setattr(
+        subclass_mod.tier_manager,
+        "get_driver",
+        lambda _tier: _FakeStreamDriver([("a", ["1"]), ("b", ["2"]), ("c", ["3"])]),
+    )
+    await sm._reload_mapping()
+    assert set(fake_redis.hashes[subclass_mod.MAPPING_ID]) == {"a", "b", "c"}
+
+    # Build 2 omits "b" (vanished upstream / now over cutoff): it must not linger.
+    monkeypatch.setattr(
+        subclass_mod.tier_manager,
+        "get_driver",
+        lambda _tier: _FakeStreamDriver([("a", ["1"]), ("c", ["3"])]),
+    )
+    await sm._reload_mapping()
+    assert set(fake_redis.hashes[subclass_mod.MAPPING_ID]) == {"a", "c"}
+
+
+@pytest.mark.asyncio
+async def test_reload_mapping_zero_entries_preserves_previous(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    import retriever.lookup.subclass as subclass_mod
+
+    fake_redis = _FakeRedis()
+    sm = _install_reload(monkeypatch, fake_redis)
+    fake_redis.hashes[subclass_mod.MAPPING_ID] = {"a": b"x"}  # seed a prior good map
+    monkeypatch.setattr(
+        subclass_mod.tier_manager, "get_driver", lambda _tier: _FakeStreamDriver([])
+    )
+
+    await sm._reload_mapping()
+
+    # A stream that yields nothing must not clobber the prior map or its freshness.
+    assert fake_redis.hashes[subclass_mod.MAPPING_ID] == {"a": b"x"}
+    assert fake_redis.freshness_writes == []
+    assert subclass_mod.MAPPING_BUILD_ID not in fake_redis.hashes  # temp cleaned up

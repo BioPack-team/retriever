@@ -1,6 +1,6 @@
 import asyncio
 import contextlib
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, override
 
 import orjson
@@ -22,8 +22,8 @@ from retriever.data_tiers.tier_1.elasticsearch.meta import (
     generate_operations,
     get_t1_indices,
     get_t1_metadata,
-    get_ubergraph_info,
     merge_operations,
+    stream_ubergraph_mapping,
 )
 from retriever.data_tiers.tier_1.elasticsearch.types import (
     ESEdge,
@@ -34,9 +34,8 @@ from retriever.data_tiers.utils import (
     parse_dingo_metadata_unhashed,
 )
 from retriever.types.dingo import DINGO_ADAPTER, DINGOMetadata
-from retriever.types.general import EntityToEntityMapping
 from retriever.types.metakg import Operation, OperationNode
-from retriever.types.trapi import BiolinkEntity, Infores
+from retriever.types.trapi import CURIE, BiolinkEntity, Infores
 from retriever.utils.calls import get_metadata_client
 from retriever.utils.redis import RedisClient
 from retriever.utils.trapi import hash_hex
@@ -96,7 +95,7 @@ class ElasticSearchDriver(DatabaseDriver):
         return self._refresh_metadata_cache
 
     async def _refresh_metadata_cache(self) -> None:
-        """Repopulate the in-process metadata + ubergraph cache from live ES."""
+        """Repopulate the in-process tier-1 metadata cache from live ES."""
         if self.es_connection is None:
             return
         with contextlib.suppress(Exception):
@@ -105,7 +104,6 @@ class ElasticSearchDriver(DatabaseDriver):
                 CONFIG.tier1.elasticsearch.index_name,
                 bypass_cache=True,
             )
-            _ = await get_ubergraph_info(self.es_connection, bypass_cache=True)
 
     async def _close_connection(self) -> None:
         """Close the ES client connection and drop the reference."""
@@ -340,9 +338,15 @@ class ElasticSearchDriver(DatabaseDriver):
         return operations, nodes
 
     @override
-    async def get_subclass_mapping(
-        self,
-        bypass_cache: bool = False,
-    ) -> EntityToEntityMapping:
-        """Get UBERGRAPH nodes mapping/adjacency list."""
-        return await get_ubergraph_info(self.es_connection, bypass_cache=bypass_cache)
+    def stream_subclass_mapping(
+        self, cutoff: int
+    ) -> AsyncIterator[tuple[CURIE, list[CURIE]]]:
+        """Stream (CURIE, descendants) from ES, dropping over-`cutoff` entries.
+
+        `cutoff <= 0` keeps everything; memory stays bounded.
+        """
+        if self.es_connection is None:
+            raise RuntimeError(
+                "Must use ElasticSearchDriver.initialize() before streaming the subclass mapping."
+            )
+        return stream_ubergraph_mapping(self.es_connection, cutoff)

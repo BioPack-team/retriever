@@ -1,6 +1,6 @@
 import math
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import suppress
 from http import HTTPStatus
 from typing import Any, override
@@ -15,9 +15,8 @@ from retriever.config.general import CONFIG, GandalfSettings
 from retriever.data_tiers.base_driver import DatabaseDriver
 from retriever.data_tiers.utils import parse_dingo_metadata
 from retriever.types.dingo import DINGOMetadata
-from retriever.types.general import EntityToEntityMapping
 from retriever.types.metakg import Operation, OperationNode
-from retriever.types.trapi import BiolinkEntity, Infores, QueryDict, ResponseDict
+from retriever.types.trapi import CURIE, BiolinkEntity, Infores, QueryDict, ResponseDict
 
 ZSTD_COMPRESSOR = zstandard.ZstdCompressor()
 
@@ -259,7 +258,7 @@ class GandalfDriver(DatabaseDriver):
         return operations, nodes
 
     @override
-    async def get_subclass_mapping(
-        self, bypass_cache: bool = False
-    ) -> EntityToEntityMapping:
+    def stream_subclass_mapping(
+        self, cutoff: int
+    ) -> AsyncIterator[tuple[CURIE, list[CURIE]]]:
         raise NotImplementedError("Tier 0 does not implement subclass mapping.")
