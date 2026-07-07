@@ -130,6 +130,8 @@ class SubclassMapping(BatchedAction):
             async for curie, descendants in tier_manager.get_driver(
                 1
             ).stream_subclass_mapping(cutoff=cutoff):
+                if curie in descendants:
+                    descendants.remove(curie)
                 packed_batch[curie] = ormsgpack.packb(descendants)
                 kept += 1
                 if len(packed_batch) >= self.redis_setup_batch_size:
