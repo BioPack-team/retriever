@@ -13,18 +13,14 @@ from loguru import logger
 class Singleton(ABCMeta):
     """Singleton metaclass that ensures classes using it have only one instance."""
 
-    _instances: ClassVar[dict[Singleton, Any]] = {}
+    _instances: ClassVar[dict[type, Any]] = {}
 
     @override
-    def __call__(cls, *args: Any, **kwargs: Any) -> Any:
-        """Ensure calls go to one instance.
-
-        Return type is `Any` so callers infer the subclass
-        rather than the metaclass itself.
-        """
-        if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)  # noqa:UP008
-        return cls._instances[cls]
+    def __call__[T](cls: type[T], *args: Any, **kwargs: Any) -> T:
+        """Ensure calls go to one instance."""
+        if cls not in Singleton._instances:
+            Singleton._instances[cls] = super().__call__(*args, **kwargs)
+        return Singleton._instances[cls]
 
 
 async def await_next[T](iterator: AsyncIterator[T]) -> T:
