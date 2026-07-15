@@ -278,24 +278,38 @@ class SubqueryDispatcher(BatchedAction):
                     "predicates", [BiolinkPredicate("biolink:related_to")]
                 ),
             )
-            if qualifiers := current_edge.get("qualifier_constraints"):
-                reverse_edge["qualifier_constraints"] = (
-                    biolink.reverse_qualifier_constraints(qualifiers)
+            if attr_constraints := current_edge.get("attribute_constraints"):
+                reverse_edge["attribute_constraints"] = (
+                    biolink.reverse_attribute_constraints(attr_constraints)
                 )
-            # BUG: doesn't reverse attribute constraints. But this is vanishingly unlikely.
-            reverse_qg = QueryGraphDict(
-                nodes={
-                    current_edge["subject"]: object_node,
-                    current_edge["object"]: subject_node,
-                },
-                edges={branch.current_edge: reverse_edge},
-            )
-            transpiler = tier_manager.get_transpiler(1)  # Transpiler isn't singleton
-            reverse_query_payload = transpiler.process_qgraph(reverse_qg)
-            job_log.trace(str(reverse_query_payload))
-            qgraphs.append(reverse_qg)
-            queries.append(reverse_query_payload)
-            transpilers.append(transpiler)
+
+            # Reverse qualifiers. If not reversible, skip reverse subquery
+            reversible = True
+            if qualifiers := current_edge.get("qualifier_constraints"):
+                try:
+                    reverse_edge["qualifier_constraints"] = (
+                        biolink.reverse_qualifier_constraints(qualifiers)
+                    )
+                except ValueError as e:
+                    job_log.warning(
+                        f"Skipping reverse subquery for symmetric predicate: {e}"
+                    )
+                    reversible = False
+
+            if reversible:
+                reverse_qg = QueryGraphDict(
+                    nodes={
+                        current_edge["subject"]: object_node,
+                        current_edge["object"]: subject_node,
+                    },
+                    edges={branch.current_edge: reverse_edge},
+                )
+                transpiler = tier_manager.get_transpiler(1)  # not a singleton
+                reverse_query_payload = transpiler.process_qgraph(reverse_qg)
+                job_log.trace(str(reverse_query_payload))
+                qgraphs.append(reverse_qg)
+                queries.append(reverse_query_payload)
+                transpilers.append(transpiler)
 
         return qgraphs, transpilers, queries
 
