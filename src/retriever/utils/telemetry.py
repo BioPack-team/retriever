@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from typing import override
+from typing import Any, override
 
 import sentry_sdk
 from fastapi import FastAPI
@@ -97,3 +97,13 @@ def capture_exception(e: Exception) -> None:
     if not span.get_span_context().is_valid:
         sentry_sdk.capture_exception(e)
     span.record_exception(e, escaped=True)
+
+
+def contextualize_query_telemetry(info: dict[str, Any]) -> None:
+    """Provide some advanced information about the query for Telemetry."""
+    # Drop None values (which would be dropped with error anyway)
+    info = {k: v for k, v in info.items() if v is not None}
+    current_span = trace.get_current_span()
+    current_span.set_attributes(info)
+    # Have to set separately in Sentry to make searchable tags
+    sentry_sdk.set_tags(info)

@@ -4,10 +4,9 @@ import traceback
 import uuid
 from datetime import datetime
 from http import HTTPStatus
-from typing import Any, NamedTuple, cast
+from typing import Any, cast
 
 import ormsgpack
-import sentry_sdk
 import zstandard
 from fastapi import Request
 from loguru import logger
@@ -15,7 +14,7 @@ from opentelemetry import context, propagate, trace
 
 from retriever.config.general import CONFIG
 from retriever.lookup.lookup import async_lookup, lookup
-from retriever.lookup.utils import get_submitter
+from retriever.lookup.utils import contextualize_query, get_query_metadata
 from retriever.metadata.metadata import get_metadata
 from retriever.metadata.trapi_metakg import trapi_metakg
 from retriever.types.dingo import DINGOMetadata
@@ -53,19 +52,6 @@ ZSTD_COMPRESSOR = zstandard.ZstdCompressor(level=CONFIG.mongo.compression_level)
 ZSTD_DECOMPRESSOR = zstandard.ZstdDecompressor()
 
 
-class QueryMetadata(NamedTuple):
-    """Metadata about a query."""
-
-    job_id: str
-    job_timeout: float
-    data_tier: int | None
-    query_type: str
-    submitter: str
-    qnodes: int
-    qedges: int
-    qpaths: int
-
-
 def _resolve_lookup_timeout(
     body: TRAPIQuery | TRAPIAsyncQuery, tier: TierNumber
 ) -> float:
@@ -80,26 +66,10 @@ def _resolve_lookup_timeout(
     }[tier]
 
 
-def _contextualize(query_metadata: QueryMetadata, timeout: float) -> None:
-    """Tag telemetry with the resolved query metadata; failures are logged, not raised."""
-    with logger.catch(
-        Exception,
-        level="ERROR",
-        message="Error while attempting to contextualize telemetry to query.",
-    ):
-        contextualize_query_telemetry(
-            {
-                **query_metadata._asdict(),
-                "job_timeout": timeout,
-                "data_tier": query_metadata,
-            }
-        )
-
-
 def _record_initial_state(
     query: QueryInfo,
     ctx: APIInfo,
-    query_metadata: QueryMetadata,
+    query_type: str,
 ) -> None:
     """Persist the initial Running state; drop quietly to the server log on outage.
 
@@ -109,6 +79,7 @@ def _record_initial_state(
     can't observe the job; logging at the server gives operators the signal
     without polluting the response.
     """
+    query_metadata = get_query_metadata(query, query_type)
     try:
         MONGO_QUEUE.put(
             "job_state",
@@ -176,9 +147,8 @@ async def make_lookup_query(
     )
 
     query_type = "lookup-async" if ctx.background_tasks is not None else "lookup"
-    query_metadata = get_query_metadata(query, query_type)
-    _contextualize(query_metadata, timeout)
-    _record_initial_state(query, ctx, query_metadata)
+    contextualize_query(query, query_type)
+    _record_initial_state(query, ctx, query_type)
 
     if ctx.background_tasks is not None:
         carrier = dict[str, str]()
@@ -218,8 +188,7 @@ async def make_metakg_query(
         tier=tier,
         timeout=timeout,
     )
-    query_metadata = get_query_metadata(query, "metakg")
-    _contextualize(query_metadata, timeout)
+    contextualize_query(query, "metakg")
 
     return await trapi_metakg(query)
 
@@ -244,45 +213,9 @@ async def make_metadata_query(
         tier=tier,
         timeout=timeout,
     )
-    query_metadata = get_query_metadata(query, "metadata")
-    _contextualize(query_metadata, timeout)
+    contextualize_query(query, "metadata")
 
     return await get_metadata(query)
-
-
-def get_query_metadata(query: QueryInfo, query_type: str) -> QueryMetadata:
-    """Obtain useful metrics about the query."""
-    qnodes, qedges, qpaths = 0, 0, 0
-    body = query.body
-    if (
-        body is not None
-        and "query_graph" in body["message"]
-        and body["message"]["query_graph"]
-    ):
-        qnodes = len(body["message"]["query_graph"]["nodes"])
-        if "edges" in body["message"]["query_graph"]:
-            qedges = len(body["message"]["query_graph"]["edges"])
-        else:
-            qpaths = len(body["message"]["query_graph"]["paths"])
-
-    return QueryMetadata(
-        job_id=query.job_id,
-        job_timeout=query.timeout,
-        data_tier=query.tier,
-        query_type=query_type,
-        submitter=get_submitter(query),
-        qnodes=qnodes,
-        qedges=qedges,
-        qpaths=qpaths,
-    )
-
-
-def contextualize_query_telemetry(info: dict[str, Any]) -> None:
-    """Provide some advanced information about the query for Telemetry."""
-    current_span = trace.get_current_span()
-    current_span.set_attributes(info)
-    # Have to set separately in Sentry to make searchable tags
-    sentry_sdk.set_tags(info)
 
 
 _TERMINAL_STATUS_DESCRIPTIONS: dict[str, str] = {

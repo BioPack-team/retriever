@@ -16,7 +16,7 @@ from retriever.config.general import CONFIG
 from retriever.config.openapi import OPENAPI_CONFIG
 from retriever.data_tiers import tier_manager
 from retriever.lookup.qgx import QueryGraphExecutor
-from retriever.lookup.utils import expand_qgraph, get_submitter
+from retriever.lookup.utils import contextualize_query, expand_qgraph, get_submitter
 from retriever.lookup.validate import validate
 from retriever.metadata.optable import (
     OpTableManager,
@@ -63,6 +63,10 @@ async def async_lookup(
     token = context.attach(propagate.extract(ctx))  # Ensure context propagates
 
     try:
+        # Re-apply telemetry tags: this background task has its own Sentry
+        # transaction, so the request handler's tags don't reach it.
+        contextualize_query(query, "lookup-async")
+
         if query.body is None or "callback" not in query.body:
             raise TypeError(f"Expected AsyncQuery, received {type(query.body)}.")
 

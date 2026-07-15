@@ -145,3 +145,45 @@ async def test_custom_tier_takes_precedence_over_deprecated_tiers():
     body = _lookup_body(Parameters(tiers=[0], tier=1))
     query = await _run("lookup", _ctx("POST", "/query"), body=body)
     assert query.tier == 1
+
+
+# --- Async telemetry contextualization -----------------------------------
+
+
+@pytest.mark.asyncio
+async def test_async_lookup_reapplies_data_tier_tag():
+    """The async background task runs in its own Sentry transaction, so the
+    request handler's tags don't reach it. async_lookup must re-apply them;
+    here we assert data_tier lands in the Sentry tags for the async path.
+
+    lookup() is stubbed to raise so the assertion is reached before the
+    callback machinery - contextualize_query runs first, at the top of the try.
+    """
+    from retriever.lookup import lookup as lookup_module
+
+    query = QueryInfo(
+        endpoint="/asyncquery",
+        headers=Headers(),
+        method="POST",
+        body={
+            "message": {"query_graph": {"nodes": {}, "edges": {}}},
+            "callback": "https://example.test/callback",
+        },
+        job_id="job123",
+        tier=2,
+        timeout=60.0,
+    )
+
+    with (
+        patch("sentry_sdk.set_tags") as set_tags,
+        patch.object(
+            lookup_module, "lookup", AsyncMock(side_effect=RuntimeError("stop"))
+        ),
+        pytest.raises(RuntimeError),
+    ):
+        await lookup_module.async_lookup(query=query, ctx={})
+
+    assert any(
+        call.args and call.args[0].get("data_tier") == 2
+        for call in set_tags.call_args_list
+    )

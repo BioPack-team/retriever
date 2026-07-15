@@ -1,4 +1,5 @@
 import os
+from typing import NamedTuple
 
 import aiofiles
 from loguru import logger
@@ -18,6 +19,7 @@ from retriever.types.trapi import (
 )
 from retriever.utils.general import BatchedAction
 from retriever.utils.logs import TRAPILogger
+from retriever.utils.telemetry import contextualize_query_telemetry
 
 
 def expand_qgraph(qg: QueryGraphDict, job_log: TRAPILogger) -> QueryGraphDict:
@@ -105,6 +107,60 @@ def get_submitter(query: QueryInfo) -> str:
         return submitter
     else:
         return "not_provided"
+
+
+class QueryMetadata(NamedTuple):
+    """Metadata about a query."""
+
+    job_id: str
+    job_timeout: float
+    data_tier: int | None
+    query_type: str
+    submitter: str
+    qnodes: int
+    qedges: int
+    qpaths: int
+
+
+def get_query_metadata(query: QueryInfo, query_type: str) -> QueryMetadata:
+    """Obtain useful metrics about the query."""
+    qnodes, qedges, qpaths = 0, 0, 0
+    body = query.body
+    if (
+        body is not None
+        and "query_graph" in body["message"]
+        and body["message"]["query_graph"]
+    ):
+        qnodes = len(body["message"]["query_graph"]["nodes"])
+        if "edges" in body["message"]["query_graph"]:
+            qedges = len(body["message"]["query_graph"]["edges"])
+        else:
+            qpaths = len(body["message"]["query_graph"]["paths"])
+
+    return QueryMetadata(
+        job_id=query.job_id,
+        job_timeout=query.timeout,
+        data_tier=query.tier,
+        query_type=query_type,
+        submitter=get_submitter(query),
+        qnodes=qnodes,
+        qedges=qedges,
+        qpaths=qpaths,
+    )
+
+
+def contextualize_query(query: QueryInfo, query_type: str) -> None:
+    """Tag telemetry (Sentry tags + current OTel span) with the query's metadata.
+
+    Safe to call from the async background-task context to re-establish the tags on
+    that task's separate Sentry transaction; failures are logged, not raised.
+    """
+    with logger.catch(
+        Exception,
+        level="ERROR",
+        message="Error while attempting to contextualize telemetry to query.",
+    ):
+        contextualize_query_telemetry(get_query_metadata(query, query_type)._asdict())
 
 
 class QueryDumper(BatchedAction):
