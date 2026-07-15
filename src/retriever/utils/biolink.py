@@ -1,3 +1,4 @@
+import re
 from functools import lru_cache
 from typing import cast
 
@@ -6,6 +7,7 @@ from reasoner_pydantic import BiolinkQualifier
 
 from retriever.config.openapi import OPENAPI_CONFIG
 from retriever.types.trapi import (
+    AttributeConstraintDict,
     BiolinkPredicate,
     QualifierConstraintDict,
     QualifierDict,
@@ -100,16 +102,45 @@ def reverse_qualifier_constraints(
                 new_qualifier["qualifier_type_id"] = QualifierTypeID(
                     qualifier["qualifier_type_id"].replace("subject", "object")
                 )
-            elif inverse := qualifier[
-                "qualifier_type_id"
-            ] == "biolink:qualified_predicate" and get_inverse(
-                BiolinkPredicate(qualifier["qualifier_value"])
-            ):
-                # BUG: Technically invalid if we can't reverse the predicate
-                # but this is vanishingly rare and not worth addressing right now
+            elif qualifier["qualifier_type_id"] == "biolink:qualified_predicate":
+                inverse = get_inverse(BiolinkPredicate(qualifier["qualifier_value"]))
+                if inverse is None:
+                    # Can't correctly reverse the constraint; signal the caller so
+                    # it can skip the reverse subquery instead of emitting an invalid one.
+                    raise ValueError(
+                        f"qualified_predicate '{qualifier['qualifier_value']}' has no "
+                        + "inverse; qualifier constraint cannot be reversed."
+                    )
                 new_qualifier["qualifier_value"] = inverse
             new_qualifier_set.append(new_qualifier)
-        new.append(constraint)
+        new.append(QualifierConstraintDict(qualifier_set=new_qualifier_set))
+    return new
+
+
+_SUBJECT_RE = re.compile(r"(?<![a-zA-Z])subject(?![a-zA-Z])")
+_OBJECT_RE = re.compile(r"(?<![a-zA-Z])object(?![a-zA-Z])")
+
+
+def _swap_subject_object(value: str) -> str:
+    """Swap 'subject'<->'object' in a directional attribute type token."""
+    if _OBJECT_RE.search(value):
+        value = _OBJECT_RE.sub("subject", value)
+    return value
+
+
+def reverse_attribute_constraints(
+    attribute_constraints: list[AttributeConstraintDict],
+) -> list[AttributeConstraintDict]:
+    """Reverse a given list of edge attribute constraints.
+
+    Mostly just consists of swapping subject/object.
+    """
+    new = list[AttributeConstraintDict]()
+    for constraint in attribute_constraints:
+        new_constraint: AttributeConstraintDict = {**constraint}
+        new_constraint["id"] = _swap_subject_object(constraint["id"])
+        new_constraint["name"] = _swap_subject_object(constraint["name"])
+        new.append(new_constraint)
     return new
 
 
