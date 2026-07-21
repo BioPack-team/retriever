@@ -679,7 +679,7 @@ class OpTableManager(AsyncDaemon):
             id_prefixes = set[str]()
             attributes = dict[int, MetaAttributeDict]()
             for supported_tier, node in tier_nodes.items():
-                if supported_tier != tier:
+                if tier is not None and supported_tier != tier:
                     continue
                 id_prefixes.update(itertools.chain(*node.prefixes.values()))
                 attributes.update(
