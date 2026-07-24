@@ -80,6 +80,12 @@ class AsyncQueryStatusResponseDict(TypedDict):
     response_url: NotRequired[URL | None]
 
 
+class DataReleaseVersionsDict(TypedDict):
+    """Data Release Versions."""
+
+    translator_kg: str
+
+
 class ResponseDict(TypedDict):
     """Response."""
 
@@ -91,6 +97,7 @@ class ResponseDict(TypedDict):
     parameters: NotRequired[ParametersDict | None]
     schema_version: NotRequired[str | None]
     biolink_version: NotRequired[str | None]
+    data_release_versions: NotRequired[DataReleaseVersionsDict]
 
 
 class MessageDict(TypedDict):

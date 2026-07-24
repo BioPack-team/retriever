@@ -21,6 +21,10 @@ class DatabaseDriver(BackendClient, ABC):
     async def get_metadata(self, bypass_cache: bool = False) -> dict[str, Any] | None:
         """Backend metadata; `bypass_cache=True` forces a live fetch."""
 
+    def get_release_version(self) -> str | None:
+        """Cached data release version of this backend's knowledge, if known."""
+        return None
+
     @abstractmethod
     async def get_operations(
         self,
