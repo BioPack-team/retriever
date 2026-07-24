@@ -60,9 +60,24 @@ class AsyncQuery(TRAPIAsyncQuery):
     parameters: Parameters | None = None
 
 
+class DataReleaseVersions(BaseModel):
+    """Release versions of the knowledge used to answer the query."""
+
+    translator_kg: Annotated[
+        str | None,
+        Field(description="Release version of the Tier 0 translator_kg."),
+    ] = None
+
+
 class Response(TRAPIResponse):
     """Response."""
 
     parameters: Annotated[
         Parameters, Field(description="Parameters used while executing the query.")
     ]
+    data_release_versions: Annotated[
+        DataReleaseVersions | None,
+        Field(
+            description="Release versions of knowledge sources used to answer the query."
+        ),
+    ] = None

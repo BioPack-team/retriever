@@ -25,6 +25,7 @@ from retriever.metadata.optable import (
 )
 from retriever.types.general import QueryInfo
 from retriever.types.trapi import (
+    DataReleaseVersionsDict,
     KnowledgeGraphDict,
     LogEntryDict,
     LogLevel,
@@ -273,23 +274,26 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
         and query.body["parameters"].get("timeout")
     ):
         parameters["timeout"] = timeout
-    return (
-        job_id,
-        job_log,
-        ResponseDict(  # pyright:ignore[reportCallIssue] Extra is allowed
-            message=MessageDict(
-                query_graph=query.body["message"]["query_graph"],
-                knowledge_graph=KnowledgeGraphDict(nodes={}, edges={}),
-                results=list[ResultDict](),
-            ),
-            biolink_version=OPENAPI_CONFIG.x_translator.biolink_version,
-            schema_version=OPENAPI_CONFIG.x_trapi.version,
-            workflow=query.body.get("workflow"),
-            parameters=parameters,
-            submitter=get_submitter(query),
-            job_id=job_id,
+    response = ResponseDict(  # pyright:ignore[reportCallIssue] Extra is allowed
+        message=MessageDict(
+            query_graph=query.body["message"]["query_graph"],
+            knowledge_graph=KnowledgeGraphDict(nodes={}, edges={}),
+            results=list[ResultDict](),
         ),
+        biolink_version=OPENAPI_CONFIG.x_translator.biolink_version,
+        schema_version=OPENAPI_CONFIG.x_trapi.version,
+        workflow=query.body.get("workflow"),
+        parameters=parameters,
+        submitter=get_submitter(query),
+        job_id=job_id,
     )
+    if (
+        release_version := tier_manager.get_driver(0).get_release_version()
+    ) is not None:
+        response["data_release_versions"] = DataReleaseVersionsDict(
+            translator_kg=release_version
+        )
+    return job_id, job_log, response
 
 
 def passes_validation(
