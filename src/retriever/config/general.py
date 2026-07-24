@@ -74,6 +74,12 @@ class RedisSettings(BaseModel):
             description="TTL on each registered process entry; set to several heartbeat intervals so a single missed refresh doesn't drop the entry."
         ),
     ] = 300
+    propagate_health: Annotated[
+        bool,
+        Field(
+            description="Broadcast backend outage/recovery over Redis pub/sub so workers pick up outage quickly; falls back to process-local health when off or Redis is down."
+        ),
+    ] = True
 
 
 class MongoSettings(BaseModel):

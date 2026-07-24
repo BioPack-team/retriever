@@ -45,6 +45,7 @@ from retriever.utils.compression import ZstdRequestMiddleware
 from retriever.utils.examples import EXAMPLE_QUERY
 from retriever.utils.exception_handlers import ensure_cors, http_exception_handler
 from retriever.utils.general import tolerate_init
+from retriever.utils.health_coordinator import HealthCoordinator
 from retriever.utils.logs import (
     add_mongo_sink,
     cleanup,
@@ -116,6 +117,7 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     if CONFIG.tier0.dump_queries or CONFIG.tier1.dump_queries:
         await query_dumper.initialize()
     await SubqueryDispatcher().initialize()
+    await tolerate_init("Health propagation", HealthCoordinator().start())
 
     yield  # Separates startup/shutdown phase
 
@@ -127,6 +129,8 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
             "Worker deregistration failed; entry will expire via TTL.",
             no_mongo_log=True,
         )
+    # Clear health observers/subscription before dependencies wrap up.
+    await HealthCoordinator().stop()
     await SubqueryDispatcher().wrapup()
     if query_dumper.initialized:
         await query_dumper.wrapup()

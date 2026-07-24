@@ -248,7 +248,7 @@ reportUnusedCallResult = false # Just makes code look worse; Usually unused resu
 reportMissingTypeStubs = false # Sometimes type stubs aren't available and auto-gen is incorrect
 
 [tool.deptry]
-extend_exclude = ["locustfile.py", "tests"]
+extend_exclude = ["locustfile.py", "tests", "scripts"]
 
 [tool.deptry.per_rule_ignores]
 DEP002 = [

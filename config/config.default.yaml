@@ -55,6 +55,7 @@ redis:
   shutdown_timeout: 3 # Time in seconds to wait for batched tasks to finish before force-quitting.
   heartbeat_interval_seconds: 60 # Cadence at which workers / background / main re-register their process entry.
   process_ttl_seconds: 300 # TTL on each registered process entry; set to several heartbeat intervals so a single missed refresh doesn't drop the entry.
+  propagate_health: true # Broadcast backend outage/recovery over Redis pub/sub so workers pick up outage quickly; falls back to process-local health when off or Redis is down.
 mongo:
   host: localhost
   port: 27017
