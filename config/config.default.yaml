@@ -44,6 +44,7 @@ job:
   ttl_max: 604800 # Time in seconds after which job state is cleared, regardless of last touch
 log:
   log_to_mongo: true # Persist logs in MongoDB.
+  mongo_level: INFO # Minimum level of logs persisted to MongoDB.
   mongo_ttl: 604800 # Time in seconds for a log to persist.
 redis:
   host: localhost
@@ -65,6 +66,7 @@ mongo:
   shutdown_timeout: 3 # Time in seconds to wait for serialize task to finish.
   compression_level: 10 # zstd level used to compress stored job documents. Higher means greater compression, at greater CPU cost.
   max_stored_doc_bytes: 134217728 # Compressed job-docs at or above this size are not persisted.
+  stored_success_proportion: 0.1 # Fraction of succeeded response bodies to persist. Failures are always kept.
 tier0:
   backend: gandalf
   backend_infores: infores:dogpark-tier0

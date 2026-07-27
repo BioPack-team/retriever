@@ -260,14 +260,14 @@ async def in_progress_payload(
 ) -> tuple[HTTPStatus, dict[str, Any]]:
     """Return an AsyncQueryStatusResponse for in-progress or missing job.
 
-    "Running" if the row exists or there's log evidence, "Error" if the
-    fetch raised, otherwise "Not Found".
+    "Running" if the row exists, "Error" if the fetch raised, otherwise "Not
+    Found". Status polling returns empty log list for performance. Logs can be obtained
+    when query completes, or looking at /logs.
     """
-    logs = await job_logs(job_id)
-    if exists or len(logs) > 0:
+    if exists:
         return HTTPStatus.OK, {
             "status": "Running",
-            "logs": logs,
+            "logs": [],
             "description": "Job is running.",
         }
     if error is not None:
@@ -286,7 +286,11 @@ async def in_progress_payload(
 
 
 async def terminal_status_payload(
-    job_id: str, request: Request, status_doc: JobStatus
+    job_id: str,
+    request: Request,
+    status_doc: JobStatus,
+    *,
+    include_logs: bool = False,
 ) -> dict[str, Any]:
     """Build an AsyncQueryStatusResponse for a terminal job.
 
@@ -307,7 +311,7 @@ async def terminal_status_payload(
     return {
         "status": to_async_lifecycle(job_status),
         "description": description,
-        "logs": await job_logs(job_id),
+        "logs": await job_logs(job_id) if include_logs else [],
         "response_url": f"{request.base_url}response/{job_id}",
     }
 
@@ -362,7 +366,9 @@ async def get_job_response(
 
     # If job is abandoned, respond with the query
     if status_doc.get("abandoned"):
-        payload = await terminal_status_payload(job_id, request, status_doc)
+        payload = await terminal_status_payload(
+            job_id, request, status_doc, include_logs=True
+        )
         if job is not None and job.get("doc") is not None:
             query = unpack_doc(job)
             payload = {
@@ -372,7 +378,9 @@ async def get_job_response(
         return HTTPStatus.OK, payload
 
     if job is None or job.get("doc") is None:
-        return HTTPStatus.OK, await terminal_status_payload(job_id, request, status_doc)
+        return HTTPStatus.OK, await terminal_status_payload(
+            job_id, request, status_doc, include_logs=True
+        )
 
     response = unpack_doc(job)
     return HTTPStatus.OK, {

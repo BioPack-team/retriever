@@ -5,6 +5,7 @@ make_*_query functions perform before handing a QueryInfo off to the
 relevant query function.
 """
 
+from http import HTTPStatus
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -187,3 +188,97 @@ async def test_async_lookup_reapplies_data_tier_tag():
         call.args and call.args[0].get("data_tier") == 2
         for call in set_tags.call_args_list
     )
+
+
+def _status_request() -> SimpleNamespace:
+    """A stand-in Request exposing only the `base_url` these payloads read."""
+    return SimpleNamespace(base_url="http://test/")
+
+
+def _mongo_stub(
+    *,
+    status_doc: dict[str, object] | None = None,
+    job_doc: dict[str, object] | None = None,
+) -> Mock:
+    """A MongoClient() whose status/doc reads return the given fixtures."""
+    mongo = Mock()
+    mongo.get_job_status = AsyncMock(return_value=status_doc)
+    mongo.get_job_doc = AsyncMock(return_value=job_doc)
+    return mongo
+
+
+@pytest.mark.asyncio
+async def test_asyncquery_status_terminal_returns_empty_logs_without_scan():
+    """`/asyncquery_status` on a terminal job returns [] logs and never scans log_dump."""
+    mongo = _mongo_stub(status_doc={"status": "Success", "description": None})
+    with (
+        patch.object(query_module, "MongoClient", return_value=mongo),
+        patch.object(
+            query_module, "job_logs", AsyncMock(return_value=["scanned"])
+        ) as jl,
+    ):
+        code, payload = await query_module.get_job_status("abc123", _status_request())
+
+    assert code == HTTPStatus.OK
+    assert payload["logs"] == []
+    jl.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_status_in_progress_returns_empty_logs_without_scan():
+    """A Running job reports Running with [] logs and no log_dump scan."""
+    mongo = _mongo_stub(status_doc={"status": "Running", "description": None})
+    with (
+        patch.object(query_module, "MongoClient", return_value=mongo),
+        patch.object(
+            query_module, "job_logs", AsyncMock(return_value=["scanned"])
+        ) as jl,
+    ):
+        code, payload = await query_module.get_job_status("abc123", _status_request())
+
+    assert code == HTTPStatus.OK
+    assert payload["status"] == "Running"
+    assert payload["logs"] == []
+    jl.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_response_completed_stored_uses_blob_logs_without_scan():
+    """`/response` for a stored completed job serves the blob's logs, no scan."""
+    mongo = _mongo_stub(
+        status_doc={"status": "Success", "description": None},
+        job_doc={"job_id": "abc123", "doc": b"blob"},
+    )
+    blob = {"message": {}, "logs": ["from-blob"]}
+    with (
+        patch.object(query_module, "MongoClient", return_value=mongo),
+        patch.object(query_module, "unpack_doc", return_value=blob),
+        patch.object(
+            query_module, "job_logs", AsyncMock(return_value=["scanned"])
+        ) as jl,
+    ):
+        code, payload = await query_module.get_job_response("abc123", _status_request())
+
+    assert code == HTTPStatus.OK
+    assert payload["logs"] == ["from-blob"]
+    jl.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_response_completed_not_stored_falls_back_to_scan():
+    """`/response` for a completed-but-unstored job falls back to a log_dump scan."""
+    mongo = _mongo_stub(
+        status_doc={"status": "Success", "description": None},
+        job_doc=None,  # sampled out: no stored body
+    )
+    with (
+        patch.object(query_module, "MongoClient", return_value=mongo),
+        patch.object(
+            query_module, "job_logs", AsyncMock(return_value=["scanned"])
+        ) as jl,
+    ):
+        code, payload = await query_module.get_job_response("abc123", _status_request())
+
+    assert code == HTTPStatus.OK
+    assert payload["logs"] == ["scanned"]
+    jl.assert_awaited_once()
