@@ -1,10 +1,13 @@
 """Service-health snapshot and degradation policy.
 
-`Snapshot()` captures a frozen, process-local view of every backend
-dependency's `up`/`error` state at the moment it's constructed; its
-methods answer the per-request questions that follow from that view
-- what HTTP status to return, which tier to route to, what warning
-text to attach. No cross-process consensus.
+`Snapshot()` captures a frozen view of every backend dependency's
+`up`/`error` state at the moment it's constructed; its methods answer
+the per-request questions that follow from that view - what HTTP status
+to return, which tier to route to, what warning text to attach. The
+read is process-local, but tier-driver and Mongo health converge across
+processes via `HealthCoordinator` (Redis pub/sub), so the view is
+consistent between workers except during the brief propagation window
+or while Redis is down.
 """
 
 from __future__ import annotations

@@ -16,6 +16,7 @@ from retriever.data_tiers import tier_manager
 from retriever.lookup.subclass import SubclassMapping
 from retriever.metadata.optable import OpTableManager
 from retriever.utils.general import tolerate_init
+from retriever.utils.health_coordinator import HealthCoordinator
 from retriever.utils.logs import add_mongo_sink
 from retriever.utils.mongo import MongoClient, MongoQueue
 from retriever.utils.orphan_detection import periodically_mark_orphans
@@ -59,6 +60,7 @@ async def _background_async() -> None:
     subclass_manager = SubclassMapping()
     subclass_manager.promote_to_leader()
     await tolerate_init("Subclass map build", subclass_manager.initialize())
+    await tolerate_init("Health propagation", HealthCoordinator().start())
     orphan_task = asyncio.create_task(
         periodically_mark_orphans(), name="orphan-detection"
     )
@@ -78,6 +80,8 @@ async def _background_async() -> None:
     orphan_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await orphan_task
+    # Clear health observers/subscription before dependencies wrap up.
+    await HealthCoordinator().stop()
     # Heartbeat task lives in RedisClient().tasks; cancelled in its wrapup.
     await SubclassMapping().wrapup()
     await metakg_manager.wrapup()

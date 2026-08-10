@@ -66,6 +66,11 @@ class BackendClient(AsyncDaemon, ABC):
     _client_lock: asyncio.Lock
     """Serializes lazy client (re)builds in `_ensure_client`."""
 
+    _transition_observer: Callable[[Literal["outage", "recovery"]], None] | None
+    """Fired only on locally-detected (ping-driven) transitions, never on
+    remote-applied ones; lets a health coordinator broadcast this process's
+    own detections without echoing states it merely received."""
+
     def __init__(self) -> None:
         """Initialize state. Assume up until failure."""
         super().__init__()
@@ -80,6 +85,18 @@ class BackendClient(AsyncDaemon, ABC):
         self._up_event.set()
         self._callback_tasks = set()
         self._client_lock = asyncio.Lock()
+        self._transition_observer = None
+
+    @property
+    def health_key(self) -> str:
+        """Stable cross-process identity for this backend in health messages."""
+        return type(self).__name__
+
+    def set_transition_observer(
+        self, observer: Callable[[Literal["outage", "recovery"]], None] | None
+    ) -> None:
+        """Register (or clear, with `None`) the local-transition observer."""
+        self._transition_observer = observer
 
     @abstractmethod
     async def ping(self) -> None:
@@ -330,25 +347,72 @@ class BackendClient(AsyncDaemon, ABC):
         return True
 
     def _handle_ping_failure(self, exc: BaseException) -> None:
-        """Record the failure; on first outage fire callbacks."""
-        self.last_error = f"{type(exc).__name__}: {exc}"
-        if self.up:
-            self.up = False
-            self._up_event.clear()
-            self.last_outage = datetime.now().astimezone()
-            logger.warning(f"{type(self).__name__} down: {self.last_error}")
-            self._fire_callbacks(self._outage_callbacks, "outage")
+        """Record a locally-detected ping failure; on first outage fire callbacks."""
+        self._record_outage(f"{type(exc).__name__}: {exc}", local=True)
 
     def _handle_ping_success(self) -> None:
-        """Record recovery and fire on_recover callbacks. Idempotent."""
+        """Record a locally-detected ping success. Idempotent."""
+        self._record_recovery(local=True)
+
+    def note_remote_outage(
+        self, error: str | None = None, occurred_at: datetime | None = None
+    ) -> None:
+        """Apply an outage another process detected; idempotent, never re-broadcast.
+
+        Marks this backend down so callers fall back immediately, then nudges
+        the health loop: for on-demand drivers this wakes the loop out of its
+        parked state so it begins backoff pinging and can self-confirm recovery.
+        """
+        self._record_outage(
+            error or "Reported down by another process",
+            local=False,
+            occurred_at=occurred_at,
+        )
+        self.request_health_check()
+
+    def note_remote_recovery(self, recovered_at: datetime | None = None) -> None:
+        """Apply a recovery another process detected; idempotent, never re-broadcast.
+
+        Optimistically marks this backend up so routing returns to normal at
+        once; a stale trust self-corrects when the next local ping/query fails.
+        The health check confirms promptly.
+        """
+        self._record_recovery(local=False, recovered_at=recovered_at)
+        self.request_health_check()
+
+    def _record_outage(
+        self,
+        error: str,
+        *,
+        local: bool,
+        occurred_at: datetime | None = None,
+    ) -> None:
+        """Transition to down (idempotent), firing callbacks and, if `local`, the observer."""
+        self.last_error = error
+        if not self.up:
+            return
+        self.up = False
+        self._up_event.clear()
+        self.last_outage = occurred_at or datetime.now().astimezone()
+        logger.warning(f"{type(self).__name__} down: {self.last_error}")
+        self._fire_callbacks(self._outage_callbacks, "outage")
+        if local and self._transition_observer is not None:
+            self._transition_observer("outage")
+
+    def _record_recovery(
+        self, *, local: bool, recovered_at: datetime | None = None
+    ) -> None:
+        """Transition to up (idempotent), firing callbacks and, if `local`, the observer."""
         if self.up:
             return
         self.up = True
         self._up_event.set()
-        self.last_recovery = datetime.now().astimezone()
+        self.last_recovery = recovered_at or datetime.now().astimezone()
         self.last_error = None
-        logger.success(f"{type(self).__name__} up: ping succeeded.")
+        logger.success(f"{type(self).__name__} up.")
         self._fire_callbacks(self._recovery_callbacks, "recovery")
+        if local and self._transition_observer is not None:
+            self._transition_observer("recovery")
 
     def _fire_callbacks(
         self,
