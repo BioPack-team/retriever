@@ -5,7 +5,6 @@
 # Edit the appropriate config file instead.
 debug: false # Run server with increased compatibility for breakpoint debugging.
 instance_env: dev # Instance environment. Used in Sentry, userAgent of subqueries, instance-appropriate behavior, etc.
-instance_idx: 0 # Instance index. Use when multiple Retriever instances are run, so a leader can be determined.
 max_request_size: 2147483648 # Maximum request body size in bytes, post-decompression. Larger bodies are rejected with 413.
 log_level: DEBUG # Level of application logs to print/keep.
 host: 0.0.0.0 # Uvicorn listen host.
@@ -55,6 +54,7 @@ redis:
   shutdown_timeout: 3 # Time in seconds to wait for batched tasks to finish before force-quitting.
   heartbeat_interval_seconds: 60 # Cadence at which workers / background / main re-register their process entry.
   process_ttl_seconds: 300 # TTL on each registered process entry; set to several heartbeat intervals so a single missed refresh doesn't drop the entry.
+  leader_lease_ttl_seconds: 180 # TTL on the build-leader lease, renewed each heartbeat interval; set to several intervals so a transient renewal failure doesn't trigger a leadership handoff.
 mongo:
   host: localhost
   port: 27017
