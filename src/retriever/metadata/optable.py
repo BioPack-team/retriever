@@ -37,6 +37,7 @@ from retriever.types.trapi_pydantic import TierNumber
 from retriever.utils import biolink
 from retriever.utils.biolink import expand
 from retriever.utils.general import AsyncDaemon
+from retriever.utils.leader import LEADER_ELECTION
 from retriever.utils.redis import (
     OP_TABLE_KEY,
     OP_TABLE_META_KEY,
@@ -97,30 +98,30 @@ class OpTableManager(AsyncDaemon):
     update_lock: asyncio.Lock
     _refresh_lock: asyncio.Lock
     _pending_refresh: bool = False
-    is_leader: bool = False
+    is_builder: bool = False
 
     def __init__(self) -> None:
-        """Initialize without leader role; call `promote_to_leader()` to flip the flag."""
+        """Initialize without builder role; call `promote_to_builder()` to flip the flag."""
         self.update_lock = asyncio.Lock()
         self._refresh_lock = asyncio.Lock()
         self._pending_refresh = False
         super().__init__()
 
-    def promote_to_leader(self) -> None:
-        """Flip this instance to leader mode. Must be called before `initialize()`."""
-        self.is_leader = True
+    def promote_to_builder(self) -> None:
+        """Flip this process to builder mode. Must be called before `initialize()`."""
+        self.is_builder = True
 
     @override
     def get_task_funcs(self) -> list[Callable[[], Coroutine[None, None, None]]]:
         tasks = list[Callable[[], Coroutine[None, None, None]]]()
-        if self.is_leader and CONFIG.job.metakg.build_time > -1:
+        if self.is_builder and CONFIG.job.metakg.build_time > -1:
             tasks.append(self.periodic_build_op_table)
         return tasks
 
     @override
     async def initialize(self) -> None:
         """Start the appropriate tasks for a given process."""
-        if self.is_leader:
+        if self.is_builder:
             # Register hooks before the initial refresh so a startup
             # against a down dependency still recovers later.
             REDIS_CLIENT.on_recover(self.refresh)
@@ -130,6 +131,8 @@ class OpTableManager(AsyncDaemon):
                 await REDIS_CLIENT.subscribe(
                     TIER_RECOVERED_CHANNEL, self._on_remote_tier_recover
                 )
+            # Rebuild as soon as this instance wins the build lease.
+            LEADER_ELECTION.on_acquire(self.refresh)
             try:
                 await self.refresh()
             except Exception:
@@ -147,7 +150,7 @@ class OpTableManager(AsyncDaemon):
             for tier_idx in range(0, 2):
                 driver = tier_manager.get_driver(tier_idx)
                 driver.on_recover(self._on_tier_recover)
-                # Tell the leader so it rebuilds without waiting on its periodic ping.
+                # Tell the builder so it rebuilds without waiting on its periodic ping.
                 driver.on_recover(self._make_remote_publisher(tier_idx))
         return await super().initialize()
 
@@ -165,7 +168,7 @@ class OpTableManager(AsyncDaemon):
         return _publish
 
     async def _on_remote_tier_recover(self, _message: str) -> None:
-        """Leader-side subscriber callback for cross-process tier recovery."""
+        """Builder-side subscriber callback for cross-process tier recovery."""
         await self.refresh()
 
     async def refresh(self) -> None:
@@ -217,7 +220,7 @@ class OpTableManager(AsyncDaemon):
     @override
     async def wrapup(self) -> None:
         """Cancel running tasks so connections can close."""
-        if self.is_leader:
+        if self.is_builder:
             with contextlib.suppress(Exception):
                 await REDIS_CLIENT.unsubscribe(
                     TIER_RECOVERED_CHANNEL, self._on_remote_tier_recover
@@ -374,7 +377,9 @@ class OpTableManager(AsyncDaemon):
 
     async def build_operation_table(self) -> None:
         """Build Retriever's internal OperationTable and store it to Redis."""
-        if CONFIG.instance_idx != 0:
+        # Build+publish only when this builder's instance is the elected leader;
+        # workers (is_builder False) may still build on demand via get_op_table.
+        if self.is_builder and not LEADER_ELECTION.is_leader:
             return
 
         logger.info("Building Operation Table...")
@@ -386,9 +391,9 @@ class OpTableManager(AsyncDaemon):
         logger.success(
             f"Built Operation Table containing {len(op_table.operations_flat)} operations / {len(op_table.nodes)} nodes."
         )
-        # The leader never reads _operation_table back - it only exists to push to
+        # The builder never reads _operation_table back - it only exists to push to
         # Redis. Drop the reference so the snapshot doesn't sit in process memory.
-        if self.is_leader:
+        if self.is_builder:
             async with self.update_lock:
                 self._operation_table = None
 
@@ -428,7 +433,7 @@ class OpTableManager(AsyncDaemon):
                     op_table = self._operation_table
                 if op_table is not None:
                     return op_table
-                if not REDIS_CLIENT.up and not self.is_leader:
+                if not REDIS_CLIENT.up and not self.is_builder:
                     # Worker can't pull the published copy; build from
                     # available tiers and re-check.
                     await self.degraded_local_build()

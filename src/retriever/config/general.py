@@ -80,6 +80,12 @@ class RedisSettings(BaseModel):
             description="Broadcast backend outage/recovery over Redis pub/sub so workers pick up outage quickly; falls back to process-local health when off or Redis is down."
         ),
     ] = True
+    leader_lease_ttl_seconds: Annotated[
+        int,
+        Field(
+            description="TTL on the build-leader lease, renewed each heartbeat interval. Set to several intervals to avoid touchy handoffs."
+        ),
+    ] = 180
 
 
 class MongoSettings(BaseModel):
@@ -363,12 +369,6 @@ class GeneralConfig(CommentedSettings):
             description="Instance environment. Used in Sentry, userAgent of subqueries, instance-appropriate behavior, etc."
         ),
     ] = "dev"
-    instance_idx: Annotated[
-        int,
-        Field(
-            description="Instance index. Use when multiple Retriever instances are run, so a leader can be determined."
-        ),
-    ] = 0
     max_request_size: Annotated[
         int,
         Field(
