@@ -32,7 +32,10 @@ class GandalfQuery(Tier0Query):
 
         return BackendResult(
             results=result["message"].get("results") or [],
-            knowledge_graph=result["message"].get("knowledge_graph")
-            or KnowledgeGraphDict(nodes={}, edges={}),
-            auxiliary_graphs=result["message"].get("auxiliary_graphs") or {},
+            knowledge_graph=(
+                result["message"].get("knowledge_graph")
+                or KnowledgeGraphDict(nodes={}, edges={})
+            ),
+            auxiliary_graphs=(result["message"].get("auxiliary_graphs") or {}),
+            logs=(result.get("logs") or []),
         )
