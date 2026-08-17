@@ -15,7 +15,6 @@ from retriever.types.trapi import (
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.trapi import (
     append_aggregator_source,
-    normalize_kgraph,
 )
 
 tracer = trace.get_tracer("lookup.execution.tracer")
@@ -51,10 +50,6 @@ class Tier0Query(ABC):
             )
 
             parameters = (self.ctx.body or {}).get("parameters") or ParametersDict()
-
-            if not parameters.get("dehydrated"):
-                with tracer.start_as_current_span("update_kg"):
-                    normalize_kgraph(kgraph, results, aux_graphs)
 
             end_time = time.time()
             duration_ms = math.ceil((end_time - start_time) * 1000)
