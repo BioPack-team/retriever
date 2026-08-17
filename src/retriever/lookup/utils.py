@@ -39,12 +39,8 @@ def expand_qgraph(qg: QueryGraphDict, job_log: TRAPILogger) -> QueryGraphDict:
         # Not necessary because backends check against descendants
         # new_categories = biolink.expand(categories) - categories
 
-        if "biolink:NamedThing" in categories:
-            job_log.info(
-                f"QNode {qnode_id}: Expanded to all categories (original had NamedThing)."
-            )
-        elif len(new_categories):
-            job_log.info(
+        if len(new_categories):
+            job_log.debug(
                 f"QNode {qnode_id}: Added descendant categories {new_categories}."
             )
 
@@ -61,12 +57,8 @@ def expand_qgraph(qg: QueryGraphDict, job_log: TRAPILogger) -> QueryGraphDict:
         # Not necessary because backends check against descendants
         # new_predicates = biolink.expand(predicates) - predicates
 
-        if "biolink:related_to" in predicates:
-            job_log.info(
-                f"QEdge {qedge_id}: Expanded to all predicates (original had related_to)."
-            )
-        elif len(new_predicates):
-            job_log.info(
+        if len(new_predicates):
+            job_log.debug(
                 f"QEdge {qedge_id}: Added descendant predicates {new_predicates}."
             )
 

@@ -71,6 +71,7 @@ class BackendResult(TypedDict):
     results: list[ResultDict]
     knowledge_graph: KnowledgeGraphDict
     auxiliary_graphs: dict[AuxGraphID, AuxiliaryGraphDict]
+    logs: NotRequired[list[LogEntryDict]]
 
 
 class LookupArtifacts(NamedTuple):

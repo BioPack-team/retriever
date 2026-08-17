@@ -34,7 +34,6 @@ class Tier0Query(ABC):
         """Execute a lookup against Tier 0 and return what is found."""
         try:
             start_time = time.time()
-            self.job_log.info("Starting lookup against Tier 0...")
 
             timeout = None if self.ctx.timeout < 0 else self.ctx.timeout
             self.job_log.debug(
@@ -48,6 +47,11 @@ class Tier0Query(ABC):
                 backend_results["knowledge_graph"],
                 backend_results["auxiliary_graphs"],
             )
+
+            if logs := backend_results.get("logs"):
+                self.job_log.debug("<Begin backend-produced logs>")
+                self.job_log.log_deque.extend(logs)
+                self.job_log.debug("<End of backend logs>")
 
             parameters = (self.ctx.body or {}).get("parameters") or ParametersDict()
 
