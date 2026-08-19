@@ -56,7 +56,7 @@ redis:
   heartbeat_interval_seconds: 60 # Cadence at which workers / background / main re-register their process entry.
   process_ttl_seconds: 300 # TTL on each registered process entry; set to several heartbeat intervals so a single missed refresh doesn't drop the entry.
   propagate_health: true # Broadcast backend outage/recovery over Redis pub/sub so workers pick up outage quickly; falls back to process-local health when off or Redis is down.
-  leader_lease_ttl_seconds: 180 # TTL on the build-leader lease, renewed each heartbeat interval; set to several intervals so a transient renewal failure doesn't trigger a leadership handoff.
+  leader_lease_ttl_seconds: 180 # TTL on the build-leader lease, renewed each heartbeat interval. Set to several intervals to avoid touchy handoffs.
 mongo:
   host: localhost
   port: 27017

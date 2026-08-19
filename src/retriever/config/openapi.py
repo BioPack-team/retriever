@@ -211,6 +211,11 @@ class OpenAPIConfig(CommentedSettings):
                 url="https://retriever.ci.transltr.io/",
                 x_maturity="staging",
             ),
+            ServerConfig(
+                description="Translator Test instance",
+                url="https://retriever.test.transltr.io/",
+                x_maturity="testing",
+            ),
         ]
     )
 
