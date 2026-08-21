@@ -4,13 +4,21 @@ import traceback
 import uuid
 from datetime import datetime
 from http import HTTPStatus
-from typing import Any, cast
+from typing import Any, cast, overload
 
 import ormsgpack
 import zstandard
 from fastapi import Request
 from loguru import logger
 from opentelemetry import context, propagate, trace
+from translator_tom.v1_6 import (
+    MetaKnowledgeGraph,
+)
+from translator_tom.v1_6.model_dicts import (
+    AsyncQueryResponseDict,
+    LogEntryDict,
+    ResponseDict,
+)
 
 from retriever.config.general import CONFIG
 from retriever.lookup.lookup import async_lookup, lookup
@@ -19,24 +27,16 @@ from retriever.metadata.metadata import get_metadata
 from retriever.metadata.trapi_metakg import trapi_metakg
 from retriever.types.dingo import DINGOMetadata
 from retriever.types.general import APIInfo, ErrorDetail, QueryInfo
-from retriever.types.trapi import (
-    AsyncQueryDict,
-    AsyncQueryResponseDict,
-    LogEntryDict,
-    MetaKnowledgeGraphDict,
-    QueryDict,
-    ResponseDict,
-)
-from retriever.types.trapi_pydantic import AsyncQuery as TRAPIAsyncQuery
-from retriever.types.trapi_pydantic import Query as TRAPIQuery
-from retriever.types.trapi_pydantic import TierNumber
+from retriever.types.trapi import AsyncQuery as TRAPIAsyncQuery
+from retriever.types.trapi import Query as TRAPIQuery
+from retriever.types.trapi import TierNumber
 from retriever.utils import service_health, telemetry, worker
 from retriever.utils.job_status import (
     NON_TERMINAL,
     TERMINAL_SUCCESS,
     to_async_lifecycle,
 )
-from retriever.utils.logs import TRAPILogger, structured_log_to_trapi
+from retriever.utils.logs import TRAPILogger, structured_log_to_trapi_dict
 from retriever.utils.mongo import (
     JobDoc,
     JobStatus,
@@ -80,18 +80,21 @@ def _record_initial_state(
     without polluting the response.
     """
     query_metadata = get_query_metadata(query, query_type)
+    body_dict = query.body.to_dict() if query.body is not None else None
     try:
         MONGO_QUEUE.put(
             "job_state",
             QueryState(
-                query=ZSTD_COMPRESSOR.compress(ormsgpack.packb(query.body)),
+                query=ZSTD_COMPRESSOR.compress(ormsgpack.packb(body_dict)),
                 status="Running",
                 event_time=datetime.now().astimezone(),
                 is_async=ctx.background_tasks is not None,
                 worker_pid=worker.get_pid(),
                 worker_started_at=worker.get_started_at(),
                 dehydrated=bool(
-                    ((query.body or {}).get("parameters") or {}).get("dehydrated")
+                    query.body
+                    and query.body.parameters
+                    and query.body.parameters.dehydrated
                 ),
                 **{
                     k: v
@@ -105,6 +108,18 @@ def _record_initial_state(
             f"Initial job state for {query.job_id} dropped - MongoDB unavailable.",
             no_mongo_log=True,
         )
+
+
+@overload
+async def make_lookup_query(
+    ctx: APIInfo, body: TRAPIQuery
+) -> tuple[HTTPStatus, ResponseDict | ErrorDetail]: ...
+
+
+@overload
+async def make_lookup_query(
+    ctx: APIInfo, body: TRAPIAsyncQuery
+) -> tuple[HTTPStatus, AsyncQueryResponseDict | ErrorDetail]: ...
 
 
 async def make_lookup_query(
@@ -125,22 +140,16 @@ async def make_lookup_query(
 
     timeout = _resolve_lookup_timeout(body, tier)
 
-    body_transformed: QueryDict | AsyncQueryDict
-    if isinstance(body, TRAPIQuery):
-        body_transformed = QueryDict(**body.model_dump(mode="json"))
-    else:
-        body_transformed = AsyncQueryDict(**body.model_dump(mode="json"))
-
     resolved = service_health.Snapshot().select_tier(body, tier)
     if isinstance(resolved[0], HTTPStatus):
         return cast("tuple[HTTPStatus, ErrorDetail]", resolved)
-    tier, extra_warnings = cast("tuple[TierNumber, list[LogEntryDict]]", resolved)
+    tier, extra_warnings = cast(tuple[TierNumber, list[LogEntryDict]], resolved)
 
     query = QueryInfo(
         endpoint=ctx.request.url.path,
         headers=ctx.request.headers,
         method=ctx.request.method,
-        body=body_transformed,
+        body=body,
         job_id=job_id,
         tier=tier,
         timeout=timeout,
@@ -171,7 +180,7 @@ async def make_lookup_query(
 async def make_metakg_query(
     ctx: APIInfo,
     tier: TierNumber | None,
-) -> tuple[HTTPStatus, MetaKnowledgeGraphDict | ErrorDetail]:
+) -> tuple[HTTPStatus, MetaKnowledgeGraph | ErrorDetail]:
     """Process a /meta_knowledge_graph request.
 
     Unhandled errors are handled by middleware.
@@ -230,7 +239,9 @@ async def job_logs(job_id: str) -> list[LogEntryDict]:
     """Return all stored logs for a job, formatted as TRAPI LogEntries."""
     return [
         log
-        async for log in structured_log_to_trapi(MongoClient().get_logs(job_id=job_id))
+        async for log in structured_log_to_trapi_dict(
+            MongoClient().get_logs(job_id=job_id)
+        )
     ]
 
 

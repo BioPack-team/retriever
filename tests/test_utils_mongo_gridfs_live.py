@@ -12,8 +12,8 @@ import uuid
 from datetime import datetime, timedelta
 
 import pytest
-from utils.mongo_fixtures import (
-    test_mongo,  # noqa: F401  pyright:ignore[reportImplicitRelativeImport]  # fixture import
+from utils.mongo_fixtures import (  # pyright: ignore[reportImplicitRelativeImport]
+    test_mongo,  # noqa: F401  # fixture import
 )
 
 from retriever.config.general import CONFIG

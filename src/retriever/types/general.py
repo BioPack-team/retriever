@@ -6,22 +6,22 @@ from typing import Annotated, Any, Literal, NamedTuple, NotRequired, TypedDict
 from fastapi import BackgroundTasks, Request, Response
 from fastapi.datastructures import Headers
 from pydantic import BeforeValidator
-
-from retriever.types.trapi import (
+from translator_tom.v1_6 import (
     CURIE,
-    AsyncQueryDict,
     AuxGraphID,
-    AuxiliaryGraphDict,
-    EdgeIdentifier,
-    KnowledgeGraphDict,
-    LogEntryDict,
-    QEdgeDict,
+    EdgeID,
+    QEdge,
     QEdgeID,
     QNodeID,
-    QueryDict,
+)
+from translator_tom.v1_6.model_dicts import (
+    AuxiliaryGraphDict,
+    KnowledgeGraphDict,
+    LogEntryDict,
     ResultDict,
 )
-from retriever.types.trapi_pydantic import TierNumber
+
+from retriever.types.trapi import AsyncQuery, Query, TierNumber
 
 
 class ErrorDetail(TypedDict):
@@ -59,13 +59,13 @@ class QueryInfo(NamedTuple):
     endpoint: str
     method: str
     headers: Headers
-    body: QueryDict | AsyncQueryDict | None
+    body: Query | AsyncQuery | None
     job_id: str
     tier: TierNumber | None
     timeout: float
 
 
-class BackendResult(TypedDict):
+class BackendResult(NamedTuple):
     """Transformed results of a query to a given database backend."""
 
     results: list[ResultDict]
@@ -86,9 +86,9 @@ class LookupArtifacts(NamedTuple):
     status: str = "Success"
 
 
-AdjacencyGraph = dict[QNodeID, dict[QNodeID, list[QEdgeDict]]]
+AdjacencyGraph = dict[QNodeID, dict[QNodeID, list[QEdge]]]
 
-KAdjacencyGraph = dict[QEdgeID, dict[CURIE, dict[CURIE, list[EdgeIdentifier]]]]
+KAdjacencyGraph = dict[QEdgeID, dict[CURIE, dict[CURIE, list[EdgeID]]]]
 
 QEdgeIDMap = dict[int, QEdgeID]
 

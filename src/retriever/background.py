@@ -88,7 +88,6 @@ async def _background_async() -> None:
 
 def background_process() -> None:
     """A simple sync wrapper for the background process."""
-    os.environ["PYTHONHASHSEED"] = "0"  # So reasoner_pydantic hashing is deterministic
     configure_logging()
     configure_telemetry()
     uvloop.run(_background_async())

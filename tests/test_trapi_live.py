@@ -9,6 +9,7 @@ Set the RETRIEVER_URL environment variable to target a non-local instance.
 """
 
 import os
+from typing import Any
 
 import httpx
 import pytest
@@ -30,17 +31,17 @@ TIERS = [pytest.param(0, id="tier0"), pytest.param(1, id="tier1")]
 # ---------------------------------------------------------------------------
 
 
-def _request(tier: int, query_graph: dict) -> dict:
+def _request(tier: int, query_graph: dict[str, Any]) -> dict[str, Any]:
     return {
         "parameters": {"tiers": [tier]},
         "message": {"query_graph": query_graph},
     }
 
 
-def _assert_ok(response: httpx.Response) -> dict:
-    assert response.status_code == 200, (
-        f"Expected HTTP 200, got {response.status_code}.\n{response.text}"
-    )
+def _assert_ok(response: httpx.Response) -> dict[str, Any]:
+    assert (
+        response.status_code == 200
+    ), f"Expected HTTP 200, got {response.status_code}.\n{response.text}"
     body = response.json()
     assert "message" in body, "Response body must contain a 'message' key"
     msg = body["message"]
@@ -49,11 +50,11 @@ def _assert_ok(response: httpx.Response) -> dict:
     return msg
 
 
-def _kg_node_ids(msg: dict) -> set[str]:
+def _kg_node_ids(msg: dict[str, Any]) -> set[str]:
     return set(msg["knowledge_graph"].get("nodes", {}))
 
 
-def _result_node_ids(msg: dict, binding: str) -> set[str]:
+def _result_node_ids(msg: dict[str, Any], binding: str) -> set[str]:
     ids: set[str] = set()
     for result in msg.get("results", []):
         for b in result.get("node_bindings", {}).get(binding, []):
@@ -95,16 +96,22 @@ async def test_simple_one_query(tier: int) -> None:
         response = await client.post(QUERY_ENDPOINT, json=_request(tier, query_graph))
 
     msg = _assert_ok(response)
-    assert msg["results"], "Expected at least one result for NCBIGene:11276 located_in GO:0031410"
+    assert msg[
+        "results"
+    ], "Expected at least one result for NCBIGene:11276 located_in GO:0031410"
 
     kg_nodes = _kg_node_ids(msg)
     assert "GO:0031410" in kg_nodes, "GO:0031410 must appear in the knowledge graph"
-    assert "NCBIGene:11276" in kg_nodes, "NCBIGene:11276 must appear in the knowledge graph"
+    assert (
+        "NCBIGene:11276" in kg_nodes
+    ), "NCBIGene:11276 must appear in the knowledge graph"
 
     n0_ids = _result_node_ids(msg, "n0")
     n1_ids = _result_node_ids(msg, "n1")
     assert "GO:0031410" in n0_ids, "GO:0031410 must appear in n0 result bindings"
-    assert "NCBIGene:11276" in n1_ids, "NCBIGene:11276 must appear in n1 result bindings"
+    assert (
+        "NCBIGene:11276" in n1_ids
+    ), "NCBIGene:11276 must appear in n1 result bindings"
 
 
 @pytest.mark.live
@@ -180,10 +187,12 @@ async def test_symmetric_predicate_query(tier: int) -> None:
     assert msg["results"], "Expected related_to results for NCBIGene:3778"
 
     kg_nodes = _kg_node_ids(msg)
-    assert "NCBIGene:3778" in kg_nodes, "NCBIGene:3778 must appear in the knowledge graph"
-    assert len(msg["results"]) > 1, (
-        "Expected multiple results from symmetric related_to expansion"
-    )
+    assert (
+        "NCBIGene:3778" in kg_nodes
+    ), "NCBIGene:3778 must appear in the knowledge graph"
+    assert (
+        len(msg["results"]) > 1
+    ), "Expected multiple results from symmetric related_to expansion"
 
 
 # ---------------------------------------------------------------------------
@@ -299,7 +308,9 @@ async def test_subclass_case1_form_c(tier: int) -> None:
     assert msg["results"], "Expected results via subclass expansion (Case 1 Form C)"
 
     kg_nodes = _kg_node_ids(msg)
-    assert "CHEBI:4042" in kg_nodes, "A (CHEBI:4042, Cypermethrin) must appear in the knowledge graph"
+    assert (
+        "CHEBI:4042" in kg_nodes
+    ), "A (CHEBI:4042, Cypermethrin) must appear in the knowledge graph"
     assert "GO:0051055" in kg_nodes, (
         "B (GO:0051055, negative regulation of lipid biosynthetic process) "
         "must appear in the knowledge graph via Form C expansion"
@@ -342,9 +353,9 @@ async def test_subclass_case2_id_to_cat(tier: int) -> None:
     assert msg["results"], "Expected results via subclass expansion (Case 2)"
 
     kg_nodes = _kg_node_ids(msg)
-    assert "UMLS:C3273258" in kg_nodes, (
-        "A (UMLS:C3273258, Congenital Systemic Disorder) must appear in the knowledge graph"
-    )
+    assert (
+        "UMLS:C3273258" in kg_nodes
+    ), "A (UMLS:C3273258, Congenital Systemic Disorder) must appear in the knowledge graph"
 
     known_phenotypes = {"HP:0034267", "HP:0000010"}
     assert known_phenotypes & kg_nodes, (
@@ -370,7 +381,7 @@ async def test_subclass_case3_cat_to_id(tier: int) -> None:
     query_graph = {
         "nodes": {
             "n0": {"categories": ["biolink:SmallMolecule"], "constraints": []},
-            "n1": {"ids": ["GO:0051055"], "constraints": []}
+            "n1": {"ids": ["GO:0051055"], "constraints": []},
         },
         "edges": {
             "e0": {
@@ -378,9 +389,9 @@ async def test_subclass_case3_cat_to_id(tier: int) -> None:
                 "object": "n1",
                 "predicates": ["biolink:affects"],
                 "attribute_constraints": [],
-                "qualifier_constraints": []
+                "qualifier_constraints": [],
             }
-        }
+        },
     }
 
     async with httpx.AsyncClient(timeout=60) as client:
@@ -395,16 +406,25 @@ async def test_subclass_case3_cat_to_id(tier: int) -> None:
         "must appear in the knowledge graph"
     )
 
-    known_small_molecules = {"CHEBI:78420", "CHEBI:78492", "CHEBI:192461", "CHEBI:202791", "CHEBI:29014", "CHEBI:18406", "CHEBI:82621", "CHEBI:45713"}
+    known_small_molecules = {
+        "CHEBI:78420",
+        "CHEBI:78492",
+        "CHEBI:192461",
+        "CHEBI:202791",
+        "CHEBI:29014",
+        "CHEBI:18406",
+        "CHEBI:82621",
+        "CHEBI:45713",
+    }
     assert known_small_molecules & kg_nodes, (
         f"At least one of the expected small molecule nodes {known_small_molecules} must appear "
         "in the knowledge graph (reached via GO:0031393 target subclass expansion)"
     )
 
     n0_ids = _result_node_ids(msg, "n0")
-    assert known_small_molecules.issubset(n0_ids), (
-        "All expected small molecule nodes must appear in n0 result bindings"
-    )
+    assert known_small_molecules.issubset(
+        n0_ids
+    ), "All expected small molecule nodes must appear in n0 result bindings"
 
     n1_ids = _result_node_ids(msg, "n1")
     assert "GO:0051055" in n1_ids, "GO:0051055 must appear in n1 result bindings"
@@ -443,18 +463,30 @@ async def test_tier1_query_hydrates_empty_query_nodes() -> None:
         response = await client.post(QUERY_ENDPOINT, json=_request(1, query_graph))
 
     msg = _assert_ok(response)
-    assert msg["results"], "Expected at least one tier-1 result for CHEBI:48927 affects NCBIGene:4314"
+    assert msg[
+        "results"
+    ], "Expected at least one tier-1 result for CHEBI:48927 affects NCBIGene:4314"
 
     kg_nodes = msg["knowledge_graph"]["nodes"]
-    assert len(kg_nodes) == 3, "Expected hydrated ancestor, descendant support node, and target gene node"
-    assert "CHEBI:48927" in kg_nodes, "Pinned CHEBI:48927 must appear in the knowledge graph"
-    assert "CHEBI:71223" in kg_nodes, "Subclass support node CHEBI:71223 must appear in the knowledge graph"
-    assert "NCBIGene:4314" in kg_nodes, "Pinned NCBIGene:4314 must appear in the knowledge graph"
-    assert kg_nodes["CHEBI:48927"]["categories"], "CHEBI:48927 should be hydrated with categories"
+    assert (
+        len(kg_nodes) == 3
+    ), "Expected hydrated ancestor, descendant support node, and target gene node"
+    assert (
+        "CHEBI:48927" in kg_nodes
+    ), "Pinned CHEBI:48927 must appear in the knowledge graph"
+    assert (
+        "CHEBI:71223" in kg_nodes
+    ), "Subclass support node CHEBI:71223 must appear in the knowledge graph"
+    assert (
+        "NCBIGene:4314" in kg_nodes
+    ), "Pinned NCBIGene:4314 must appear in the knowledge graph"
+    assert kg_nodes["CHEBI:48927"][
+        "categories"
+    ], "CHEBI:48927 should be hydrated with categories"
     assert kg_nodes["CHEBI:48927"].get("name") == "N-acyl-L-alpha-amino acid"
-    assert all(node.get("categories") for node in kg_nodes.values()), (
-        "No returned knowledge graph node should have empty categories after hydration"
-    )
+    assert all(
+        node.get("categories") for node in kg_nodes.values()
+    ), "No returned knowledge graph node should have empty categories after hydration"
 
 
 # ---------------------------------------------------------------------------
@@ -513,9 +545,15 @@ async def test_two_hop_query(tier: int) -> None:
     for node_id in ("CHEBI:3125", "UMLS:C0282090", "CHEBI:22580"):
         assert node_id in kg_nodes, f"{node_id} must appear in the knowledge graph"
 
-    assert "CHEBI:3125" in _result_node_ids(msg, "n0"), "CHEBI:3125 must appear in n0 bindings"
-    assert "UMLS:C0282090" in _result_node_ids(msg, "n1"), "UMLS:C0282090 must appear in n1 bindings"
-    assert "CHEBI:22580" in _result_node_ids(msg, "n2"), "CHEBI:22580 must appear in n2 bindings"
+    assert "CHEBI:3125" in _result_node_ids(
+        msg, "n0"
+    ), "CHEBI:3125 must appear in n0 bindings"
+    assert "UMLS:C0282090" in _result_node_ids(
+        msg, "n1"
+    ), "UMLS:C0282090 must appear in n1 bindings"
+    assert "CHEBI:22580" in _result_node_ids(
+        msg, "n2"
+    ), "CHEBI:22580 must appear in n2 bindings"
 
 
 @pytest.mark.live
@@ -570,7 +608,15 @@ async def test_three_hop_query(tier: int) -> None:
     for node_id in ("CHEBI:3125", "UMLS:C0282090", "CHEBI:22580", "UMLS:C0678941"):
         assert node_id in kg_nodes, f"{node_id} must appear in the knowledge graph"
 
-    assert "CHEBI:3125" in _result_node_ids(msg, "n0"), "CHEBI:3125 must appear in n0 bindings"
-    assert "UMLS:C0282090" in _result_node_ids(msg, "n1"), "UMLS:C0282090 must appear in n1 bindings"
-    assert "CHEBI:22580" in _result_node_ids(msg, "n2"), "CHEBI:22580 must appear in n2 bindings"
-    assert "UMLS:C0678941" in _result_node_ids(msg, "n3"), "UMLS:C0678941 must appear in n3 bindings"
+    assert "CHEBI:3125" in _result_node_ids(
+        msg, "n0"
+    ), "CHEBI:3125 must appear in n0 bindings"
+    assert "UMLS:C0282090" in _result_node_ids(
+        msg, "n1"
+    ), "UMLS:C0282090 must appear in n1 bindings"
+    assert "CHEBI:22580" in _result_node_ids(
+        msg, "n2"
+    ), "CHEBI:22580 must appear in n2 bindings"
+    assert "UMLS:C0678941" in _result_node_ids(
+        msg, "n3"
+    ), "UMLS:C0678941 must appear in n3 bindings"

@@ -1,18 +1,20 @@
 from typing import override
 
 import orjson
-
-from retriever.types.general import KAdjacencyGraph
-from retriever.types.trapi import (
+from translator_tom.v1_6 import (
     CURIE,
-    AnalysisDict,
-    EdgeBindingDict,
     Infores,
-    NodeBindingDict,
     QEdgeID,
     QNodeID,
+)
+from translator_tom.v1_6.model_dicts import (
+    AnalysisDict,
+    EdgeBindingDict,
+    NodeBindingDict,
     ResultDict,
 )
+
+from retriever.types.general import KAdjacencyGraph
 
 
 class Partial:
@@ -41,21 +43,29 @@ class Partial:
             }
         ).decode()
 
+    def _key(self) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """Identity key (sorted node/edge bindings) backing both hash and equality."""
+        nodes = tuple(
+            sorted(f"{qnode_id}:{curie}" for qnode_id, curie in self.node_bindings)
+        )
+        edges = tuple(
+            sorted(
+                f"{qedge_id}:{in_curie}:{out_curie}"
+                for (qedge_id, in_curie, out_curie) in self.edge_bindings
+            )
+        )
+        return nodes, edges
+
     @override
     def __hash__(self) -> int:
-        """Hash a Partial by its str representation."""
-        nodes = sorted(f"{qnode_id}:{curie}" for qnode_id, curie in self.node_bindings)
-        edges = sorted(
-            f"{qedge_id}:{in_curie}:{out_curie}"
-            for (qedge_id, in_curie, out_curie) in self.edge_bindings
-        )
-        return hash(f"{','.join(nodes)};{','.join(edges)}")
+        """Hash a Partial by its binding identity."""
+        return hash(self._key())
 
     @override
     def __eq__(self, value: object, /) -> bool:
         if not isinstance(value, Partial):
             return False
-        return self.__hash__() == value.__hash__()
+        return self._key() == value._key()
 
     def clone(self) -> "Partial":
         """Return a clone of the Partial with no mutable overlap."""

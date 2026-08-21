@@ -4,30 +4,39 @@ Collection of fixtures for testing the set_interpretation handling
 
 import dataclasses
 import uuid
+from typing import Any, cast
 
 import pytest
-
-from retriever.types.trapi import (
+from translator_tom.v1_6 import (
     CURIE,
-    BiolinkEntity,
-    BiolinkPredicate,
-    MessageDict,
-    ParametersDict,
-    QEdgeDict,
+    Biolink,
     QEdgeID,
-    QNodeDict,
     QNodeID,
+    Query,
+)
+from translator_tom.v1_6.model_dicts import (
+    MessageDict,
+    QEdgeDict,
+    QNodeDict,
     QueryDict,
     QueryGraphDict,
+    ResultDict,
 )
-from reasoner_pydantic import Query
 
 
 @dataclasses.dataclass
 class MockQuery:
-    query: dict
-    prefilter_results: dict
-    postfilter_results: dict
+    query: QueryGraphDict
+    prefilter_results: list[ResultDict]
+    postfilter_results: list[ResultDict]
+
+
+def _validated_qgraph(query: QueryDict) -> QueryGraphDict:
+    """Validate the query and return its normalized query graph as a dict."""
+    query_graph = Query.model_validate(query).message.query_graph
+    assert query_graph is not None
+    dumped: Any = query_graph.model_dump()
+    return dumped
 
 
 # --- BATCH SET INTERPRETATION QUERIES ---
@@ -36,21 +45,20 @@ class MockQuery:
 @pytest.fixture(scope="session")
 def mock_batch_query() -> MockQuery:
     query = QueryDict(
-        parameters=ParametersDict(tiers=[0, 1]),
         submitter="setinterp-automated-testing",
         message=MessageDict(
             query_graph=QueryGraphDict(
                 nodes={
                     QNodeID("n0"): QNodeDict(
                         ids=[CURIE("NCBIGene:3778")],
-                        categories=[BiolinkEntity("biolink:Gene")],
+                        categories=[Biolink.Entity("biolink:Gene")],
                         set_interpretation="BATCH",
                         constraints=[],
                         member_ids=[],
                     ),
                     QNodeID("n1"): QNodeDict(
                         ids=None,
-                        categories=[BiolinkEntity("biolink:Disease")],
+                        categories=[Biolink.Entity("biolink:Disease")],
                         set_interpretation="BATCH",
                         constraints=[],
                         member_ids=[],
@@ -60,16 +68,14 @@ def mock_batch_query() -> MockQuery:
                     QEdgeID("e01"): QEdgeDict(
                         subject=QNodeID("n0"),
                         object=QNodeID("n1"),
-                        predicates=[BiolinkPredicate("biolink:causes")],
-                        attribute_contraints=[],
+                        predicates=[Biolink.Predicate("biolink:causes")],
+                        attribute_constraints=[],
                         qualifier_constraints=[],
                     ),
                 },
             )
         ),
     )
-    query = Query.model_validate(query)
-
     results = [
         {
             "node_bindings": {
@@ -114,14 +120,18 @@ def mock_batch_query() -> MockQuery:
             ],
         },
     ]
-    return MockQuery(query.message.query_graph.model_dump(), results, results)
+    return MockQuery(
+        _validated_qgraph(query),
+        cast("list[ResultDict]", results),
+        cast("list[ResultDict]", results),
+    )
 
 
 # --- MIXED SET INTERPRETATION QUERIES ---
 
 
 @pytest.fixture(scope="session")
-def mock_mixed_query0() -> dict:
+def mock_mixed_query0() -> MockQuery:
     """Represents a fully connected set of results.
 
     Node n0 has two identifiers   | set interpretation: BATCH
@@ -131,7 +141,6 @@ def mock_mixed_query0() -> dict:
     We expect 2 results returned post filtering
     """
     query = QueryDict(
-        parameters=ParametersDict(tiers=[0, 1]),
         submitter="setinterp-automated-testing",
         message=MessageDict(
             query_graph=QueryGraphDict(
@@ -158,8 +167,8 @@ def mock_mixed_query0() -> dict:
                     QEdgeID("e01"): QEdgeDict(
                         subject=QNodeID("n0"),
                         object=QNodeID("n1"),
-                        predicates=[BiolinkPredicate("biolink:subclass_of")],
-                        attribute_contraints=[],
+                        predicates=[Biolink.Predicate("biolink:subclass_of")],
+                        attribute_constraints=[],
                         qualifier_constraints=[],
                     ),
                 },
@@ -285,15 +294,15 @@ def mock_mixed_query0() -> dict:
         },
     ]
 
-    query = Query.model_validate(query)
-
     return MockQuery(
-        query.message.query_graph.model_dump(), prefilter_results, postfilter_results
+        _validated_qgraph(query),
+        cast("list[ResultDict]", prefilter_results),
+        cast("list[ResultDict]", postfilter_results),
     )
 
 
 @pytest.fixture(scope="session")
-def mock_mixed_query1() -> dict:
+def mock_mixed_query1() -> MockQuery:
     """Represents a partially connected set of results.
 
     Node n0 has three identifiers | set interpretation: BATCH
@@ -306,7 +315,6 @@ def mock_mixed_query1() -> dict:
     to node n1 and thus requires pruning
     """
     query = QueryDict(
-        parameters=ParametersDict(tiers=[0, 1]),
         submitter="setinterp-automated-testing",
         message=MessageDict(
             query_graph=QueryGraphDict(
@@ -337,8 +345,8 @@ def mock_mixed_query1() -> dict:
                     QEdgeID("e01"): QEdgeDict(
                         subject=QNodeID("n0"),
                         object=QNodeID("n1"),
-                        predicates=[BiolinkPredicate("biolink:subclass_of")],
-                        attribute_contraints=[],
+                        predicates=[Biolink.Predicate("biolink:subclass_of")],
+                        attribute_constraints=[],
                         qualifier_constraints=[],
                     ),
                 },
@@ -496,15 +504,15 @@ def mock_mixed_query1() -> dict:
         },
     ]
 
-    query = Query.model_validate(query)
-
     return MockQuery(
-        query.message.query_graph.model_dump(), prefilter_results, postfilter_results
+        _validated_qgraph(query),
+        cast("list[ResultDict]", prefilter_results),
+        cast("list[ResultDict]", postfilter_results),
     )
 
 
 @pytest.fixture(scope="session")
-def mock_mixed_query2() -> dict:
+def mock_mixed_query2() -> MockQuery:
     """Represents a partially connected set of results.
 
     Node n0 has three identifiers | set interpretation: BATCH
@@ -517,7 +525,6 @@ def mock_mixed_query2() -> dict:
     to node n1, but will not be pruned
     """
     query = QueryDict(
-        parameters=ParametersDict(tiers=[0, 1]),
         submitter="setinterp-automated-testing",
         message=MessageDict(
             query_graph=QueryGraphDict(
@@ -548,8 +555,8 @@ def mock_mixed_query2() -> dict:
                     QEdgeID("e01"): QEdgeDict(
                         subject=QNodeID("n0"),
                         object=QNodeID("n1"),
-                        predicates=[BiolinkPredicate("biolink:subclass_of")],
-                        attribute_contraints=[],
+                        predicates=[Biolink.Predicate("biolink:subclass_of")],
+                        attribute_constraints=[],
                         qualifier_constraints=[],
                     ),
                 },
@@ -739,15 +746,15 @@ def mock_mixed_query2() -> dict:
         },
     ]
 
-    query = Query.model_validate(query)
-
     return MockQuery(
-        query.message.query_graph.model_dump(), prefilter_results, postfilter_results
+        _validated_qgraph(query),
+        cast("list[ResultDict]", prefilter_results),
+        cast("list[ResultDict]", postfilter_results),
     )
 
 
 @pytest.fixture(scope="session")
-def mock_mixed_query3() -> dict:
+def mock_mixed_query3() -> MockQuery:
     """Represents a fully connected set of results.
 
     An inversion of mock_mixed_query0
@@ -759,7 +766,6 @@ def mock_mixed_query3() -> dict:
     We expect 2 results returned post filtering
     """
     query = QueryDict(
-        parameters=ParametersDict(tiers=[0, 1]),
         submitter="setinterp-automated-testing",
         message=MessageDict(
             query_graph=QueryGraphDict(
@@ -786,8 +792,8 @@ def mock_mixed_query3() -> dict:
                     QEdgeID("e01"): QEdgeDict(
                         subject=QNodeID("n0"),
                         object=QNodeID("n1"),
-                        predicates=[BiolinkPredicate("biolink:subclass_of")],
-                        attribute_contraints=[],
+                        predicates=[Biolink.Predicate("biolink:subclass_of")],
+                        attribute_constraints=[],
                         qualifier_constraints=[],
                     ),
                 },
@@ -913,15 +919,15 @@ def mock_mixed_query3() -> dict:
         },
     ]
 
-    query = Query.model_validate(query)
-
     return MockQuery(
-        query.message.query_graph.model_dump(), prefilter_results, postfilter_results
+        _validated_qgraph(query),
+        cast("list[ResultDict]", prefilter_results),
+        cast("list[ResultDict]", postfilter_results),
     )
 
 
 @pytest.fixture(scope="session")
-def mock_mixed_query4() -> dict:
+def mock_mixed_query4() -> MockQuery:
     """Represents a partially connected set of results.
 
     An inversion of mock_mixed_query1
@@ -936,7 +942,6 @@ def mock_mixed_query4() -> dict:
     to node n1 and thus requires pruning
     """
     query = QueryDict(
-        parameters=ParametersDict(tiers=[0, 1]),
         submitter="setinterp-automated-testing",
         message=MessageDict(
             query_graph=QueryGraphDict(
@@ -967,8 +972,8 @@ def mock_mixed_query4() -> dict:
                     QEdgeID("e01"): QEdgeDict(
                         subject=QNodeID("n0"),
                         object=QNodeID("n1"),
-                        predicates=[BiolinkPredicate("biolink:subclass_of")],
-                        attribute_contraints=[],
+                        predicates=[Biolink.Predicate("biolink:subclass_of")],
+                        attribute_constraints=[],
                         qualifier_constraints=[],
                     ),
                 },
@@ -1126,15 +1131,15 @@ def mock_mixed_query4() -> dict:
         },
     ]
 
-    query = Query.model_validate(query)
-
     return MockQuery(
-        query.message.query_graph.model_dump(), prefilter_results, postfilter_results
+        _validated_qgraph(query),
+        cast("list[ResultDict]", prefilter_results),
+        cast("list[ResultDict]", postfilter_results),
     )
 
 
 @pytest.fixture(scope="session")
-def mock_mixed_query5() -> dict:
+def mock_mixed_query5() -> MockQuery:
     """Represents a partially connected set of results.
 
     An inversion of mock_mixed_query2
@@ -1149,7 +1154,6 @@ def mock_mixed_query5() -> dict:
     to node n1, but will not be pruned
     """
     query = QueryDict(
-        parameters=ParametersDict(tiers=[0, 1]),
         submitter="setinterp-automated-testing",
         message=MessageDict(
             query_graph=QueryGraphDict(
@@ -1180,8 +1184,8 @@ def mock_mixed_query5() -> dict:
                     QEdgeID("e01"): QEdgeDict(
                         subject=QNodeID("n0"),
                         object=QNodeID("n1"),
-                        predicates=[BiolinkPredicate("biolink:subclass_of")],
-                        attribute_contraints=[],
+                        predicates=[Biolink.Predicate("biolink:subclass_of")],
+                        attribute_constraints=[],
                         qualifier_constraints=[],
                     ),
                 },
@@ -1371,10 +1375,10 @@ def mock_mixed_query5() -> dict:
         },
     ]
 
-    query = Query.model_validate(query)
-
     return MockQuery(
-        query.message.query_graph.model_dump(), prefilter_results, postfilter_results
+        _validated_qgraph(query),
+        cast("list[ResultDict]", prefilter_results),
+        cast("list[ResultDict]", postfilter_results),
     )
 
 
@@ -1382,14 +1386,13 @@ def mock_mixed_query5() -> dict:
 
 
 @pytest.fixture(scope="session")
-def mock_malformed_query() -> dict:
+def mock_malformed_query() -> MockQuery:
     """Represents a fully connected set of results.
 
     This query is manipulated at runtime for tests where
     we wish to verify how we handle malformed queries
     """
     query = QueryDict(
-        parameters=ParametersDict(tiers=[0, 1]),
         submitter="setinterp-automated-testing",
         message=MessageDict(
             query_graph=QueryGraphDict(
@@ -1416,8 +1419,8 @@ def mock_malformed_query() -> dict:
                     QEdgeID("e01"): QEdgeDict(
                         subject=QNodeID("n0"),
                         object=QNodeID("n1"),
-                        predicates=[BiolinkPredicate("biolink:subclass_of")],
-                        attribute_contraints=[],
+                        predicates=[Biolink.Predicate("biolink:subclass_of")],
+                        attribute_constraints=[],
                         qualifier_constraints=[],
                     ),
                 },
@@ -1543,8 +1546,8 @@ def mock_malformed_query() -> dict:
         },
     ]
 
-    query = Query.model_validate(query)
-
     return MockQuery(
-        query.message.query_graph.model_dump(), prefilter_results, postfilter_results
+        _validated_qgraph(query),
+        cast("list[ResultDict]", prefilter_results),
+        cast("list[ResultDict]", postfilter_results),
     )

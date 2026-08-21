@@ -14,21 +14,21 @@ from http import HTTPStatus
 from typing import Literal
 
 from fastapi import HTTPException
+from translator_tom.v1_6.model_dicts import LogEntryDict
 
 from retriever.data_tiers import tier_manager
 from retriever.types.general import ErrorDetail
-from retriever.types.trapi import LogEntryDict
-from retriever.types.trapi_pydantic import (
+from retriever.types.trapi import (
     AsyncQuery as TRAPIAsyncQuery,
 )
-from retriever.types.trapi_pydantic import (
+from retriever.types.trapi import (
     Query as TRAPIQuery,
 )
-from retriever.types.trapi_pydantic import (
+from retriever.types.trapi import (
     TierNumber,
 )
 from retriever.utils.backend_client import BackendClient, StatusDict
-from retriever.utils.logs import format_trapi_log
+from retriever.utils.logs import format_trapi_log_dict
 from retriever.utils.mongo import MongoClient
 from retriever.utils.redis import RedisClient
 
@@ -65,17 +65,17 @@ def _tier_fallback_text(requested: TierNumber, fallback: TierNumber) -> str:
 
 def mongo_outage_warning() -> LogEntryDict:
     """LogEntry attached when a Mongo write fails during request execution."""
-    return format_trapi_log("WARNING", _MONGO_OUTAGE_TEXT)
+    return format_trapi_log_dict("WARNING", _MONGO_OUTAGE_TEXT)
 
 
 def subclass_unavailable_warning() -> LogEntryDict:
     """LogEntry attached when subclass expansion fails for outage reasons."""
-    return format_trapi_log("WARNING", _SUBCLASS_UNAVAILABLE_TEXT)
+    return format_trapi_log_dict("WARNING", _SUBCLASS_UNAVAILABLE_TEXT)
 
 
 def tier_fallback_warning(requested: TierNumber, fallback: TierNumber) -> LogEntryDict:
     """LogEntry attached when a query was routed to a fallback tier."""
-    return format_trapi_log("WARNING", _tier_fallback_text(requested, fallback))
+    return format_trapi_log_dict("WARNING", _tier_fallback_text(requested, fallback))
 
 
 def outage_detail(detail: str, dependency: BackendClient) -> ErrorDetail:

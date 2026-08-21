@@ -22,12 +22,10 @@ dependencies = [
     "sentry-sdk[fastapi,httpx,loguru]>=2.45.0",
     "motor>=3.7.0",
     "loguru>=0.7.3",
-    "bmt>=1.4.6",
     "pyinstrument>=5.0.1",
     "pydantic-file-secrets>=0.4.4",
     "pyyaml>=6.0.2",
     "pymongo>=4.12.0",
-    "reasoner-pydantic>=6.0.0,<7",
     "ruamel-yaml>=0.18.14",
     "pydantic-core>=2.33.1",
     "orjson>=3.11.2",
@@ -42,6 +40,7 @@ dependencies = [
     "gitpython>=3.1.46",
     "psutil>=6.1.1",
     "zstd-asgi>=1.0",
+    "translator-tom>=2.0.0",
 ]
 
 [project.scripts]

@@ -1,20 +1,18 @@
-from typing import get_type_hints
-
-from reasoner_pydantic.shared import KnowledgeType
+from translator_tom.v1_6 import (
+    Biolink,
+    PathfinderQueryGraph,
+    QEdge,
+    QEdgeID,
+    QNode,
+    QNodeID,
+    QueryGraph,
+)
 
 from retriever.config.openapi import OPENAPI_CONFIG
-from retriever.types.trapi import (
-    QEdgeDict,
-    QEdgeID,
-    QNodeDict,
-    QNodeID,
-    QueryDict,
-    QueryGraphDict,
-)
-from retriever.utils import biolink
+from retriever.types.trapi import AsyncQuery, Parameters, Query
 
 
-def validate(query: QueryDict) -> tuple[list[str], list[str]]:
+def validate(query: Query | AsyncQuery) -> tuple[list[str], list[str]]:
     """Check that a given query graph is valid.
 
     Returns:
@@ -22,32 +20,30 @@ def validate(query: QueryDict) -> tuple[list[str], list[str]]:
         And a list of messages detailing validation problems.
         If the list is empty, the graph passes validation.
     """
-    qg = query["message"].get("query_graph")
+    qg = query.message.query_graph
     if qg is None:
         return [], ["query_graph missing."]
-    if "paths" in qg:
+    if isinstance(qg, PathfinderQueryGraph):
         return [], ["Retriever does not support Pathfinder queries."]
-    parameters = query.get("parameters") or {}
-    if parameters.get("tier", 0) == 1 and parameters.get("dehydrated"):
+    parameters = query.parameters or Parameters()
+    if (parameters.tier or 0) == 1 and parameters.dehydrated:
         return [], ["Tier 1 does not yet support dehydrated querying."]
 
     warnings = list[str]()
     problems = dict[str, bool]()  # False means failing
-    problems["Query graph must have at least one node"] = len(qg["nodes"].values()) > 0
-    problems["Query graph must have at least one edge"] = len(qg["edges"].values()) > 0
+    problems["Query graph must have at least one node"] = len(qg.nodes.values()) > 0
+    problems["Query graph must have at least one edge"] = len(qg.edges.values()) > 0
     problems["Query graph must have at least one node with an ID"] = any(
-        node
-        for node in qg["nodes"].values()
-        if "ids" in node and len(node["ids"] or []) > 0
+        node for node in qg.nodes.values() if len(node.ids_list) > 0
     )
 
     # node_pairs = set[str]()
-    for qedge_id, qedge in qg["edges"].items():
+    for qedge_id, qedge in qg.edges.items():
         edge_warnings, edge_problems = validate_qedge(qg, qedge_id, qedge)
         problems.update(edge_problems)
         warnings.extend(edge_warnings)
 
-    for qnode_id, qnode in qg["nodes"].items():
+    for qnode_id, qnode in qg.nodes.items():
         node_warnings, node_problems = validate_qnode(qg, qnode_id, qnode)
         problems.update(node_problems)
         warnings.extend(node_warnings)
@@ -56,7 +52,7 @@ def validate(query: QueryDict) -> tuple[list[str], list[str]]:
 
 
 def validate_qedge(
-    qg: QueryGraphDict, qedge_id: QEdgeID, qedge: QEdgeDict
+    qg: QueryGraph, qedge_id: QEdgeID, qedge: QEdge
 ) -> tuple[list[str], dict[str, bool]]:
     """Find and return any problems with a given Query Edge.
 
@@ -64,30 +60,30 @@ def validate_qedge(
     """
     problems = dict[str, bool]()
 
-    if qedge["subject"] not in qg["nodes"]:
+    if qedge.subject not in qg.nodes:
         problems[
-            f"Edge `{qedge_id}` subject `{qedge['subject']}` not defined in query graph."
+            f"Edge `{qedge_id}` subject `{qedge.subject}` not defined in query graph."
         ] = False
 
-    if qedge["object"] not in qg["nodes"]:
+    if qedge.object not in qg.nodes:
         problems[
-            f"Edge `{qedge_id}` object `{qedge['object']}` not defined in query graph."
+            f"Edge `{qedge_id}` object `{qedge.object}` not defined in query graph."
         ] = False
 
-    for i, qualifier_constraint in enumerate(qedge.get("qualifier_constraints", [])):
+    for i, qualifier_constraint in enumerate(qedge.qualifier_constraints_list):
         qualifier_types: set[str] = set()
-        for qualifier in qualifier_constraint["qualifier_set"]:
-            if qualifier["qualifier_type_id"] in qualifier_types:
+        for qualifier in qualifier_constraint.qualifier_set:
+            if qualifier.qualifier_type_id in qualifier_types:
                 problems[
-                    f"Edge `{qedge_id}` qualifier constraint {i} has duplicate qualifier_type_id `{qualifier['qualifier_type_id']}`"
+                    f"Edge `{qedge_id}` qualifier constraint {i} has duplicate qualifier_type_id `{qualifier.qualifier_type_id}`"
                 ] = False
-            qualifier_types.add(qualifier["qualifier_type_id"])
+            qualifier_types.add(qualifier.qualifier_type_id)
 
-    if qedge.get("knowlqedge_type") == KnowledgeType.inferred:
+    if qedge.knowledge_type == "inferred":
         problems["Retriever does not handle inferred-type queries."] = False
 
     invalid_predicates = [
-        p for p in (qedge.get("predicates", []) or []) if not biolink.is_predicate(p)
+        p for p in qedge.predicates_list if not Biolink.is_valid_predicate(p)
     ]
     if len(invalid_predicates) > 0:
         problems[f"Edge `{qedge_id}` has invalid predicates: {invalid_predicates}"] = (
@@ -102,8 +98,7 @@ def validate_qedge(
     # node_pairs.add(f"{qedge.subject}-{qedge.object}")
 
     warnings = list[str]()
-    known_fields = get_type_hints(QEdgeDict)
-    unknown_fields = [field for field in qedge if field not in known_fields]
+    unknown_fields = list(qedge.extra_dict.keys())
     if len(unknown_fields) > 0:
         warnings.append(
             f"Edge `{qedge_id}`: skipping unknown fields ({', '.join(unknown_fields)})"
@@ -113,7 +108,7 @@ def validate_qedge(
 
 
 def validate_qnode(
-    _qg: QueryGraphDict, qnode_id: QNodeID, qnode: QNodeDict
+    _qg: QueryGraph, qnode_id: QNodeID, qnode: QNode
 ) -> tuple[list[str], dict[str, bool]]:
     """Find and return any problems with a given Query Node.
 
@@ -121,13 +116,13 @@ def validate_qnode(
     """
     problems = dict[str, bool]()
 
-    if len(qnode.get("ids", []) or []) > OPENAPI_CONFIG.x_trapi.batch_size_limit:
+    if len(qnode.ids_list) > OPENAPI_CONFIG.x_trapi.batch_size_limit:
         problems[
-            f"Node `{qnode_id}` ID count ({len(qnode.get('ids', []) or [])}) exceeds batch size limit of {OPENAPI_CONFIG.x_trapi.batch_size_limit}"
+            f"Node `{qnode_id}` ID count ({len(qnode.ids_list)}) exceeds batch size limit of {OPENAPI_CONFIG.x_trapi.batch_size_limit}"
         ] = False
 
     invalid_categories = [
-        c for c in (qnode.get("categories", []) or []) if not biolink.is_category(c)
+        c for c in qnode.categories_list if not Biolink.is_valid_category(c)
     ]
     if len(invalid_categories) > 0:
         problems[f"Node `{qnode_id}` has invalid categories: {invalid_categories}"] = (
@@ -135,8 +130,7 @@ def validate_qnode(
         )
 
     warnings = list[str]()
-    known_fields = get_type_hints(QNodeDict)
-    unknown_fields = [field for field in qnode if field not in known_fields]
+    unknown_fields = list(qnode.extra_dict.keys())
     if len(unknown_fields) > 0:
         warnings.append(
             f"Node `{qnode_id}`: skipping unknown fields ({', '.join(unknown_fields)})"

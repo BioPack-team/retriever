@@ -2,8 +2,9 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from typing import Any
 
+from translator_tom.v1_6 import CURIE, Biolink
+
 from retriever.types.metakg import Operation, OperationNode
-from retriever.types.trapi import CURIE, BiolinkEntity
 from retriever.utils.backend_client import BackendClient
 
 
@@ -25,7 +26,7 @@ class DatabaseDriver(BackendClient, ABC):
     async def get_operations(
         self,
         bypass_cache: bool = False,
-    ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
+    ) -> tuple[list[Operation], dict[Biolink.Entity, OperationNode]]:
         """Operations and Nodes from this driver; `bypass_cache=True` forces a live fetch."""
 
     @abstractmethod

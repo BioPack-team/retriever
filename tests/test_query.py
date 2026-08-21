@@ -14,8 +14,9 @@ from starlette.datastructures import Headers
 from retriever import query as query_module
 from retriever.config.general import CONFIG
 from retriever.types.general import APIInfo, QueryInfo
-from retriever.types.trapi_pydantic import Parameters
-from retriever.types.trapi_pydantic import Query as TRAPIQuery
+from retriever.types.trapi import AsyncQuery as TRAPIAsyncQuery
+from retriever.types.trapi import Parameters
+from retriever.types.trapi import Query as TRAPIQuery
 
 
 def _ctx(method: str = "GET", path: str = "/metadata/tier_1") -> APIInfo:
@@ -165,10 +166,12 @@ async def test_async_lookup_reapplies_data_tier_tag():
         endpoint="/asyncquery",
         headers=Headers(),
         method="POST",
-        body={
-            "message": {"query_graph": {"nodes": {}, "edges": {}}},
-            "callback": "https://example.test/callback",
-        },
+        body=TRAPIAsyncQuery.model_validate(
+            {
+                "message": {"query_graph": {"nodes": {}, "edges": {}}},
+                "callback": "https://example.test/callback",
+            }
+        ),
         job_id="job123",
         tier=2,
         timeout=60.0,

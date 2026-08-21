@@ -5,19 +5,40 @@ from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from http import HTTPStatus
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
 import yaml
-from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Query, Request
+from fastapi import (
+    BackgroundTasks,
+    Body,
+    FastAPI,
+    HTTPException,
+    Request,
+)
+from fastapi import (
+    Query as FastAPIQuery,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import (
-    ORJSONResponse,
     RedirectResponse,
-    Response,
     StreamingResponse,
 )
+from fastapi.responses import (
+    Response as FastAPIResponse,
+)
 from loguru import logger
-from reasoner_pydantic import AsyncQueryStatusResponse as TRAPIAsyncQueryStatusResponse
+from translator_tom.v1_6 import (
+    AsyncQueryResponse,
+    AsyncQueryStatusResponse,
+    Infores,
+    MetaKnowledgeGraph,
+    Response,
+)
+from translator_tom.v1_6.model_dicts import (
+    AsyncQueryResponseDict,
+    EdgeDictUtil,
+    ResponseDict,
+)
 from zstd_asgi import ZstdMiddleware
 
 from retriever.config.general import CONFIG
@@ -35,11 +56,9 @@ from retriever.query import (
     make_metadata_query,
     make_metakg_query,
 )
+from retriever.types.dingo import DINGOMetadata
 from retriever.types.general import APIInfo, ErrorDetail, LogLevel
-from retriever.types.trapi_pydantic import AsyncQuery as TRAPIAsyncQuery
-from retriever.types.trapi_pydantic import Query as TRAPIQuery
-from retriever.types.trapi_pydantic import Response as TRAPIResponse
-from retriever.types.trapi_pydantic import TierNumber
+from retriever.types.trapi import AsyncQuery, Query, TierNumber
 from retriever.utils import service_health, worker
 from retriever.utils.compression import ZstdRequestMiddleware
 from retriever.utils.examples import EXAMPLE_QUERY
@@ -49,12 +68,11 @@ from retriever.utils.logs import (
     add_mongo_sink,
     cleanup,
     objs_to_json,
-    structured_log_to_trapi,
+    structured_log_to_trapi_dict,
 )
 from retriever.utils.mongo import MongoClient, MongoQueue
 from retriever.utils.redis import RedisClient
 from retriever.utils.telemetry import configure_telemetry
-from retriever.utils.trapi import append_aggregator_source
 from retriever.utils.version import get_version
 
 configure_logging()
@@ -79,7 +97,6 @@ async def _refresh_worker_registration(pid: int, started_at: datetime) -> None:
 async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     """Lifespan hook for any setup/shutdown behavior."""
     # Startup
-    os.environ["PYTHONHASHSEED"] = "0"  # So reasoner_pydantic hashing is deterministic
     await MongoClient().initialize()
     await MongoQueue().initialize()
     add_mongo_sink()
@@ -180,7 +197,7 @@ app.add_middleware(
 
 
 @app.exception_handler(500)
-async def exception_ensure_cors(request: Request, exc: Exception) -> Response:
+async def exception_ensure_cors(request: Request, exc: Exception) -> FastAPIResponse:
     """Ensure CORS is not lost on exception."""
     return await ensure_cors(app, request, exc)
 
@@ -195,8 +212,8 @@ if CONFIG.allow_profiler:
 
     @app.middleware("http")
     async def profile_request(
-        request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
+        request: Request, call_next: Callable[[Request], Awaitable[FastAPIResponse]]
+    ) -> FastAPIResponse:
         """Profile the api call when query parameter `profile` is set to True."""
         profile = request.query_params.get("profile", "false")
         if profile and profile != "false":
@@ -205,8 +222,12 @@ if CONFIG.allow_profiler:
             await call_next(request)
             profiler.stop()
             speedscope_results = profiler.output(renderer=SpeedscopeRenderer())
-            return Response(content=speedscope_results, media_type="application/json")
+            return FastAPIResponse(
+                content=speedscope_results, media_type="application/json"
+            )
         return await call_next(request)
+
+##### ENDPOINTS #####
 
 
 @app.get("/", include_in_schema=False)
@@ -218,12 +239,12 @@ async def redirect_to_docs() -> RedirectResponse:
 # Add a yaml endpoint, for completeness' sake
 @app.get("/openapi.yaml", include_in_schema=False)
 @functools.lru_cache
-def openapi_yaml() -> Response:
+def openapi_yaml() -> FastAPIResponse:
     """Retreive the OpenAPI specs in yaml format."""
     openapi_json = app.openapi()
     yaml_str = io.StringIO()
     yaml.dump(openapi_json, yaml_str)
-    return Response(yaml_str.getvalue(), media_type="text/yaml")
+    return FastAPIResponse(yaml_str.getvalue(), media_type="text/yaml")
 
 
 @app.get(
@@ -232,17 +253,18 @@ def openapi_yaml() -> Response:
     response_description=OPENAPI_CONFIG.response_descriptions.meta_knowledge_graph.get(
         "200", ""
     ),
+    response_model=MetaKnowledgeGraph,
 )
 async def meta_knowledge_graph(
     request: Request,
-    response: Response,
+    response: FastAPIResponse,
     tier: Annotated[
         TierNumber | None,
-        Query(
+        FastAPIQuery(
             description="Data Tier to use. Leave unset to view all.",
         ),
     ] = None,
-) -> ORJSONResponse:
+) -> MetaKnowledgeGraph | ErrorDetail:
     """Retrieve the Meta-Knowledge Graph."""
     snap = service_health.Snapshot()
     if tier is not None:
@@ -268,17 +290,19 @@ async def meta_knowledge_graph(
     status_code, response_dict = await make_metakg_query(
         APIInfo(request, response), tier=tier
     )
-    return ORJSONResponse(response_dict, status_code=status_code)
+    response.status_code = status_code
+    return response_dict
 
 
 @app.get(
     "/metadata/tier_{tier}",
     tags=["metadata"],
     response_description=OPENAPI_CONFIG.response_descriptions.metadata.get("200", ""),
+    response_model=DINGOMetadata,
 )
 async def metadata(
-    request: Request, response: Response, tier: TierNumber
-) -> ORJSONResponse:
+    request: Request, response: FastAPIResponse, tier: TierNumber
+) -> FastAPIResponse:
     """Retrieve the metadata associated with a given Data Tier."""
     resolved = service_health.Snapshot().select_tier(None, tier, allow_fallback=False)
     if isinstance(resolved[0], HTTPStatus):
@@ -287,13 +311,13 @@ async def metadata(
     status_code, response_dict = await make_metadata_query(
         APIInfo(request, response), tier=tier
     )
-    return ORJSONResponse(response_dict, status_code=status_code)
+    return FastAPIResponse(response_dict, status_code=status_code)
 
 
 @app.post(
     "/query",
     tags=["query"],
-    response_model=TRAPIResponse,
+    response_model=Response,
     response_description=OPENAPI_CONFIG.response_descriptions.query.get("200", ""),
     responses={
         400: {
@@ -316,20 +340,21 @@ async def metadata(
 )
 async def query(
     request: Request,
-    response: Response,
-    body: Annotated[TRAPIQuery, Body(examples=[EXAMPLE_QUERY])],
-) -> ORJSONResponse:
+    response: FastAPIResponse,
+    body: Annotated[Query, Body(examples=[EXAMPLE_QUERY])],
+) -> FastAPIResponse:
     """Initiate a synchronous query."""
     status_code, response_dict = await make_lookup_query(
         APIInfo(request, response), body=body
     )
-    return ORJSONResponse(response_dict, status_code=status_code)
+    return FastAPIResponse(response_dict, status_code=status_code)
     # return {}
 
 
 @app.post(
     "/asyncquery",
     tags=["asyncquery"],
+    response_model=AsyncQueryResponse,
     response_description=OPENAPI_CONFIG.response_descriptions.asyncquery.get("200", ""),
     responses={
         400: {
@@ -352,20 +377,22 @@ async def query(
 )
 async def asyncquery(
     request: Request,
-    response: Response,
-    body: TRAPIAsyncQuery,
+    response: FastAPIResponse,
+    body: AsyncQuery,
     background_tasks: BackgroundTasks,
-) -> ORJSONResponse:
+) -> AsyncQueryResponseDict | ErrorDetail:
     """Initiate an asynchronous query."""
     status_code, response_dict = await make_lookup_query(
         APIInfo(request, response, background_tasks), body=body
     )
-    return ORJSONResponse(response_dict, status_code=status_code)
+    response.status_code = status_code
+    return response_dict
 
 
 @app.get(
     "/asyncquery_status/{job_id}",
     tags=["asyncquery_status"],
+    response_model=AsyncQueryStatusResponse,
     response_description=OPENAPI_CONFIG.response_descriptions.asyncquery_status.get(
         "200", ""
     ),
@@ -383,7 +410,7 @@ async def asyncquery(
         },
     },
 )
-async def asyncquery_status(request: Request, job_id: str) -> ORJSONResponse:
+async def asyncquery_status(request: Request, job_id: str) -> FastAPIResponse:
     """Get the status of an asynchronous query."""
     if status_code := service_health.Snapshot().http_status_for("/asyncquery_status"):
         raise HTTPException(
@@ -394,13 +421,13 @@ async def asyncquery_status(request: Request, job_id: str) -> ORJSONResponse:
             ),
         )
     status_code, job_dict = await get_job_status(job_id.lower(), request)
-    return ORJSONResponse(job_dict, status_code=status_code)
+    return FastAPIResponse(job_dict, status_code=status_code)
 
 
 @app.get(
     "/response/{job_id}",
     tags=["asyncquery_status"],
-    response_model=TRAPIResponse | TRAPIAsyncQueryStatusResponse,
+    response_model=Response | AsyncQueryStatusResponse,
     response_description=OPENAPI_CONFIG.response_descriptions.response.get("200", ""),
     responses={
         404: {
@@ -411,7 +438,7 @@ async def asyncquery_status(request: Request, job_id: str) -> ORJSONResponse:
         },
     },
 )
-async def response(request: Request, job_id: str) -> ORJSONResponse:
+async def response(request: Request, job_id: str) -> FastAPIResponse:
     """Get the response for a query (or logs if it's in progress)."""
     if service_health.Snapshot().http_status_for("/response") is not None:
         raise HTTPException(
@@ -422,11 +449,11 @@ async def response(request: Request, job_id: str) -> ORJSONResponse:
             ),
         )
     status_code, job_dict = await get_job_response(job_id.lower(), request)
-    return ORJSONResponse(job_dict, status_code=status_code)
+    return FastAPIResponse(job_dict, status_code=status_code)
 
 
 @app.post("/rehydrate")
-async def rehydrate(body: dict[str, Any]) -> ORJSONResponse:
+async def rehydrate(body: ResponseDict) -> ResponseDict:
     """Passthrough rehydration to backend."""
     # TODO: use the appropriate tier based on parameters
     driver = tier_manager.get_driver(0)
@@ -437,8 +464,8 @@ async def rehydrate(body: dict[str, Any]) -> ORJSONResponse:
         .get("edges", {})
         .values()
     ):
-        append_aggregator_source(edge, "infores:retriever")
-    return ORJSONResponse(response_dict)
+        EdgeDictUtil.append_aggregator(edge, Infores("infores:retriever"))
+    return response_dict
 
 
 @app.get(
@@ -455,33 +482,33 @@ async def rehydrate(body: dict[str, Any]) -> ORJSONResponse:
 async def logs(  # noqa: PLR0913 Can't reduce args due to FastAPI endpoint format
     start: Annotated[
         datetime | None,
-        Query(
+        FastAPIQuery(
             description="Start datetime to search logs. Defaults to last hour if `lookback` is not set.",
         ),
     ] = None,
     end: Annotated[
         datetime | None,
-        Query(
+        FastAPIQuery(
             description="End datetime to search logs. Defaults to present time.",
         ),
     ] = None,
     level: LogLevel = "DEBUG",
     lookback: Annotated[
         float | None,
-        Query(
+        FastAPIQuery(
             description="Number of hours back from present time to retrieve. Overrides `start`."
         ),
     ] = None,
     job_id: Annotated[
         str | None,
-        Query(
+        FastAPIQuery(
             description="ID of a previously-run job to search for. Limits logs to those related to that job.",
             pattern=JOB_ID_PATTERN,
         ),
     ] = None,
     fmt: Annotated[
         Literal["flat", "trapi", "struct"],
-        Query(
+        FastAPIQuery(
             description="Respond with a specific format. flat: plaintext log lines; trapi: TRAPI-style logs; struct: loguru-structured format"
         ),
     ] = "flat",
@@ -514,7 +541,7 @@ async def logs(  # noqa: PLR0913 Can't reduce args due to FastAPI endpoint forma
     else:
         logs = MongoClient().get_logs(start, end, level, job_id)
         if fmt == "trapi":
-            logs = structured_log_to_trapi(logs)
+            logs = structured_log_to_trapi_dict(logs)
         use_jsonl = fmt == "struct"
         logs = objs_to_json(logs, jsonl=use_jsonl)
 
@@ -529,7 +556,7 @@ async def logs(  # noqa: PLR0913 Can't reduce args due to FastAPI endpoint forma
     tags=["metadata"],
     response_description=OPENAPI_CONFIG.response_descriptions.config.get("200", ""),
 )
-async def config() -> ORJSONResponse:
+async def config() -> FastAPIResponse:
     """Get the current config of the server."""
     config = yaml.safe_load(CONFIG.model_dump_json())
     sha, branch = get_version()
@@ -539,7 +566,7 @@ async def config() -> ORJSONResponse:
         config["retriever_version_link"] = (
             f"https://github.com/BioPack-team/retriever/tree/{sha}"
         )
-    return ORJSONResponse(config)
+    return FastAPIResponse(config)
 
 
 # Set up Sentry and Otel

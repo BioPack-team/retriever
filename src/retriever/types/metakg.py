@@ -1,12 +1,12 @@
 from typing import Any, NamedTuple
 
-from retriever.types.trapi import (
-    BiolinkEntity,
-    BiolinkPredicate,
-    MetaAttributeDict,
-    QualifierTypeID,
+from translator_tom.v1_6 import (
+    Biolink,
+    MetaAttribute,
+    MetaQualifier,
 )
-from retriever.types.trapi_pydantic import TierNumber
+
+from retriever.types.trapi import TierNumber
 
 TripleName = str
 OpHash = str
@@ -16,20 +16,20 @@ class OperationNode(NamedTuple):
     """A node that specifies information as separable by API."""
 
     prefixes: dict[str, list[str]]  # ID prefixes by API
-    attributes: dict[str, list[MetaAttributeDict]]  # attributes by API
+    attributes: dict[str, list[MetaAttribute]]  # attributes by API
 
 
 class UnhashedOperation(NamedTuple):
     """A single unit of operable subquerying, prior to having a hash attached."""
 
     tier: TierNumber
-    subject: BiolinkEntity
-    predicate: BiolinkPredicate
-    object: BiolinkEntity
+    subject: Biolink.Entity
+    predicate: Biolink.Predicate
+    object: Biolink.Entity
     api: str
     association: str | None = None
-    attributes: list[MetaAttributeDict] | None = None
-    qualifiers: dict[QualifierTypeID, list[str]] | None = None
+    attributes: list[MetaAttribute] | None = None
+    qualifiers: list[MetaQualifier] | None = None
     access_metadata: Any | None = None
 
 
@@ -38,18 +38,18 @@ class Operation(NamedTuple):
 
     hash: OpHash
     tier: TierNumber
-    subject: BiolinkEntity
-    predicate: BiolinkPredicate
-    object: BiolinkEntity
+    subject: Biolink.Entity
+    predicate: Biolink.Predicate
+    object: Biolink.Entity
     api: str
     association: str | None = None
-    attributes: list[MetaAttributeDict] | None = None
-    qualifiers: dict[QualifierTypeID, list[str]] | None = None
+    attributes: list[MetaAttribute] | None = None
+    qualifiers: list[MetaQualifier] | None = None
     access_metadata: Any | None = None
 
 
 SortedOperations = dict[
-    BiolinkEntity, dict[BiolinkPredicate, dict[BiolinkEntity, list[Operation]]]
+    Biolink.Entity, dict[Biolink.Predicate, dict[Biolink.Entity, list[Operation]]]
 ]
 
 FlatOperations = dict[OpHash, Operation]
@@ -60,4 +60,4 @@ class OperationTable(NamedTuple):
 
     operations_sorted: SortedOperations
     operations_flat: FlatOperations
-    nodes: dict[BiolinkEntity, dict[TierNumber, OperationNode]]
+    nodes: dict[Biolink.Entity, dict[TierNumber, OperationNode]]

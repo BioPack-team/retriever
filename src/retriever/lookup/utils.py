@@ -3,94 +3,60 @@ from typing import NamedTuple
 
 import aiofiles
 from loguru import logger
+from translator_tom.v1_6 import (
+    Biolink,
+    QEdge,
+    QEdgeID,
+    QNodeID,
+    QueryGraph,
+)
 
 from retriever.types.general import (
     AdjacencyGraph,
     QEdgeIDMap,
     QueryInfo,
 )
-from retriever.types.trapi import (
-    BiolinkEntity,
-    BiolinkPredicate,
-    QEdgeDict,
-    QEdgeID,
-    QNodeID,
-    QueryGraphDict,
-)
 from retriever.utils.general import BatchedAction
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.telemetry import contextualize_query_telemetry
 
 
-def expand_qgraph(qg: QueryGraphDict, job_log: TRAPILogger) -> QueryGraphDict:
-    """Ensure all nodes in qgraph have all descendant categories.
-
-    See https://biolink.github.io/biolink-model/categories.html
-    """
+def ensure_minimal_types(qg: QueryGraph, job_log: TRAPILogger) -> QueryGraph:
+    """Ensure nodes without categories have NamedThing and edges without predicates have related_to."""
     # biolink functions are already LRU cached :)
-    for qnode_id, qnode in qg["nodes"].items():
-        categories = set(qnode.get("categories") or {})
-        new_categories = set[BiolinkEntity]()
-        if len(categories) == 0:
-            categories.add(BiolinkEntity("biolink:NamedThing"))
+    for qnode_id, qnode in qg.nodes.items():
+        if len(qnode.categories_list) == 0:
+            qnode.categories = [Biolink("NamedThing")]
             job_log.info(
                 f"QNode {qnode_id}: Inferred NamedThing from empty category list."
             )
-        # Not necessary because backends check against descendants
-        # new_categories = biolink.expand(categories) - categories
 
-        if "biolink:NamedThing" in categories:
-            job_log.info(
-                f"QNode {qnode_id}: Expanded to all categories (original had NamedThing)."
-            )
-        elif len(new_categories):
-            job_log.info(
-                f"QNode {qnode_id}: Added descendant categories {new_categories}."
-            )
-
-        qnode["categories"] = [*categories, *new_categories]
-
-    for qedge_id, qedge in qg["edges"].items():
-        predicates = set(qedge.get("predicates") or {})
-        new_predicates = set[BiolinkPredicate]()
-        if len(predicates) == 0:
-            predicates.add(BiolinkPredicate("biolink:related_to"))
+    for qedge_id, qedge in qg.edges.items():
+        if len(qedge.predicates_list) == 0:
+            qedge.predicates = [Biolink("related_to")]
             job_log.info(
                 f"QEdge {qedge_id}: Inferred related_to from empty predicate list."
             )
-        # Not necessary because backends check against descendants
-        # new_predicates = biolink.expand(predicates) - predicates
-
-        if "biolink:related_to" in predicates:
-            job_log.info(
-                f"QEdge {qedge_id}: Expanded to all predicates (original had related_to)."
-            )
-        elif len(new_predicates):
-            job_log.info(
-                f"QEdge {qedge_id}: Added descendant predicates {new_predicates}."
-            )
-
-        qedge["predicates"] = [*predicates, *new_predicates]
 
     return qg
 
 
-def make_mappings(qg: QueryGraphDict) -> tuple[AdjacencyGraph, QEdgeIDMap]:
+def make_mappings(qg: QueryGraph) -> tuple[AdjacencyGraph, QEdgeIDMap]:
     """Make an undirected QGraph representation in which edges are presented by their nodes."""
     agraph: AdjacencyGraph = {}
     edge_id_map: QEdgeIDMap = {}
-    for edge_id, edge in qg["edges"].items():
+    for edge_id, edge in qg.edges.items():
         edge_id_map[id(edge)] = QEdgeID(edge_id)
-        subject_node = QNodeID(edge["subject"])
-        object_node = QNodeID(edge["object"])
+        subject_node = QNodeID(edge.subject)
+        object_node = QNodeID(edge.object)
         if subject_node not in agraph:
-            agraph[subject_node] = dict[QNodeID, list[QEdgeDict]]()
+            agraph[subject_node] = dict[QNodeID, list[QEdge]]()
         if object_node not in agraph:
-            agraph[object_node] = dict[QNodeID, list[QEdgeDict]]()
+            agraph[object_node] = dict[QNodeID, list[QEdge]]()
         if object_node not in agraph[subject_node]:
-            agraph[subject_node][object_node] = list[QEdgeDict]()
+            agraph[subject_node][object_node] = list[QEdge]()
         if subject_node not in agraph[object_node]:
-            agraph[object_node][subject_node] = list[QEdgeDict]()
+            agraph[object_node][subject_node] = list[QEdge]()
         agraph[subject_node][object_node].append(edge)
         agraph[object_node][subject_node].append(edge)
 
@@ -101,7 +67,7 @@ def get_submitter(query: QueryInfo) -> str:
     """Extract the submitter from a query, if it's provided."""
     body = query.body
 
-    submitter = body is not None and body.get("submitter")
+    submitter = body is not None and body.submitter
 
     if submitter:
         return submitter
@@ -126,16 +92,12 @@ def get_query_metadata(query: QueryInfo, query_type: str) -> QueryMetadata:
     """Obtain useful metrics about the query."""
     qnodes, qedges, qpaths = 0, 0, 0
     body = query.body
-    if (
-        body is not None
-        and "query_graph" in body["message"]
-        and body["message"]["query_graph"]
-    ):
-        qnodes = len(body["message"]["query_graph"]["nodes"])
-        if "edges" in body["message"]["query_graph"]:
-            qedges = len(body["message"]["query_graph"]["edges"])
+    if body is not None and body.message.query_graph is not None:
+        qnodes = len(body.message.query_graph.nodes)
+        if isinstance(body.message.query_graph, QueryGraph):
+            qedges = len(body.message.query_graph.edges)
         else:
-            qpaths = len(body["message"]["query_graph"]["paths"])
+            qpaths = len(body.message.query_graph.paths)
 
     return QueryMetadata(
         job_id=query.job_id,

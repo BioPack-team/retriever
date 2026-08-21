@@ -1,22 +1,35 @@
 import math
 import time
 from collections import deque
-from copy import deepcopy
 from datetime import datetime
 from http import HTTPStatus
+from typing import cast
 
-import bmt
 import httpx
 import orjson
 import ormsgpack
 import zstandard
 from opentelemetry import context, propagate, trace
+from translator_tom.v1_6 import PathfinderQueryGraph, QueryGraph
+from translator_tom.v1_6.model_dicts import (
+    KnowledgeGraphDict,
+    LogEntryDict,
+    MessageDict,
+    QueryGraphDict,
+    ResponseDict,
+    ResultDict,
+)
+from translator_tom.v1_6.model_dicts.workflow_operations import OperationDict
 
 from retriever.config.general import CONFIG
 from retriever.config.openapi import OPENAPI_CONFIG
 from retriever.data_tiers import tier_manager
 from retriever.lookup.qgx import QueryGraphExecutor
-from retriever.lookup.utils import contextualize_query, expand_qgraph, get_submitter
+from retriever.lookup.utils import (
+    contextualize_query,
+    ensure_minimal_types,
+    get_submitter,
+)
 from retriever.lookup.validate import validate
 from retriever.metadata.optable import (
     OpTableManager,
@@ -24,18 +37,7 @@ from retriever.metadata.optable import (
     UnsupportedConstraint,
 )
 from retriever.types.general import QueryInfo
-from retriever.types.trapi import (
-    KnowledgeGraphDict,
-    LogEntryDict,
-    LogLevel,
-    MessageDict,
-    ParametersDict,
-    QueryDict,
-    QueryGraphDict,
-    ResponseDict,
-    ResultDict,
-)
-from retriever.types.trapi_pydantic import TierNumber
+from retriever.types.trapi import AsyncQuery, Parameters, Query, TierNumber
 from retriever.utils import service_health
 from retriever.utils.calls import get_callback_client
 from retriever.utils.compression import accepts_zstd
@@ -43,7 +45,6 @@ from retriever.utils.logs import TRAPILogger, trapi_level_to_int
 from retriever.utils.mongo import MongoOutage, MongoQueue, ResponseState
 
 tracer = trace.get_tracer("lookup.execution.tracer")
-biolink = bmt.Toolkit()
 MONGO_QUEUE = MongoQueue()
 OP_TABLE_MANAGER = OpTableManager()
 
@@ -67,7 +68,7 @@ async def async_lookup(
         # transaction, so the request handler's tags don't reach it.
         contextualize_query(query, "lookup-async")
 
-        if query.body is None or "callback" not in query.body:
+        if query.body is None or not isinstance(query.body, AsyncQuery):
             raise TypeError(f"Expected AsyncQuery, received {type(query.body)}.")
 
         job_id = query.job_id
@@ -76,7 +77,7 @@ async def async_lookup(
         if extra_warnings:
             response["logs"] = [*(response.get("logs") or []), *extra_warnings]
 
-        job_log.debug(f"Sending callback to `{query.body['callback']}`...")
+        job_log.debug(f"Sending callback to `{query.body.callback}`...")
         try:
             async with get_callback_client() as client:
                 callback_json = orjson.dumps(response)
@@ -85,7 +86,7 @@ async def async_lookup(
                     callback_json = ZSTD_COMPRESSOR.compress(callback_json)
                     headers["Content-Encoding"] = "zstd"
                 callback_response = await client.post(
-                    url=str(query.body["callback"]),
+                    url=str(query.body.callback),
                     headers=headers,
                     content=callback_json,
                 )
@@ -108,7 +109,7 @@ async def async_lookup(
             job_log.exception("Unexpected error during callback delivery.")
 
         # Effectively tack the callback logs onto the end of the response
-        response_logs = response.get("logs", []) or []
+        response_logs = response.get("logs") or []
         job_log.log_deque = deque(response_logs) + job_log.log_deque
 
         # Update the stored state with new logs
@@ -176,22 +177,24 @@ async def lookup(query: QueryInfo) -> tuple[HTTPStatus, ResponseDict]:
         job_log.info(
             f"Begin processing job {job_id} for client {get_submitter(query)}."
         )
-        if (query.body.get("parameters") or {}).get("dehydrated"):
+        if query.body and query.body.parameters and query.body.parameters.dehydrated:
             job_log.info(
                 "Query running in dehydrated mode. Response will not be stored."
             )
 
-        qgraph = query.body["message"].get("query_graph")
+        qgraph = query.body.message.query_graph
         if qgraph is None:
             raise ValueError("Query Graph is None.")
 
-        # Query graph validation that isn't handled by reasoner_pydantic
-        if not passes_validation(query.body, response, job_log) or "paths" in qgraph:
+        # Query graph validation that isn't handled by TRAPI model validation
+        if not passes_validation(query.body, response, job_log) or isinstance(
+            qgraph, PathfinderQueryGraph
+        ):
             return tracked_response(
                 HTTPStatus.UNPROCESSABLE_ENTITY, query, response, job_log
             )
 
-        expanded_qgraph = expand_qgraph(deepcopy(qgraph), job_log)
+        expanded_qgraph = ensure_minimal_types(qgraph.model_copy(deep=True), job_log)
 
         if not await qgraph_supported(
             expanded_qgraph, response, job_log, query.tier or 0
@@ -258,42 +261,39 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
         raise TypeError(
             "Received body of type None, should have received Query or AsyncQuery."
         )
-    if (
-        "query_graph" not in query.body["message"]
-        or query.body["message"]["query_graph"] is None
-    ):
+    query_graph = query.body.message.query_graph
+    if query_graph is None:
         raise TypeError(
             "Received QueryGraph of type None, query graph should be present."
         )
 
-    parameters = ParametersDict(tier=query.tier or 0)
-    if (
-        timeout := "parameters" in query.body
-        and query.body["parameters"] is not None
-        and query.body["parameters"].get("timeout")
-    ):
-        parameters["timeout"] = timeout
-    return (
-        job_id,
-        job_log,
-        ResponseDict(  # pyright:ignore[reportCallIssue] Extra is allowed
-            message=MessageDict(
-                query_graph=query.body["message"]["query_graph"],
-                knowledge_graph=KnowledgeGraphDict(nodes={}, edges={}),
-                results=list[ResultDict](),
-            ),
-            biolink_version=OPENAPI_CONFIG.x_translator.biolink_version,
-            schema_version=OPENAPI_CONFIG.x_trapi.version,
-            workflow=query.body.get("workflow"),
-            parameters=parameters,
-            submitter=get_submitter(query),
-            job_id=job_id,
-        ),
+    parameters = Parameters(tier=query.tier or 0)
+    if query.body.parameters is not None and query.body.parameters.timeout:
+        parameters.timeout = query.body.parameters.timeout
+
+    workflow = (
+        [op.to_dict() for op in query.body.workflow] if query.body.workflow else None
     )
+    response = ResponseDict(
+        message=MessageDict(
+            query_graph=QueryGraphDict(**query_graph.to_dict()),
+            knowledge_graph=KnowledgeGraphDict(nodes={}, edges={}),
+            results=list[ResultDict](),
+        ),
+        biolink_version=OPENAPI_CONFIG.x_translator.biolink_version,
+        schema_version=OPENAPI_CONFIG.x_trapi.version,
+        workflow=cast(list[OperationDict], workflow),
+    )
+    # parameters, submitter, and job_id are retriever extensions to the TRAPI Response.
+    response["parameters"] = parameters.to_dict()  # pyright:ignore[reportGeneralTypeIssues] Extra is allowed
+    response["submitter"] = get_submitter(query)  # pyright:ignore[reportGeneralTypeIssues] Extra is allowed
+    response["job_id"] = job_id  # pyright:ignore[reportGeneralTypeIssues] Extra is allowed
+
+    return job_id, job_log, response
 
 
 def passes_validation(
-    query: QueryDict,
+    query: Query | AsyncQuery,
     response: ResponseDict,
     job_log: TRAPILogger,
 ) -> bool:
@@ -321,7 +321,7 @@ def passes_validation(
 
 
 async def qgraph_supported(
-    qgraph: QueryGraphDict,
+    qgraph: QueryGraph,
     response: ResponseDict,
     job_log: TRAPILogger,
     tiers: TierNumber,
@@ -393,21 +393,19 @@ def tracked_response(
     """Utility function for response handling."""
     # Filter for desired log_level
     desired_log_level = trapi_level_to_int(
-        LogLevel(
-            ((query.body) or {}).get("log_level", LogLevel.DEBUG) or LogLevel.DEBUG
-        )
+        (query.body.log_level if query.body else None) or "DEBUG"
     )
     response["logs"] = [
         log
         for log in job_log.get_logs()
-        if trapi_level_to_int(log.get("level", LogLevel.DEBUG) or LogLevel.DEBUG)
-        >= desired_log_level
+        if trapi_level_to_int(log.get("level") or "DEBUG") >= desired_log_level
     ]
 
-    # Cast because TypedDict has some *really annoying* interactions with more general dicts
     kgraph = response["message"].get("knowledge_graph") or {}
     # Don't store dehydrated job responses, they're usually huge
-    dehydrated = bool(((query.body or {}).get("parameters") or {}).get("dehydrated"))
+    dehydrated = bool(
+        query.body and query.body.parameters and query.body.parameters.dehydrated
+    )
     state = ResponseState(
         job_id=query.job_id,
         event_time=datetime.now().astimezone(),

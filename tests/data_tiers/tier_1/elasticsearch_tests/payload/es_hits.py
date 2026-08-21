@@ -1,9 +1,6 @@
-from typing import Any, cast
-
 from retriever.data_tiers.tier_1.elasticsearch.types import (
-    ESEdge,
-    ESPayload,
     ESDocument,
+    ESEdge,
 )
 
 

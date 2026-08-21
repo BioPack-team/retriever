@@ -1,12 +1,12 @@
+from translator_tom.v1_6 import Biolink
+from translator_tom.v1_6.model_dicts import QualifierConstraintDict
+
 from retriever.data_tiers.tier_1.elasticsearch.constraints.types.qualifier_types import (
     ESBoolQueryForExpandedQualifiers,
     ESConstraintsChainedQuery,
     ESEquivalentQualifierPairCollection,
     ESTermClause,
 )
-from retriever.types.trapi import QualifierConstraintDict
-from retriever.utils import biolink
-from retriever.utils.biolink import get_descendant_values, get_descendants
 
 ES_QUAL_FIELD = "qualifiers"
 ES_QUAL_NAME = "type_id"
@@ -36,14 +36,16 @@ def expand_qualifier_pairs(
         equivalent_pairs: set[tuple[str, str]] = set()
 
         # get qualifier type descendants
-        all_q_type_desc: list[str] = get_descendants(q_type)
+        all_q_type_desc: list[str] = Biolink.get_descendants(q_type)
 
         for q_type_desc in all_q_type_desc:
             # for each qualifier type descendant, get value descendants
-            all_q_value_desc: set[str] = get_descendant_values(q_type_desc, q_value)
+            all_q_value_desc: set[str] = Biolink.get_descendant_qualifier_values(
+                q_type_desc, q_value
+            )
             for q_value_desc in all_q_value_desc:
                 equivalent_pairs.add(
-                    (biolink.rmprefix(q_type_desc), biolink.rmprefix(q_value_desc))
+                    (Biolink.rmprefix(q_type_desc), Biolink.rmprefix(q_value_desc))
                 )
 
         should_terms: list[ESTermClause] = [
