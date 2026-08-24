@@ -71,6 +71,7 @@ class BackendResult(NamedTuple):
     results: list[ResultDict]
     knowledge_graph: KnowledgeGraphDict
     auxiliary_graphs: dict[AuxGraphID, AuxiliaryGraphDict]
+    logs: list[LogEntryDict] | None = None
 
 
 class LookupArtifacts(NamedTuple):

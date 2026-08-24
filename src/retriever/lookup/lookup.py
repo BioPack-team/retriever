@@ -181,7 +181,7 @@ async def lookup(query: QueryInfo) -> tuple[HTTPStatus, ResponseDict]:
     try:
         start_time = time.time()
         job_log.info(
-            f"Begin processing job {job_id} for client {get_submitter(query)}."
+            f"Begin processing tier-{query.tier} job {job_id} for client `{get_submitter(query)}`."
         )
         if query.body and query.body.parameters and query.body.parameters.dehydrated:
             job_log.info(
@@ -224,8 +224,6 @@ async def lookup(query: QueryInfo) -> tuple[HTTPStatus, ResponseDict]:
         results, kgraph, aux_graphs, logs, status = await query_handler.execute()
 
         job_log.log_deque.extend(logs)
-
-        job_log.info(f"Collected {len(results)} results from query task.")
 
         duration_ms = math.ceil((time.time() - start_time) * 1000)
         finish_msg = _summarize_execution(

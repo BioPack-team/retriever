@@ -36,7 +36,6 @@ class Tier0Query(ABC):
         """Execute a lookup against Tier 0 and return what is found."""
         try:
             start_time = time.time()
-            self.job_log.info("Starting lookup against Tier 0...")
 
             timeout = None if self.ctx.timeout < 0 else self.ctx.timeout
             self.job_log.debug(
@@ -53,6 +52,13 @@ class Tier0Query(ABC):
 
             if self.ctx.body is None:
                 raise ValueError("Expected query body, got None")
+
+            if logs := backend_results.logs:
+                self.job_log.debug("<Begin backend-produced logs>")
+                for entry in logs:
+                    self.job_log.replay_entry(entry)
+                self.job_log.debug("<End of backend logs>")
+
             parameters = (self.ctx.body).parameters or Parameters()
 
             if not parameters.dehydrated:

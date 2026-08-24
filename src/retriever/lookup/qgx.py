@@ -153,7 +153,6 @@ class QueryGraphExecutor:
         timeout_task = asyncio.create_task(self.start_timeout_clock())
         try:
             self.start_time = time.time()
-            self.job_log.info(f"Starting lookup against Tier {self.ctx.tier}...")
             supported, operation_plan = await OP_TABLE_MANAGER.create_operation_plan(
                 self.qgraph, (self.ctx.tier or 0)
             )
