@@ -350,17 +350,26 @@ async def status_root() -> StatusSnapshot:
     redis_mem_r: object = None
     metakg_r: object = None
     subclass_r: object = None
+    leader_r: object = None
+    leader_elected_r: object = None
     if redis_client.up:
+        # gather()'s typed tuple overloads stop at 6 awaitables; past that it
+        # returns list[...], so route through object before the tuple cast.
         redis_results = cast(
-            tuple[object, object, object, object, object, object],
-            await asyncio.gather(
-                redis_client.list_main(),
-                redis_client.list_background(),
-                redis_client.list_workers(),
-                redis_client.used_memory_bytes(),
-                redis_client.metakg_freshness(),
-                redis_client.subclass_freshness(),
-                return_exceptions=True,
+            tuple[object, object, object, object, object, object, object, object],
+            cast(
+                object,
+                await asyncio.gather(
+                    redis_client.list_main(),
+                    redis_client.list_background(),
+                    redis_client.list_workers(),
+                    redis_client.used_memory_bytes(),
+                    redis_client.metakg_freshness(),
+                    redis_client.subclass_freshness(),
+                    redis_client.get_leader(),
+                    redis_client.get_leader_elected_at(),
+                    return_exceptions=True,
+                ),
             ),
         )
         (
@@ -370,6 +379,8 @@ async def status_root() -> StatusSnapshot:
             redis_mem_r,
             metakg_r,
             subclass_r,
+            leader_r,
+            leader_elected_r,
         ) = redis_results
         if any(isinstance(r, BaseException) for r in redis_results):
             redis_client.request_health_check()
@@ -400,6 +411,8 @@ async def status_root() -> StatusSnapshot:
     stuck_job_count = _unwrap(stuck_r)
     metakg_record = cast(FreshnessRecord | None, _unwrap(metakg_r))
     subclass_record = cast(FreshnessRecord | None, _unwrap(subclass_r))
+    leader = cast(str | None, _unwrap(leader_r))
+    leader_elected_at = cast(datetime | None, _unwrap(leader_elected_r))
 
     # `registry_available` flips False when *any* of the three registry
     # reads failed (they all hit Redis; one failing means we can't trust
@@ -498,6 +511,8 @@ async def status_root() -> StatusSnapshot:
         # True on their own snapshot - not currently wired.
         metakg=_metakg_row(metakg_record, self_reported=False, now=now),
         subclass_map=_subclass_map_row(subclass_record),
+        leader=leader,
+        leader_elected_at=leader_elected_at,
     )
 
 

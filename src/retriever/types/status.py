@@ -309,3 +309,7 @@ class StatusSnapshot(TypedDict):
     tiers: list[StatusTier]
     metakg: StatusMetaKG
     subclass_map: StatusSubclassMap
+    leader: str | None
+    """Builder token of the current leader; None when the cluster is leaderless."""
+    leader_elected_at: datetime | None
+    """Best-effort time the current leader won the lease; None if unknown/leaderless."""
