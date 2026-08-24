@@ -9,10 +9,8 @@ from translator_tom.v1_6 import (
     QueryGraph,
 )
 from translator_tom.v1_6.model_dicts import (
-    AuxiliaryGraphDictUtil,
     EdgeDictUtil,
     KnowledgeGraphDictUtil,
-    ResultDictUtil,
 )
 
 from retriever.types.general import BackendResult, LookupArtifacts, QueryInfo
@@ -60,12 +58,6 @@ class Tier0Query(ABC):
                 self.job_log.debug("<End of backend logs>")
 
             parameters = (self.ctx.body).parameters or Parameters()
-
-            if not parameters.dehydrated:
-                with tracer.start_as_current_span("update_kg"):
-                    edge_mapping = KnowledgeGraphDictUtil.normalize(kgraph)
-                    ResultDictUtil.normalize_list(results, edge_mapping)
-                    AuxiliaryGraphDictUtil.normalize_aux_dict(aux_graphs, edge_mapping)
 
             end_time = time.time()
             duration_ms = math.ceil((end_time - start_time) * 1000)
