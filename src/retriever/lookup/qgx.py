@@ -20,7 +20,6 @@ from translator_tom.v1_6.model_dicts import (
     KnowledgeGraphDict,
     KnowledgeGraphDictUtil,
     LogEntryDict,
-    QueryGraphDict,
     ResultDict,
 )
 
@@ -52,7 +51,6 @@ from retriever.utils.general import EmptyIteratorError, merge_iterators
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.redis import RedisClient
 from retriever.utils.trapi import (
-    evaluate_set_interpretation,
     initialize_kgraph,
 )
 
@@ -229,9 +227,10 @@ class QueryGraphExecutor:
                 f"KG Pruning: {len(self.kgraph['nodes'])} (-{pruned_nodes}) nodes and {len(self.kgraph['edges'])} (-{pruned_edges}) edges remain."
             )
 
-            results = evaluate_set_interpretation(
-                QueryGraphDict(**self.qgraph.to_dict()), results, self.job_log
-            )
+            # Disabled due to implementation bugs (it was previously no-op due to another bug)
+            # results = evaluate_set_interpretation(
+            #     QueryGraphDict(**self.qgraph.to_dict()), results, self.job_log
+            # )
 
             return LookupArtifacts(
                 results,
