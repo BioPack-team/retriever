@@ -243,6 +243,14 @@ class GandalfDriver(DatabaseDriver):
         return self.metadata
 
     @override
+    def get_release_version(self) -> str | None:
+        """Top-level `version` from cached DINGO metadata, if available."""
+        if self.metadata is None:
+            return None
+        version = self.metadata.get("version")
+        return version if isinstance(version, str) else None
+
+    @override
     async def get_operations(
         self,
         bypass_cache: bool = False,

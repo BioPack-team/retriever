@@ -37,7 +37,13 @@ from retriever.metadata.optable import (
     UnsupportedConstraint,
 )
 from retriever.types.general import QueryInfo
-from retriever.types.trapi import AsyncQuery, Parameters, Query, TierNumber
+from retriever.types.trapi import (
+    AsyncQuery,
+    DataReleaseVersions,
+    Parameters,
+    Query,
+    TierNumber,
+)
 from retriever.utils import service_health
 from retriever.utils.calls import get_callback_client
 from retriever.utils.compression import accepts_zstd
@@ -288,6 +294,13 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
     response["parameters"] = parameters.to_dict()  # pyright:ignore[reportGeneralTypeIssues] Extra is allowed
     response["submitter"] = get_submitter(query)  # pyright:ignore[reportGeneralTypeIssues] Extra is allowed
     response["job_id"] = job_id  # pyright:ignore[reportGeneralTypeIssues] Extra is allowed
+
+    if (
+        release_version := tier_manager.get_driver(0).get_release_version()
+    ) is not None:
+        response["data_release_versions"] = DataReleaseVersions(  # pyright:ignore[reportGeneralTypeIssues] Extra is allowed
+            translator_kg=release_version
+        ).to_dict()
 
     return job_id, job_log, response
 
