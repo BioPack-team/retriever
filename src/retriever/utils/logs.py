@@ -170,6 +170,29 @@ class TRAPILogger:
         """Log with a given exception as an ERROR-level log."""
         self._log("ERROR", message, exception, **kwargs)
 
+    def replay_entry(self, entry: LogEntryDict) -> None:
+        """Emit a TRAPI log through loguru, retaining it verbatim.
+
+        Adopts the entry's level and timestamp.
+        """
+        level = (entry.get("level") or TRAPILogLevel.DEBUG).upper()
+        raw_ts = entry.get("timestamp")
+        try:
+            timestamp = (
+                datetime.fromisoformat(raw_ts)
+                if raw_ts
+                else datetime.now().astimezone()
+            )
+        except ValueError:
+            timestamp = datetime.now().astimezone()
+
+        with logger.contextualize(job_id=self.job_id):
+            logger.patch(lambda record: record.update(time=timestamp)).log(
+                level, entry["message"]
+            )
+
+        self.log_deque.append(entry)
+
     def get_logs(self) -> list[LogEntryDict]:
         """Get a generator of stored TRAPI logs."""
         return list(self.log_deque)

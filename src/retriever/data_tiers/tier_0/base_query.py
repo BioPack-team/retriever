@@ -51,7 +51,8 @@ class Tier0Query(ABC):
 
             if logs := backend_results.get("logs"):
                 self.job_log.debug("<Begin backend-produced logs>")
-                self.job_log.log_deque.extend(logs)
+                for entry in logs:
+                    self.job_log.replay_entry(entry)
                 self.job_log.debug("<End of backend logs>")
 
             parameters = (self.ctx.body or {}).get("parameters") or ParametersDict()
