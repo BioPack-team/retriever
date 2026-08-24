@@ -80,6 +80,12 @@ class RedisSettings(BaseModel):
             description="TTL on the build-leader lease, renewed each heartbeat interval. Set to several intervals to avoid touchy handoffs."
         ),
     ] = 180
+    propagate_health: Annotated[
+        bool,
+        Field(
+            description="Broadcast backend outage/recovery over Redis pub/sub so workers pick up outage quickly; falls back to process-local health when off or Redis is down."
+        ),
+    ] = True
 
 
 class MongoSettings(BaseModel):

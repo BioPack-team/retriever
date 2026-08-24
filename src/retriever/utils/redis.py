@@ -7,6 +7,7 @@ from datetime import datetime
 from types import CoroutineType, TracebackType
 from typing import (
     Any,
+    Literal,
     Protocol,
     Self,
     TypedDict,
@@ -71,6 +72,11 @@ else
 end
 """
 
+# Cross-process backend outage/recovery propagation; payload is a JSON
+# BackendHealthMessage. Lets one process's detected outage flip peers to
+# fallback without each waiting to detect it independently.
+BACKEND_HEALTH_CHANNEL = "backend:health"
+
 # Timestamp keys written alongside published artifacts so /status
 # can show freshness without inferring from TTL.
 OP_TABLE_META_KEY = f"{PREFIX}op_table:meta"
@@ -102,6 +108,19 @@ class FreshnessRecord(TypedDict):
 
     refreshed_at: datetime
     count: int
+
+
+class BackendHealthMessage(TypedDict):
+    """A backend outage/recovery broadcast on `BACKEND_HEALTH_CHANNEL`."""
+
+    backend: str
+    """The originating client's `health_key`."""
+    event: Literal["outage", "recovery"]
+    pid: int
+    """Publisher's PID; receivers drop their own echoes."""
+    at: str
+    """ISO-8601 transition timestamp."""
+    error: str | None
 
 
 class PubSubMessage(TypedDict):

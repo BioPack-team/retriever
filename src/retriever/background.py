@@ -16,6 +16,7 @@ from retriever.data_tiers import tier_manager
 from retriever.lookup.subclass import SubclassMapping
 from retriever.metadata.optable import OpTableManager
 from retriever.utils.general import tolerate_init
+from retriever.utils.health_coordinator import HealthCoordinator
 from retriever.utils.leader import LEADER_ELECTION
 from retriever.utils.logs import add_mongo_sink
 from retriever.utils.mongo import MongoClient, MongoQueue
@@ -63,6 +64,7 @@ async def _background_async() -> None:
     # Managers have registered their on_acquire hooks; contend for the build lease
     # so exactly one instance drives the builds across the shared Redis.
     await tolerate_init("Leader election", LEADER_ELECTION.start())
+    await tolerate_init("Health propagation", HealthCoordinator().start())
     orphan_task = asyncio.create_task(
         periodically_mark_orphans(), name="orphan-detection"
     )
@@ -82,6 +84,8 @@ async def _background_async() -> None:
     orphan_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await orphan_task
+    # Clear health observers/subscription before dependencies wrap up.
+    await HealthCoordinator().stop()
     # Heartbeat task lives in RedisClient().tasks; cancelled in its wrapup.
     # Relinquish the build lease first so a peer can take over promptly, and
     # while Redis is still up to release it (rather than waiting on TTL).
