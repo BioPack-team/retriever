@@ -138,6 +138,7 @@ launch = 'retriever'
     JOB__LOOKUP__TIER1_TIMEOUT=-1 \
     JOB__LOOKUP__TIER2_TIMEOUT=-1 \
     JOB__METAKG__TIMEOUT=-1 \
+    MONGO__STORED_SUCCESS_PROPORTION=1.0 \
     WORKERS=1 \
     retriever
 """

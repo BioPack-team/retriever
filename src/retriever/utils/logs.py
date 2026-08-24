@@ -253,7 +253,7 @@ def add_mongo_sink() -> None:
         serialize=True,
         enqueue=True,
         filter=lambda record: not record["extra"].get("no_mongo_log", False),
-        level=CONFIG.log_level,
+        level=CONFIG.log.mongo_level,
     )
 
 

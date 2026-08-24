@@ -105,6 +105,14 @@ class MongoSettings(BaseModel):
             description="Compressed job-docs at or above this size are not persisted."
         ),
     ] = 128 * 1024**2
+    stored_success_proportion: Annotated[
+        float,
+        Field(
+            ge=0,
+            le=1,
+            description="Fraction of succeeded response bodies to persist. Failures are always kept.",
+        ),
+    ] = 0.1
 
 
 class TelemetrySettings(BaseModel):
@@ -231,6 +239,9 @@ class LogSettings(BaseModel):
     """Settings for log handling."""
 
     log_to_mongo: Annotated[bool, Field(description="Persist logs in MongoDB.")] = True
+    mongo_level: Annotated[
+        LogLevel, Field(description="Minimum level of logs persisted to MongoDB.")
+    ] = "INFO"
     mongo_ttl: Annotated[
         int, Field(description="Time in seconds for a log to persist.")
     ] = 604_800

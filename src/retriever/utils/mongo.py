@@ -1623,7 +1623,7 @@ class MongoClient(BackendClient):
         """Return a generator of a filtered set of logs."""
         query = _build_log_query(start, end, level)
         if job_id is not None:
-            query["extra.job_id"] = {"$regex": job_id}
+            query["extra.job_id"] = job_id
 
         async for document in self._yield_logs(query):
             yield document
@@ -1747,6 +1747,16 @@ class MongoClient(BackendClient):
         self.client.close()
 
 
+def _store_job_success_response(job_id: str) -> bool:
+    """Whether to persist this succeeded response body.
+
+    Deterministic and uniform over `job_id` (a random uuid4 hex), so the two
+    writes an async job makes agree and never churn a stored blob.
+    `stored_success_proportion` of 0.0 keeps nothing, 1.0 keeps everything.
+    """
+    return int(job_id[:8], 16) / 0x1_0000_0000 < CONFIG.mongo.stored_success_proportion
+
+
 class MongoOutage(Exception):
     """Raised by `MongoQueue.put` when MongoClient is down; callers attach a warning."""
 
@@ -1811,6 +1821,13 @@ class MongoQueue(BatchedAction):
                     f"Job {state['job_id']} {doc_type} is {size} bytes (>= {CONFIG.mongo.max_stored_doc_bytes} cap); delivering without storing it.",
                     no_mongo_log=True,
                 )
+            elif (
+                doc_type == "response"
+                and cast("ResponseState", state)["status"] in TERMINAL_SUCCESS
+                and not _store_job_success_response(state["job_id"])
+            ):
+                # Don't store (but keep the query)
+                store_doc = False
             elif size > GRIDFS_INLINE_LIMIT:
                 doc_ref = await self.client.offload_doc_blob(state["job_id"], blob)  # pyright: ignore[reportArgumentType] size>0 implies blob is not None
             ops.append(
