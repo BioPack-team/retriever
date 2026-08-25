@@ -20,6 +20,7 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import (
+    ORJSONResponse,
     RedirectResponse,
     StreamingResponse,
 )
@@ -32,10 +33,8 @@ from translator_tom.v1_6 import (
     AsyncQueryStatusResponse,
     Infores,
     MetaKnowledgeGraph,
-    Response,
 )
 from translator_tom.v1_6.model_dicts import (
-    AsyncQueryResponseDict,
     EdgeDictUtil,
     ResponseDict,
 )
@@ -58,7 +57,7 @@ from retriever.query import (
 )
 from retriever.types.dingo import DINGOMetadata
 from retriever.types.general import APIInfo, ErrorDetail, LogLevel
-from retriever.types.trapi import AsyncQuery, Query, TierNumber
+from retriever.types.trapi import AsyncQuery, Query, Response, TierNumber
 from retriever.utils import service_health, worker
 from retriever.utils.compression import ZstdRequestMiddleware
 from retriever.utils.examples import EXAMPLE_QUERY
@@ -315,7 +314,7 @@ async def metadata(
     status_code, response_dict = await make_metadata_query(
         APIInfo(request, response), tier=tier
     )
-    return FastAPIResponse(response_dict, status_code=status_code)
+    return ORJSONResponse(response_dict, status_code=status_code)
 
 
 @app.post(
@@ -351,7 +350,7 @@ async def query(
     status_code, response_dict = await make_lookup_query(
         APIInfo(request, response), body=body
     )
-    return FastAPIResponse(response_dict, status_code=status_code)
+    return ORJSONResponse(response_dict, status_code=status_code)
     # return {}
 
 
@@ -384,13 +383,12 @@ async def asyncquery(
     response: FastAPIResponse,
     body: AsyncQuery,
     background_tasks: BackgroundTasks,
-) -> AsyncQueryResponseDict | ErrorDetail:
+) -> FastAPIResponse:
     """Initiate an asynchronous query."""
     status_code, response_dict = await make_lookup_query(
         APIInfo(request, response, background_tasks), body=body
     )
-    response.status_code = status_code
-    return response_dict
+    return ORJSONResponse(response_dict, status_code=status_code)
 
 
 @app.get(
@@ -425,7 +423,7 @@ async def asyncquery_status(request: Request, job_id: str) -> FastAPIResponse:
             ),
         )
     status_code, job_dict = await get_job_status(job_id.lower(), request)
-    return FastAPIResponse(job_dict, status_code=status_code)
+    return ORJSONResponse(job_dict, status_code=status_code)
 
 
 @app.get(
@@ -453,11 +451,11 @@ async def response(request: Request, job_id: str) -> FastAPIResponse:
             ),
         )
     status_code, job_dict = await get_job_response(job_id.lower(), request)
-    return FastAPIResponse(job_dict, status_code=status_code)
+    return ORJSONResponse(job_dict, status_code=status_code)
 
 
-@app.post("/rehydrate")
-async def rehydrate(body: ResponseDict) -> ResponseDict:
+@app.post("/rehydrate", response_model=Response)
+async def rehydrate(body: ResponseDict) -> FastAPIResponse:
     """Passthrough rehydration to backend."""
     # TODO: use the appropriate tier based on parameters
     driver = tier_manager.get_driver(0)
@@ -469,7 +467,7 @@ async def rehydrate(body: ResponseDict) -> ResponseDict:
         .values()
     ):
         EdgeDictUtil.append_aggregator(edge, Infores("infores:retriever"))
-    return response_dict
+    return ORJSONResponse(response_dict)
 
 
 @app.get(
@@ -570,7 +568,7 @@ async def config() -> FastAPIResponse:
         config["retriever_version_link"] = (
             f"https://github.com/BioPack-team/retriever/tree/{sha}"
         )
-    return FastAPIResponse(config)
+    return ORJSONResponse(config)
 
 
 # Set up Sentry and Otel
