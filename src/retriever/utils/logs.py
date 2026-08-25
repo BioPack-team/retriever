@@ -174,9 +174,12 @@ class TRAPILogger:
     def replay_entry(self, entry: LogEntryDict) -> None:
         """Emit a TRAPI log through loguru, retaining it verbatim.
 
-        Adopts the entry's level and timestamp.
+        Adopts the entry's level and timestamp. Tolerates malformed upstream
+        entries (unknown level, missing message) so one bad backend log can't
+        fail the whole query.
         """
         level = (entry.get("level") or "DEBUG").upper()
+        message = entry.get("message") or ""
         raw_ts = entry.get("timestamp")
         try:
             timestamp = (
@@ -184,13 +187,16 @@ class TRAPILogger:
                 if raw_ts
                 else datetime.now().astimezone()
             )
-        except ValueError:
+        except (ValueError, TypeError):
             timestamp = datetime.now().astimezone()
 
         with logger.contextualize(job_id=self.job_id):
-            logger.patch(lambda record: record.update(time=timestamp)).log(
-                level, entry["message"]
-            )
+            patched = logger.patch(lambda record: record.update(time=timestamp))
+            try:
+                patched.log(level, message)
+            except ValueError:
+                # Unknown loguru level from an upstream backend; downgrade to DEBUG.
+                patched.log("DEBUG", message)
 
         self.log_deque.append(entry)
 

@@ -1826,8 +1826,9 @@ class MongoQueue(BatchedAction):
                 and cast("ResponseState", state)["status"] in TERMINAL_SUCCESS
                 and not _store_job_success_response(state["job_id"])
             ):
-                # Don't store (but keep the query)
                 store_doc = False
+                # Drop any prior offloaded query blob so it isn't left orphaned.
+                await self.client.delete_doc_blobs(state["job_id"])
             elif size > GRIDFS_INLINE_LIMIT:
                 doc_ref = await self.client.offload_doc_blob(state["job_id"], blob)  # pyright: ignore[reportArgumentType] size>0 implies blob is not None
             ops.append(

@@ -387,6 +387,55 @@ async def test_sampled_out_success_clears_initial_query_blob(
 
 
 @pytest.mark.asyncio
+async def test_sampled_out_success_clears_offloaded_query_blob(
+    test_mongo: MongoClient,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A sampled-out success deletes a GridFS-offloaded query blob, not just an inline doc."""
+    monkeypatch.setattr(CONFIG.mongo, "stored_success_proportion", 0.0)
+
+    job_id = uuid.uuid4().hex
+    # An oversized initial query spills to GridFS instead of storing inline.
+    await MongoQueue().job_state(
+        [
+            QueryState(
+                job_id=job_id,
+                query=b"\x06" * (GRIDFS_INLINE_LIMIT + 100),
+                job_timeout=30.0,
+                submitter="tester",
+                data_tier=0,
+                is_async=True,
+                qnodes=2,
+                qedges=1,
+                qpaths=0,
+                status="Running",
+                worker_pid=1234,
+                worker_started_at=datetime.now().astimezone(),
+                event_time=datetime.now().astimezone(),
+            )
+        ]
+    )
+    _, docs = test_mongo.get_job_collection()
+    assert (await docs.find_one({"job_id": job_id}) or {}).get("doc_ref") is not None
+    assert (
+        await test_mongo._doc_blob_files().count_documents({"metadata.job_id": job_id})
+        == 1
+    )
+
+    # The sampled-out response must drop that offloaded blob, not just unset doc_ref.
+    await _write(_response_state(job_id, b"response-body-dropped"))
+
+    raw = await docs.find_one({"job_id": job_id})
+    assert raw is not None
+    assert raw.get("doc") is None
+    assert raw.get("doc_ref") is None
+    assert (
+        await test_mongo._doc_blob_files().count_documents({"metadata.job_id": job_id})
+        == 0
+    )
+
+
+@pytest.mark.asyncio
 async def test_failure_always_stored_despite_zero_proportion(
     test_mongo: MongoClient,  # noqa: F811
     monkeypatch: pytest.MonkeyPatch,
