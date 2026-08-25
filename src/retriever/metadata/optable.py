@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import itertools
+import time
 from collections import defaultdict
 from collections.abc import Awaitable, Callable, Coroutine, Iterable
 from typing import NamedTuple, override
@@ -48,6 +49,12 @@ tracer = trace.get_tracer("lookup.execution.tracer")
 REDIS_CLIENT = RedisClient()
 
 METAKG_GET_ATTEMPTS = 3
+
+OP_TABLE_WAIT_POLL_SECONDS = 0.5
+"""How often a worker re-checks for the leader-published OpTable while waiting."""
+
+OP_TABLE_WAIT_CAP_SECONDS = 60.0
+"""Bounded wait for the leader's OpTable when `metakg.acquire_timeout` is disabled (<=0)."""
 
 OperationPlan = dict[QEdgeID, list[Operation]]
 
@@ -194,14 +201,17 @@ class OpTableManager(AsyncDaemon):
         except Exception:
             logger.exception("Local OpTable rebuild on tier recovery failed.")
 
-    async def degraded_local_build(self) -> None:
-        """Worker-side local OpTable build when Redis is unavailable; not published."""
-        logger.info(
-            "Building local OpTable from available tiers (Redis unavailable)..."
-        )
+    async def degraded_local_build(self, *, force: bool = False) -> None:
+        """Build the OpTable locally without publishing it.
+
+        With `force`, keep the result even when Redis is up (the leader never
+        published within the wait window); otherwise a build that raced a Redis
+        recovery is discarded in favor of the published copy.
+        """
+        logger.info("Building local OpTable from available tiers...")
         op_table = await self._collect_tier_ops(bypass_cache=True)
         async with self.update_lock:
-            if REDIS_CLIENT.up:
+            if not force and REDIS_CLIENT.up:
                 logger.debug(
                     "Redis recovered mid-local-build; discarding local OpTable."
                 )
@@ -403,8 +413,8 @@ class OpTableManager(AsyncDaemon):
 
     async def build_operation_table(self) -> None:
         """Build Retriever's internal OperationTable and store it to Redis."""
-        # Build+publish only when this builder's instance is the elected leader;
-        # workers (is_builder False) may still build on demand via get_op_table.
+        # Only the elected leader builds+publishes the shared OpTable (workers
+        # wait for it, or build locally without publishing, in get_op_table).
         if self.is_builder and not LEADER_ELECTION.is_leader:
             return
 
@@ -449,24 +459,47 @@ class OpTableManager(AsyncDaemon):
         logger.success("In-memory OpTable updated.")
 
     async def get_op_table(self) -> OperationTable:
-        """Return the currently-stored Operation Table; worker-builds locally if Redis is down."""
-        # Phase 1: try pulling from Redis up to 3 times.
-        # Phase 2: build then pull up to 3 more times.
-        # Worker fallback (Redis down): build locally and re-check.
-        for phase in range(2):
-            for _ in range(3):
-                async with self.update_lock:
-                    op_table = self._operation_table
-                if op_table is not None:
-                    return op_table
-                if not REDIS_CLIENT.up and not self.is_builder:
-                    # Worker can't pull the published copy; build from
-                    # available tiers and re-check.
-                    await self.degraded_local_build()
-                    continue
-                if phase == 1:
-                    await self.build_operation_table()
+        """Return the operation table, waiting for the leader's published copy.
+
+        Workers poll (and receive OP_TABLE_UPDATE_CHANNEL notifications) up to
+        `metakg.acquire_timeout`, then fall back to an unpublished local build so
+        a request never hangs on an absent leader; only builders publish.
+        """
+        timeout = CONFIG.job.metakg.acquire_timeout
+        # A disabled (<=0) acquire timeout still caps the wait so a worker never
+        # hangs indefinitely on an absent leader.
+        wait = timeout if timeout > 0 else OP_TABLE_WAIT_CAP_SECONDS
+        deadline = time.monotonic() + wait
+        while time.monotonic() < deadline:
+            async with self.update_lock:
+                op_table = self._operation_table
+            if op_table is not None:
+                return op_table
+
+            if self.is_builder:
+                # The builder is the authoritative source: build and publish.
+                await self.build_operation_table()
                 await self.pull_op_table("")
+                continue
+
+            if not REDIS_CLIENT.up:
+                # No published copy to wait for; build locally without publishing.
+                await self.degraded_local_build()
+                continue
+
+            # Wait for the leader to publish, pulling in case the notify was missed.
+            await self.pull_op_table("")
+            async with self.update_lock:
+                if self._operation_table is not None:
+                    continue
+            await asyncio.sleep(OP_TABLE_WAIT_POLL_SECONDS)
+
+        # Leader never published in time: last-resort local build (unpublished).
+        await self.degraded_local_build(force=True)
+        async with self.update_lock:
+            op_table = self._operation_table
+        if op_table is not None:
+            return op_table
         raise ValueError("Failed to retrieve or build a valid OpTable!")
 
     def _operation_applies(
