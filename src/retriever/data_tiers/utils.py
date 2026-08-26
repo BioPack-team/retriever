@@ -115,11 +115,11 @@ def parse_dingo_metadata_unhashed(
                 api=infores,
                 tier=tier,
                 attributes=[
-                    MetaAttribute(attribute_type_id=Biolink(attr_type))
+                    MetaAttribute.model_construct(attribute_type_id=Biolink(attr_type))
                     for attr_type in edge["attributes"]
                 ],
                 qualifiers=[
-                    MetaQualifier(
+                    MetaQualifier.model_construct(
                         qualifier_type_id=Biolink(qual_type), applicable_values=[]
                     )
                     for qual_type in edge["qualifiers"]
@@ -134,7 +134,9 @@ def parse_dingo_metadata_unhashed(
                 prefixes={infores: list(node["id_prefixes"].keys())},
                 attributes={
                     infores: [
-                        MetaAttribute(attribute_type_id=Biolink(attr_type))
+                        MetaAttribute.model_construct(
+                            attribute_type_id=Biolink(attr_type)
+                        )
                         for attr_type in node["attributes"]
                     ]
                 },

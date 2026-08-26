@@ -25,7 +25,7 @@ def validate(query: Query | AsyncQuery) -> tuple[list[str], list[str]]:
         return [], ["query_graph missing."]
     if isinstance(qg, PathfinderQueryGraph):
         return [], ["Retriever does not support Pathfinder queries."]
-    parameters = query.parameters or Parameters()
+    parameters = query.parameters or Parameters.model_construct()
     if (parameters.tier or 0) == 1 and parameters.dehydrated:
         return [], ["Tier 1 does not yet support dehydrated querying."]
 

@@ -57,7 +57,7 @@ class Tier0Query(ABC):
                     self.job_log.replay_entry(entry)
                 self.job_log.debug("<End of backend logs>")
 
-            parameters = (self.ctx.body).parameters or Parameters()
+            parameters = (self.ctx.body).parameters or Parameters.model_construct()
 
             end_time = time.time()
             duration_ms = math.ceil((end_time - start_time) * 1000)

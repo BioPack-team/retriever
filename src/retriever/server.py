@@ -267,7 +267,7 @@ async def meta_knowledge_graph(
             description="Data Tier to use. Leave unset to view all.",
         ),
     ] = None,
-) -> MetaKnowledgeGraph | ErrorDetail:
+) -> FastAPIResponse:
     """Retrieve the Meta-Knowledge Graph."""
     snap = service_health.Snapshot()
     if tier is not None:
@@ -293,8 +293,13 @@ async def meta_knowledge_graph(
     status_code, response_dict = await make_metakg_query(
         APIInfo(request, response), tier=tier
     )
-    response.status_code = status_code
-    return response_dict
+    if isinstance(response_dict, MetaKnowledgeGraph):
+        return FastAPIResponse(
+            content=response_dict.to_json(),
+            media_type="application/json",
+            status_code=status_code,
+        )
+    return ORJSONResponse(response_dict, status_code=status_code)
 
 
 @app.get(

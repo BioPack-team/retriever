@@ -682,7 +682,7 @@ class OpTableManager(AsyncDaemon):
                 qualifiers = edge_qualifiers[spo]
                 attributes = edge_attributes[spo]
             else:
-                meta_edge = MetaEdge(
+                meta_edge = MetaEdge.model_construct(
                     subject=sbj, predicate=pred, object=obj, knowledge_types=["lookup"]
                 )
                 qualifiers = dict[str, set[str]]()
@@ -725,7 +725,7 @@ class OpTableManager(AsyncDaemon):
         for spo, edge in edges.items():
             qualifiers = list[MetaQualifier]()
             for qual_type, values in edge_qualifiers[spo].items():
-                qualifier = MetaQualifier(
+                qualifier = MetaQualifier.model_construct(
                     qualifier_type_id=Biolink.Qualifier(qual_type),
                 )
                 if len(values):
@@ -751,9 +751,11 @@ class OpTableManager(AsyncDaemon):
                         for attr in itertools.chain(*node.attributes.values())
                     }
                 )
-            nodes[category] = MetaNode(
+            nodes[category] = MetaNode.model_construct(
                 id_prefixes=list(id_prefixes),
                 attributes=list(attributes.values()),
             )
 
-        return MetaKnowledgeGraph(nodes=nodes, edges=list(edges.values()))
+        return MetaKnowledgeGraph.model_construct(
+            nodes=nodes, edges=list(edges.values())
+        )

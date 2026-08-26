@@ -245,7 +245,7 @@ class SubqueryDispatcher(BatchedAction):
         else:
             object_node.ids = [branch.input_curie]
 
-        qgraph = QueryGraph(
+        qgraph = QueryGraph.model_construct(
             nodes={
                 current_edge.subject: subject_node,
                 current_edge.object: object_node,
@@ -273,7 +273,7 @@ class SubqueryDispatcher(BatchedAction):
             reverse_edge = current_edge.get_inverse()
             if not reverse_edge.predicates:
                 reverse_edge.predicates = [Biolink("related_to")]
-            reverse_qg = QueryGraph(
+            reverse_qg = QueryGraph.model_construct(
                 nodes={
                     current_edge.subject: object_node,
                     current_edge.object: subject_node,

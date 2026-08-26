@@ -18,8 +18,8 @@ class GandalfQuery(Tier0Query):
     @override
     async def get_results(self, qgraph: QueryGraph) -> BackendResult:
         backend_driver = GandalfDriver()
-        query_payload = Query(
-            message=Message(query_graph=qgraph),
+        query_payload = Query.model_construct(
+            message=Message.model_construct(query_graph=qgraph),
             parameters=self.ctx.body.parameters if self.ctx.body else None,
         )
 

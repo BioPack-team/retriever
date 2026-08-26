@@ -271,7 +271,7 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
             "Received QueryGraph of type None, query graph should be present."
         )
 
-    parameters = Parameters(tier=query.tier or 0)
+    parameters = Parameters.model_construct(tier=query.tier or 0)
     if query.body.parameters is not None and query.body.parameters.timeout:
         parameters.timeout = query.body.parameters.timeout
 
@@ -296,7 +296,7 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
     if (
         release_version := tier_manager.get_driver(0).get_release_version()
     ) is not None:
-        response["data_release_versions"] = DataReleaseVersions(  # pyright:ignore[reportGeneralTypeIssues] Extra is allowed
+        response["data_release_versions"] = DataReleaseVersions.model_construct(  # pyright:ignore[reportGeneralTypeIssues] Extra is allowed
             translator_kg=release_version
         ).to_dict()
 
