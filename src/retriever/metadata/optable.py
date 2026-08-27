@@ -384,10 +384,17 @@ class OpTableManager(AsyncDaemon):
         pull fresh upstream metadata; drivers fall back to their own
         cache when the live fetch fails.
         """
+        # Skip down tiers: a forced live fetch against an unreachable backend blocks
+        # for the full query timeout, stalling the build instead of degrading.
+        active_tiers = [t for t in range(0, 2) if tier_manager.get_driver(t).up]
+        for tier in range(0, 2):
+            if tier not in active_tiers:
+                logger.warning(f"OpTable build: Tier {tier} is down; skipping.")
+
         results = await asyncio.gather(
             *(
                 tier_manager.get_driver(tier).get_operations(bypass_cache=bypass_cache)
-                for tier in range(0, 2)
+                for tier in active_tiers
             ),
             return_exceptions=True,
         )
@@ -396,7 +403,7 @@ class OpTableManager(AsyncDaemon):
         operations_sorted = SortedOperations()
         nodes = dict[Biolink.Entity, dict[TierNumber, OperationNode]]()
         succeeded = 0
-        for tier, result in enumerate(results):
+        for tier, result in zip(active_tiers, results, strict=True):
             if isinstance(result, BaseException):
                 logger.warning(
                     f"OpTable build: Tier {tier} get_operations failed; skipping. Error: {result!r}"
