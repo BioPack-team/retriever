@@ -127,6 +127,15 @@ class SubclassMapping(BatchedAction):
         An empty or failed build leaves the previous map untouched.
         """
         cutoff = CONFIG.job.lookup.subclass_cutoff
+
+        # Streams only from tier 1; a forced stream against a down backend blocks
+        # for the full query timeout, so keep the previous map until it recovers.
+        if not tier_manager.get_driver(1).up:
+            logger.warning(
+                "Tier 1 is down; skipping subclass mapping rebuild, keeping the previous map."
+            )
+            return
+
         logger.info(f"Loading subclass mapping (streaming, cutoff={cutoff})...")
 
         # Clear any temp key left behind by a previously-crashed build.

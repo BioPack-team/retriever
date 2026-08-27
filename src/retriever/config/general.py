@@ -125,6 +125,12 @@ class MongoSettings(BaseModel):
             description="Fraction of succeeded response bodies to persist. Failures are always kept.",
         ),
     ] = 0.1
+    unsampled_ttl: Annotated[
+        int,
+        Field(
+            description="Seconds to retain (inline) a succeeded response body that sampling did not select for long-term storage, so it stays retrievable after completion. 0 drops it immediately.",
+        ),
+    ] = 300
 
 
 class TelemetrySettings(BaseModel):

@@ -120,3 +120,55 @@ async def test_redis_down_builds_locally_without_force(
     assert await worker.get_op_table() is _SENTINEL
     worker.degraded_local_build.assert_awaited_once_with()
     worker.pull_op_table.assert_not_awaited()
+
+
+class _FakeDriver:
+    """Minimal stand-in for a tier driver: an `up` flag and a mocked fetch."""
+
+    def __init__(self, *, up: bool) -> None:
+        self.up = up
+        self.get_operations = AsyncMock(return_value=([], {}))
+
+
+@pytest.fixture
+def manager() -> Iterator[OpTableManager]:
+    """A fresh OpTableManager isolated from the Singleton cache."""
+    _ = Singleton._instances.pop(OpTableManager, None)
+    yield OpTableManager()
+    _ = Singleton._instances.pop(OpTableManager, None)
+
+
+def _patch_drivers(
+    monkeypatch: pytest.MonkeyPatch, drivers: dict[int, _FakeDriver]
+) -> None:
+    monkeypatch.setattr(optable_module.tier_manager, "get_driver", lambda t: drivers[t])
+
+
+@pytest.mark.asyncio
+async def test_collect_tier_ops_skips_down_driver(
+    manager: OpTableManager, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A down tier is skipped without a doomed live fetch; up tiers still build."""
+    up, down = _FakeDriver(up=True), _FakeDriver(up=False)
+    _patch_drivers(monkeypatch, {0: up, 1: down})
+
+    table = await manager._collect_tier_ops(bypass_cache=True)
+
+    up.get_operations.assert_awaited_once()
+    down.get_operations.assert_not_awaited()  # never issue the doomed fetch
+    assert isinstance(table, OperationTable)
+
+
+@pytest.mark.asyncio
+async def test_collect_tier_ops_all_down_raises_without_fetch(
+    manager: OpTableManager, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every tier down: no fetch is issued and the build preserves the prior table."""
+    down0, down1 = _FakeDriver(up=False), _FakeDriver(up=False)
+    _patch_drivers(monkeypatch, {0: down0, 1: down1})
+
+    with pytest.raises(ValueError, match="No tier drivers succeeded"):
+        _ = await manager._collect_tier_ops(bypass_cache=True)
+
+    down0.get_operations.assert_not_awaited()
+    down1.get_operations.assert_not_awaited()
