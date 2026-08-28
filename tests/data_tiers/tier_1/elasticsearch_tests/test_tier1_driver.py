@@ -527,8 +527,9 @@ async def test_iter_ubergraph_chunks_paginates_without_truncating():
 class _FakeStreamDriver:
     """Driver stand-in whose `stream_subclass_mapping` yields fixed pairs."""
 
-    def __init__(self, pairs: list[tuple[str, list[str]]]) -> None:
+    def __init__(self, pairs: list[tuple[str, list[str]]], *, up: bool = True) -> None:
         self._pairs = pairs
+        self.up = up
 
     def stream_subclass_mapping(self, cutoff: int) -> Any:
         async def gen() -> Any:
@@ -589,7 +590,9 @@ async def test_reload_mapping_streams_kept_entries_to_redis(
     assert set(live) == {f"c{i}" for i in range(5)}  # every kept entry, swapped in
     assert all(size <= 2 for size in fake_redis.hset_calls)  # batched under the cap
     assert fake_redis.freshness_writes == [5]  # freshness = kept count
-    assert subclass_mod.MAPPING_BUILD_ID not in fake_redis.hashes  # temp consumed by rename
+    assert (
+        subclass_mod.MAPPING_BUILD_ID not in fake_redis.hashes
+    )  # temp consumed by rename
 
 
 @pytest.mark.asyncio
@@ -636,3 +639,24 @@ async def test_reload_mapping_zero_entries_preserves_previous(
     assert fake_redis.hashes[subclass_mod.MAPPING_ID] == {"a": b"x"}
     assert fake_redis.freshness_writes == []
     assert subclass_mod.MAPPING_BUILD_ID not in fake_redis.hashes  # temp cleaned up
+
+
+@pytest.mark.asyncio
+async def test_reload_mapping_skipped_when_tier1_down(monkeypatch: pytest.MonkeyPatch):
+    import retriever.lookup.subclass as subclass_mod
+
+    fake_redis = _FakeRedis()
+    sm = _install_reload(monkeypatch, fake_redis)
+    fake_redis.hashes[subclass_mod.MAPPING_ID] = {"a": b"x"}  # seed a prior good map
+    monkeypatch.setattr(
+        subclass_mod.tier_manager,
+        "get_driver",
+        lambda _tier: _FakeStreamDriver([("c", ["d"])], up=False),
+    )
+
+    await sm._reload_mapping()
+
+    # A down tier 1 must not stream; the prior map is left untouched until recovery.
+    assert fake_redis.hashes[subclass_mod.MAPPING_ID] == {"a": b"x"}
+    assert fake_redis.freshness_writes == []
+    assert fake_redis.hset_calls == []
