@@ -7,6 +7,21 @@ from collections.abc import AsyncGenerator, Hashable, Iterable
 from typing import Literal, cast
 
 from opentelemetry import trace
+from translator_tom.v1_6 import (
+    CURIE,
+    EdgeID,
+    QEdgeID,
+    QNodeID,
+    QueryGraph,
+)
+from translator_tom.v1_6.model_dicts import (
+    AuxiliaryGraphsDict,
+    EdgeDict,
+    KnowledgeGraphDict,
+    KnowledgeGraphDictUtil,
+    LogEntryDict,
+    ResultDict,
+)
 
 from retriever.config.general import CONFIG
 from retriever.data_tiers import tier_manager
@@ -31,28 +46,12 @@ from retriever.types.general import (
     QEdgeIDMap,
     QueryInfo,
 )
-from retriever.types.trapi import (
-    CURIE,
-    AuxGraphID,
-    AuxiliaryGraphDict,
-    EdgeDict,
-    EdgeIdentifier,
-    KnowledgeGraphDict,
-    LogEntryDict,
-    QEdgeID,
-    QNodeID,
-    QueryGraphDict,
-    ResultDict,
-)
 from retriever.utils import service_health
 from retriever.utils.general import EmptyIteratorError, merge_iterators
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.redis import RedisClient
 from retriever.utils.trapi import (
-    evaluate_set_interpretation,
     initialize_kgraph,
-    prune_kg,
-    update_kgraph,
 )
 
 tracer = trace.get_tracer("lookup.execution.tracer")
@@ -76,15 +75,15 @@ class QueryGraphExecutor:
     """Handler class for running the QGX algorithm."""
 
     ctx: QueryInfo
-    qgraph: QueryGraphDict
+    qgraph: QueryGraph
     job_log: TRAPILogger
 
     q_agraph: AdjacencyGraph
     qedge_map: QEdgeIDMap
     qedge_claims: dict[QEdgeID, Branch | None]
     kgraph: KnowledgeGraphDict
-    aux_graphs: dict[AuxGraphID, AuxiliaryGraphDict]
-    kedges_by_input: dict[SuperpositionHop, list[EdgeDict]]
+    aux_graphs: AuxiliaryGraphsDict
+    kedges_by_input: dict[SuperpositionHop, list[tuple[EdgeID, EdgeDict]]]
     k_agraph: KAdjacencyGraph
 
     active_branches: set[BranchID]
@@ -92,7 +91,6 @@ class QueryGraphExecutor:
     dead_superpositions: set[SuperpositionID]
     complete_paths: set[CompletePathName]
 
-    skip_subclassing: bool
     subclass_backmap: dict[CURIE, CURIE]
     subclass_warning_emitted: bool
 
@@ -102,7 +100,7 @@ class QueryGraphExecutor:
     start_time: float
     timeout: float
 
-    def __init__(self, qgraph: QueryGraphDict, query_info: QueryInfo) -> None:
+    def __init__(self, qgraph: QueryGraph, query_info: QueryInfo) -> None:
         """Initialize a QueryGraphExecutor, setting up information shared by methods."""
         self.ctx = query_info
         self.qgraph = qgraph
@@ -111,9 +109,7 @@ class QueryGraphExecutor:
         q_agraph, qedge_map = make_mappings(self.qgraph)
         self.q_agraph = q_agraph
         self.qedge_map = qedge_map
-        self.qedge_claims = {
-            QEdgeID(qedge_id): None for qedge_id in self.qgraph["edges"]
-        }
+        self.qedge_claims = {QEdgeID(qedge_id): None for qedge_id in self.qgraph.edges}
 
         self.kgraph = initialize_kgraph(self.qgraph)
         self.aux_graphs = {}
@@ -122,8 +118,8 @@ class QueryGraphExecutor:
         # (branch's input curie and current edge)
         self.kedges_by_input = {}
         self.k_agraph = {
-            QEdgeID(qedge_id): dict[CURIE, dict[CURIE, list[EdgeIdentifier]]]()
-            for qedge_id in self.qgraph["edges"]
+            QEdgeID(qedge_id): dict[CURIE, dict[CURIE, list[EdgeID]]]()
+            for qedge_id in self.qgraph.edges
         }
 
         self.active_branches = set()
@@ -131,10 +127,6 @@ class QueryGraphExecutor:
         self.dead_superpositions = set()
         self.complete_paths = set()
 
-        self.skip_subclassing = any(
-            "biolink:subclass_of" in (edge.get("predicates", []) or [])
-            for edge in self.qgraph["edges"].values()
-        )
         self.subclass_backmap = {}
         self.subclass_warning_emitted = False
 
@@ -161,7 +153,6 @@ class QueryGraphExecutor:
         timeout_task = asyncio.create_task(self.start_timeout_clock())
         try:
             self.start_time = time.time()
-            self.job_log.info(f"Starting lookup against Tier {self.ctx.tier}...")
             supported, operation_plan = await OP_TABLE_MANAGER.create_operation_plan(
                 self.qgraph, (self.ctx.tier or 0)
             )
@@ -214,13 +205,7 @@ class QueryGraphExecutor:
             end_time = time.time()
             duration_ms = math.ceil((end_time - self.start_time) * 1000)
             self.job_log.info(
-                "Tier {}: Retrieved {} results / {} nodes / {} edges in {}ms.".format(
-                    self.ctx.tier,
-                    len(results),
-                    len(self.kgraph["nodes"]),
-                    len(self.kgraph["edges"]),
-                    duration_ms,
-                )
+                f"Tier {self.ctx.tier}: Retrieved {len(results)} results / {len(self.kgraph['nodes'])} nodes / {len(self.kgraph['edges'])} edges in {duration_ms}ms."
             )
 
             if len(results) > 0:
@@ -232,8 +217,19 @@ class QueryGraphExecutor:
                     self.job_log,
                 )
 
-            prune_kg(results, self.kgraph, self.aux_graphs, self.job_log)
-            evaluate_set_interpretation(self.qgraph, results, self.job_log)
+            prior_edge_count = len(self.kgraph["edges"])
+            prior_node_count = len(self.kgraph["nodes"])
+            KnowledgeGraphDictUtil.prune(self.kgraph, self.aux_graphs, results)
+            pruned_edges = prior_edge_count - len(self.kgraph["edges"])
+            pruned_nodes = prior_node_count - len(self.kgraph["nodes"])
+            self.job_log.debug(
+                f"KG Pruning: {len(self.kgraph['nodes'])} (-{pruned_nodes}) nodes and {len(self.kgraph['edges'])} (-{pruned_edges}) edges remain."
+            )
+
+            # Disabled due to implementation bugs (it was previously no-op due to another bug)
+            # results = evaluate_set_interpretation(
+            #     QueryGraphDict(**self.qgraph.to_dict()), results, self.job_log
+            # )
 
             return LookupArtifacts(
                 results,
@@ -290,9 +286,8 @@ class QueryGraphExecutor:
                     continue
 
                 trapi_node = transpiler.build_single_node(fetched)
-                update_kgraph(
-                    self.kgraph,
-                    KnowledgeGraphDict(nodes={curie: trapi_node}, edges={}),
+                KnowledgeGraphDictUtil.update(
+                    self.kgraph, KnowledgeGraphDict(nodes={curie: trapi_node}, edges={})
                 )
                 hydrated_count += 1
             except Exception:
@@ -303,14 +298,12 @@ class QueryGraphExecutor:
 
     async def expand_initial_subclasses(self) -> None:
         """Check if any pinned nodes have subclasses and expand them accordingly."""
-        for qnode_id, node in self.qgraph["nodes"].items():
+        for qnode_id, node in self.qgraph.nodes.items():
             # Verify that no edges connected to this node use subclass_of
 
-            expanded_curies = await self.expand_subclasses(
-                qnode_id, (node.get("ids", []) or [])
-            )
+            expanded_curies = await self.expand_subclasses(qnode_id, node.ids_list)
 
-            node["ids"] = expanded_curies
+            node.ids = expanded_curies
 
     async def expand_subclasses(
         self, qnode_id: QNodeID, curies: Iterable[CURIE]
@@ -318,7 +311,6 @@ class QueryGraphExecutor:
         """Given a set of CURIEs, return them and any subclasses they may have."""
         if (
             self.terminate
-            or self.skip_subclassing
             or (not CONFIG.job.lookup.implicit_subclassing)
             or (not SUBCLASS_MAPPING.initialized)
         ):
@@ -706,11 +698,13 @@ class QueryGraphExecutor:
         qedge_id = current_branch.current_edge
 
         if do_update_kgraph:
-            update_kgraph(self.kgraph, new_kgraph)
+            KnowledgeGraphDictUtil.update(self.kgraph, new_kgraph)
 
         if current_branch.hop_id not in self.kedges_by_input:
-            self.kedges_by_input[current_branch.hop_id] = list[EdgeDict]()
-        self.kedges_by_input[current_branch.hop_id].extend(new_kgraph["edges"].values())
+            self.kedges_by_input[current_branch.hop_id] = list[
+                tuple[EdgeID, EdgeDict]
+            ]()
+        self.kedges_by_input[current_branch.hop_id].extend(new_kgraph["edges"].items())
 
         # Update the k_agraph
         for edge_id, edge in new_kgraph["edges"].items():
@@ -719,9 +713,9 @@ class QueryGraphExecutor:
             else:
                 in_node, out_node = edge["object"], edge["subject"]
             if in_node not in self.k_agraph[qedge_id]:
-                self.k_agraph[qedge_id][in_node] = dict[CURIE, list[EdgeIdentifier]]()
+                self.k_agraph[qedge_id][in_node] = dict[CURIE, list[EdgeID]]()
             if out_node not in self.k_agraph[qedge_id][in_node]:
-                self.k_agraph[qedge_id][in_node][out_node] = list[EdgeIdentifier]()
+                self.k_agraph[qedge_id][in_node][out_node] = list[EdgeID]()
 
             self.k_agraph[qedge_id][in_node][out_node].append(edge_id)
 

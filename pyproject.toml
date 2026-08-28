@@ -22,12 +22,10 @@ dependencies = [
     "sentry-sdk[fastapi,httpx,loguru]>=2.45.0",
     "motor>=3.7.0",
     "loguru>=0.7.3",
-    "bmt>=1.4.6",
     "pyinstrument>=5.0.1",
     "pydantic-file-secrets>=0.4.4",
     "pyyaml>=6.0.2",
     "pymongo>=4.12.0",
-    "reasoner-pydantic>=6.0.0,<7",
     "ruamel-yaml>=0.18.14",
     "pydantic-core>=2.33.1",
     "orjson>=3.11.2",
@@ -42,6 +40,7 @@ dependencies = [
     "gitpython>=3.1.46",
     "psutil>=6.1.1",
     "zstd-asgi>=1.0",
+    "translator-tom>=2.0.0",
 ]
 
 [project.scripts]
@@ -139,6 +138,7 @@ launch = 'retriever'
     JOB__LOOKUP__TIER1_TIMEOUT=-1 \
     JOB__LOOKUP__TIER2_TIMEOUT=-1 \
     JOB__METAKG__TIMEOUT=-1 \
+    MONGO__STORED_SUCCESS_PROPORTION=1.0 \
     WORKERS=1 \
     retriever
 """
@@ -248,7 +248,7 @@ reportUnusedCallResult = false # Just makes code look worse; Usually unused resu
 reportMissingTypeStubs = false # Sometimes type stubs aren't available and auto-gen is incorrect
 
 [tool.deptry]
-extend_exclude = ["locustfile.py", "tests"]
+extend_exclude = ["locustfile.py", "tests", "scripts"]
 
 [tool.deptry.per_rule_ignores]
 DEP002 = [

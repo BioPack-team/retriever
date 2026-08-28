@@ -10,11 +10,12 @@ from typing import Any
 import loguru
 import orjson
 from loguru import logger
+from translator_tom.v1_6 import LogLevel as TRAPILogLevel
+from translator_tom.v1_6 import LogLevelEnum as TRAPILogLevelEnum
+from translator_tom.v1_6.model_dicts import LogEntryDict
 
 from retriever.config.general import CONFIG
 from retriever.types.general import LogLevel
-from retriever.types.trapi import LogEntryDict
-from retriever.types.trapi import LogLevel as TRAPILogLevel
 from retriever.utils.mongo import MongoOutage, MongoQueue
 
 MONGO_QUEUE = MongoQueue()
@@ -23,17 +24,17 @@ MONGO_QUEUE = MongoQueue()
 def log_level_to_trapi(level: LogLevel) -> TRAPILogLevel:
     """Collapse loguru log levels into TRAPI-spec log levels."""
     level_str = level.upper()
-    if level_str in TRAPILogLevel:
-        return TRAPILogLevel[level_str]
+    if level_str in TRAPILogLevelEnum:
+        return TRAPILogLevelEnum[level_str].value
     match level_str:
         case "TRACE":  # Should never occur since trace logs are left out of TRAPI
-            return TRAPILogLevel.DEBUG
+            return "DEBUG"
         case "SUCCESS":
-            return TRAPILogLevel.INFO
+            return "INFO"
         case "CRITICAL":
-            return TRAPILogLevel.ERROR
+            return "ERROR"
         case _:
-            return TRAPILogLevel.DEBUG
+            return "DEBUG"
 
 
 def trapi_level_to_int(level: TRAPILogLevel) -> int:
@@ -41,7 +42,7 @@ def trapi_level_to_int(level: TRAPILogLevel) -> int:
     return logger.level(level).no
 
 
-def format_trapi_log(
+def format_trapi_log_dict(
     level: LogLevel,
     message: str,
     timestamp: str | datetime | None = None,
@@ -64,7 +65,7 @@ def format_trapi_log(
     return log_entry
 
 
-async def structured_log_to_trapi(
+async def structured_log_to_trapi_dict(
     logs: AsyncGenerator[dict[str, Any]],
 ) -> AsyncGenerator[LogEntryDict]:
     """Take an async generator of structured logs and yield TRAPI logs asynchronously."""
@@ -73,7 +74,7 @@ async def structured_log_to_trapi(
         if log.get("exception"):
             exception = log["exception"]
             trace = f"{exception.get('traceback')}\n{exception.get('type')}: {exception.get('value')}"
-        yield format_trapi_log(
+        yield format_trapi_log_dict(
             log["level"]["name"],
             log["message"],
             log["time"],
@@ -126,7 +127,7 @@ class TRAPILogger:
             if exception is not None:
                 trapi_msg = f"{message}\n{traceback.format_exception(exception)}"
 
-            self.log_deque.append(format_trapi_log(level, trapi_msg))
+            self.log_deque.append(format_trapi_log_dict(level, trapi_msg))
 
     def trace(self, message: str, **kwargs: Any) -> None:
         """Log at trace level."""
@@ -169,6 +170,35 @@ class TRAPILogger:
     ) -> None:
         """Log with a given exception as an ERROR-level log."""
         self._log("ERROR", message, exception, **kwargs)
+
+    def replay_entry(self, entry: LogEntryDict) -> None:
+        """Emit a TRAPI log through loguru, retaining it verbatim.
+
+        Adopts the entry's level and timestamp. Tolerates malformed upstream
+        entries (unknown level, missing message) so one bad backend log can't
+        fail the whole query.
+        """
+        level = (entry.get("level") or "DEBUG").upper()
+        message = entry.get("message") or ""
+        raw_ts = entry.get("timestamp")
+        try:
+            timestamp = (
+                datetime.fromisoformat(raw_ts)
+                if raw_ts
+                else datetime.now().astimezone()
+            )
+        except (ValueError, TypeError):
+            timestamp = datetime.now().astimezone()
+
+        with logger.contextualize(job_id=self.job_id):
+            patched = logger.patch(lambda record: record.update(time=timestamp))
+            try:
+                patched.log(level, message)
+            except ValueError:
+                # Unknown loguru level from an upstream backend; downgrade to DEBUG.
+                patched.log("DEBUG", message)
+
+        self.log_deque.append(entry)
 
     def get_logs(self) -> list[LogEntryDict]:
         """Get a generator of stored TRAPI logs."""
@@ -229,7 +259,7 @@ def add_mongo_sink() -> None:
         serialize=True,
         enqueue=True,
         filter=lambda record: not record["extra"].get("no_mongo_log", False),
-        level=CONFIG.log_level,
+        level=CONFIG.log.mongo_level,
     )
 
 

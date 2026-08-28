@@ -21,7 +21,6 @@ from retriever.utils.uvicorn_multiprocess import AsyncMultiprocess
 
 async def _main_inner() -> None:
     # /// PRE-SERVER SETUP ///
-    os.environ["PYTHONHASHSEED"] = "0"  # Deterministic hashing
     multiprocessing.set_start_method("spawn")
 
     # logging -> loguru intercept needs to be set up early

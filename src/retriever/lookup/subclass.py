@@ -5,20 +5,21 @@ from typing import cast, override
 
 import ormsgpack
 from loguru import logger
+from translator_tom.v1_6 import (
+    CURIE,
+)
 
 from retriever.config.general import CONFIG
 from retriever.data_tiers import tier_manager
-from retriever.types.trapi import (
-    CURIE,
-)
 from retriever.utils.general import BatchedAction
+from retriever.utils.leader import LEADER_ELECTION
 from retriever.utils.redis import SUBCLASS_META_KEY, TIER_RECOVERED_CHANNEL, RedisClient
 
 REDIS_CLIENT = RedisClient()
 
 MAPPING_ID = "SubclassHashMap"
 MAPPING_BUILD_ID = f"{MAPPING_ID}:next"
-"""Temp key the leader builds into, then atomically renames onto `MAPPING_ID`."""
+"""Temp key the builder builds into, then atomically renames onto `MAPPING_ID`."""
 
 
 class SubclassMapping(BatchedAction):
@@ -30,7 +31,7 @@ class SubclassMapping(BatchedAction):
     flush_time: float = 0
     multibatch: bool = True
 
-    is_leader: bool = False
+    is_builder: bool = False
     subscriptions: dict[CURIE, list[Callable[[list[CURIE] | None], None]]]
     _refresh_lock: asyncio.Lock
     _pending_refresh: bool = False
@@ -38,15 +39,15 @@ class SubclassMapping(BatchedAction):
     redis_setup_batch_size: int = 5000
 
     def __init__(self) -> None:
-        """Initialize without leader role; call `promote_to_leader()` to flip the flag."""
+        """Initialize without builder role; call `promote_to_builder()` to flip the flag."""
         self.subscriptions = {}
         self._refresh_lock = asyncio.Lock()
         self._pending_refresh = False
         super().__init__()
 
-    def promote_to_leader(self) -> None:
-        """Flip this instance to leader mode. Must be called before `initialize()`."""
-        self.is_leader = True
+    def promote_to_builder(self) -> None:
+        """Flip this process to builder mode. Must be called before `initialize()`."""
+        self.is_builder = True
 
     @override
     async def initialize(self) -> None:
@@ -55,11 +56,14 @@ class SubclassMapping(BatchedAction):
             logger.info("Implicit subclassing disabled, skipping initialization.")
             return await super().initialize()
 
-        if not self.is_leader:  # Only need leader to update the redis setup
+        if not self.is_builder:  # Only the builder updates the redis setup
             return await super().initialize()
 
         if self.initialized:
             return  # rebuild loop already running
+
+        # Rebuild as soon as this instance wins the build lease.
+        LEADER_ELECTION.on_acquire(self.refresh)
 
         try:
             await self.refresh()
@@ -72,7 +76,7 @@ class SubclassMapping(BatchedAction):
         REDIS_CLIENT.on_recover(self.refresh)
         tier_manager.get_driver(1).on_recover(self.refresh)
         # Also listen for worker-detected tier 1 recovery via Redis so
-        # the rebuild fires faster than the leader's own periodic ping.
+        # the rebuild fires faster than the builder's own periodic ping.
         with contextlib.suppress(Exception):
             await REDIS_CLIENT.subscribe(
                 TIER_RECOVERED_CHANNEL, self._on_remote_tier_recover
@@ -82,8 +86,8 @@ class SubclassMapping(BatchedAction):
 
     @override
     async def wrapup(self) -> None:
-        """Unsubscribe the leader's tier-recovery listener, then cancel the rebuild loop."""
-        if self.is_leader:
+        """Unsubscribe the builder's tier-recovery listener, then cancel the rebuild loop."""
+        if self.is_builder:
             with contextlib.suppress(Exception):
                 await REDIS_CLIENT.unsubscribe(
                     TIER_RECOVERED_CHANNEL, self._on_remote_tier_recover
@@ -98,6 +102,10 @@ class SubclassMapping(BatchedAction):
 
     async def refresh(self) -> None:
         """Rebuild and publish the subclass mapping; concurrent calls collapse to one trailing rebuild."""
+        # Only the leader writes the shared mapping, so instances don't race on
+        # the temp build key.
+        if not LEADER_ELECTION.is_leader:
+            return
         self._pending_refresh = True
         if self._refresh_lock.locked():
             logger.debug(
@@ -119,6 +127,15 @@ class SubclassMapping(BatchedAction):
         An empty or failed build leaves the previous map untouched.
         """
         cutoff = CONFIG.job.lookup.subclass_cutoff
+
+        # Streams only from tier 1; a forced stream against a down backend blocks
+        # for the full query timeout, so keep the previous map until it recovers.
+        if not tier_manager.get_driver(1).up:
+            logger.warning(
+                "Tier 1 is down; skipping subclass mapping rebuild, keeping the previous map."
+            )
+            return
+
         logger.info(f"Loading subclass mapping (streaming, cutoff={cutoff})...")
 
         # Clear any temp key left behind by a previously-crashed build.

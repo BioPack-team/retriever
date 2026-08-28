@@ -74,6 +74,18 @@ class RedisSettings(BaseModel):
             description="TTL on each registered process entry; set to several heartbeat intervals so a single missed refresh doesn't drop the entry."
         ),
     ] = 300
+    leader_lease_ttl_seconds: Annotated[
+        int,
+        Field(
+            description="TTL on the build-leader lease, renewed each heartbeat interval. Set to several intervals to avoid touchy handoffs."
+        ),
+    ] = 180
+    propagate_health: Annotated[
+        bool,
+        Field(
+            description="Broadcast backend outage/recovery over Redis pub/sub so workers pick up outage quickly; falls back to process-local health when off or Redis is down."
+        ),
+    ] = True
 
 
 class MongoSettings(BaseModel):
@@ -105,6 +117,20 @@ class MongoSettings(BaseModel):
             description="Compressed job-docs at or above this size are not persisted."
         ),
     ] = 128 * 1024**2
+    stored_success_proportion: Annotated[
+        float,
+        Field(
+            ge=0,
+            le=1,
+            description="Fraction of succeeded response bodies to persist. Failures are always kept.",
+        ),
+    ] = 0.1
+    unsampled_ttl: Annotated[
+        int,
+        Field(
+            description="Seconds to retain (inline) a succeeded response body that sampling did not select for long-term storage, so it stays retrievable after completion. 0 drops it immediately.",
+        ),
+    ] = 300
 
 
 class TelemetrySettings(BaseModel):
@@ -231,6 +257,9 @@ class LogSettings(BaseModel):
     """Settings for log handling."""
 
     log_to_mongo: Annotated[bool, Field(description="Persist logs in MongoDB.")] = True
+    mongo_level: Annotated[
+        LogLevel, Field(description="Minimum level of logs persisted to MongoDB.")
+    ] = "INFO"
     mongo_ttl: Annotated[
         int, Field(description="Time in seconds for a log to persist.")
     ] = 604_800
@@ -346,12 +375,6 @@ class GeneralConfig(CommentedSettings):
             description="Instance environment. Used in Sentry, userAgent of subqueries, instance-appropriate behavior, etc."
         ),
     ] = "dev"
-    instance_idx: Annotated[
-        int,
-        Field(
-            description="Instance index. Use when multiple Retriever instances are run, so a leader can be determined."
-        ),
-    ] = 0
     max_request_size: Annotated[
         int,
         Field(

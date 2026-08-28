@@ -1,7 +1,7 @@
 from typing import Any
 
 from retriever.types.general import LogLevel
-from retriever.utils.logs import TRAPILogger, format_trapi_log
+from retriever.utils.logs import TRAPILogger, format_trapi_log_dict
 
 
 def mock_inner_log(
@@ -12,4 +12,4 @@ def mock_inner_log(
     # Implicitly drop TRACE logs from TRAPI logs.
     # These should only be used in extensive debugging on a local instance.
     if level.lower() != "trace":
-        self.log_deque.append(format_trapi_log(level, message))
+        self.log_deque.append(format_trapi_log_dict(level, message))

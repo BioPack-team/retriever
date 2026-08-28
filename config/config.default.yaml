@@ -5,7 +5,6 @@
 # Edit the appropriate config file instead.
 debug: false # Run server with increased compatibility for breakpoint debugging.
 instance_env: dev # Instance environment. Used in Sentry, userAgent of subqueries, instance-appropriate behavior, etc.
-instance_idx: 0 # Instance index. Use when multiple Retriever instances are run, so a leader can be determined.
 max_request_size: 2147483648 # Maximum request body size in bytes, post-decompression. Larger bodies are rejected with 413.
 log_level: DEBUG # Level of application logs to print/keep.
 host: 0.0.0.0 # Uvicorn listen host.
@@ -44,6 +43,7 @@ job:
   ttl_max: 604800 # Time in seconds after which job state is cleared, regardless of last touch
 log:
   log_to_mongo: true # Persist logs in MongoDB.
+  mongo_level: INFO # Minimum level of logs persisted to MongoDB.
   mongo_ttl: 604800 # Time in seconds for a log to persist.
 redis:
   host: localhost
@@ -55,6 +55,8 @@ redis:
   shutdown_timeout: 3 # Time in seconds to wait for batched tasks to finish before force-quitting.
   heartbeat_interval_seconds: 60 # Cadence at which workers / background / main re-register their process entry.
   process_ttl_seconds: 300 # TTL on each registered process entry; set to several heartbeat intervals so a single missed refresh doesn't drop the entry.
+  leader_lease_ttl_seconds: 180 # TTL on the build-leader lease, renewed each heartbeat interval. Set to several intervals to avoid touchy handoffs.
+  propagate_health: true # Broadcast backend outage/recovery over Redis pub/sub so workers pick up outage quickly; falls back to process-local health when off or Redis is down.
 mongo:
   host: localhost
   port: 27017
@@ -65,6 +67,7 @@ mongo:
   shutdown_timeout: 3 # Time in seconds to wait for serialize task to finish.
   compression_level: 10 # zstd level used to compress stored job documents. Higher means greater compression, at greater CPU cost.
   max_stored_doc_bytes: 134217728 # Compressed job-docs at or above this size are not persisted.
+  stored_success_proportion: 0.1 # Fraction of succeeded response bodies to persist. Failures are always kept.
 tier0:
   backend: gandalf
   backend_infores: infores:dogpark-tier0

@@ -113,6 +113,10 @@ class JobDoc(TypedDict):
     completed: NotRequired[datetime]
     touched: NotRequired[datetime]
 
+    # Delete-at for non-sampled success bodies kept for a brief retrieval window;
+    # a TTL index (expireAfterSeconds=0) reaps the doc once this instant passes.
+    expiry: NotRequired[datetime]
+
     # Set by the orphan sweep - tells `get_job_response` that `doc`, if
     # present, still holds the original query bytes rather than a real
     # response (the ResponseState write never landed).
@@ -800,6 +804,10 @@ class MongoClient(BackendClient):
                 await collection.create_index(
                     "completed", background=True, expireAfterSeconds=CONFIG.job.ttl_max
                 )
+                # Per-document TTL: reaps each doc once its own `expiry` passes.
+                await collection.create_index(
+                    "expiry", background=True, expireAfterSeconds=0
+                )
                 await collection.create_index("created", background=True)
 
             # Backs the `metadata.job_id` lookups in `delete_doc_blobs` and the
@@ -877,6 +885,7 @@ class MongoClient(BackendClient):
         *,
         doc_ref: ObjectId | None = None,
         store_doc: bool = True,
+        expiry: datetime | None = None,
     ) -> tuple[UpdateOne, UpdateOne]:
         """Create an operation for upserting a job state doc.
 
@@ -923,6 +932,11 @@ class MongoClient(BackendClient):
             doc_inner["doc"] = doc
             unset["doc_ref"] = ""
             unset["doc_size"] = ""
+        # Clear expiry when unset so a re-processed write leaves no stale delete-at.
+        if expiry is not None:
+            doc_inner["expiry"] = expiry
+        else:
+            unset["expiry"] = ""
         doc_data: dict[str, Any] = {
             "$set": doc_inner,
             "$setOnInsert": {"created": update_time},
@@ -1623,7 +1637,7 @@ class MongoClient(BackendClient):
         """Return a generator of a filtered set of logs."""
         query = _build_log_query(start, end, level)
         if job_id is not None:
-            query["extra.job_id"] = {"$regex": job_id}
+            query["extra.job_id"] = job_id
 
         async for document in self._yield_logs(query):
             yield document
@@ -1747,6 +1761,16 @@ class MongoClient(BackendClient):
         self.client.close()
 
 
+def _store_job_success_response(job_id: str) -> bool:
+    """Whether to persist this succeeded response body.
+
+    Deterministic and uniform over `job_id` (a random uuid4 hex), so the two
+    writes an async job makes agree and never churn a stored blob.
+    `stored_success_proportion` of 0.0 keeps nothing, 1.0 keeps everything.
+    """
+    return int(job_id[:8], 16) / 0x1_0000_0000 < CONFIG.mongo.stored_success_proportion
+
+
 class MongoOutage(Exception):
     """Raised by `MongoQueue.put` when MongoClient is down; callers attach a warning."""
 
@@ -1787,6 +1811,9 @@ class MongoQueue(BatchedAction):
         at or above `CONFIG.mongo.max_stored_doc_bytes`, and dehydrated-query
         responses, are not persisted at all - the response is still delivered
         upstream, only the stored copy is dropped.
+
+        Succeeded responses not sampled for long-term storage keep an inline copy
+        for `CONFIG.mongo.unsampled_ttl` seconds; oversized ones are dropped.
         """
         if len(batch) == 0:
             return
@@ -1799,6 +1826,7 @@ class MongoQueue(BatchedAction):
                 cast("ResponseState", state).get("dehydrated")
             )
             doc_ref: ObjectId | None = None
+            expiry: datetime | None = None
             store_doc = True
             if dehydrated:
                 # Dehydrated queries deliver their response but never persist it.
@@ -1811,10 +1839,31 @@ class MongoQueue(BatchedAction):
                     f"Job {state['job_id']} {doc_type} is {size} bytes (>= {CONFIG.mongo.max_stored_doc_bytes} cap); delivering without storing it.",
                     no_mongo_log=True,
                 )
+            elif (
+                doc_type == "response"
+                and cast("ResponseState", state)["status"] in TERMINAL_SUCCESS
+                and not _store_job_success_response(state["job_id"])
+            ):
+                # Not sampled for long-term storage: keep small bodies inline for a
+                # brief retrieval window; drop the rest rather than churn GridFS.
+                if (
+                    size == 0
+                    or size > GRIDFS_INLINE_LIMIT
+                    or CONFIG.mongo.unsampled_ttl <= 0
+                ):
+                    store_doc = False
+                    # Drop any prior offloaded query blob so it isn't left orphaned.
+                    await self.client.delete_doc_blobs(state["job_id"])
+                else:
+                    expiry = state["event_time"] + timedelta(
+                        seconds=CONFIG.mongo.unsampled_ttl
+                    )
             elif size > GRIDFS_INLINE_LIMIT:
                 doc_ref = await self.client.offload_doc_blob(state["job_id"], blob)  # pyright: ignore[reportArgumentType] size>0 implies blob is not None
             ops.append(
-                self.client.job_state(state, doc_ref=doc_ref, store_doc=store_doc)
+                self.client.job_state(
+                    state, doc_ref=doc_ref, store_doc=store_doc, expiry=expiry
+                )
             )
         status_ops, doc_ops = map(list, zip(*ops, strict=True))
         await self.client.batch_job_state(status_ops, doc_ops)

@@ -7,33 +7,34 @@ from typing import Any, NamedTuple, cast
 
 from loguru import logger
 from opentelemetry import trace
+from translator_tom.v1_6 import (
+    CURIE,
+    Biolink,
+    EdgeID,
+    Infores,
+    QueryGraph,
+)
+from translator_tom.v1_6.model_dicts import (
+    AuxiliaryGraphDictUtil,
+    EdgeDict,
+    EdgeDictUtil,
+    KnowledgeGraphDict,
+    KnowledgeGraphDictUtil,
+    LogEntryDict,
+    ResultDictUtil,
+)
 
 from retriever.data_tiers import tier_manager
 from retriever.data_tiers.base_transpiler import Transpiler
 from retriever.data_tiers.tier_1.elasticsearch.types import ESEdge
 from retriever.lookup.branch import Branch, SuperpositionHop
 from retriever.types.general import BackendResult
-from retriever.types.trapi import (
-    CURIE,
-    BiolinkPredicate,
-    EdgeDict,
-    Infores,
-    KnowledgeGraphDict,
-    LogEntryDict,
-    QEdgeDict,
-    QueryGraphDict,
-)
-from retriever.utils import biolink
 from retriever.utils.general import BatchedAction
 from retriever.utils.logs import TRAPILogger
-from retriever.utils.trapi import (
-    append_aggregator_source,
-    hash_edge,
-    hash_hex,
-    normalize_kgraph,
-)
 
 tracer = trace.get_tracer("lookup.execution.tracer")
+
+# TODO: should return dict but work in model
 
 
 class SubqContext(NamedTuple):
@@ -112,12 +113,12 @@ class SubqueryDispatcher(BatchedAction):
 
             return await future
         except asyncio.CancelledError:
-            return KnowledgeGraphDict(nodes={}, edges={}), []
+            return KnowledgeGraphDictUtil.new(), []
 
     async def handle_subquery_batch(
         self,
         payload_batch: list[Any],
-        query_mapping: list[tuple[SubqContext, QueryGraphDict, Transpiler]],
+        query_mapping: list[tuple[SubqContext, QueryGraph, Transpiler]],
         job_log: TRAPILogger,
     ) -> None:
         """Run a given subquery payload batch and transform the results, sending them to the callback."""
@@ -142,19 +143,19 @@ class SubqueryDispatcher(BatchedAction):
                 result = transpiler.convert_results(qgraph, record)
 
                 # Add Retriever to the provenance chain
-                for edge_id, edge in result["knowledge_graph"]["edges"].items():
+                for edge_id, edge in result.knowledge_graph["edges"].items():
                     try:
-                        append_aggregator_source(edge, Infores("infores:retriever"))
+                        EdgeDictUtil.append_aggregator(edge, Infores("retriever"))
                     except ValueError:
                         job_log.warning(
                             f"Edge f{edge_id} has an invalid provenance chain."
                         )
 
                 # Normalize the result kgraph for merging
-                normalize_kgraph(
-                    result["knowledge_graph"],
-                    result["results"],
-                    result["auxiliary_graphs"],
+                edge_mapping = KnowledgeGraphDictUtil.normalize(result.knowledge_graph)
+                ResultDictUtil.normalize_list(result.results, edge_mapping)
+                AuxiliaryGraphDictUtil.normalize_aux_dict(
+                    result.auxiliary_graphs, edge_mapping
                 )
 
                 if subq_id not in results:
@@ -166,17 +167,19 @@ class SubqueryDispatcher(BatchedAction):
                 # exactly the same.
                 # Additionally, we're doing nothing to update aux/results simple because
                 # we know they'll never be used in Tier 1/2
-                results[subq_id]["knowledge_graph"]["nodes"].update(
-                    result["knowledge_graph"]["nodes"]
-                )
-                results[subq_id]["knowledge_graph"]["edges"].update(
-                    result["knowledge_graph"]["edges"]
+                # copy=False: `result` is discarded after merging, so sharing its
+                # node/edge objects is safe and avoids a deep-copy in this hot path.
+                KnowledgeGraphDictUtil.update(
+                    results[subq_id].knowledge_graph,
+                    result.knowledge_graph,
+                    pre_normalized="both",
+                    copy=False,
                 )
 
             for subq_id, result in results.items():
                 # Pop subscriptions for cleanup
                 for callback in self.subscriptions.pop(subq_id, None) or []:
-                    callback((result["knowledge_graph"], job_log.get_logs()))
+                    callback((result.knowledge_graph, job_log.get_logs()))
             end = time.time()
             logger.success(
                 f"Transformed results and sent to original callers in {math.ceil((end - split) * 1000)}ms"
@@ -189,17 +192,13 @@ class SubqueryDispatcher(BatchedAction):
             for subq, _, _ in query_mapping:
                 subq_id = hash((subq.job, subq.branch.superposition_id))
                 for callback in self.subscriptions.pop(subq_id, None) or []:
-                    callback(
-                        (KnowledgeGraphDict(nodes={}, edges={}), job_log.get_logs())
-                    )
+                    callback((KnowledgeGraphDictUtil.new(), job_log.get_logs()))
 
     async def batch_subquery(self, batch: list[SubqContext]) -> None:
         """Produce query payloads and make them as a single batch query to the backend(s)."""
         loggers = dict[str, TRAPILogger]()
 
-        query_mapping = dict[
-            str, list[tuple[SubqContext, QueryGraphDict, Transpiler]]
-        ]()
+        query_mapping = dict[str, list[tuple[SubqContext, QueryGraph, Transpiler]]]()
         payloads = dict[str, list[Any]]()
         for subq in batch:
             if subq.job not in loggers:
@@ -233,33 +232,33 @@ class SubqueryDispatcher(BatchedAction):
 
     def make_payloads(
         self, branch: Branch, job_log: TRAPILogger
-    ) -> tuple[list[QueryGraphDict], list[Transpiler], list[Any]]:
+    ) -> tuple[list[QueryGraph], list[Transpiler], list[Any]]:
         """Convert the existing branch edge to query payloads.
 
         Produces multiple if symmetric predicates are present.
         """
-        current_edge = branch.qgraph["edges"][branch.current_edge]
-        subject_node = branch.qgraph["nodes"][current_edge["subject"]]
-        object_node = branch.qgraph["nodes"][current_edge["object"]]
+        current_edge = branch.qgraph.edges[branch.current_edge]
+        subject_node = branch.qgraph.nodes[current_edge.subject]
+        object_node = branch.qgraph.nodes[current_edge.object]
         if not branch.reversed:
-            subject_node["ids"] = [branch.input_curie]
+            subject_node.ids = [branch.input_curie]
         else:
-            object_node["ids"] = [branch.input_curie]
+            object_node.ids = [branch.input_curie]
 
-        qgraph = QueryGraphDict(
+        qgraph = QueryGraph.model_construct(
             nodes={
-                current_edge["subject"]: subject_node,
-                current_edge["object"]: object_node,
+                current_edge.subject: subject_node,
+                current_edge.object: object_node,
             },
             edges={branch.current_edge: current_edge},
         )
 
         # Check the symmetric predicate case
-        symmetrics = list[BiolinkPredicate]()
-        for predicate in current_edge.get("predicates") or [
-            BiolinkPredicate("biolink:related_to")
+        symmetrics = list[Biolink.Predicate]()
+        for predicate in current_edge.predicates or [
+            Biolink.Predicate("biolink:related_to")
         ]:
-            if biolink.is_symmetric(str(predicate)):
+            if Biolink.is_symmetric(str(predicate)):
                 symmetrics.append(predicate)
 
         transpiler = tier_manager.get_transpiler(1)
@@ -271,45 +270,22 @@ class SubqueryDispatcher(BatchedAction):
 
         if len(symmetrics):
             job_log.debug("Symmetric predicates found, adding reverse subquery.")
-            reverse_edge = QEdgeDict(
-                subject=current_edge["subject"],
-                object=current_edge["object"],
-                predicates=current_edge.get(
-                    "predicates", [BiolinkPredicate("biolink:related_to")]
-                ),
+            reverse_edge = current_edge.get_inverse()
+            if not reverse_edge.predicates:
+                reverse_edge.predicates = [Biolink("related_to")]
+            reverse_qg = QueryGraph.model_construct(
+                nodes={
+                    current_edge.subject: object_node,
+                    current_edge.object: subject_node,
+                },
+                edges={branch.current_edge: reverse_edge},
             )
-            if attr_constraints := current_edge.get("attribute_constraints"):
-                reverse_edge["attribute_constraints"] = (
-                    biolink.reverse_attribute_constraints(attr_constraints)
-                )
-
-            # Reverse qualifiers. If not reversible, skip reverse subquery
-            reversible = True
-            if qualifiers := current_edge.get("qualifier_constraints"):
-                try:
-                    reverse_edge["qualifier_constraints"] = (
-                        biolink.reverse_qualifier_constraints(qualifiers)
-                    )
-                except ValueError as e:
-                    job_log.warning(
-                        f"Skipping reverse subquery for symmetric predicate: {e}"
-                    )
-                    reversible = False
-
-            if reversible:
-                reverse_qg = QueryGraphDict(
-                    nodes={
-                        current_edge["subject"]: object_node,
-                        current_edge["object"]: subject_node,
-                    },
-                    edges={branch.current_edge: reverse_edge},
-                )
-                transpiler = tier_manager.get_transpiler(1)  # not a singleton
-                reverse_query_payload = transpiler.process_qgraph(reverse_qg)
-                job_log.trace(str(reverse_query_payload))
-                qgraphs.append(reverse_qg)
-                queries.append(reverse_query_payload)
-                transpilers.append(transpiler)
+            transpiler = tier_manager.get_transpiler(1)  # Transpiler isn't singleton
+            reverse_query_payload = transpiler.process_qgraph(reverse_qg)
+            job_log.trace(str(reverse_query_payload))
+            qgraphs.append(reverse_qg)
+            queries.append(reverse_query_payload)
+            transpilers.append(transpiler)
 
         return qgraphs, transpilers, queries
 
@@ -317,7 +293,7 @@ class SubqueryDispatcher(BatchedAction):
     async def get_subgraph(
         branch: Branch,
         key: SuperpositionHop,
-        kedges: dict[SuperpositionHop, list[EdgeDict]],
+        kedges: dict[SuperpositionHop, list[tuple[EdgeID, EdgeDict]]],
         kgraph: KnowledgeGraphDict,
     ) -> tuple[KnowledgeGraphDict, list[LogEntryDict]]:
         """Get a subgraph from a given set of kedges.
@@ -326,14 +302,14 @@ class SubqueryDispatcher(BatchedAction):
         """
         edges = kedges[key]
         curies = list[str]()
-        for edge in edges:
+        for _edge_id, edge in edges:
             if not branch.reversed:
                 curies.append(edge["object"])
             else:
                 curies.append(edge["subject"])
 
         kg = KnowledgeGraphDict(
-            edges={hash_hex(hash_edge(edge)): edge for edge in edges},
+            edges=dict(edges),
             nodes={CURIE(curie): kgraph["nodes"][CURIE(curie)] for curie in curies},
         )
 

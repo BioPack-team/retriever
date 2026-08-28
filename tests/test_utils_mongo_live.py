@@ -11,6 +11,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 import pytest
+from utils.mongo_fixtures import (  # pyright: ignore[reportImplicitRelativeImport]
+    test_mongo,  # noqa: F401
+)
 
 from retriever.utils.job_status import TERMINAL_FAILURE
 from retriever.utils.mongo import (
@@ -18,7 +21,6 @@ from retriever.utils.mongo import (
     JobTimeFilter,
     MongoClient,
 )
-from utils.mongo_fixtures import test_mongo  # noqa: F401  pyright:ignore[reportImplicitRelativeImport]  # fixture import
 
 pytestmark = pytest.mark.live
 

@@ -7,6 +7,7 @@ from datetime import datetime
 from types import CoroutineType, TracebackType
 from typing import (
     Any,
+    Literal,
     Protocol,
     Self,
     TypedDict,
@@ -34,13 +35,58 @@ PREFIX = "{Retriever}:"
 OP_TABLE_KEY = "op_table"
 OP_TABLE_UPDATE_CHANNEL = "op_table:update"
 
-# Worker -> leader signal for a tier recovery; payload is the tier index as a string.
+# Worker -> builder signal for a tier recovery; payload is the tier index as a string.
 TIER_RECOVERED_CHANNEL = "tier:recovered"
+
+# Leader lease; holds the leading instance's builder-process token so only one
+# instance builds and publishes shared artifacts at a time.
+LEADER_LEASE_KEY = "leader:lease"
+
+# Best-effort ISO timestamp of when the current leader won, refreshed each renew
+# so /status can show "since when"; expires with the lease.
+LEADER_ELECTED_KEY = "leader:elected"
+
+# Extend the lease if we still own it, claim it if it's free, otherwise fail.
+# The compare-and-set runs atomically so a lagging ex-leader can't overwrite the
+# current holder's token.
+_RENEW_OR_ACQUIRE_LEASE_LUA = """
+local current = redis.call('get', KEYS[1])
+if current == ARGV[1] then
+    redis.call('pexpire', KEYS[1], ARGV[2])
+    return 1
+elseif current == false then
+    redis.call('set', KEYS[1], ARGV[1], 'px', ARGV[2])
+    return 1
+else
+    return 0
+end
+"""
+
+# Drop the lease only if this token still holds it, so a lagging release can't
+# delete a successor's freshly-acquired lease.
+_RELEASE_LEASE_LUA = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+    return redis.call('del', KEYS[1])
+else
+    return 0
+end
+"""
+
+# Cross-process backend outage/recovery propagation; payload is a JSON
+# BackendHealthMessage. Lets one process's detected outage flip peers to
+# fallback without each waiting to detect it independently.
+BACKEND_HEALTH_CHANNEL = "backend:health"
 
 # Timestamp keys written alongside published artifacts so /status
 # can show freshness without inferring from TTL.
 OP_TABLE_META_KEY = f"{PREFIX}op_table:meta"
 SUBCLASS_META_KEY = f"{PREFIX}SubclassHashMap:meta"
+
+# Canary key the health probe writes so a read-only or out-of-memory Redis -
+# where PING and reads still succeed but writes are rejected - registers as an
+# outage instead of silently stranding writers.
+HEALTH_CANARY_KEY = f"{PREFIX}health:canary"
+HEALTH_CANARY_TTL_MS = 30_000
 
 # Process-registry hashes.
 WORKER_REGISTRY_KEY = f"{PREFIX}workers"
@@ -62,6 +108,19 @@ class FreshnessRecord(TypedDict):
 
     refreshed_at: datetime
     count: int
+
+
+class BackendHealthMessage(TypedDict):
+    """A backend outage/recovery broadcast on `BACKEND_HEALTH_CHANNEL`."""
+
+    backend: str
+    """The originating client's `health_key`."""
+    event: Literal["outage", "recovery"]
+    pid: int
+    """Publisher's PID; receivers drop their own echoes."""
+    at: str
+    """ISO-8601 transition timestamp."""
+    error: str | None
 
 
 class PubSubMessage(TypedDict):
@@ -374,8 +433,14 @@ class RedisClient(BackendClient):
 
     @override
     async def ping(self) -> None:
-        """Probe Redis. Raises on failure."""
+        """Probe Redis with a read and a canary write; raises on failure.
+
+        The write makes a read-only or out-of-memory Redis - where PING and
+        reads still succeed but writes are rejected - register as an outage, so
+        writers degrade gracefully instead of failing silently.
+        """
         _ = await self.client.ping()
+        _ = await self.client.set(HEALTH_CANARY_KEY, b"1", px=HEALTH_CANARY_TTL_MS)
 
     @override
     def _build_client(self) -> None:
@@ -658,6 +723,22 @@ class RedisClient(BackendClient):
         info = await self.client.info("memory")
         return int(info["used_memory"])
 
+    async def renew_or_acquire_lease(self, key: str, token: str, ttl_ms: int) -> bool:
+        """Hold or claim a lease: extend if `token` owns `key`, acquire if free, else fail.
+
+        Returns whether `token` holds the lease afterward. `eval` isn't on the
+        `AsyncRedis` protocol, so this reaches the raw client directly (as
+        `hexpire` does) and prefixes the key itself.
+        """
+        script = self._client.register_script(_RENEW_OR_ACQUIRE_LEASE_LUA)
+        result = cast(int, await script(keys=[f"{PREFIX}{key}"], args=[token, ttl_ms]))
+        return result == 1
+
+    async def release_lease(self, key: str, token: str) -> None:
+        """Drop the lease only if `token` still holds it."""
+        script = self._client.register_script(_RELEASE_LEASE_LUA)
+        _ = cast(int, await script(keys=[f"{PREFIX}{key}"], args=[token]))
+
     async def _read_freshness(self, key: str) -> FreshnessRecord | None:
         """Read a JSON sidecar `{refreshed_at, count}` from the given key."""
         data = await self.client.get(key)
@@ -686,6 +767,21 @@ class RedisClient(BackendClient):
     async def subclass_freshness(self) -> FreshnessRecord | None:
         """Return the last-refreshed timestamp + map size for the subclass map."""
         return await self._read_freshness(SUBCLASS_META_KEY)
+
+    async def get_leader(self) -> str | None:
+        """Builder token of the current leader, or None when the cluster is leaderless."""
+        holder = await self.get(LEADER_LEASE_KEY)
+        return holder.decode() if holder is not None else None
+
+    async def get_leader_elected_at(self) -> datetime | None:
+        """When the current leader won the lease, or None if unknown/leaderless."""
+        data = await self.get(LEADER_ELECTED_KEY)
+        if data is None:
+            return None
+        try:
+            return datetime.fromisoformat(data.decode())
+        except ValueError:
+            return None
 
     async def _register_process(
         self,

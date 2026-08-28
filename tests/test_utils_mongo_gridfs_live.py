@@ -12,8 +12,8 @@ import uuid
 from datetime import datetime, timedelta
 
 import pytest
-from utils.mongo_fixtures import (
-    test_mongo,  # noqa: F401  pyright:ignore[reportImplicitRelativeImport]  # fixture import
+from utils.mongo_fixtures import (  # pyright: ignore[reportImplicitRelativeImport]
+    test_mongo,  # noqa: F401  # fixture import
 )
 
 from retriever.config.general import CONFIG
@@ -39,12 +39,23 @@ def _response_state(job_id: str, payload: bytes) -> ResponseState:
         aux_graphs=0,
         results=1,
         status="Success",
+        event_time=datetime.now().astimezone(),
     )
 
 
 async def _write(state: ResponseState) -> None:
     """Persist one state through the queue path that decides inline vs GridFS."""
     await MongoQueue().job_state([state])
+
+
+@pytest.fixture(autouse=True)
+def _keep_all_successes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests exercise storage mechanics, not sampling.
+
+    Force every succeeded body to be stored so the store/GridFS assertions are
+    deterministic; the sampling tests below re-monkeypatch the proportion down.
+    """
+    monkeypatch.setattr(CONFIG.mongo, "stored_success_proportion", 1.0)
 
 
 @pytest.mark.asyncio
@@ -81,6 +92,7 @@ async def test_small_blob_stored_inline(test_mongo: MongoClient) -> None:  # noq
     assert raw is not None
     assert raw.get("doc") == payload
     assert raw.get("doc_ref") is None
+    assert raw.get("expiry") is None  # sampled-in bodies keep the normal TTL
 
     files = test_mongo._doc_blob_files()
     assert await files.count_documents({"metadata.job_id": job_id}) == 0
@@ -242,6 +254,7 @@ async def test_dehydrated_response_stores_state_but_no_body(
                 aux_graphs=0,
                 results=5,
                 status="Success",
+                event_time=datetime.now().astimezone(),
                 dehydrated=True,
             )
         ]
@@ -286,6 +299,7 @@ async def test_dehydrated_flag_recorded_at_enqueue(test_mongo: MongoClient) -> N
                 status="Running",
                 worker_pid=1234,
                 worker_started_at=datetime.now().astimezone(),
+                event_time=datetime.now().astimezone(),
                 dehydrated=True,
             )
         ]
@@ -300,3 +314,209 @@ async def test_dehydrated_flag_recorded_at_enqueue(test_mongo: MongoClient) -> N
     raw = await docs.find_one({"job_id": job_id})
     assert raw is not None
     assert raw.get("doc") == b"compressed-query-bytes"
+
+
+@pytest.mark.asyncio
+async def test_sampled_out_success_retained_inline(
+    test_mongo: MongoClient,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A sampled-out success keeps an inline body with a short-window `expiry`."""
+    ttl = 600
+    monkeypatch.setattr(CONFIG.mongo, "stored_success_proportion", 0.0)
+    monkeypatch.setattr(CONFIG.mongo, "unsampled_ttl", ttl)
+
+    job_id = uuid.uuid4().hex
+    event_time = datetime.now().astimezone()
+    state = _response_state(job_id, b"retain-me-briefly")
+    state["event_time"] = event_time
+    await _write(state)
+
+    status, docs = test_mongo.get_job_collection()
+    status_doc = await status.find_one({"job_id": job_id})
+    assert status_doc is not None
+    assert status_doc["status"] == "Success"
+    assert status_doc.get("expiry") is None  # only the body doc carries the window
+
+    raw = await docs.find_one({"job_id": job_id})
+    assert raw is not None
+    assert raw.get("doc") == b"retain-me-briefly"  # kept inline, not dropped
+    assert raw.get("doc_ref") is None
+    assert (
+        await test_mongo._doc_blob_files().count_documents({"metadata.job_id": job_id})
+        == 0
+    )
+    stored_expiry = raw.get("expiry")
+    assert stored_expiry is not None
+    drift = (stored_expiry - (event_time + timedelta(seconds=ttl))).total_seconds()
+    assert abs(drift) < 1
+
+
+@pytest.mark.asyncio
+async def test_sampled_out_success_dropped_when_retention_disabled(
+    test_mongo: MongoClient,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With `unsampled_ttl=0`, a sampled-out success keeps its status but no body."""
+    monkeypatch.setattr(CONFIG.mongo, "stored_success_proportion", 0.0)
+    monkeypatch.setattr(CONFIG.mongo, "unsampled_ttl", 0)
+
+    job_id = uuid.uuid4().hex
+    await _write(_response_state(job_id, b"body-that-should-not-persist"))
+
+    status, docs = test_mongo.get_job_collection()
+    status_doc = await status.find_one({"job_id": job_id})
+    assert status_doc is not None
+    assert status_doc["status"] == "Success"  # state is still recorded
+
+    raw = await docs.find_one({"job_id": job_id})
+    assert raw is not None
+    assert raw.get("doc") is None
+    assert raw.get("doc_ref") is None
+    assert raw.get("expiry") is None
+    assert (
+        await test_mongo._doc_blob_files().count_documents({"metadata.job_id": job_id})
+        == 0
+    )
+
+
+@pytest.mark.asyncio
+async def test_sampled_out_success_oversized_dropped(
+    test_mongo: MongoClient,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A sampled-out success too large for inline is dropped, not churned through GridFS."""
+    monkeypatch.setattr(CONFIG.mongo, "stored_success_proportion", 0.0)
+    monkeypatch.setattr(CONFIG.mongo, "unsampled_ttl", 600)
+
+    job_id = uuid.uuid4().hex
+    await _write(_response_state(job_id, b"\x07" * (GRIDFS_INLINE_LIMIT + 100)))
+
+    _, docs = test_mongo.get_job_collection()
+    raw = await docs.find_one({"job_id": job_id})
+    assert raw is not None
+    assert raw.get("doc") is None
+    assert raw.get("doc_ref") is None
+    assert raw.get("expiry") is None
+    assert (
+        await test_mongo._doc_blob_files().count_documents({"metadata.job_id": job_id})
+        == 0
+    )
+
+
+@pytest.mark.asyncio
+async def test_sampled_out_success_replaces_initial_query_blob(
+    test_mongo: MongoClient,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A retained sampled-out response overwrites the initial query blob, so that's served."""
+    monkeypatch.setattr(CONFIG.mongo, "stored_success_proportion", 0.0)
+    monkeypatch.setattr(CONFIG.mongo, "unsampled_ttl", 600)
+
+    job_id = uuid.uuid4().hex
+    # The initial query write (unconditional for sync + async) stores the query.
+    await MongoQueue().job_state(
+        [
+            QueryState(
+                job_id=job_id,
+                query=b"compressed-query-bytes",
+                job_timeout=30.0,
+                submitter="tester",
+                data_tier=0,
+                is_async=True,
+                qnodes=2,
+                qedges=1,
+                qpaths=0,
+                status="Running",
+                worker_pid=1234,
+                worker_started_at=datetime.now().astimezone(),
+                event_time=datetime.now().astimezone(),
+            )
+        ]
+    )
+    _, docs = test_mongo.get_job_collection()
+    initial = await docs.find_one({"job_id": job_id})
+    assert (initial or {}).get("doc") == b"compressed-query-bytes"
+
+    # The retained response replaces the query bytes, so it's served instead.
+    await _write(_response_state(job_id, b"retained-response-body"))
+
+    raw = await docs.find_one({"job_id": job_id})
+    assert raw is not None
+    assert raw.get("doc") == b"retained-response-body"
+    assert raw.get("doc_ref") is None
+    assert raw.get("expiry") is not None
+
+    job = await test_mongo.get_job_doc(job_id)
+    assert job is not None
+    assert job.get("doc") == b"retained-response-body"
+
+
+@pytest.mark.asyncio
+async def test_dropped_success_clears_offloaded_query_blob(
+    test_mongo: MongoClient,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With retention off, a dropped success deletes a GridFS-offloaded query blob."""
+    monkeypatch.setattr(CONFIG.mongo, "stored_success_proportion", 0.0)
+    monkeypatch.setattr(CONFIG.mongo, "unsampled_ttl", 0)
+
+    job_id = uuid.uuid4().hex
+    # An oversized initial query spills to GridFS instead of storing inline.
+    await MongoQueue().job_state(
+        [
+            QueryState(
+                job_id=job_id,
+                query=b"\x06" * (GRIDFS_INLINE_LIMIT + 100),
+                job_timeout=30.0,
+                submitter="tester",
+                data_tier=0,
+                is_async=True,
+                qnodes=2,
+                qedges=1,
+                qpaths=0,
+                status="Running",
+                worker_pid=1234,
+                worker_started_at=datetime.now().astimezone(),
+                event_time=datetime.now().astimezone(),
+            )
+        ]
+    )
+    _, docs = test_mongo.get_job_collection()
+    assert (await docs.find_one({"job_id": job_id}) or {}).get("doc_ref") is not None
+    assert (
+        await test_mongo._doc_blob_files().count_documents({"metadata.job_id": job_id})
+        == 1
+    )
+
+    # The sampled-out response must drop that offloaded blob, not just unset doc_ref.
+    await _write(_response_state(job_id, b"response-body-dropped"))
+
+    raw = await docs.find_one({"job_id": job_id})
+    assert raw is not None
+    assert raw.get("doc") is None
+    assert raw.get("doc_ref") is None
+    assert (
+        await test_mongo._doc_blob_files().count_documents({"metadata.job_id": job_id})
+        == 0
+    )
+
+
+@pytest.mark.asyncio
+async def test_failure_always_stored_despite_zero_proportion(
+    test_mongo: MongoClient,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Failures are always persisted; success-only sampling never drops them."""
+    monkeypatch.setattr(CONFIG.mongo, "stored_success_proportion", 0.0)
+
+    job_id = uuid.uuid4().hex
+    state = _response_state(job_id, b"failure-body")
+    state["status"] = "Failed"
+    await _write(state)
+
+    _, docs = test_mongo.get_job_collection()
+    raw = await docs.find_one({"job_id": job_id})
+    assert raw is not None
+    assert raw.get("doc") == b"failure-body"
+    assert raw.get("expiry") is None  # failures are kept on the normal TTL

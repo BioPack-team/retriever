@@ -10,13 +10,15 @@ import orjson
 import zstandard
 from loguru import logger as log
 from opentelemetry import trace
+from translator_tom.v1_6 import CURIE, Biolink, Infores
+from translator_tom.v1_6.model_dicts import ResponseDict
 
 from retriever.config.general import CONFIG, GandalfSettings
 from retriever.data_tiers.base_driver import DatabaseDriver
 from retriever.data_tiers.utils import parse_dingo_metadata
 from retriever.types.dingo import DINGOMetadata
 from retriever.types.metakg import Operation, OperationNode
-from retriever.types.trapi import CURIE, BiolinkEntity, Infores, QueryDict, ResponseDict
+from retriever.types.trapi import Query
 
 ZSTD_COMPRESSOR = zstandard.ZstdCompressor()
 
@@ -90,9 +92,7 @@ class GandalfDriver(DatabaseDriver):
             self._http_session = None
 
     @override
-    async def run_query(
-        self, query: QueryDict, *args: Any, **kwargs: Any
-    ) -> ResponseDict:
+    async def run_query(self, query: Query, *args: Any, **kwargs: Any) -> ResponseDict:
         """Execute a query against the Gandalf database and parse into dataclasses.
 
         Args:
@@ -105,7 +105,7 @@ class GandalfDriver(DatabaseDriver):
 
         """
         otel_span = trace.get_current_span()  # Serialize once...
-        query_json = orjson.dumps(query).decode()
+        query_json = query.to_json(as_str=True)
         if otel_span and otel_span.is_recording():
             otel_span.add_event(
                 "gandalf_query_start",
@@ -243,10 +243,18 @@ class GandalfDriver(DatabaseDriver):
         return self.metadata
 
     @override
+    def get_release_version(self) -> str | None:
+        """Top-level `version` from cached DINGO metadata, if available."""
+        if self.metadata is None:
+            return None
+        version = self.metadata.get("version")
+        return version if isinstance(version, str) else None
+
+    @override
     async def get_operations(
         self,
         bypass_cache: bool = False,
-    ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
+    ) -> tuple[list[Operation], dict[Biolink.Entity, OperationNode]]:
         metadata = await self.get_metadata(bypass_cache=bypass_cache)
         if metadata is None:
             raise ValueError(

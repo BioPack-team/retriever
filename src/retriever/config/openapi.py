@@ -1,6 +1,5 @@
 from typing import Annotated, Any, ClassVar, override
 
-import bmt
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel, EmailStr
@@ -13,8 +12,6 @@ from pydantic_settings import (
 )
 
 from retriever.config.utils import CommentedSettings
-
-biolink = bmt.Toolkit()
 
 
 class ContactInfo(BaseModel):

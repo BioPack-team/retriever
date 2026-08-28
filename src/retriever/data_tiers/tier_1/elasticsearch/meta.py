@@ -11,6 +11,7 @@ import msgpack
 import ormsgpack
 from elasticsearch import AsyncElasticsearch
 from loguru import logger as log
+from translator_tom.v1_6 import CURIE, Biolink, Infores, MetaAttribute
 
 from retriever.config.general import CONFIG
 from retriever.data_tiers.utils import (
@@ -20,7 +21,6 @@ from retriever.data_tiers.utils import (
 )
 from retriever.types.dingo import DINGOMetadata
 from retriever.types.metakg import Operation, OperationNode, UnhashedOperation
-from retriever.types.trapi import CURIE, BiolinkEntity, Infores, MetaAttributeDict
 from retriever.utils.redis import RedisClient
 
 T1MetaData = dict[str, Any]
@@ -172,30 +172,11 @@ async def _cached_fallback(bypass_cache: bool) -> T1MetaData | None:
     return cached
 
 
-def hash_meta_attribute(attr: MetaAttributeDict) -> int:
-    """Method to hash MetaAttributeDict."""
-    keys = [
-        "attribute_type_id",
-        "attribute_source",
-        "original_attribute_names",
-        "constraint_use",
-        "constraint_name",
-    ]
-    values: list[Any] = []
-    for key in keys:
-        val: list[str] | None = attr.get(key)
-        if isinstance(val, list):
-            values.append(tuple(val))
-        else:
-            values.append(val)
-    return hash(tuple(values))
-
-
 def merge_nodes(
-    nodes: dict[BiolinkEntity, OperationNode],
-    curr_nodes: dict[BiolinkEntity, OperationNode],
+    nodes: dict[Biolink.Entity, OperationNode],
+    curr_nodes: dict[Biolink.Entity, OperationNode],
     infores: Infores,
-) -> dict[BiolinkEntity, OperationNode]:
+) -> dict[Biolink.Entity, OperationNode]:
     """Merge OperationNodes generated."""
     for category, node in curr_nodes.items():
         # Category not seen before → initialize
@@ -213,17 +194,16 @@ def merge_nodes(
 
 
 def dedupe_nodes(
-    nodes: dict[BiolinkEntity, OperationNode], infores: Infores
-) -> dict[BiolinkEntity, OperationNode]:
+    nodes: dict[Biolink.Entity, OperationNode], infores: Infores
+) -> dict[Biolink.Entity, OperationNode]:
     """De-duplicate OperationNodes generated."""
     for current in nodes.values():
         current.prefixes[infores] = list(set(current.prefixes[infores]))
 
-        seen_attr: set[int] = set()
-        attrs: list[MetaAttributeDict] = current.attributes[infores]
-        deduped: list[MetaAttributeDict] = []
-        for attr in attrs:
-            hash_code = hash_meta_attribute(attr)
+        seen_attr: set[str] = set()
+        deduped: list[MetaAttribute] = []
+        for attr in current.attributes[infores]:
+            hash_code = attr.hash()
             if hash_code not in seen_attr:
                 deduped.append(attr)
                 seen_attr.add(hash_code)
@@ -247,10 +227,17 @@ def merge_operations(ops_unhashed: list[UnhashedOperation]) -> list[Operation]:
         # needs merging if seen
         else:
             hashed_op = seen_op[op_hash]
+            # Merge attrs/quals without duplicating entries already present.
             if hashed_op.attributes is not None and op.attributes is not None:
-                hashed_op.attributes.extend(op.attributes)
+                seen_attrs = {a.hash() for a in hashed_op.attributes}
+                hashed_op.attributes.extend(
+                    a for a in op.attributes if a.hash() not in seen_attrs
+                )
             if hashed_op.qualifiers is not None and op.qualifiers is not None:
-                hashed_op.qualifiers.update(op.qualifiers)
+                seen_quals = {q.hash() for q in hashed_op.qualifiers}
+                hashed_op.qualifiers.extend(
+                    q for q in op.qualifiers if q.hash() not in seen_quals
+                )
 
             # ignoring access_metadata for now
 
@@ -259,12 +246,12 @@ def merge_operations(ops_unhashed: list[UnhashedOperation]) -> list[Operation]:
 
 async def generate_operations(
     meta_entries: list[T1MetaData],
-) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
+) -> tuple[list[Operation], dict[Biolink.Entity, OperationNode]]:
     """Generate operations and associated nodes based on metadata provided."""
     infores = Infores(CONFIG.tier1.backend_infores)
 
     operations_unhashed: list[UnhashedOperation] = []
-    nodes: dict[BiolinkEntity, OperationNode] = {}
+    nodes: dict[Biolink.Entity, OperationNode] = {}
 
     for meta_entry in meta_entries:
         curr_ops, curr_nodes = parse_dingo_metadata_unhashed(

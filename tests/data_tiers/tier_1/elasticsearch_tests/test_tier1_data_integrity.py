@@ -4,28 +4,16 @@ import pytest
 from elasticsearch import Elasticsearch
 
 from retriever.config.general import CONFIG
-from retriever.data_tiers.tier_1.elasticsearch.meta import get_t1_indices
 
-query = {
-  "size": 1,
-  "query": {
-    "function_score": {
-      "functions": [
-        { "random_score": {} }
-      ]
-    }
-  }
-}
-
-
-
+query = {"size": 1, "query": {"function_score": {"functions": [{"random_score": {}}]}}}
 
 
 @pytest.fixture(scope="module")
 def es_client():
+    client: Elasticsearch | None = None
     try:
         # should only be run in local setup, duh
-        es_url = f"http://localhost:9200"
+        es_url = "http://localhost:9200"
         client = Elasticsearch(es_url)
         # quick ping to check connection
         if not client.ping():
@@ -34,14 +22,17 @@ def es_client():
     except ConnectionError:
         pytest.skip("Cannot connect to Elasticsearch")
     finally:
-        if 'client' in locals():
+        if client is not None:
             client.close()
+
 
 @pytest.fixture(scope="module")
 def tier1_indices(es_client):
     resp = es_client.indices.resolve_index(name=CONFIG.tier1.elasticsearch.index_name)
-    if 'aliases' not in resp:
-        raise Exception(f"Failed to get indices from ES: {CONFIG.tier1.elasticsearch.index_name}")
+    if "aliases" not in resp:
+        raise Exception(
+            f"Failed to get indices from ES: {CONFIG.tier1.elasticsearch.index_name}"
+        )
 
     backing_indices = []
     for a in resp.get("aliases", []):
@@ -49,6 +40,7 @@ def tier1_indices(es_client):
             backing_indices.extend(a["indices"])
 
     return backing_indices
+
 
 def test_required_fields(es_client, tier1_indices):
     for index_name in tier1_indices:
@@ -64,9 +56,7 @@ def test_required_fields(es_client, tier1_indices):
         assert doc
 
         # check required fields
-        required_fields = [
-            "seq_"
-        ]
+        required_fields = ["seq_"]
 
         for field in required_fields:
             assert field in doc

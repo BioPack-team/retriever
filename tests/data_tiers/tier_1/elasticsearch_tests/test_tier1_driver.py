@@ -6,14 +6,17 @@ from typing import Any, cast
 
 import msgpack
 import pytest
-from payload.trapi_qgraphs import (
+from payload.trapi_qgraphs import (  # pyright:ignore[reportImplicitRelativeImport]
     DINGO_QGRAPH,
     EXPANDED_QUALIFIER_QGRAPH,
     ID_BYPASS_PAYLOAD,
     INVALID_REGEX_QGRAPHS,
     VALID_REGEX_QGRAPHS,
 )
-from test_tier1_transpiler import _convert_batch_triple, _convert_triple
+from test_tier1_transpiler import (  # pyright:ignore[reportImplicitRelativeImport]
+    _convert_batch_triple,
+    _convert_triple,
+)
 
 import retriever.config.general as general_mod
 import retriever.data_tiers.tier_1.elasticsearch.driver as driver_mod
@@ -51,56 +54,61 @@ def mock_elasticsearch_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]
     yield
 
 
-PAYLOAD_0: ESPayload = esp({
-    "query": {
-        "bool":
-            {"filter": [
-                {"terms": {"subject.category": ["Protein", "Gene"]}},
-                {"terms": {"object.id": ["MONDO:0012507"]}},
-                {"terms": {"object.category": ["disease"]}},
-                {"terms": {"predicate_ancestors": ["causes"]}}
-            ]
+PAYLOAD_0: ESPayload = esp(
+    {
+        "query": {
+            "bool": {
+                "filter": [
+                    {"terms": {"subject.category": ["Protein", "Gene"]}},
+                    {"terms": {"object.id": ["MONDO:0012507"]}},
+                    {"terms": {"object.category": ["disease"]}},
+                    {"terms": {"predicate_ancestors": ["causes"]}},
+                ]
             }
+        }
     }
-}
 )
-PAYLOAD_1: ESPayload = esp({
-    "query": {
-        "bool": {
-            "filter": [
-                {"terms": {"object.id": ["MONDO:0005233"]}},
-                {"terms": {"subject.id": ["CHEBI:70839", "UMLS:C1872686"]}}
-            ]
+PAYLOAD_1: ESPayload = esp(
+    {
+        "query": {
+            "bool": {
+                "filter": [
+                    {"terms": {"object.id": ["MONDO:0005233"]}},
+                    {"terms": {"subject.id": ["CHEBI:70839", "UMLS:C1872686"]}},
+                ]
+            }
         }
     }
-})
+)
 
-PAYLOAD_2: ESPayload = esp({
-    "query": {
-        "bool": {
-            "filter": [
-                {
-                    "terms": {
-                        "subject.id": [
-                            "MONDO:0030010",
-                            "MONDO:0011766",
-                            "MONDO:0009890"
-                        ]
+PAYLOAD_2: ESPayload = esp(
+    {
+        "query": {
+            "bool": {
+                "filter": [
+                    {
+                        "terms": {
+                            "subject.id": [
+                                "MONDO:0030010",
+                                "MONDO:0011766",
+                                "MONDO:0009890",
+                            ]
+                        }
                     }
-                }
-            ],
-            "must": [
-                {"range": {"has_total": {"gt": 0}}},
-                {"range": {"has_total": {"lte": 45}}}
-            ],
-            "should": [
-                {"term": {"sex_qualifier": "PATO:0000383"}},
-                {"term": {"frequency_qualifier": "HP:0040280"}}
-            ],
-            "minimum_should_match": 1
+                ],
+                "must": [
+                    {"range": {"has_total": {"gt": 0}}},
+                    {"range": {"has_total": {"lte": 45}}},
+                ],
+                "should": [
+                    {"term": {"sex_qualifier": "PATO:0000383"}},
+                    {"term": {"frequency_qualifier": "HP:0040280"}},
+                ],
+                "minimum_should_match": 1,
+            }
         }
     }
-})
+)
 
 
 @pytest.mark.usefixtures("mock_elasticsearch_config")
@@ -111,19 +119,18 @@ PAYLOAD_2: ESPayload = esp({
         (PAYLOAD_0, 0),
         (PAYLOAD_1, 2),
         (PAYLOAD_2, 32),
-        (
-                [PAYLOAD_0, PAYLOAD_1, PAYLOAD_2],
-                [0, 2, 32]
-        )
+        ([PAYLOAD_0, PAYLOAD_1, PAYLOAD_2], [0, 2, 32]),
     ],
     ids=[
         "single payload 1",
         "single payload 2",
         "single payload 3",
         "batch payload",
-    ]
+    ],
 )
-async def test_elasticsearch_driver(payload: ESPayload | list[ESPayload], expected: int | list[int]):
+async def test_elasticsearch_driver(
+    payload: ESPayload | list[ESPayload], expected: int | list[int]
+):
     driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
     try:
         await driver.initialize()
@@ -142,10 +149,12 @@ async def test_elasticsearch_driver(payload: ESPayload | list[ESPayload], expect
         if not isinstance(res, list):
             raise AssertionError(f"Expected results to be list, got {type(res)}")
         if not len(res) == expected_result_num:
-            raise AssertionError(f"Expected {expected_result_num} results, got {len(res)}")
+            raise AssertionError(
+                f"Expected {expected_result_num} results, got {len(res)}"
+            )
 
     # check batch result
-    if len(payload) > 1:
+    if isinstance(expected, list):
         assert len(hits) == len(payload)
         assert isinstance(hits[0], list)
 
@@ -160,7 +169,10 @@ async def test_elasticsearch_driver(payload: ESPayload | list[ESPayload], expect
 @pytest.mark.parametrize(
     "qgraph",
     INVALID_REGEX_QGRAPHS,
-    ids=[qgraph["edges"]["e0"]["attribute_constraints"][0]["value"] for qgraph in INVALID_REGEX_QGRAPHS]
+    ids=[
+        str(cast("Any", qgraph)["edges"]["e0"]["attribute_constraints"][0]["value"])
+        for qgraph in INVALID_REGEX_QGRAPHS
+    ],
 )
 def test_invalid_regex_qgraph(qgraph):
     transpiler = ElasticsearchTranspiler()
@@ -184,7 +196,7 @@ async def test_valid_regex_query():
         pytest.skip("skipping es driver connection test: cannot connect")
 
     for payload in qgraphs_with_valid_regex:
-        hits: list[ESEdge] = await driver.run_query(payload)
+        await driver.run_query(payload)
 
     await driver.wrapup()
 
@@ -201,10 +213,13 @@ async def test_metadata_retrieval():
         pytest.skip("skipping es driver connection test: cannot connect")
 
     meta = await driver.get_metadata(bypass_cache=True)
+    assert meta is not None
 
     # make sure each index has metadata extracted
     indices = await get_t1_indices(driver.es_connection)
-    assert len(extract_metadata_entries_from_blob(meta, indices)) == len(indices)
+    assert len(extract_metadata_entries_from_blob(cast("Any", meta), indices)) == len(
+        indices
+    )
 
     ops, nodes = await driver.get_operations()
 
@@ -212,7 +227,6 @@ async def test_metadata_retrieval():
     #     json.dump(output, f, indent=2)
 
     # _ops, _nodes = await driver.legacy_get_operations()
-
 
     # assert len(nodes) == 23
 
@@ -265,7 +279,7 @@ async def test_end_to_end(qgraph, min_hits):
     except Exception:
         pytest.skip("skipping es driver connection test: cannot connect")
 
-    hits: list[ESEdge] = await driver.run_query(payload)
+    hits: list[ESEdge] = cast("list[ESEdge]", await driver.run_query(payload))
 
     assert len(hits) >= min_hits
 
@@ -307,6 +321,7 @@ async def test_cache_bypass():
 
     await driver.wrapup()
 
+
 @pytest.mark.usefixtures("mock_elasticsearch_config")
 @pytest.mark.asyncio
 async def test_cache_bypass_batch_query():
@@ -316,7 +331,9 @@ async def test_cache_bypass_batch_query():
     Compares results with and without bypass_cache for batch processing.
     """
     transpiler = ElasticsearchTranspiler()
-    batch_payloads = _convert_batch_triple(transpiler, [DINGO_QGRAPH, ID_BYPASS_PAYLOAD])
+    batch_payloads = _convert_batch_triple(
+        transpiler, [DINGO_QGRAPH, ID_BYPASS_PAYLOAD]
+    )
 
     driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
 
@@ -327,10 +344,14 @@ async def test_cache_bypass_batch_query():
         pytest.skip("skipping batch bypass_cache test: cannot connect to elasticsearch")
 
     # Execute batch query with bypass_cache=True (should enforce timestamp on all)
-    hits_with_bypass: list[list[ESEdge]] = await driver.run_query(batch_payloads, bypass_cache=True)
+    hits_with_bypass: list[list[ESEdge]] = cast(
+        "list[list[ESEdge]]", await driver.run_query(batch_payloads, bypass_cache=True)
+    )
 
     # Execute same batch query with bypass_cache=False (should not enforce timestamp)
-    hits_without_bypass: list[list[ESEdge]] = await driver.run_query(batch_payloads, bypass_cache=False)
+    hits_without_bypass: list[list[ESEdge]] = cast(
+        "list[list[ESEdge]]", await driver.run_query(batch_payloads, bypass_cache=False)
+    )
 
     # Both should return list of lists with same structure
     assert isinstance(hits_with_bypass, list)
@@ -343,7 +364,6 @@ async def test_cache_bypass_batch_query():
     assert len(hits_with_bypass[1]) == len(hits_without_bypass[1])
 
     await driver.wrapup()
-
 
 
 @pytest.mark.usefixtures("mock_elasticsearch_config")
@@ -362,7 +382,7 @@ async def test_cache_bypass_timestamp_structure(monkeypatch: pytest.MonkeyPatch)
     driver.es_connection = mock_es
 
     # Capture the actual query passed to run_single_query
-    captured_query = None
+    captured_query: dict[str, Any] | None = None
 
     async def mock_run_single(es_connection, index_name, query):
         nonlocal captured_query
@@ -388,8 +408,14 @@ async def test_cache_bypass_timestamp_structure(monkeypatch: pytest.MonkeyPatch)
             if "should" in bool_filter:
                 should_clauses = bool_filter["should"]
                 # Check for timestamp range and null check clauses
-                has_range = any("range" in clause and "update_date" in clause.get("range", {}) for clause in should_clauses)
-                has_null_check = any("bool" in clause and "must_not" in clause.get("bool", {}) for clause in should_clauses)
+                has_range = any(
+                    "range" in clause and "update_date" in clause.get("range", {})
+                    for clause in should_clauses
+                )
+                has_null_check = any(
+                    "bool" in clause and "must_not" in clause.get("bool", {})
+                    for clause in should_clauses
+                )
                 if has_range and has_null_check:
                     timestamp_filter_found = True
                     break
@@ -406,7 +432,7 @@ async def test_ubergraph_info_retrieval():
     # --- MANUAL LOOP RESET ---
     # Since REDIS_CLIENT can retain stale connections/loop references from previous tests,
     # we need to force-reset the Redis connection pool to prevent 'Event loop is closed' errors.
-    RedisClient().client.connection_pool.reset()
+    RedisClient().client.connection_pool.reset()  # pyright: ignore[reportAttributeAccessIssue]
 
     driver: driver_mod.ElasticSearchDriver = driver_mod.ElasticSearchDriver()
     try:
@@ -501,8 +527,9 @@ async def test_iter_ubergraph_chunks_paginates_without_truncating():
 class _FakeStreamDriver:
     """Driver stand-in whose `stream_subclass_mapping` yields fixed pairs."""
 
-    def __init__(self, pairs: list[tuple[str, list[str]]]) -> None:
+    def __init__(self, pairs: list[tuple[str, list[str]]], *, up: bool = True) -> None:
         self._pairs = pairs
+        self.up = up
 
     def stream_subclass_mapping(self, cutoff: int) -> Any:
         async def gen() -> Any:
@@ -563,7 +590,9 @@ async def test_reload_mapping_streams_kept_entries_to_redis(
     assert set(live) == {f"c{i}" for i in range(5)}  # every kept entry, swapped in
     assert all(size <= 2 for size in fake_redis.hset_calls)  # batched under the cap
     assert fake_redis.freshness_writes == [5]  # freshness = kept count
-    assert subclass_mod.MAPPING_BUILD_ID not in fake_redis.hashes  # temp consumed by rename
+    assert (
+        subclass_mod.MAPPING_BUILD_ID not in fake_redis.hashes
+    )  # temp consumed by rename
 
 
 @pytest.mark.asyncio
@@ -610,3 +639,24 @@ async def test_reload_mapping_zero_entries_preserves_previous(
     assert fake_redis.hashes[subclass_mod.MAPPING_ID] == {"a": b"x"}
     assert fake_redis.freshness_writes == []
     assert subclass_mod.MAPPING_BUILD_ID not in fake_redis.hashes  # temp cleaned up
+
+
+@pytest.mark.asyncio
+async def test_reload_mapping_skipped_when_tier1_down(monkeypatch: pytest.MonkeyPatch):
+    import retriever.lookup.subclass as subclass_mod
+
+    fake_redis = _FakeRedis()
+    sm = _install_reload(monkeypatch, fake_redis)
+    fake_redis.hashes[subclass_mod.MAPPING_ID] = {"a": b"x"}  # seed a prior good map
+    monkeypatch.setattr(
+        subclass_mod.tier_manager,
+        "get_driver",
+        lambda _tier: _FakeStreamDriver([("c", ["d"])], up=False),
+    )
+
+    await sm._reload_mapping()
+
+    # A down tier 1 must not stream; the prior map is left untouched until recovery.
+    assert fake_redis.hashes[subclass_mod.MAPPING_ID] == {"a": b"x"}
+    assert fake_redis.freshness_writes == []
+    assert fake_redis.hset_calls == []

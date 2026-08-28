@@ -2,6 +2,10 @@ from dataclasses import dataclass
 from typing import Any, NotRequired, Self, TypedDict
 
 import orjson
+from translator_tom.v1_6 import Biolink
+from translator_tom.v1_6.model_dicts import (
+    RetrievalSourceDict,
+)
 
 from retriever.data_tiers.tier_1.elasticsearch.constraints.types.attribute_types import (
     AttributeFilterQuery,
@@ -15,10 +19,6 @@ from retriever.data_tiers.utils import (
     DINGO_KG_EDGE_TOPLEVEL_VALUES,
     DINGO_KG_NODE_TOPLEVEL_VALUES,
 )
-from retriever.types.trapi import (
-    RetrievalSourceDict,
-)
-from retriever.utils import biolink
 
 
 class ESFilterClause(TypedDict):
@@ -121,7 +121,7 @@ class ESEdge:
         for key, value in doc["_source"].items():
             if key in DINGO_KG_EDGE_TOPLEVEL_VALUES:
                 continue
-            if biolink.is_qualifier(key):
+            if Biolink.is_qualifier(key):
                 if not isinstance(value, str):
                     qualifiers[key] = orjson.dumps(value).decode()
                 else:

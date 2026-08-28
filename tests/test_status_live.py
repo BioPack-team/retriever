@@ -13,8 +13,8 @@ import pytest
 import pytest_asyncio
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-from utils.mongo_fixtures import (
-    test_mongo,  # noqa: F401  pyright:ignore[reportImplicitRelativeImport]  # fixture
+from utils.mongo_fixtures import (  # pyright: ignore[reportImplicitRelativeImport]
+    test_mongo,  # noqa: F401  # fixture
 )
 
 from retriever.status import router as status_router
@@ -183,9 +183,7 @@ async def test_failure_breakdown_by_submitter(status_client: AsyncClient) -> Non
 
 @pytest.mark.asyncio
 async def test_failure_breakdown_by_tier(status_client: AsyncClient) -> None:
-    resp = await status_client.get(
-        "/status/failure_breakdown", params={"by": "tier"}
-    )
+    resp = await status_client.get("/status/failure_breakdown", params={"by": "tier"})
     assert resp.status_code == 200
     body = resp.json()
     assert body["by"] == "tier"

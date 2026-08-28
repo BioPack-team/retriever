@@ -44,6 +44,9 @@
 from datetime import datetime
 from typing import Any
 
+from translator_tom.v1_6 import Biolink
+from translator_tom.v1_6.model_dicts import AttributeConstraintDict
+
 from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.meta_info import (
     EDGE_ATTR_META,
     NODE_ATTR_META,
@@ -64,8 +67,6 @@ from retriever.data_tiers.tier_1.elasticsearch.constraints.types.attribute_types
     AttrValType,
     SingleAttributeFilterQueryPayload,
 )
-from retriever.types.trapi import AttributeConstraintDict
-from retriever.utils import biolink
 
 # sample
 # {
@@ -82,7 +83,7 @@ def validate_constraint(constraint: AttributeConstraintDict) -> None:
 
     for field in required_fields:
         if field not in constraint:
-            raise AttributeError(f"Attribute constraint must have the field {field}")
+            raise ValueError(f"Attribute constraint must have the field {field}")
 
 
 def validate_operator(operator: Any) -> None:
@@ -90,7 +91,7 @@ def validate_operator(operator: Any) -> None:
     allowed_ops = {"matches", "===", "==", ">", "<", ">=", "<="}
 
     if not isinstance(operator, str) or operator not in allowed_ops:
-        raise AttributeError(f"Operator must be one of {allowed_ops}")
+        raise ValueError(f"Operator must be one of {allowed_ops}")
 
 
 def validate_date(candidate: Any) -> str | int | None:
@@ -138,7 +139,7 @@ def process_single_constraint(
     raw_operator = constraint.get("operator")
     raw_value = constraint.get("value")
     should_negate = constraint.get("not", False)
-    target_field_name = biolink.rmprefix(constraint.get("id"))
+    target_field_name = Biolink.rmprefix(constraint.get("id"))
 
     validate_operator(raw_operator)
 
@@ -169,22 +170,22 @@ def process_single_constraint(
 
         if value is None:
             if field_meta_info["value_type"] == "date":
-                raise AttributeError(
+                raise ValueError(
                     f"{raw_value} is not a supported date. Must be in YYYY-MM-DD format"
                 )
 
-            raise AttributeError(
+            raise ValueError(
                 f"{field_meta_info['value_type']} field {target_field_name} is being compared with f{type(raw_value)}"
             )
 
         # ensure meaningful comparison
         if field_meta_info["value_type"] == "text" and raw_operator != "==":
-            raise AttributeError(
+            raise ValueError(
                 f"text field{target_field_name} only supports loose match operator '==' "
             )
 
         if field_meta_info["value_type"] == "bool" and raw_operator != "===":
-            raise AttributeError(
+            raise ValueError(
                 f"boolean field{target_field_name} only supports strict match operator '===' "
             )
 
@@ -207,7 +208,7 @@ def process_single_constraint(
     # elif isinstance(raw_value, list):
     #     # rule out meaningless op:
     #     if raw_operator == "===":
-    #         raise AttributeError(f"field {target_field_name} is a scalar, cannot be compared with a list using ===")
+    #         raise ValueError(f"field {target_field_name} is a scalar, cannot be compared with a list using ===")
     #
     #     value_processor = partial(ensure_type_consistency, field_type=field_meta_info['value_type'])
     #     values = list(filter(None, map(value_processor, raw_value)))
@@ -242,12 +243,12 @@ def process_attribute_constraints(
 
     # fail fast. exception => not met => fails everything
     for constraint in constraints:
-        # attribute error will ba raised if illegal
+        # ValueError will be raised if the constraint is illegal
         payload = process_single_constraint(constraint, origin)
 
         # None will be returned if not a supported filtering
         if not payload:
-            raise AttributeError(f"Constraint not currently supported: {constraint}.")
+            raise ValueError(f"Constraint not currently supported: {constraint}.")
 
         if payload["negate"]:
             must_not.append(payload["query"])

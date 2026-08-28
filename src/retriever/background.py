@@ -16,6 +16,8 @@ from retriever.data_tiers import tier_manager
 from retriever.lookup.subclass import SubclassMapping
 from retriever.metadata.optable import OpTableManager
 from retriever.utils.general import tolerate_init
+from retriever.utils.health_coordinator import HealthCoordinator
+from retriever.utils.leader import LEADER_ELECTION
 from retriever.utils.logs import add_mongo_sink
 from retriever.utils.mongo import MongoClient, MongoQueue
 from retriever.utils.orphan_detection import periodically_mark_orphans
@@ -50,15 +52,19 @@ async def _background_async() -> None:
         role_label="Background",
     )
 
-    # The leader doesn't see query traffic, so opt into periodic backend pings.
+    # The builder doesn't see query traffic, so opt into periodic backend pings.
     tier_manager.enable_periodic_healthchecks()
     await tier_manager.initialize_drivers()
     metakg_manager = OpTableManager()
-    metakg_manager.promote_to_leader()
+    metakg_manager.promote_to_builder()
     await tolerate_init("OpTable build", metakg_manager.initialize())
     subclass_manager = SubclassMapping()
-    subclass_manager.promote_to_leader()
+    subclass_manager.promote_to_builder()
     await tolerate_init("Subclass map build", subclass_manager.initialize())
+    # Managers have registered their on_acquire hooks; contend for the build lease
+    # so exactly one instance drives the builds across the shared Redis.
+    await tolerate_init("Leader election", LEADER_ELECTION.start())
+    await tolerate_init("Health propagation", HealthCoordinator().start())
     orphan_task = asyncio.create_task(
         periodically_mark_orphans(), name="orphan-detection"
     )
@@ -78,7 +84,12 @@ async def _background_async() -> None:
     orphan_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await orphan_task
+    # Clear health observers/subscription before dependencies wrap up.
+    await HealthCoordinator().stop()
     # Heartbeat task lives in RedisClient().tasks; cancelled in its wrapup.
+    # Relinquish the build lease first so a peer can take over promptly, and
+    # while Redis is still up to release it (rather than waiting on TTL).
+    await LEADER_ELECTION.stop()
     await SubclassMapping().wrapup()
     await metakg_manager.wrapup()
     await RedisClient().wrapup()
@@ -88,7 +99,6 @@ async def _background_async() -> None:
 
 def background_process() -> None:
     """A simple sync wrapper for the background process."""
-    os.environ["PYTHONHASHSEED"] = "0"  # So reasoner_pydantic hashing is deterministic
     configure_logging()
     configure_telemetry()
     uvloop.run(_background_async())

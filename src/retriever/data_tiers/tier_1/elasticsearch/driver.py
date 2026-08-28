@@ -9,6 +9,7 @@ from elasticsearch import AsyncElasticsearch
 from elasticsearch import exceptions as es_exceptions
 from loguru import logger as log
 from opentelemetry import trace
+from translator_tom.v1_6 import CURIE, Biolink, Infores, tomhash
 
 from retriever.config.general import CONFIG
 from retriever.data_tiers.base_driver import DatabaseDriver
@@ -35,10 +36,8 @@ from retriever.data_tiers.utils import (
 )
 from retriever.types.dingo import DINGO_ADAPTER, DINGOMetadata
 from retriever.types.metakg import Operation, OperationNode
-from retriever.types.trapi import CURIE, BiolinkEntity, Infores
 from retriever.utils.calls import get_metadata_client
 from retriever.utils.redis import RedisClient
-from retriever.utils.trapi import hash_hex
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 
@@ -235,7 +234,7 @@ class ElasticSearchDriver(DatabaseDriver):
         metadata = DINGO_ADAPTER.validate_python(raw_data)
 
         await RedisClient().set(
-            hash_hex(hash(url)),
+            tomhash(url),
             ormsgpack.packb(metadata),
             compress=True,
             ttl=CONFIG.job.metakg.build_time,
@@ -244,7 +243,7 @@ class ElasticSearchDriver(DatabaseDriver):
 
     async def _get_metadata(self, url: str, retries: int = 0) -> dict[str, Any] | None:
         """Obtain metadata for a given DINGO ingest."""
-        metadata_pack = await RedisClient().get(hash_hex(hash(url)), compressed=True)
+        metadata_pack = await RedisClient().get(tomhash(url), compressed=True)
 
         if metadata_pack is None:
             await self._pull_metadata(url)
@@ -262,7 +261,7 @@ class ElasticSearchDriver(DatabaseDriver):
 
     async def legacy_get_operations(
         self,
-    ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
+    ) -> tuple[list[Operation], dict[Biolink.Entity, OperationNode]]:
         """Legacy method for getting operations based on unified metadata."""
         metadata = await self.legacy_get_metadata()
         if metadata is None:
@@ -291,7 +290,7 @@ class ElasticSearchDriver(DatabaseDriver):
     async def get_operations(
         self,
         bypass_cache: bool = False,
-    ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
+    ) -> tuple[list[Operation], dict[Biolink.Entity, OperationNode]]:
         # return await self.legacy_get_metadata()
         return await self.get_t1_operations(bypass_cache=bypass_cache)
 
@@ -327,7 +326,7 @@ class ElasticSearchDriver(DatabaseDriver):
     async def get_t1_operations(
         self,
         bypass_cache: bool = False,
-    ) -> tuple[list[Operation], dict[BiolinkEntity, OperationNode]]:
+    ) -> tuple[list[Operation], dict[Biolink.Entity, OperationNode]]:
         """Get tier1 operations based on metadata."""
         metadata_blob, indices = await self.get_valid_metadata(
             bypass_cache=bypass_cache

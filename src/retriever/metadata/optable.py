@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import itertools
+import time
 from collections import defaultdict
 from collections.abc import Awaitable, Callable, Coroutine, Iterable
 from typing import NamedTuple, override
@@ -8,6 +9,20 @@ from typing import NamedTuple, override
 import ormsgpack
 from loguru import logger
 from opentelemetry import trace
+from translator_tom.v1_6 import (
+    Biolink,
+    Curie,
+    MetaAttribute,
+    MetaEdge,
+    MetaKnowledgeGraph,
+    MetaNode,
+    MetaQualifier,
+    QEdge,
+    QEdgeID,
+    QNodeID,
+    QualifierConstraint,
+    QueryGraph,
+)
 
 from retriever.config.general import CONFIG
 from retriever.data_tiers import tier_manager
@@ -19,24 +34,9 @@ from retriever.types.metakg import (
     OperationTable,
     SortedOperations,
 )
-from retriever.types.trapi import (
-    BiolinkEntity,
-    BiolinkPredicate,
-    MetaAttributeDict,
-    MetaEdgeDict,
-    MetaKnowledgeGraphDict,
-    MetaNodeDict,
-    MetaQualifierDict,
-    QEdgeDict,
-    QEdgeID,
-    QNodeID,
-    QualifierTypeID,
-    QueryGraphDict,
-)
-from retriever.types.trapi_pydantic import TierNumber
-from retriever.utils import biolink
-from retriever.utils.biolink import expand
+from retriever.types.trapi import TierNumber
 from retriever.utils.general import AsyncDaemon
+from retriever.utils.leader import LEADER_ELECTION
 from retriever.utils.redis import (
     OP_TABLE_KEY,
     OP_TABLE_META_KEY,
@@ -44,19 +44,21 @@ from retriever.utils.redis import (
     TIER_RECOVERED_CHANNEL,
     RedisClient,
 )
-from retriever.utils.trapi import (
-    hash_meta_attribute,
-    meta_qualifier_meets_constraints,
-)
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 REDIS_CLIENT = RedisClient()
 
 METAKG_GET_ATTEMPTS = 3
 
+OP_TABLE_WAIT_POLL_SECONDS = 0.5
+"""How often a worker re-checks for the leader-published OpTable while waiting."""
+
+OP_TABLE_WAIT_CAP_SECONDS = 60.0
+"""Bounded wait for the leader's OpTable when `metakg.acquire_timeout` is disabled (<=0)."""
+
 OperationPlan = dict[QEdgeID, list[Operation]]
 
-SPO = tuple[BiolinkEntity, BiolinkPredicate, BiolinkEntity]
+SPO = tuple[Biolink.Entity, Biolink.Predicate, Biolink.Entity]
 
 
 class DINGOMetaKGInfo(NamedTuple):
@@ -70,7 +72,7 @@ class DINGOMetaKGInfo(NamedTuple):
 class TRAPIMetaKGInfo(NamedTuple):
     """Basic info about a given MetaKG resource."""
 
-    metadata: MetaKnowledgeGraphDict
+    metadata: MetaKnowledgeGraph
     tier: TierNumber
     infores: str
 
@@ -97,30 +99,30 @@ class OpTableManager(AsyncDaemon):
     update_lock: asyncio.Lock
     _refresh_lock: asyncio.Lock
     _pending_refresh: bool = False
-    is_leader: bool = False
+    is_builder: bool = False
 
     def __init__(self) -> None:
-        """Initialize without leader role; call `promote_to_leader()` to flip the flag."""
+        """Initialize without builder role; call `promote_to_builder()` to flip the flag."""
         self.update_lock = asyncio.Lock()
         self._refresh_lock = asyncio.Lock()
         self._pending_refresh = False
         super().__init__()
 
-    def promote_to_leader(self) -> None:
-        """Flip this instance to leader mode. Must be called before `initialize()`."""
-        self.is_leader = True
+    def promote_to_builder(self) -> None:
+        """Flip this process to builder mode. Must be called before `initialize()`."""
+        self.is_builder = True
 
     @override
     def get_task_funcs(self) -> list[Callable[[], Coroutine[None, None, None]]]:
         tasks = list[Callable[[], Coroutine[None, None, None]]]()
-        if self.is_leader and CONFIG.job.metakg.build_time > -1:
+        if self.is_builder and CONFIG.job.metakg.build_time > -1:
             tasks.append(self.periodic_build_op_table)
         return tasks
 
     @override
     async def initialize(self) -> None:
         """Start the appropriate tasks for a given process."""
-        if self.is_leader:
+        if self.is_builder:
             # Register hooks before the initial refresh so a startup
             # against a down dependency still recovers later.
             REDIS_CLIENT.on_recover(self.refresh)
@@ -130,6 +132,8 @@ class OpTableManager(AsyncDaemon):
                 await REDIS_CLIENT.subscribe(
                     TIER_RECOVERED_CHANNEL, self._on_remote_tier_recover
                 )
+            # Rebuild as soon as this instance wins the build lease.
+            LEADER_ELECTION.on_acquire(self.refresh)
             try:
                 await self.refresh()
             except Exception:
@@ -147,7 +151,7 @@ class OpTableManager(AsyncDaemon):
             for tier_idx in range(0, 2):
                 driver = tier_manager.get_driver(tier_idx)
                 driver.on_recover(self._on_tier_recover)
-                # Tell the leader so it rebuilds without waiting on its periodic ping.
+                # Tell the builder so it rebuilds without waiting on its periodic ping.
                 driver.on_recover(self._make_remote_publisher(tier_idx))
         return await super().initialize()
 
@@ -165,7 +169,7 @@ class OpTableManager(AsyncDaemon):
         return _publish
 
     async def _on_remote_tier_recover(self, _message: str) -> None:
-        """Leader-side subscriber callback for cross-process tier recovery."""
+        """Builder-side subscriber callback for cross-process tier recovery."""
         await self.refresh()
 
     async def refresh(self) -> None:
@@ -197,14 +201,17 @@ class OpTableManager(AsyncDaemon):
         except Exception:
             logger.exception("Local OpTable rebuild on tier recovery failed.")
 
-    async def degraded_local_build(self) -> None:
-        """Worker-side local OpTable build when Redis is unavailable; not published."""
-        logger.info(
-            "Building local OpTable from available tiers (Redis unavailable)..."
-        )
+    async def degraded_local_build(self, *, force: bool = False) -> None:
+        """Build the OpTable locally without publishing it.
+
+        With `force`, keep the result even when Redis is up (the leader never
+        published within the wait window); otherwise a build that raced a Redis
+        recovery is discarded in favor of the published copy.
+        """
+        logger.info("Building local OpTable from available tiers...")
         op_table = await self._collect_tier_ops(bypass_cache=True)
         async with self.update_lock:
-            if REDIS_CLIENT.up:
+            if not force and REDIS_CLIENT.up:
                 logger.debug(
                     "Redis recovered mid-local-build; discarding local OpTable."
                 )
@@ -217,7 +224,7 @@ class OpTableManager(AsyncDaemon):
     @override
     async def wrapup(self) -> None:
         """Cancel running tasks so connections can close."""
-        if self.is_leader:
+        if self.is_builder:
             with contextlib.suppress(Exception):
                 await REDIS_CLIENT.unsubscribe(
                     TIER_RECOVERED_CHANNEL, self._on_remote_tier_recover
@@ -234,11 +241,31 @@ class OpTableManager(AsyncDaemon):
         op_table_json = ormsgpack.packb(
             {
                 "operations_flat": [
-                    op._asdict() for op in op_table.operations_flat.values()
+                    {
+                        **op._asdict(),
+                        "attributes": (
+                            [attr.to_dict() for attr in op.attributes]
+                            if op.attributes is not None
+                            else None
+                        ),
+                        "qualifiers": (
+                            [qual.to_dict() for qual in op.qualifiers]
+                            if op.qualifiers is not None
+                            else None
+                        ),
+                    }
+                    for op in op_table.operations_flat.values()
                 ],
                 "nodes": {
                     cat: {
-                        str(tier): node._asdict() for tier, node in tier_nodes.items()
+                        str(tier): {
+                            **node._asdict(),
+                            "attributes": {
+                                api: [attr.to_dict() for attr in attrs]
+                                for api, attrs in node.attributes.items()
+                            },
+                        }
+                        for tier, node in tier_nodes.items()
                     }
                     for cat, tier_nodes in op_table.nodes.items()
                 },
@@ -263,6 +290,16 @@ class OpTableManager(AsyncDaemon):
         operations_flat = FlatOperations()
 
         for op_dict in op_table_json["operations_flat"]:
+            op_dict["attributes"] = (
+                [MetaAttribute.from_dict(attr) for attr in op_dict["attributes"]]
+                if op_dict["attributes"] is not None
+                else None
+            )
+            op_dict["qualifiers"] = (
+                [MetaQualifier.from_dict(qual) for qual in op_dict["qualifiers"]]
+                if op_dict["qualifiers"] is not None
+                else None
+            )
             op = Operation(**op_dict)
             operations_flat[op.hash] = op
             if op.subject not in operations_sorted:
@@ -278,7 +315,13 @@ class OpTableManager(AsyncDaemon):
             operations_flat=operations_flat,
             nodes={
                 category: {
-                    int(tier): OperationNode(**node)
+                    int(tier): OperationNode(
+                        prefixes=node["prefixes"],
+                        attributes={
+                            api: [MetaAttribute.from_dict(attr) for attr in attrs]
+                            for api, attrs in node["attributes"].items()
+                        },
+                    )
                     for tier, node in tier_nodes.items()
                 }
                 for category, tier_nodes in op_table_json["nodes"].items()
@@ -295,10 +338,8 @@ class OpTableManager(AsyncDaemon):
         for op in new_operations:
             if attributes := op.attributes:
                 for attr in attributes:
-                    attr["constraint_use"] = True
-                    attr["constraint_name"] = biolink.rmprefix(
-                        attr["attribute_type_id"]
-                    )
+                    attr.constraint_use = True
+                    attr.constraint_name = Curie.rmprefix(attr.attribute_type_id)
             operations_flat[op.hash] = op
             if op.subject not in operations_sorted:
                 operations_sorted[op.subject] = {}
@@ -310,8 +351,8 @@ class OpTableManager(AsyncDaemon):
 
     def merge_nodes(
         self,
-        nodes: dict[BiolinkEntity, dict[TierNumber, OperationNode]],
-        new_nodes: dict[BiolinkEntity, OperationNode],
+        nodes: dict[Biolink.Entity, dict[TierNumber, OperationNode]],
+        new_nodes: dict[Biolink.Entity, OperationNode],
         tier: TierNumber,
     ) -> None:
         """Merge new nodes into the existing nodes."""
@@ -328,10 +369,8 @@ class OpTableManager(AsyncDaemon):
         for tier_nodes in nodes.values():
             for node in tier_nodes.values():
                 for attr in itertools.chain(*node.attributes.values()):
-                    attr["constraint_use"] = True
-                    attr["constraint_name"] = biolink.rmprefix(
-                        attr["attribute_type_id"]
-                    )
+                    attr.constraint_use = True
+                    attr.constraint_name = Curie.rmprefix(attr.attribute_type_id)
 
     async def _collect_tier_ops(self, *, bypass_cache: bool = False) -> OperationTable:
         """Collect operations from all implemented tiers concurrently.
@@ -345,19 +384,26 @@ class OpTableManager(AsyncDaemon):
         pull fresh upstream metadata; drivers fall back to their own
         cache when the live fetch fails.
         """
+        # Skip down tiers: a forced live fetch against an unreachable backend blocks
+        # for the full query timeout, stalling the build instead of degrading.
+        active_tiers = [t for t in range(0, 2) if tier_manager.get_driver(t).up]
+        for tier in range(0, 2):
+            if tier not in active_tiers:
+                logger.warning(f"OpTable build: Tier {tier} is down; skipping.")
+
         results = await asyncio.gather(
             *(
                 tier_manager.get_driver(tier).get_operations(bypass_cache=bypass_cache)
-                for tier in range(0, 2)
+                for tier in active_tiers
             ),
             return_exceptions=True,
         )
 
         operations_flat = FlatOperations()
         operations_sorted = SortedOperations()
-        nodes = dict[BiolinkEntity, dict[TierNumber, OperationNode]]()
+        nodes = dict[Biolink.Entity, dict[TierNumber, OperationNode]]()
         succeeded = 0
-        for tier, result in enumerate(results):
+        for tier, result in zip(active_tiers, results, strict=True):
             if isinstance(result, BaseException):
                 logger.warning(
                     f"OpTable build: Tier {tier} get_operations failed; skipping. Error: {result!r}"
@@ -374,7 +420,9 @@ class OpTableManager(AsyncDaemon):
 
     async def build_operation_table(self) -> None:
         """Build Retriever's internal OperationTable and store it to Redis."""
-        if CONFIG.instance_idx != 0:
+        # Only the elected leader builds+publishes the shared OpTable (workers
+        # wait for it, or build locally without publishing, in get_op_table).
+        if self.is_builder and not LEADER_ELECTION.is_leader:
             return
 
         logger.info("Building Operation Table...")
@@ -386,9 +434,9 @@ class OpTableManager(AsyncDaemon):
         logger.success(
             f"Built Operation Table containing {len(op_table.operations_flat)} operations / {len(op_table.nodes)} nodes."
         )
-        # The leader never reads _operation_table back - it only exists to push to
+        # The builder never reads _operation_table back - it only exists to push to
         # Redis. Drop the reference so the snapshot doesn't sit in process memory.
-        if self.is_leader:
+        if self.is_builder:
             async with self.update_lock:
                 self._operation_table = None
 
@@ -418,89 +466,121 @@ class OpTableManager(AsyncDaemon):
         logger.success("In-memory OpTable updated.")
 
     async def get_op_table(self) -> OperationTable:
-        """Return the currently-stored Operation Table; worker-builds locally if Redis is down."""
-        # Phase 1: try pulling from Redis up to 3 times.
-        # Phase 2: build then pull up to 3 more times.
-        # Worker fallback (Redis down): build locally and re-check.
-        for phase in range(2):
-            for _ in range(3):
-                async with self.update_lock:
-                    op_table = self._operation_table
-                if op_table is not None:
-                    return op_table
-                if not REDIS_CLIENT.up and not self.is_leader:
-                    # Worker can't pull the published copy; build from
-                    # available tiers and re-check.
-                    await self.degraded_local_build()
-                    continue
-                if phase == 1:
-                    await self.build_operation_table()
+        """Return the operation table, waiting for the leader's published copy.
+
+        Workers poll (and receive OP_TABLE_UPDATE_CHANNEL notifications) up to
+        `metakg.acquire_timeout`, then fall back to an unpublished local build so
+        a request never hangs on an absent leader; only builders publish.
+        """
+        timeout = CONFIG.job.metakg.acquire_timeout
+        # A disabled (<=0) acquire timeout still caps the wait so a worker never
+        # hangs indefinitely on an absent leader.
+        wait = timeout if timeout > 0 else OP_TABLE_WAIT_CAP_SECONDS
+        deadline = time.monotonic() + wait
+        while time.monotonic() < deadline:
+            async with self.update_lock:
+                op_table = self._operation_table
+            if op_table is not None:
+                return op_table
+
+            if self.is_builder:
+                # The builder is the authoritative source: build and publish.
+                await self.build_operation_table()
                 await self.pull_op_table("")
+                continue
+
+            if not REDIS_CLIENT.up:
+                # No published copy to wait for; build locally without publishing.
+                await self.degraded_local_build()
+                continue
+
+            # Wait for the leader to publish, pulling in case the notify was missed.
+            await self.pull_op_table("")
+            async with self.update_lock:
+                if self._operation_table is not None:
+                    continue
+            await asyncio.sleep(OP_TABLE_WAIT_POLL_SECONDS)
+
+        # Leader never published in time: last-resort local build (unpublished).
+        await self.degraded_local_build(force=True)
+        async with self.update_lock:
+            op_table = self._operation_table
+        if op_table is not None:
+            return op_table
         raise ValueError("Failed to retrieve or build a valid OpTable!")
 
+    def _operation_applies(
+        self, op: Operation, edge: QEdge, tier: TierNumber
+    ) -> tuple[bool, list[str]]:
+        """Decide whether an operation satisfies an edge's requirements.
+
+        Returns whether the operation applies, along with any
+        attribute constraints it failed to meet.
+        """
+        if op.tier != tier:
+            return False, []
+        if not QualifierConstraint.set_met_by(
+            edge.qualifier_constraints_list, op.qualifiers or []
+        ):
+            return False, []
+        op_attr_types = {
+            mattr.attribute_type_id
+            for mattr in (op.attributes or [])
+            if mattr.constraint_use or False
+        }
+        unmet = [
+            constr.name
+            for constr in edge.attribute_constraints_list
+            if constr.id not in op_attr_types
+        ]
+        return len(unmet) == 0, unmet
+
     async def find_operations(
-        self, edge: QEdgeDict, qgraph: QueryGraphDict, tier: TierNumber
+        self, edge: QEdge, qgraph: QueryGraph, tier: TierNumber
     ) -> list[Operation]:
         """Find a list of operations that match a given Branch.
 
         Raises either QueryNotTraversable or UnsupportedConstraint if no appropriate
         operations could be found.
         """
-        input_node = qgraph["nodes"][edge["subject"]]
-        output_node = qgraph["nodes"][edge["object"]]
+        input_node = qgraph.nodes[edge.subject]
+        output_node = qgraph.nodes[edge.object]
 
-        input_categories = expand(
-            set(
-                input_node.get("categories", ["biolink:NamedThing"])
-                or ["biolink:NamedThing"]
-            )
+        input_categories = Biolink.expand(
+            set(input_node.categories or [Biolink("NamedThing")])
         )
-        output_categories = expand(
-            set(
-                output_node.get("categories", ["biolink:NamedThing"])
-                or ["biolink:NamedThing"]
-            )
+        output_categories = Biolink.expand(
+            set(output_node.categories or [Biolink("NamedThing")])
         )
-        predicates = expand(set(edge.get("predicates") or ["biolink:related_to"]))
+        predicates = Biolink.expand(set(edge.predicates or ["biolink:related_to"]))
 
         op_table = await self.get_op_table()
 
         predicate_tables = [
-            op_table.operations_sorted[BiolinkEntity(sbj_cat)]
+            op_table.operations_sorted[Biolink.Entity(sbj_cat)]
             for sbj_cat in input_categories
-            if BiolinkEntity(sbj_cat) in op_table.operations_sorted
+            if Biolink.Entity(sbj_cat) in op_table.operations_sorted
         ]
-        object_tables: list[dict[BiolinkEntity, list[Operation]]] = []
+        object_tables: list[dict[Biolink.Entity, list[Operation]]] = []
         for predicate in predicates:
             object_tables.extend(
-                table[BiolinkPredicate(predicate)]
+                table[Biolink.Predicate(predicate)]
                 for table in predicate_tables
-                if BiolinkPredicate(predicate) in table
+                if Biolink.Predicate(predicate) in table
             )
         operations = list[Operation]()
 
         unmet_constraints = defaultdict[str, int](int)
         for obj_cat in output_categories:
             for table in object_tables:
-                op_list = table.get(BiolinkEntity(obj_cat))
+                op_list = table.get(Biolink.Entity(obj_cat))
                 if op_list is None:
                     continue
                 for op in op_list:
-                    if op.tier != tier or not meta_qualifier_meets_constraints(
-                        op.qualifiers, edge.get("qualifier_constraints", [])
-                    ):
-                        continue
-                    op_attr_types = {
-                        mattr["attribute_type_id"]
-                        for mattr in (op.attributes or [])
-                        if mattr.get("constraint_use", False)
-                    }
-                    attr_constraints_met = True
-                    for constr in edge.get("attribute_constraints", []) or []:
-                        if constr["id"] not in op_attr_types:
-                            unmet_constraints[constr["name"]] += 1
-                            attr_constraints_met = False
-                    if attr_constraints_met:
+                    kept, unmet = self._operation_applies(op, edge, tier)
+                    for name in unmet:
+                        unmet_constraints[name] += 1
+                    if kept:
                         operations.append(op)
 
         if len(operations) == 0:
@@ -512,7 +592,7 @@ class OpTableManager(AsyncDaemon):
 
     @tracer.start_as_current_span("operation_plan")
     async def create_operation_plan(
-        self, qgraph: QueryGraphDict, tier: TierNumber
+        self, qgraph: QueryGraph, tier: TierNumber
     ) -> tuple[
         bool, OperationPlan | dict[QEdgeID, UnsupportedConstraint | QueryNotTraversable]
     ]:
@@ -524,7 +604,7 @@ class OpTableManager(AsyncDaemon):
         unsupported_qedges = dict[
             QEdgeID, UnsupportedConstraint | QueryNotTraversable
         ]()
-        for qedge_id, qedge in qgraph["edges"].items():
+        for qedge_id, qedge in qgraph.edges.items():
             operations = []
             try:
                 operations = await self.find_operations(qedge, qgraph, tier)
@@ -537,23 +617,18 @@ class OpTableManager(AsyncDaemon):
         return True, plan
 
     async def qnodes_supported(
-        self, qgraph: QueryGraphDict, tier: TierNumber
+        self, qgraph: QueryGraph, tier: TierNumber
     ) -> None | dict[QNodeID, UnsupportedConstraint]:
         """Check if any nodes contain unsupported constraints, returning a dictionary of any that are unsupported."""
         unmet_nodes = defaultdict[QNodeID, set[str]](set)
         op_table = await self.get_op_table()
-        nodes_met = dict.fromkeys(qgraph["nodes"], False)
-        for qnode_id, node in qgraph["nodes"].items():
-            constraints = node.get("constraints", []) or []
+        nodes_met = dict.fromkeys(qgraph.nodes, False)
+        for qnode_id, node in qgraph.nodes.items():
+            constraints = node.constraints or []
             if len(constraints) == 0:
                 nodes_met[qnode_id] = True
                 continue
-            categories = expand(
-                set(
-                    node.get("categories", ["biolink:NamedThing"])
-                    or ["biolink:NamedThing"]
-                )
-            )
+            categories = Biolink.expand(set(node.categories or [Biolink("NamedThing")]))
             for category in categories:
                 op_tier_nodes = op_table.nodes.get(category)
                 if op_tier_nodes is None:
@@ -562,20 +637,16 @@ class OpTableManager(AsyncDaemon):
                     if supported_tier != tier:
                         continue
 
-                    available_attrs = itertools.chain(
-                        *(
-                            (
-                                attr["attribute_type_id"]
-                                for attr in attrs
-                                if attr.get("constraint_use", False)
-                            )
-                            for attrs in op_node.attributes.values()
-                        )
-                    )
+                    available_attrs = {
+                        attr.attribute_type_id
+                        for attrs in op_node.attributes.values()
+                        for attr in attrs
+                        if attr.constraint_use
+                    }
                     met = True
                     for constr in constraints:
-                        if constr["id"] not in available_attrs:
-                            unmet_nodes[qnode_id].add(constr["name"])
+                        if constr.id not in available_attrs:
+                            unmet_nodes[qnode_id].add(constr.name)
                             met = False
                     if met:
                         nodes_met[qnode_id] = True
@@ -595,16 +666,16 @@ class OpTableManager(AsyncDaemon):
         op_table: OperationTable,
         tier: TierNumber | None,
     ) -> tuple[
-        dict[SPO, MetaEdgeDict],
+        dict[SPO, MetaEdge],
         dict[SPO, dict[str, set[str]]],
-        dict[SPO, dict[int, MetaAttributeDict]],
-        set[BiolinkEntity],
+        dict[SPO, dict[str, MetaAttribute]],
+        set[Biolink.Entity],
     ]:
         """Build merged TRAPI MetaEdges from the operation table."""
-        edges = dict[SPO, MetaEdgeDict]()
+        edges = dict[SPO, MetaEdge]()
         edge_qualifiers = dict[SPO, dict[str, set[str]]]()
-        edge_attributes = dict[SPO, dict[int, MetaAttributeDict]]()
-        mentioned_nodes = set[BiolinkEntity]()
+        edge_attributes = dict[SPO, dict[str, MetaAttribute]]()
+        mentioned_nodes = set[Biolink.Entity]()
         for op in op_table.operations_flat.values():
             if tier is not None and op.tier != tier:
                 continue
@@ -618,24 +689,23 @@ class OpTableManager(AsyncDaemon):
                 qualifiers = edge_qualifiers[spo]
                 attributes = edge_attributes[spo]
             else:
-                meta_edge = MetaEdgeDict(
+                meta_edge = MetaEdge.model_construct(
                     subject=sbj, predicate=pred, object=obj, knowledge_types=["lookup"]
                 )
                 qualifiers = dict[str, set[str]]()
-                attributes = dict[int, MetaAttributeDict]()
+                attributes = dict[str, MetaAttribute]()
 
             # Merge qualifiers
             if op.qualifiers is not None:
-                for qual_type, values in op.qualifiers.items():
+                for qual in op.qualifiers:
+                    qual_type = qual.qualifier_type_id
                     if qual_type not in qualifiers:
                         qualifiers[qual_type] = set[str]()
-                    qualifiers[qual_type].update(values)
+                    qualifiers[qual_type].update(qual.applicable_values or [])
 
             # Merge attributes
             if op.attributes is not None:
-                attributes.update(
-                    {hash_meta_attribute(attr): attr for attr in op.attributes}
-                )
+                attributes.update({attr.hash(): attr for attr in op.attributes})
 
             if spo not in edges:
                 edges[spo] = meta_edge
@@ -644,7 +714,7 @@ class OpTableManager(AsyncDaemon):
 
         return edges, edge_qualifiers, edge_attributes, mentioned_nodes
 
-    async def get_trapi_metakg(self, tier: TierNumber | None) -> MetaKnowledgeGraphDict:
+    async def get_trapi_metakg(self, tier: TierNumber | None) -> MetaKnowledgeGraph:
         """Convert an OperationTable to a TRAPI MetaKG dict.
 
         Because it depends on OP_TABLE_MANAGER, it can't be used with the lead manager.
@@ -657,40 +727,42 @@ class OpTableManager(AsyncDaemon):
             edge_attributes,
             mentioned_nodes,
         ) = await self.build_edges(op_table, tier)
-        nodes = dict[BiolinkEntity, MetaNodeDict]()
+        nodes = dict[Biolink.Entity, MetaNode]()
 
         for spo, edge in edges.items():
-            qualifiers = list[MetaQualifierDict]()
+            qualifiers = list[MetaQualifier]()
             for qual_type, values in edge_qualifiers[spo].items():
-                qualifier = MetaQualifierDict(
-                    qualifier_type_id=QualifierTypeID(qual_type),
+                qualifier = MetaQualifier.model_construct(
+                    qualifier_type_id=Biolink.Qualifier(qual_type),
                 )
                 if len(values):
-                    qualifier["applicable_values"] = list(values)
+                    qualifier.applicable_values = list(values)
                 qualifiers.append(qualifier)
             if len(qualifiers):
-                edge["qualifiers"] = qualifiers
+                edge.qualifiers = qualifiers
             if len(edge_attributes[spo]):
-                edge["attributes"] = list(edge_attributes[spo].values())
+                edge.attributes = list(edge_attributes[spo].values())
 
         for category, tier_nodes in op_table.nodes.items():
             if category not in mentioned_nodes:
                 continue
             id_prefixes = set[str]()
-            attributes = dict[int, MetaAttributeDict]()
+            attributes = dict[str, MetaAttribute]()
             for supported_tier, node in tier_nodes.items():
                 if tier is not None and supported_tier != tier:
                     continue
                 id_prefixes.update(itertools.chain(*node.prefixes.values()))
                 attributes.update(
                     {
-                        hash_meta_attribute(attr): attr
+                        attr.hash(): attr
                         for attr in itertools.chain(*node.attributes.values())
                     }
                 )
-            nodes[category] = MetaNodeDict(
+            nodes[category] = MetaNode.model_construct(
                 id_prefixes=list(id_prefixes),
                 attributes=list(attributes.values()),
             )
 
-        return MetaKnowledgeGraphDict(nodes=nodes, edges=list(edges.values()))
+        return MetaKnowledgeGraph.model_construct(
+            nodes=nodes, edges=list(edges.values())
+        )

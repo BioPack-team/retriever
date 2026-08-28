@@ -17,7 +17,11 @@ class Singleton(ABCMeta):
 
     @override
     def __call__[T](cls: type[T], *args: Any, **kwargs: Any) -> T:
-        """Ensure calls go to one instance."""
+        """Ensure calls go to one instance.
+
+        Return type is `Any` so callers infer the subclass
+        rather than the metaclass itself.
+        """
         if cls not in Singleton._instances:
             Singleton._instances[cls] = super().__call__(*args, **kwargs)
         return Singleton._instances[cls]
