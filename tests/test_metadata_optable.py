@@ -12,10 +12,17 @@ from typing import cast
 from unittest.mock import AsyncMock
 
 import pytest
+from translator_tom.v1_6 import MetaQualifier, QEdge, Qualifier, QualifierConstraint
 
+from retriever.data_tiers.utils import parse_dingo_metadata
 from retriever.metadata import optable as optable_module
 from retriever.metadata.optable import OpTableManager
-from retriever.types.metakg import OperationTable
+from retriever.types.metakg import (
+    FlatOperations,
+    Operation,
+    OperationTable,
+    SortedOperations,
+)
 from retriever.utils.general import Singleton
 
 _SENTINEL = cast(OperationTable, object())
@@ -172,3 +179,109 @@ async def test_collect_tier_ops_all_down_raises_without_fetch(
 
     down0.get_operations.assert_not_awaited()
     down1.get_operations.assert_not_awaited()
+
+
+_QUAL_TYPE = "biolink:object_direction_qualifier"
+_QUAL_VALUE = "increased"
+
+
+def _dingo_metadata(qualifiers: dict[str, int]) -> dict:
+    """Minimal DINGO metadata: one edge advertising the given qualifier types."""
+    return {
+        "schema": {
+            "edges": [
+                {
+                    "subject_category": ["biolink:ChemicalEntity"],
+                    "object_category": ["biolink:Gene"],
+                    "predicate": "biolink:affects",
+                    "attributes": [],
+                    "qualifiers": qualifiers,  # DINGO gives type -> count, never values
+                }
+            ],
+            "nodes": [],
+        }
+    }
+
+
+def _qualified_edge() -> QEdge:
+    """A query edge constraining the qualifier to a specific value."""
+    return QEdge.model_construct(
+        subject="n0",
+        object="n1",
+        predicates=["biolink:affects"],
+        qualifier_constraints=[
+            QualifierConstraint(
+                qualifier_set=[
+                    Qualifier(qualifier_type_id=_QUAL_TYPE, qualifier_value=_QUAL_VALUE)
+                ]
+            )
+        ],
+    )
+
+
+def test_dingo_qualifier_type_means_all_values(manager: OpTableManager) -> None:
+    """A type-only DINGO qualifier serves a qualified edge (values unspecified = all).
+
+    Regression: parsing it as applicable_values=[] read as "serves zero values" and
+    made _operation_applies reject every qualified query edge.
+    """
+    ops, _ = parse_dingo_metadata(
+        _dingo_metadata({_QUAL_TYPE: 5}), 0, "infores:test-kp"
+    )
+    (op,) = ops
+
+    assert op.qualifiers is not None
+    assert op.qualifiers[0].applicable_values is None  # None = all, not [] = none
+
+    kept, unmet = manager._operation_applies(op, _qualified_edge(), tier=0)
+    assert kept is True
+    assert unmet == []
+
+
+def test_op_without_qualifiers_rejects_qualified_edge(manager: OpTableManager) -> None:
+    """Guard against over-correction: an op advertising no qualifiers still can't
+    serve a qualified edge."""
+    ops, _ = parse_dingo_metadata(_dingo_metadata({}), 0, "infores:test-kp")
+    (op,) = ops
+
+    kept, _ = manager._operation_applies(op, _qualified_edge(), tier=0)
+    assert kept is False
+
+
+def _op(op_hash: str, applicable_values: list[str] | None) -> Operation:
+    """An op on the ChemicalEntity-affects-Gene edge advertising one qualifier."""
+    return Operation(
+        hash=op_hash,
+        tier=0,
+        subject="biolink:ChemicalEntity",
+        predicate="biolink:affects",
+        object="biolink:Gene",
+        api="infores:test-kp",
+        attributes=[],
+        qualifiers=[
+            MetaQualifier.model_construct(
+                qualifier_type_id=_QUAL_TYPE, applicable_values=applicable_values
+            )
+        ],
+    )
+
+
+@pytest.mark.asyncio
+async def test_metakg_merge_all_values_dominates_enumerated(
+    manager: OpTableManager,
+) -> None:
+    """Two ops on one edge for the same qualifier: one serves all values (None), one
+    enumerates a subset. The merged MetaKG qualifier must stay 'all values' (None) --
+    the unconstrained op must not be shrunk to the other's subset."""
+    flat = FlatOperations()
+    flat["h_all"] = _op("h_all", None)
+    flat["h_sub"] = _op("h_sub", ["increased"])
+    op_table = OperationTable(SortedOperations(), flat, {})
+    manager.get_op_table = AsyncMock(return_value=op_table)  # pyright: ignore[reportAttributeAccessIssue]
+
+    mkg = await manager.get_trapi_metakg(0)
+
+    (edge,) = mkg.edges
+    assert edge.qualifiers is not None
+    (qualifier,) = edge.qualifiers
+    assert qualifier.applicable_values is None

@@ -119,8 +119,9 @@ def parse_dingo_metadata_unhashed(
                     for attr_type in edge["attributes"]
                 ],
                 qualifiers=[
+                    # None = "all values"; [] would reject every qualified edge.
                     MetaQualifier.model_construct(
-                        qualifier_type_id=Biolink(qual_type), applicable_values=[]
+                        qualifier_type_id=Biolink(qual_type), applicable_values=None
                     )
                     for qual_type in edge["qualifiers"]
                 ],

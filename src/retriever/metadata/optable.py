@@ -667,13 +667,13 @@ class OpTableManager(AsyncDaemon):
         tier: TierNumber | None,
     ) -> tuple[
         dict[SPO, MetaEdge],
-        dict[SPO, dict[str, set[str]]],
+        dict[SPO, dict[str, set[str] | None]],
         dict[SPO, dict[str, MetaAttribute]],
         set[Biolink.Entity],
     ]:
         """Build merged TRAPI MetaEdges from the operation table."""
         edges = dict[SPO, MetaEdge]()
-        edge_qualifiers = dict[SPO, dict[str, set[str]]]()
+        edge_qualifiers = dict[SPO, dict[str, set[str] | None]]()
         edge_attributes = dict[SPO, dict[str, MetaAttribute]]()
         mentioned_nodes = set[Biolink.Entity]()
         for op in op_table.operations_flat.values():
@@ -692,16 +692,19 @@ class OpTableManager(AsyncDaemon):
                 meta_edge = MetaEdge.model_construct(
                     subject=sbj, predicate=pred, object=obj, knowledge_types=["lookup"]
                 )
-                qualifiers = dict[str, set[str]]()
+                qualifiers = dict[str, set[str] | None]()
                 attributes = dict[str, MetaAttribute]()
 
-            # Merge qualifiers
+            # None applicable_values = "all values"; dominates any enumerated set.
             if op.qualifiers is not None:
                 for qual in op.qualifiers:
                     qual_type = qual.qualifier_type_id
-                    if qual_type not in qualifiers:
-                        qualifiers[qual_type] = set[str]()
-                    qualifiers[qual_type].update(qual.applicable_values or [])
+                    existing = qualifiers.get(qual_type, set[str]())
+                    if qual.applicable_values is None or existing is None:
+                        qualifiers[qual_type] = None
+                    else:
+                        existing.update(qual.applicable_values)
+                        qualifiers[qual_type] = existing
 
             # Merge attributes
             if op.attributes is not None:
@@ -735,7 +738,8 @@ class OpTableManager(AsyncDaemon):
                 qualifier = MetaQualifier.model_construct(
                     qualifier_type_id=Biolink.Qualifier(qual_type),
                 )
-                if len(values):
+                # None/empty = "all values"; nothing to enumerate.
+                if values:
                     qualifier.applicable_values = list(values)
                 qualifiers.append(qualifier)
             if len(qualifiers):
