@@ -11,7 +11,7 @@ import zstandard
 from loguru import logger as log
 from opentelemetry import trace
 from translator_tom.v1_6 import CURIE, Biolink, Infores
-from translator_tom.v1_6.model_dicts import ResponseDict
+from translator_tom.v1_6.model_dicts import ResponseDict, ResponseDictUtil
 
 from retriever.config.general import CONFIG, GandalfSettings
 from retriever.data_tiers.base_driver import DatabaseDriver
@@ -92,7 +92,9 @@ class GandalfDriver(DatabaseDriver):
             self._http_session = None
 
     @override
-    async def run_query(self, query: Query, *args: Any, **kwargs: Any) -> ResponseDict:
+    async def run_query(
+        self, query: Query | ResponseDict, *args: Any, **kwargs: Any
+    ) -> ResponseDict:
         """Execute a query against the Gandalf database and parse into dataclasses.
 
         Args:
@@ -105,7 +107,10 @@ class GandalfDriver(DatabaseDriver):
 
         """
         otel_span = trace.get_current_span()  # Serialize once...
-        query_json = query.to_json(as_str=True)
+        if isinstance(query, Query):
+            query_json = query.to_json(as_str=True)
+        else:
+            query_json = ResponseDictUtil.to_json(query, as_str=True)
         if otel_span and otel_span.is_recording():
             otel_span.add_event(
                 "gandalf_query_start",

@@ -68,6 +68,8 @@ class Tier0Query(ABC):
             if not parameters.dehydrated:
                 # Add Retriever to the provenance chain
                 for edge_id, edge in kgraph["edges"].items():
+                    if "sources" not in edge:
+                        continue
                     try:
                         EdgeDictUtil.append_aggregator(
                             edge, Infores("infores:retriever")

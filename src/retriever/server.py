@@ -5,8 +5,9 @@ from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from http import HTTPStatus
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 
+import orjson
 import yaml
 from fastapi import (
     BackgroundTasks,
@@ -459,10 +460,28 @@ async def response(request: Request, job_id: str) -> FastAPIResponse:
     return ORJSONResponse(job_dict, status_code=status_code)
 
 
-@app.post("/rehydrate", response_model=Response)
-async def rehydrate(body: ResponseDict) -> FastAPIResponse:
-    """Passthrough rehydration to backend."""
+@app.post(
+    "/rehydrate",
+    response_model=Response,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {"$ref": "#/components/schemas/Response"}
+                }
+            },
+        }
+    },
+)
+async def rehydrate(request: Request) -> FastAPIResponse:
+    """Passthrough rehydration to backend.
+
+    Reads the body without validation so dehydrated responses aren't rejected
+    with a 422 before reaching the backend.
+    """
     # TODO: use the appropriate tier based on parameters
+    body = cast(ResponseDict, orjson.loads(await request.body()))
     driver = tier_manager.get_driver(0)
     response_dict = await driver.run_query(body)
     for edge in (
