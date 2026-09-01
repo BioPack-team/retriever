@@ -85,6 +85,9 @@ def configure_telemetry(app: FastAPI | None = None) -> None:
                 http_capture_headers_server_request=["User-Agent"],
                 tracer_provider=trace_provider,
                 excluded_urls="docs,openapi.json,openapi.yaml,logs,config",
+                # receive/send spans are asgi events that are parts of a larger communication
+                # they are more so noisy than useful, so exclude them from traces
+                exclude_spans=["receive", "send"],
             )
 
         # Instrument httpx clients
