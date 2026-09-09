@@ -240,15 +240,19 @@ async def redirect_to_docs() -> RedirectResponse:
     return RedirectResponse(url="/docs")
 
 
+@functools.lru_cache
+def _openapi_yaml() -> bytes:
+    """Serialize the OpenAPI spec to YAML once."""
+    stream = io.StringIO()
+    yaml.dump(app.openapi(), stream)
+    return stream.getvalue().encode("utf-8")
+
+
 # Add a yaml endpoint, for completeness' sake
 @app.get("/openapi.yaml", include_in_schema=False)
-@functools.lru_cache
 def openapi_yaml() -> FastAPIResponse:
-    """Retreive the OpenAPI specs in yaml format."""
-    openapi_json = app.openapi()
-    yaml_str = io.StringIO()
-    yaml.dump(openapi_json, yaml_str)
-    return FastAPIResponse(yaml_str.getvalue(), media_type="text/yaml")
+    """Retrieve the OpenAPI specs in yaml format."""
+    return FastAPIResponse(_openapi_yaml(), media_type="text/yaml")
 
 
 @app.get(
