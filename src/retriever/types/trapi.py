@@ -23,17 +23,14 @@ class Parameters(TOMBase):
             description="Custom query timeout in seconds. Defaults to server default if not set. Set to -1 to disable timeout entirely."
         ),
     ] = None
-    tiers: (
-        Annotated[
-            list[TierNumber],
-            Field(
-                max_length=1,
-                deprecated=True,
-                description="Which tier to use. Only supports 1 tier at a time. DEPRECATED: Use `tier` instead.",
-            ),
-        ]
-        | None
-    ) = None
+    tiers: Annotated[
+        list[TierNumber] | None,
+        Field(
+            max_length=1,
+            deprecated=True,
+            description="Which tier to use. Only supports 1 tier at a time. DEPRECATED: Use `tier` instead.",
+        ),
+    ] = None
     tier: TierNumber | None = None
     tier_fallback: Annotated[
         bool,

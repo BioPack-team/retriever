@@ -510,7 +510,7 @@ class QueryGraphExecutor:
                     else None
                 )
                 done, pending = await asyncio.wait(
-                    parallel_tasks,  # pyright:ignore[reportUnknownArgumentType] pyright being weird
+                    parallel_tasks,
                     timeout=timeout,
                     return_when=asyncio.FIRST_COMPLETED,
                 )
