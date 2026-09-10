@@ -265,6 +265,17 @@ def json_response(content: object, status_code: int = 200) -> FastAPIResponse:
     )
 
 
+@app.get("/health", include_in_schema=False)
+async def health() -> FastAPIResponse:
+    """Liveness/readiness probe.
+
+    Deliberately touches no backend. The lifespan() above completes Mongo,
+    Redis and tier-driver initialization before uvicorn serves any route,
+    so a 200 here already proves this worker finished startup.
+    """
+    return json_response({"status": "ok"})
+
+
 @app.get(
     "/meta_knowledge_graph",
     tags=["meta_knowledge_graph"],
