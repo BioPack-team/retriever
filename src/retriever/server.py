@@ -21,7 +21,6 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import (
-    ORJSONResponse,
     RedirectResponse,
     StreamingResponse,
 )
@@ -255,6 +254,17 @@ def openapi_yaml() -> FastAPIResponse:
     return FastAPIResponse(_openapi_yaml(), media_type="text/yaml")
 
 
+def json_response(content: object, status_code: int = 200) -> FastAPIResponse:
+    """Serialize content with orjson, bypassing response-model validation for speed."""
+    return FastAPIResponse(
+        orjson.dumps(
+            content, option=orjson.OPT_NON_STR_KEYS | orjson.OPT_SERIALIZE_NUMPY
+        ),
+        media_type="application/json",
+        status_code=status_code,
+    )
+
+
 @app.get(
     "/meta_knowledge_graph",
     tags=["meta_knowledge_graph"],
@@ -304,7 +314,7 @@ async def meta_knowledge_graph(
             media_type="application/json",
             status_code=status_code,
         )
-    return ORJSONResponse(response_dict, status_code=status_code)
+    return json_response(response_dict, status_code=status_code)
 
 
 @app.get(
@@ -324,7 +334,7 @@ async def metadata(
     status_code, response_dict = await make_metadata_query(
         APIInfo(request, response), tier=tier
     )
-    return ORJSONResponse(response_dict, status_code=status_code)
+    return json_response(response_dict, status_code=status_code)
 
 
 @app.post(
@@ -360,7 +370,7 @@ async def query(
     status_code, response_dict = await make_lookup_query(
         APIInfo(request, response), body=body
     )
-    return ORJSONResponse(response_dict, status_code=status_code)
+    return json_response(response_dict, status_code=status_code)
     # return {}
 
 
@@ -398,7 +408,7 @@ async def asyncquery(
     status_code, response_dict = await make_lookup_query(
         APIInfo(request, response, background_tasks), body=body
     )
-    return ORJSONResponse(response_dict, status_code=status_code)
+    return json_response(response_dict, status_code=status_code)
 
 
 @app.get(
@@ -433,7 +443,7 @@ async def asyncquery_status(request: Request, job_id: str) -> FastAPIResponse:
             ),
         )
     status_code, job_dict = await get_job_status(job_id.lower(), request)
-    return ORJSONResponse(job_dict, status_code=status_code)
+    return json_response(job_dict, status_code=status_code)
 
 
 @app.get(
@@ -461,7 +471,7 @@ async def response(request: Request, job_id: str) -> FastAPIResponse:
             ),
         )
     status_code, job_dict = await get_job_response(job_id.lower(), request)
-    return ORJSONResponse(job_dict, status_code=status_code)
+    return json_response(job_dict, status_code=status_code)
 
 
 @app.post(
@@ -495,7 +505,7 @@ async def rehydrate(request: Request) -> FastAPIResponse:
         .values()
     ):
         EdgeDictUtil.append_aggregator(edge, Infores("infores:retriever"))
-    return ORJSONResponse(response_dict)
+    return json_response(response_dict)
 
 
 @app.get(
@@ -596,7 +606,7 @@ async def config() -> FastAPIResponse:
         config["retriever_version_link"] = (
             f"https://github.com/BioPack-team/retriever/tree/{sha}"
         )
-    return ORJSONResponse(config)
+    return json_response(config)
 
 
 # Set up Sentry and Otel

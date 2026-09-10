@@ -2,7 +2,6 @@ import traceback
 from datetime import datetime
 from functools import lru_cache
 from http import HTTPStatus
-from typing import cast
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
@@ -77,7 +76,7 @@ async def ensure_cors(app: FastAPI, request: Request, exc: Exception) -> Respons
         # Logic directly from Starlette's CORSMiddleware:
         # https://github.com/encode/starlette/blob/master/starlette/middleware/cors.py#L152
 
-        response.headers.update(cast(dict[str, str], cors.simple_headers))
+        response.headers.update(cors.simple_headers)
         has_cookie = "cookie" in request.headers
 
         # If request includes any cookie headers, then we must respond
