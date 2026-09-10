@@ -609,7 +609,7 @@ async def logs(  # noqa: PLR0913 Can't reduce args due to FastAPI endpoint forma
 )
 async def config() -> FastAPIResponse:
     """Get the current config of the server."""
-    config = yaml.safe_load(CONFIG.model_dump_json())
+    config = CONFIG.model_dump(mode="json")
     sha, branch = get_version()
     if sha != "unknown":
         config["retriever_version"] = sha
