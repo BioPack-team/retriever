@@ -10,6 +10,8 @@ from pydantic_settings import (
     SettingsConfigDict,
     YamlConfigSettingsSource,
 )
+from translator_tom.v2_0 import TRAPI_CONFIG
+from translator_tom.v2_0._version import SCHEMA_VERSION
 
 from retriever.config.utils import CommentedSettings
 
@@ -52,7 +54,10 @@ class XTranslator(BaseModel):
 
     component: str = "KP"
     team: list[str] = ["DOGSURF"]
-    biolink_version: str = "4.3.2"
+    biolink_version: str = Field(
+        default_factory=lambda: TRAPI_CONFIG.biolink_version,
+        description="Biolink model version, sourced from translator_tom.",
+    )
     infores: Annotated[
         str,
         Field(description="Unique identifier for this component, used in provenance."),
@@ -79,7 +84,10 @@ class TestDataLocationObject(BaseModel):
 class XTrapi(BaseModel):
     """Trapi-specific metadata."""
 
-    version: str = "1.6.0"
+    version: str = Field(
+        default_factory=lambda: SCHEMA_VERSION,
+        description="TRAPI schema version, sourced from translator_tom.",
+    )
     multicuriesquery: Annotated[
         bool, Field(description="Supports advanced set interpretation.")
     ] = False
