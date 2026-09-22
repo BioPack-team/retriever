@@ -1,13 +1,14 @@
 from typing import override
 
 import orjson
-from translator_tom.v1_6 import (
+from translator_tom.v2_0 import (
     CURIE,
+    EdgeID,
     Infores,
     QEdgeID,
     QNodeID,
 )
-from translator_tom.v1_6.model_dicts import (
+from translator_tom.v2_0.model_dicts import (
     AnalysisDict,
     EdgeBindingDict,
     NodeBindingDict,
@@ -97,20 +98,22 @@ class Partial:
 
     def as_result(self, k_agraph: KAdjacencyGraph) -> ResultDict:
         """Return a result generated from the Partial's node and edge bindings."""
+        # Union kedge ids per qedge; a qedge may appear under several (in, out) pairs.
+        edge_ids: dict[QEdgeID, list[EdgeID]] = {}
+        for qedge_id, in_id, out_id in self.edge_bindings:
+            edge_ids.setdefault(qedge_id, []).extend(k_agraph[qedge_id][in_id][out_id])
+
         return ResultDict(
             node_bindings={
-                qnode_id: [NodeBindingDict(id=curie, attributes=[])]
+                qnode_id: NodeBindingDict(ids=[curie])
                 for qnode_id, curie in self.node_bindings
             },
             analyses=[
                 AnalysisDict(
                     resource_id=Infores("infores:retriever"),
                     edge_bindings={
-                        qedge_id: [
-                            EdgeBindingDict(id=kedge_id, attributes=[])
-                            for kedge_id in k_agraph[qedge_id][in_id][out_id]
-                        ]
-                        for qedge_id, in_id, out_id in self.edge_bindings
+                        qedge_id: EdgeBindingDict(ids=list(dict.fromkeys(ids)))
+                        for qedge_id, ids in edge_ids.items()
                     },
                 )
             ],

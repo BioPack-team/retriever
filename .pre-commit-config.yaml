@@ -20,7 +20,7 @@ repos:
   - repo: local
     hooks:
       - id: static-typing
-        files: 'src/.*/*.py'
+        files: '^src/.*\.py$'
         name: static typing
         language: node
         entry: uv

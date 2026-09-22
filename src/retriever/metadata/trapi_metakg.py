@@ -1,7 +1,7 @@
 import asyncio
 from http import HTTPStatus
 
-from translator_tom.v1_6 import MetaKnowledgeGraph
+from translator_tom.v2_0 import MetaKnowledgeGraph
 
 from retriever.metadata.optable import OpTableManager
 from retriever.types.general import ErrorDetail, QueryInfo

@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from typing import Any
 
-from translator_tom.v1_6 import CURIE, Biolink
+from translator_tom.v2_0 import CURIE, Biolink
 
 from retriever.types.metakg import Operation, OperationNode
 from retriever.utils.backend_client import BackendClient

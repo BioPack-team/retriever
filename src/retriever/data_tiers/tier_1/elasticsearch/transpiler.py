@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from typing import Any, Literal, cast, override
 
 import orjson
-from translator_tom.v1_6 import (
+from translator_tom.v2_0 import (
     CURIE,
     AttributeConstraint,
     Biolink,
@@ -12,7 +12,7 @@ from translator_tom.v1_6 import (
     QNode,
     QueryGraph,
 )
-from translator_tom.v1_6.model_dicts import (
+from translator_tom.v2_0.model_dicts import (
     AttributeConstraintDict,
     AttributeConstraintDictUtil,
     AttributeDict,
@@ -20,9 +20,10 @@ from translator_tom.v1_6.model_dicts import (
     EdgeDictUtil,
     KnowledgeGraphDict,
     NodeDict,
-    QualifierConstraintDict,
     QualifierDict,
     RetrievalSourceDict,
+    SourceConstraintDict,
+    SourceConstraintDictUtil,
 )
 
 from retriever.config.general import CONFIG
@@ -56,6 +57,9 @@ from retriever.types.general import BackendResult
 # Or just a built-in annotation
 
 SpecialCaseDict = dict[str, tuple[str, Any]]
+
+# TRAPI 2.0 requires top-level knowledge_level/agent_type; biolink `not_provided` is the fallback.
+NOT_PROVIDED = "not_provided"
 
 
 class ElasticsearchTranspiler(Tier1Transpiler):
@@ -121,7 +125,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
     ) -> ESBooleanQuery:
         """Generate attribute constraints based on QNode/QEdge payload."""
         origins: list[tuple[AttributeOrigin, list[AttributeConstraint]]] = [
-            ("edge", edge.attribute_constraints_list),
+            ("edge", edge.constraints.attributes_list if edge.constraints else []),
             ("subject", in_node.constraints_list),
             ("object", out_node.constraints_list),
         ]
@@ -178,12 +182,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
         }
 
         qualifier_constraints = (
-            cast(
-                "list[QualifierConstraintDict]",
-                [constraint.to_dict() for constraint in edge.qualifier_constraints],
-            )
-            if edge.qualifier_constraints is not None
-            else None
+            edge.constraints.qualifiers_list if edge.constraints else []
         )
         qualifier_terms = process_qualifier_constraints(qualifier_constraints)
 
@@ -218,7 +217,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
     @override
     def convert_triple(self, qgraph: QueryGraph) -> ESPayload:
         """Provide an ES query body for given trio of Q-dicts."""
-        edge = next(iter(qgraph.edges.values()), None)
+        edge = next(iter(qgraph.edges_dict.values()), None)
         if edge is None:
             raise ValueError("Query graph must contain exactly one edge.")
         in_node = qgraph.nodes[edge.subject]
@@ -307,7 +306,9 @@ class ElasticsearchTranspiler(Tier1Transpiler):
             qualifiers: list[QualifierDict] = []
             sources: list[RetrievalSourceDict] = []
 
-            # Cases that require additional formatting to be TRAPI-compliant
+            # Cases that require additional formatting to be TRAPI-compliant.
+            # KL/AT are lifted to top-level Edge fields (below), so a None value
+            # here excludes them from the attribute stream entirely.
             special_cases: SpecialCaseDict = {
                 "category": (
                     "biolink:category",
@@ -316,18 +317,25 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                         for cat in edge.attributes.get("category", [])
                     ],
                 ),
+                "knowledge_level": ("biolink:knowledge_level", None),
+                "agent_type": ("biolink:agent_type", None),
             }
 
             attributes = self.build_attributes(edge, special_cases)
 
-            constraints = cast(
+            qedge_constraints = qedge.constraints
+            attribute_constraints = cast(
                 "list[AttributeConstraintDict]",
                 [
                     constraint.to_dict()
-                    for constraint in qedge.attribute_constraints_list
+                    for constraint in (
+                        qedge_constraints.attributes_list if qedge_constraints else []
+                    )
                 ],
             )
-            if not AttributeConstraintDictUtil.set_met_by(constraints, attributes):
+            if not AttributeConstraintDictUtil.set_met_by(
+                attribute_constraints, attributes
+            ):
                 continue
 
             # Build Qualifiers
@@ -355,12 +363,39 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                     retrieval_source["source_record_urls"] = source_record_urls
                 sources.append(retrieval_source)
 
+            knowledge_level = edge.attributes.get("knowledge_level") or NOT_PROVIDED
+            agent_type = edge.attributes.get("agent_type") or NOT_PROVIDED
+
+            # Post-filter on the dedicated KL/AT/source constraints (2.0-only).
+            if qedge_constraints:
+                kl = qedge_constraints.knowledge_level
+                at = qedge_constraints.agent_type
+                src = qedge_constraints.sources
+                if (
+                    (kl and not kl.met_by(knowledge_level))
+                    or (at and not at.met_by(agent_type))
+                    or (
+                        src
+                        and not SourceConstraintDictUtil.met_by(
+                            SourceConstraintDict(
+                                behavior=src.behavior,
+                                values=src.values,
+                                primary_only=src.primary_only,
+                            ),
+                            sources,
+                        )
+                    )
+                ):
+                    continue
+
             # Build Edge
             trapi_edge = EdgeDict(
                 predicate=Biolink.Predicate(Biolink(edge.predicate)),
                 subject=CURIE(edge.subject.id),
                 object=CURIE(edge.object.id),
                 sources=sources,
+                knowledge_level=knowledge_level,
+                agent_type=agent_type,
             )
             if len(attributes) > 0:
                 trapi_edge["attributes"] = attributes
@@ -379,7 +414,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
     def convert_results(
         self, qgraph: QueryGraph, results: list[ESEdge]
     ) -> BackendResult:
-        edge = next(iter(qgraph.edges.values()))
+        edge = next(iter(qgraph.edges_dict.values()))
         sbj = qgraph.nodes[edge.subject]
         obj = qgraph.nodes[edge.object]
         nodes = self.build_nodes(results, sbj, obj)

@@ -10,8 +10,8 @@ import orjson
 import zstandard
 from loguru import logger as log
 from opentelemetry import trace
-from translator_tom.v1_6 import CURIE, Biolink, Infores
-from translator_tom.v1_6.model_dicts import ResponseDict, ResponseDictUtil
+from translator_tom.v2_0 import CURIE, Biolink, Infores
+from translator_tom.v2_0.model_dicts import ResponseDict, ResponseDictUtil
 
 from retriever.config.general import CONFIG, GandalfSettings
 from retriever.data_tiers.base_driver import DatabaseDriver

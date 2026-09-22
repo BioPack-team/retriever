@@ -44,8 +44,8 @@
 from datetime import datetime
 from typing import Any
 
-from translator_tom.v1_6 import Biolink
-from translator_tom.v1_6.model_dicts import AttributeConstraintDict
+from translator_tom.v2_0 import Biolink
+from translator_tom.v2_0.model_dicts import AttributeConstraintDict
 
 from retriever.data_tiers.tier_1.elasticsearch.constraints.attributes.meta_info import (
     EDGE_ATTR_META,

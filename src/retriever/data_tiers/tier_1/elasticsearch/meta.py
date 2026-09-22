@@ -11,7 +11,7 @@ import msgpack
 import ormsgpack
 from elasticsearch import AsyncElasticsearch
 from loguru import logger as log
-from translator_tom.v1_6 import CURIE, Biolink, Infores, MetaAttribute
+from translator_tom.v2_0 import CURIE, Biolink, Infores, MetaAttribute
 
 from retriever.config.general import CONFIG
 from retriever.data_tiers.utils import (

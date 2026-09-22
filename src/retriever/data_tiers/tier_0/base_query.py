@@ -4,11 +4,11 @@ import time
 from abc import ABC, abstractmethod
 
 from opentelemetry import trace
-from translator_tom.v1_6 import (
+from translator_tom.v2_0 import (
     Infores,
     QueryGraph,
 )
-from translator_tom.v1_6.model_dicts import (
+from translator_tom.v2_0.model_dicts import (
     EdgeDictUtil,
     KnowledgeGraphDictUtil,
 )
@@ -62,12 +62,12 @@ class Tier0Query(ABC):
             end_time = time.time()
             duration_ms = math.ceil((end_time - start_time) * 1000)
             self.job_log.info(
-                f"Tier 0: Retrieved {len(results)} results / {len(kgraph['nodes'])} nodes / {len(kgraph['edges'])} edges in {duration_ms}ms."
+                f"Tier 0: Retrieved {len(results)} results / {len(kgraph['nodes'])} nodes / {len(KnowledgeGraphDictUtil.edges_dict(kgraph))} edges in {duration_ms}ms."
             )
 
             if not parameters.dehydrated:
                 # Add Retriever to the provenance chain
-                for edge_id, edge in kgraph["edges"].items():
+                for edge_id, edge in KnowledgeGraphDictUtil.edges_dict(kgraph).items():
                     if "sources" not in edge:
                         continue
                     try:

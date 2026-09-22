@@ -1,4 +1,4 @@
-from translator_tom.v1_6 import QueryGraph
+from translator_tom.v2_0 import QueryGraph
 
 from retriever.utils.trapi import initialize_kgraph
 

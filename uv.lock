@@ -2069,7 +2069,7 @@ requires-dist = [
     { name = "ruamel-yaml", specifier = ">=0.18.14" },
     { name = "sentry-sdk", extras = ["fastapi", "httpx", "loguru"], specifier = ">=2.45.0" },
     { name = "starlette", specifier = ">=1.3.1,<2.0.0" },
-    { name = "translator-tom", specifier = ">=2.0.0" },
+    { name = "translator-tom", specifier = ">=2.2.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.1,<0.33" },
     { name = "uvloop", specifier = ">=0.21.0" },
     { name = "zstandard", specifier = ">=0.24.0" },
@@ -2309,7 +2309,7 @@ wheels = [
 
 [[package]]
 name = "translator-tom"
-version = "2.0.0"
+version = "2.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bmt" },
@@ -2323,9 +2323,9 @@ dependencies = [
     { name = "stablehash" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/49/06/64ccc815f1defdefbb0f4a49a2e54549287e80282c6dfb284666e1a940d8/translator_tom-2.0.0.tar.gz", hash = "sha256:d75881c1ae99bd557b2fec489c04c08587752143242e88f38d48b2d72cf359ad", size = 271936, upload-time = "2026-08-21T19:55:16.026Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f2/86/8a940179f3a057a71ab414fdad9f970c266838c2c672fed9558c418fe700/translator_tom-2.2.0.tar.gz", hash = "sha256:d1bcf35d09b3ffae61288974ef68425e06fc4d31a0cfaf88878c48392ff07524", size = 285935, upload-time = "2026-09-18T16:43:12.48Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c5/c9/0972ec457d660542cd8bc059f93aae64fe59b7c75e6889e995817cdfe417/translator_tom-2.0.0-py3-none-any.whl", hash = "sha256:8c1b16df95978a4147efac4b875d664f40a5c1b694b5ecd94584478d4bb3a169", size = 366609, upload-time = "2026-08-21T19:55:14.826Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/3d/5d02946b72346e7f50d32831b3a2cc5689c5ebc877c4fefbdd77a0a4149d/translator_tom-2.2.0-py3-none-any.whl", hash = "sha256:0074f1850e225b69f921771e1be86cf2d1300e8acd5cea94d09c54fefad61e16", size = 380676, upload-time = "2026-09-18T16:43:11.123Z" },
 ]
 
 [[package]]

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from translator_tom.v1_6 import QueryGraph
+from translator_tom.v2_0 import QueryGraph
 
 from retriever.types.general import BackendResult
 
