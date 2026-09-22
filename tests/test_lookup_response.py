@@ -17,7 +17,14 @@ def _query() -> QueryInfo:
         method="POST",
         headers=Headers(),
         body=Query.model_validate(
-            {"message": {"query_graph": {"nodes": {}, "edges": {}}}}
+            {
+                "message": {
+                    "query_graph": {
+                        "nodes": {"n0": {"ids": ["CHEBI:1"]}, "n1": {}},
+                        "edges": {"e0": {"subject": "n0", "object": "n1"}},
+                    }
+                }
+            }
         ),
         job_id="job123",
         tier=0,

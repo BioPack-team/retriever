@@ -2121,7 +2121,7 @@ requires-dist = [
     { name = "ruamel-yaml", specifier = ">=0.18.14" },
     { name = "sentry-sdk", extras = ["fastapi", "httpx", "loguru"], specifier = ">=2.45.0" },
     { name = "starlette", specifier = ">=1.3.1,<2.0.0" },
-    { name = "translator-tom", specifier = ">=2.0.0" },
+    { name = "translator-tom", specifier = ">=2.2.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.1,<0.33" },
     { name = "uvloop", specifier = ">=0.21.0" },
     { name = "zstandard", specifier = ">=0.24.0" },

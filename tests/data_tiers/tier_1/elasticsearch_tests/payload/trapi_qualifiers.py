@@ -1,21 +1,10 @@
-from typing import cast
-
-from translator_tom.v1_6 import Biolink
-from translator_tom.v1_6.model_dicts import (
-    QualifierConstraintDict,
-    QualifierDict,
-)
+from translator_tom.v2_0 import Biolink
+from translator_tom.v2_0.model_dicts import QualifierSetConstraint
 
 
-def create_qualifier_constraint(name: str, value) -> QualifierConstraintDict:
-    return QualifierConstraintDict(
-        qualifier_set=[
-            QualifierDict(
-                qualifier_type_id=Biolink.Qualifier(name),
-                qualifier_value=value,
-            )
-        ]
-    )
+def create_qualifier_constraint(name: str, value: str) -> QualifierSetConstraint:
+    """A TRAPI 2.0 QualifierSetConstraint: a flat {qualifier_type_id: value} mapping."""
+    return {Biolink.Qualifier(name): value}
 
 
 sex_qualifier_constraint = create_qualifier_constraint(
@@ -26,28 +15,12 @@ frequency_qualifier_constraint = create_qualifier_constraint(
 )
 
 
-qualifier_specifications = cast(
-    list[QualifierDict],
-    [
-        {
-            "qualifier_type_id": "biolink:object_aspect_qualifier",
-            "qualifier_value": "activity",
-        },
-        {
-            "qualifier_type_id": "biolink:object_direction_qualifier",
-            "qualifier_value": "increased",
-        },
-        {
-            "qualifier_type_id": "biolink:qualified_predicate",
-            "qualifier_value": "biolink:causes",
-        },
-    ],
-)
-single_entry_qualifier_set: QualifierConstraintDict = {
-    "qualifier_set": qualifier_specifications[:1]
+single_entry_qualifier_set: QualifierSetConstraint = {
+    "biolink:object_aspect_qualifier": "activity",
 }
-multi_entry_qualifier_set: QualifierConstraintDict = {
-    "qualifier_set": qualifier_specifications[1:]
+multi_entry_qualifier_set: QualifierSetConstraint = {
+    "biolink:object_direction_qualifier": "increased",
+    "biolink:qualified_predicate": "biolink:causes",
 }
 
 multiple_qualifier_constraints = [single_entry_qualifier_set, multi_entry_qualifier_set]

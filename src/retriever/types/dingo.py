@@ -1,7 +1,7 @@
 from typing import Any, TypedDict
 
 from pydantic import TypeAdapter
-from translator_tom.v1_6 import (
+from translator_tom.v2_0 import (
     Biolink,
     Infores,
 )

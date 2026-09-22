@@ -10,8 +10,8 @@ import orjson
 import ormsgpack
 import zstandard
 from opentelemetry import context, propagate, trace
-from translator_tom.v1_6 import PathfinderQueryGraph, QueryGraph
-from translator_tom.v1_6.model_dicts import (
+from translator_tom.v2_0 import QueryGraph
+from translator_tom.v2_0.model_dicts import (
     KnowledgeGraphDict,
     LogEntryDict,
     MessageDict,
@@ -19,7 +19,7 @@ from translator_tom.v1_6.model_dicts import (
     ResponseDict,
     ResultDict,
 )
-from translator_tom.v1_6.model_dicts.workflow_operations import OperationDict
+from translator_tom.v2_0.model_dicts.workflow_operations import OperationDict
 
 from retriever.config.general import CONFIG
 from retriever.config.openapi import OPENAPI_CONFIG
@@ -192,10 +192,9 @@ async def lookup(query: QueryInfo) -> tuple[HTTPStatus, ResponseDict]:
         if qgraph is None:
             raise ValueError("Query Graph is None.")
 
-        # Query graph validation that isn't handled by TRAPI model validation
-        if not passes_validation(query.body, response, job_log) or isinstance(
-            qgraph, PathfinderQueryGraph
-        ):
+        # Query graph validation that isn't handled by TRAPI model validation.
+        # A populated `paths` marks a Pathfinder query, which Retriever rejects.
+        if not passes_validation(query.body, response, job_log) or qgraph.paths:
             return tracked_response(
                 HTTPStatus.UNPROCESSABLE_ENTITY, query, response, job_log
             )
@@ -239,7 +238,9 @@ async def lookup(query: QueryInfo) -> tuple[HTTPStatus, ResponseDict]:
         response["description"] = finish_msg
         response["message"]["results"] = results
         response["message"]["knowledge_graph"] = kgraph
-        response["message"]["auxiliary_graphs"] = aux_graphs
+        # TRAPI 2.0: auxiliary_graphs is minProperties 1 — omit when empty.
+        if aux_graphs:
+            response["message"]["auxiliary_graphs"] = aux_graphs
         return tracked_response(HTTPStatus.OK, query, response, job_log)
 
     except Exception:
@@ -296,7 +297,7 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
     if (
         release_version := tier_manager.get_driver(0).get_release_version()
     ) is not None:
-        response["data_release_versions"] = DataReleaseVersions.model_construct(  # pyright:ignore[reportGeneralTypeIssues] Extra is allowed
+        response["data_release_versions"] = DataReleaseVersions.model_construct(
             translator_kg=release_version
         ).to_dict()
 
@@ -403,8 +404,9 @@ def tracked_response(
 ) -> tuple[HTTPStatus, ResponseDict]:
     """Utility function for response handling."""
     # Filter for desired log_level
+    parameters = query.body.parameters if query.body else None
     desired_log_level = trapi_level_to_int(
-        (query.body.log_level if query.body else None) or "DEBUG"
+        parameters.get_log_level("DEBUG") if parameters else "DEBUG"
     )
     response["logs"] = [
         log

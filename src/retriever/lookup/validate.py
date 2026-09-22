@@ -1,6 +1,5 @@
-from translator_tom.v1_6 import (
+from translator_tom.v2_0 import (
     Biolink,
-    PathfinderQueryGraph,
     QEdge,
     QEdgeID,
     QNode,
@@ -23,7 +22,7 @@ def validate(query: Query | AsyncQuery) -> tuple[list[str], list[str]]:
     qg = query.message.query_graph
     if qg is None:
         return [], ["query_graph missing."]
-    if isinstance(qg, PathfinderQueryGraph):
+    if qg.paths:
         return [], ["Retriever does not support Pathfinder queries."]
     parameters = query.parameters or Parameters.model_construct()
     if (parameters.tier or 0) == 1 and parameters.dehydrated:
@@ -32,13 +31,13 @@ def validate(query: Query | AsyncQuery) -> tuple[list[str], list[str]]:
     warnings = list[str]()
     problems = dict[str, bool]()  # False means failing
     problems["Query graph must have at least one node"] = len(qg.nodes.values()) > 0
-    problems["Query graph must have at least one edge"] = len(qg.edges.values()) > 0
+    problems["Query graph must have at least one edge"] = len(qg.edges_dict) > 0
     problems["Query graph must have at least one node with an ID"] = any(
         node for node in qg.nodes.values() if len(node.ids_list) > 0
     )
 
     # node_pairs = set[str]()
-    for qedge_id, qedge in qg.edges.items():
+    for qedge_id, qedge in qg.edges_dict.items():
         edge_warnings, edge_problems = validate_qedge(qg, qedge_id, qedge)
         problems.update(edge_problems)
         warnings.extend(edge_warnings)
@@ -69,15 +68,6 @@ def validate_qedge(
         problems[
             f"Edge `{qedge_id}` object `{qedge.object}` not defined in query graph."
         ] = False
-
-    for i, qualifier_constraint in enumerate(qedge.qualifier_constraints_list):
-        qualifier_types: set[str] = set()
-        for qualifier in qualifier_constraint.qualifier_set:
-            if qualifier.qualifier_type_id in qualifier_types:
-                problems[
-                    f"Edge `{qedge_id}` qualifier constraint {i} has duplicate qualifier_type_id `{qualifier.qualifier_type_id}`"
-                ] = False
-            qualifier_types.add(qualifier.qualifier_type_id)
 
     if qedge.knowledge_type == "inferred":
         problems["Retriever does not handle inferred-type queries."] = False

@@ -1,8 +1,8 @@
 from typing import override
 
 from opentelemetry import trace
-from translator_tom.v1_6 import Message, QueryGraph
-from translator_tom.v1_6.model_dicts import KnowledgeGraphDict
+from translator_tom.v2_0 import Message, QueryGraph
+from translator_tom.v2_0.model_dicts import KnowledgeGraphDict
 
 from retriever.data_tiers.tier_0.base_query import Tier0Query
 from retriever.data_tiers.tier_0.gandalf.driver import GandalfDriver

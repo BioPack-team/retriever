@@ -57,8 +57,9 @@ def _kg_node_ids(msg: dict[str, Any]) -> set[str]:
 def _result_node_ids(msg: dict[str, Any], binding: str) -> set[str]:
     ids: set[str] = set()
     for result in msg.get("results", []):
-        for b in result.get("node_bindings", {}).get(binding, []):
-            ids.add(b["id"])
+        node_binding = result.get("node_bindings", {}).get(binding)
+        if node_binding:
+            ids.update(node_binding["ids"])
     return ids
 
 
@@ -78,16 +79,14 @@ async def test_simple_one_query(tier: int) -> None:
     """
     query_graph = {
         "nodes": {
-            "n0": {"ids": ["GO:0031410"], "constraints": []},
-            "n1": {"ids": ["NCBIGene:11276"], "constraints": []},
+            "n0": {"ids": ["GO:0031410"]},
+            "n1": {"ids": ["NCBIGene:11276"]},
         },
         "edges": {
             "e0": {
                 "object": "n0",
                 "subject": "n1",
                 "predicates": ["biolink:located_in"],
-                "attribute_constraints": [],
-                "qualifier_constraints": [],
             }
         },
     }
@@ -125,16 +124,14 @@ async def test_reverse_query(tier: int) -> None:
     """
     query_graph = {
         "nodes": {
-            "n0": {"categories": ["biolink:NamedThing"], "constraints": []},
-            "n1": {"ids": ["DOID:0070271"], "constraints": []},
+            "n0": {"categories": ["biolink:NamedThing"]},
+            "n1": {"ids": ["DOID:0070271"]},
         },
         "edges": {
             "e0": {
                 "object": "n0",
                 "subject": "n1",
                 "predicates": ["biolink:has_phenotype"],
-                "attribute_constraints": [],
-                "qualifier_constraints": [],
             }
         },
     }
@@ -166,16 +163,14 @@ async def test_symmetric_predicate_query(tier: int) -> None:
     """
     query_graph = {
         "nodes": {
-            "n0": {"categories": ["biolink:NamedThing"], "constraints": []},
-            "n1": {"ids": ["NCBIGene:3778"], "constraints": []},
+            "n0": {"categories": ["biolink:NamedThing"]},
+            "n1": {"ids": ["NCBIGene:3778"]},
         },
         "edges": {
             "e0": {
                 "object": "n0",
                 "subject": "n1",
                 "predicates": ["biolink:related_to"],
-                "attribute_constraints": [],
-                "qualifier_constraints": [],
             }
         },
     }
@@ -241,16 +236,14 @@ async def test_subclass_case1_form_b(tier: int) -> None:
     """
     query_graph = {
         "nodes": {
-            "n0": {"ids": ["GO:0051055"], "constraints": []},
-            "n1": {"ids": ["EFO:0004528"], "constraints": []},
+            "n0": {"ids": ["GO:0051055"]},
+            "n1": {"ids": ["EFO:0004528"]},
         },
         "edges": {
             "e0": {
                 "subject": "n0",
                 "object": "n1",
                 "predicates": ["biolink:genetic_association"],
-                "attribute_constraints": [],
-                "qualifier_constraints": [],
             }
         },
     }
@@ -287,16 +280,14 @@ async def test_subclass_case1_form_c(tier: int) -> None:
     """
     query_graph = {
         "nodes": {
-            "n0": {"ids": ["CHEBI:4042"], "constraints": []},
-            "n1": {"ids": ["GO:0051055"], "constraints": []},
+            "n0": {"ids": ["CHEBI:4042"]},
+            "n1": {"ids": ["GO:0051055"]},
         },
         "edges": {
             "e0": {
                 "subject": "n0",
                 "object": "n1",
                 "predicates": ["biolink:affects"],
-                "attribute_constraints": [],
-                "qualifier_constraints": [],
             }
         },
     }
@@ -332,16 +323,14 @@ async def test_subclass_case2_id_to_cat(tier: int) -> None:
     """
     query_graph = {
         "nodes": {
-            "n0": {"ids": ["UMLS:C3273258"], "constraints": []},
-            "n1": {"categories": ["biolink:PhenotypicFeature"], "constraints": []},
+            "n0": {"ids": ["UMLS:C3273258"]},
+            "n1": {"categories": ["biolink:PhenotypicFeature"]},
         },
         "edges": {
             "e0": {
                 "subject": "n0",
                 "object": "n1",
                 "predicates": ["biolink:has_phenotype"],
-                "attribute_constraints": [],
-                "qualifier_constraints": [],
             }
         },
     }
@@ -380,16 +369,14 @@ async def test_subclass_case3_cat_to_id(tier: int) -> None:
     """
     query_graph = {
         "nodes": {
-            "n0": {"categories": ["biolink:SmallMolecule"], "constraints": []},
-            "n1": {"ids": ["GO:0051055"], "constraints": []},
+            "n0": {"categories": ["biolink:SmallMolecule"]},
+            "n1": {"ids": ["GO:0051055"]},
         },
         "edges": {
             "e0": {
                 "subject": "n0",
                 "object": "n1",
                 "predicates": ["biolink:affects"],
-                "attribute_constraints": [],
-                "qualifier_constraints": [],
             }
         },
     }
@@ -513,24 +500,20 @@ async def test_two_hop_query(tier: int) -> None:
     """
     query_graph = {
         "nodes": {
-            "n0": {"ids": ["CHEBI:3125"], "constraints": []},
-            "n1": {"ids": ["UMLS:C0282090"], "constraints": []},
-            "n2": {"ids": ["CHEBI:22580"], "constraints": []},
+            "n0": {"ids": ["CHEBI:3125"]},
+            "n1": {"ids": ["UMLS:C0282090"]},
+            "n2": {"ids": ["CHEBI:22580"]},
         },
         "edges": {
             "e0": {
                 "object": "n0",
                 "subject": "n1",
                 "predicates": ["biolink:interacts_with"],
-                "attribute_constraints": [],
-                "qualifier_constraints": [],
             },
             "e1": {
                 "object": "n1",
                 "subject": "n2",
                 "predicates": ["biolink:interacts_with"],
-                "attribute_constraints": [],
-                "qualifier_constraints": [],
             },
         },
     }
@@ -568,32 +551,26 @@ async def test_three_hop_query(tier: int) -> None:
     """
     query_graph = {
         "nodes": {
-            "n0": {"ids": ["CHEBI:3125"], "constraints": []},
-            "n1": {"ids": ["UMLS:C0282090"], "constraints": []},
-            "n2": {"ids": ["CHEBI:22580"], "constraints": []},
-            "n3": {"ids": ["UMLS:C0678941"], "constraints": []},
+            "n0": {"ids": ["CHEBI:3125"]},
+            "n1": {"ids": ["UMLS:C0282090"]},
+            "n2": {"ids": ["CHEBI:22580"]},
+            "n3": {"ids": ["UMLS:C0678941"]},
         },
         "edges": {
             "e0": {
                 "object": "n0",
                 "subject": "n1",
                 "predicates": ["biolink:interacts_with"],
-                "attribute_constraints": [],
-                "qualifier_constraints": [],
             },
             "e1": {
                 "object": "n1",
                 "subject": "n2",
                 "predicates": ["biolink:interacts_with"],
-                "attribute_constraints": [],
-                "qualifier_constraints": [],
             },
             "e2": {
                 "object": "n2",
                 "subject": "n3",
                 "predicates": ["biolink:interacts_with"],
-                "attribute_constraints": [],
-                "qualifier_constraints": [],
             },
         },
     }

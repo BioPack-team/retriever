@@ -2,8 +2,8 @@ from dataclasses import dataclass
 from typing import Any, NotRequired, Self, TypedDict
 
 import orjson
-from translator_tom.v1_6 import Biolink
-from translator_tom.v1_6.model_dicts import (
+from translator_tom.v2_0 import Biolink
+from translator_tom.v2_0.model_dicts import (
     RetrievalSourceDict,
 )
 

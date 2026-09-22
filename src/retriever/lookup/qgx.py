@@ -7,14 +7,14 @@ from collections.abc import AsyncGenerator, Hashable, Iterable
 from typing import Literal, cast
 
 from opentelemetry import trace
-from translator_tom.v1_6 import (
+from translator_tom.v2_0 import (
     CURIE,
     EdgeID,
     QEdgeID,
     QNodeID,
     QueryGraph,
 )
-from translator_tom.v1_6.model_dicts import (
+from translator_tom.v2_0.model_dicts import (
     AuxiliaryGraphsDict,
     EdgeDict,
     KnowledgeGraphDict,
@@ -52,6 +52,7 @@ from retriever.utils.logs import TRAPILogger
 from retriever.utils.redis import RedisClient
 from retriever.utils.trapi import (
     initialize_kgraph,
+    solve_set_interpretation,
 )
 
 tracer = trace.get_tracer("lookup.execution.tracer")
@@ -109,7 +110,9 @@ class QueryGraphExecutor:
         q_agraph, qedge_map = make_mappings(self.qgraph)
         self.q_agraph = q_agraph
         self.qedge_map = qedge_map
-        self.qedge_claims = {QEdgeID(qedge_id): None for qedge_id in self.qgraph.edges}
+        self.qedge_claims = {
+            QEdgeID(qedge_id): None for qedge_id in self.qgraph.edges_dict
+        }
 
         self.kgraph = initialize_kgraph(self.qgraph)
         self.aux_graphs = {}
@@ -119,7 +122,7 @@ class QueryGraphExecutor:
         self.kedges_by_input = {}
         self.k_agraph = {
             QEdgeID(qedge_id): dict[CURIE, dict[CURIE, list[EdgeID]]]()
-            for qedge_id in self.qgraph.edges
+            for qedge_id in self.qgraph.edges_dict
         }
 
         self.active_branches = set()
@@ -205,7 +208,7 @@ class QueryGraphExecutor:
             end_time = time.time()
             duration_ms = math.ceil((end_time - self.start_time) * 1000)
             self.job_log.info(
-                f"Tier {self.ctx.tier}: Retrieved {len(results)} results / {len(self.kgraph['nodes'])} nodes / {len(self.kgraph['edges'])} edges in {duration_ms}ms."
+                f"Tier {self.ctx.tier}: Retrieved {len(results)} results / {len(self.kgraph['nodes'])} nodes / {len(KnowledgeGraphDictUtil.edges_dict(self.kgraph))} edges in {duration_ms}ms."
             )
 
             if len(results) > 0:
@@ -216,20 +219,20 @@ class QueryGraphExecutor:
                     self.aux_graphs,
                     self.job_log,
                 )
+                # Collapse per set_interpretation before pruning orphaned KG nodes.
+                results = solve_set_interpretation(
+                    self.qgraph, results, self.kgraph, self.job_log
+                )
 
-            prior_edge_count = len(self.kgraph["edges"])
+            prior_edge_count = len(KnowledgeGraphDictUtil.edges_dict(self.kgraph))
             prior_node_count = len(self.kgraph["nodes"])
             KnowledgeGraphDictUtil.prune(self.kgraph, self.aux_graphs, results)
-            pruned_edges = prior_edge_count - len(self.kgraph["edges"])
+            edge_count = len(KnowledgeGraphDictUtil.edges_dict(self.kgraph))
+            pruned_edges = prior_edge_count - edge_count
             pruned_nodes = prior_node_count - len(self.kgraph["nodes"])
             self.job_log.debug(
-                f"KG Pruning: {len(self.kgraph['nodes'])} (-{pruned_nodes}) nodes and {len(self.kgraph['edges'])} (-{pruned_edges}) edges remain."
+                f"KG Pruning: {len(self.kgraph['nodes'])} (-{pruned_nodes}) nodes and {edge_count} (-{pruned_edges}) edges remain."
             )
-
-            # Disabled due to implementation bugs (it was previously no-op due to another bug)
-            # results = evaluate_set_interpretation(
-            #     QueryGraphDict(**self.qgraph.to_dict()), results, self.job_log
-            # )
 
             return LookupArtifacts(
                 results,
@@ -631,7 +634,7 @@ class QueryGraphExecutor:
         next_curies = set[CURIE]()
 
         # Ensure "backwards" edges don't cause input curie to propogate
-        for edge in new_kgraph["edges"].values():
+        for edge in KnowledgeGraphDictUtil.edges_dict(new_kgraph).values():
             if (
                 edge["object"] == current_branch.input_curie
                 and edge["subject"] != edge["object"]
@@ -657,7 +660,7 @@ class QueryGraphExecutor:
             self.job_log.trace(
                 f"{current_branch.superposition_name}: Returning {len(expanded_next_curies)} Partial results."
             )
-            for edge in new_kgraph["edges"].values():
+            for edge in KnowledgeGraphDictUtil.edges_dict(new_kgraph).values():
                 if edge["subject"] == current_branch.input_curie:
                     next_hop_curie = edge["object"]
                 else:
@@ -704,10 +707,12 @@ class QueryGraphExecutor:
             self.kedges_by_input[current_branch.hop_id] = list[
                 tuple[EdgeID, EdgeDict]
             ]()
-        self.kedges_by_input[current_branch.hop_id].extend(new_kgraph["edges"].items())
+        self.kedges_by_input[current_branch.hop_id].extend(
+            KnowledgeGraphDictUtil.edges_dict(new_kgraph).items()
+        )
 
         # Update the k_agraph
-        for edge_id, edge in new_kgraph["edges"].items():
+        for edge_id, edge in KnowledgeGraphDictUtil.edges_dict(new_kgraph).items():
             if edge["subject"] == current_branch.input_curie:
                 in_node, out_node = edge["subject"], edge["object"]
             else:

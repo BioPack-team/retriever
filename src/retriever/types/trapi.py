@@ -1,10 +1,11 @@
 from typing import Annotated, ClassVar
 
 from pydantic import ConfigDict, Field
-from translator_tom.v1_6 import AsyncQuery as TRAPIAsyncQuery
-from translator_tom.v1_6 import Query as TRAPIQuery
-from translator_tom.v1_6 import Response as TRAPIResponse
-from translator_tom.v1_6 import TOMBase
+from translator_tom.v2_0 import AsyncQuery as TRAPIAsyncQuery
+from translator_tom.v2_0 import Query as TRAPIQuery
+from translator_tom.v2_0 import QueryParameters as TRAPIQueryParameters
+from translator_tom.v2_0 import Response as TRAPIResponse
+from translator_tom.v2_0 import TOMBase
 
 TierNumber = Annotated[
     int,
@@ -12,17 +13,15 @@ TierNumber = Annotated[
 ]
 
 
-class Parameters(TOMBase):
-    """Parameters that govern some elements of query execution behavior."""
+class Parameters(TRAPIQueryParameters):
+    """Parameters that govern some elements of query execution behavior.
+
+    Extends the TRAPI 2.0 `QueryParameters` (timeout/log_level/bypass_cache) with
+    Retriever-specific execution controls.
+    """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow")
 
-    timeout: Annotated[
-        float | None,
-        Field(
-            description="Custom query timeout in seconds. Defaults to server default if not set. Set to -1 to disable timeout entirely."
-        ),
-    ] = None
     tiers: Annotated[
         list[TierNumber] | None,
         Field(
@@ -49,13 +48,13 @@ class Parameters(TOMBase):
 class Query(TRAPIQuery):
     """Request."""
 
-    parameters: Parameters | None = None
+    parameters: Parameters | None = None  # pyright:ignore[reportIncompatibleVariableOverride] Retriever extends QueryParameters
 
 
 class AsyncQuery(TRAPIAsyncQuery):
     """AsyncQuery."""
 
-    parameters: Parameters | None = None
+    parameters: Parameters | None = None  # pyright:ignore[reportIncompatibleVariableOverride] Retriever extends QueryParameters
 
 
 class DataReleaseVersions(TOMBase):
@@ -70,10 +69,11 @@ class DataReleaseVersions(TOMBase):
 class Response(TRAPIResponse):
     """Response."""
 
-    parameters: Annotated[
-        Parameters, Field(description="Parameters used while executing the query.")
-    ]
-    data_release_versions: Annotated[
+    parameters: Annotated[  # pyright:ignore[reportIncompatibleVariableOverride] Retriever extends QueryParameters
+        Parameters | None,
+        Field(description="Parameters used while executing the query."),
+    ] = None
+    data_release_versions: Annotated[  # pyright:ignore[reportIncompatibleVariableOverride] Structured form of the base dict
         DataReleaseVersions | None,
         Field(
             description="Release versions of knowledge sources used to answer the query."

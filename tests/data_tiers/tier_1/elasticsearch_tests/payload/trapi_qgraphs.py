@@ -1,13 +1,13 @@
 import copy
 from typing import Any, cast
 
-from translator_tom.v1_6 import (
+from translator_tom.v2_0 import (
     QEdgeID,
     QNodeID,
 )
-from translator_tom.v1_6.model_dicts import (
+from translator_tom.v2_0.model_dicts import (
     AttributeConstraintDict,
-    QualifierConstraintDict,
+    QualifierSetConstraint,
     QueryGraphDict,
 )
 
@@ -40,8 +40,8 @@ N1 = QNodeID("n1")
 BASE_QGRAPH = qg(
     {
         "nodes": {
-            N0: {"ids": ["CHEBI:4514"], "constraints": []},
-            N1: {"ids": ["UMLS:C1564592"], "constraints": []},
+            N0: {"ids": ["CHEBI:4514"]},
+            N1: {"ids": ["UMLS:C1564592"]},
         },
         "edges": {
             E0: {
@@ -64,11 +64,13 @@ DINGO_QGRAPH = qg(
                 "subject": "n0",
                 "object": "n1",
                 "predicates": ["biolink:has_phenotype"],
-                "qualifier_constraints": [
-                    sex_qualifier_constraint,
-                    frequency_qualifier_constraint,
-                ],
-                "attribute_constraints": [base_constraint, base_negation_constraint],
+                "constraints": {
+                    "qualifiers": [
+                        sex_qualifier_constraint,
+                        frequency_qualifier_constraint,
+                    ],
+                    "attributes": [base_constraint, base_negation_constraint],
+                },
             }
         },
     }
@@ -77,16 +79,14 @@ DINGO_QGRAPH = qg(
 QGRAPH_MULTIPLE_IDS = qg(
     {
         "nodes": {
-            "n0": {"ids": ["CHEBI:3125", "CHEBI:53448"], "constraints": []},
-            "n1": {"ids": ["UMLS:C0282090", "CHEBI:10119"], "constraints": []},
+            "n0": {"ids": ["CHEBI:3125", "CHEBI:53448"]},
+            "n1": {"ids": ["UMLS:C0282090", "CHEBI:10119"]},
         },
         "edges": {
             "e0": {
                 "object": "n0",
                 "subject": "n1",
                 "predicates": ["interacts_with"],
-                "attribute_constraints": [],
-                "qualifier_constraints": [],
             },
         },
     }
@@ -94,19 +94,19 @@ QGRAPH_MULTIPLE_IDS = qg(
 
 
 def generate_qgraph_with_qualifier_constraints(
-    qualifier_constraints: list[QualifierConstraintDict],
+    qualifier_constraints: list[QualifierSetConstraint],
 ):
     """Generate a QGraph with qualifier constraints."""
     _q_graph = copy.deepcopy(BASE_QGRAPH)
-    _q_graph["edges"][E0]["qualifier_constraints"] = qualifier_constraints
+    _q_graph["edges"][E0]["constraints"] = {"qualifiers": qualifier_constraints}
 
     return _q_graph
 
 
 Q_GRAPH_WITH_ATTRIBUTE_CONSTRAINTS = copy.deepcopy(BASE_QGRAPH)
-Q_GRAPH_WITH_ATTRIBUTE_CONSTRAINTS["edges"][E0]["attribute_constraints"] = (
-    ATTRIBUTE_CONSTRAINTS
-)
+Q_GRAPH_WITH_ATTRIBUTE_CONSTRAINTS["edges"][E0]["constraints"] = {
+    "attributes": ATTRIBUTE_CONSTRAINTS
+}
 
 
 Q_GRAPH_WITH_SUBJECT_NODE_CONSTRAINTS = copy.deepcopy(BASE_QGRAPH)
@@ -127,7 +127,7 @@ Q_GRAPHS_WITH_QUALIFIER_CONSTRAINTS: list[QueryGraphDict] = [
 ]
 
 COMPREHENSIVE_QGRAPH = copy.deepcopy(Q_GRAPHS_WITH_QUALIFIER_CONSTRAINTS[0])
-COMPREHENSIVE_QGRAPH["edges"][E0]["attribute_constraints"] = ATTRIBUTE_CONSTRAINTS
+COMPREHENSIVE_QGRAPH["edges"][E0]["constraints"]["attributes"] = ATTRIBUTE_CONSTRAINTS
 
 
 ALT_BASE_GRAPH = qg(
@@ -148,20 +148,11 @@ ID_BYPASS_PAYLOAD = qg(
         "nodes": {
             "sn": {
                 "categories": ["biolink:Gene"],
-                "constraints": [],
                 "ids": ["CHEBI:45783"],
                 "is_set": False,
             },
             "n1": {
                 "categories": ["biolink:NamedThing"],
-                "constraints": [
-                    # {
-                    #     "id": "biolink:information_content",
-                    #     "name": "information content score limit",
-                    #     "operator": OperatorEnum.GT,
-                    #     "value": 60,
-                    # }
-                ],
             },
         },
         "edges": {
@@ -191,16 +182,11 @@ SINGLE_EXPANDED_QUALIFIER_QGRAPH = qg(
                 "subject": "SN",
                 "object": "ON",
                 "predicates": ["biolink:affects"],
-                "qualifier_constraints": [
-                    {
-                        "qualifier_set": [
-                            {
-                                "qualifier_type_id": "biolink:qualified_predicate",
-                                "qualifier_value": "biolink:causes",
-                            },
-                        ]
-                    }
-                ],
+                "constraints": {
+                    "qualifiers": [
+                        {"biolink:qualified_predicate": "biolink:causes"},
+                    ],
+                },
             },
         },
     }
@@ -224,24 +210,15 @@ EXPANDED_QUALIFIER_QGRAPH = qg(
                 "subject": "SN",
                 "object": "ON",
                 "predicates": ["biolink:affects"],
-                "qualifier_constraints": [
-                    {
-                        "qualifier_set": [
-                            {
-                                "qualifier_type_id": "biolink:qualified_predicate",
-                                "qualifier_value": "biolink:causes",
-                            },
-                            {
-                                "qualifier_type_id": "biolink:object_aspect_qualifier",
-                                "qualifier_value": "activity_or_abundance",
-                            },
-                            {
-                                "qualifier_type_id": "biolink:object_direction_qualifier",
-                                "qualifier_value": "decreased",
-                            },
-                        ]
-                    }
-                ],
+                "constraints": {
+                    "qualifiers": [
+                        {
+                            "biolink:qualified_predicate": "biolink:causes",
+                            "biolink:object_aspect_qualifier": "activity_or_abundance",
+                            "biolink:object_direction_qualifier": "decreased",
+                        }
+                    ],
+                },
             },
         },
     }
@@ -278,7 +255,7 @@ def generate_qgraph_with_attribute_constraints(
 ):
     """Generate a QGraph with attribute constraints."""
     _q_graph = copy.deepcopy(ALT_BASE_GRAPH)
-    _q_graph["edges"][E0]["attribute_constraints"] = constraints
+    _q_graph["edges"][E0]["constraints"] = {"attributes": constraints}
 
     return _q_graph
 

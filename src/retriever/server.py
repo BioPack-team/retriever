@@ -28,13 +28,13 @@ from fastapi.responses import (
     Response as FastAPIResponse,
 )
 from loguru import logger
-from translator_tom.v1_6 import (
+from translator_tom.v2_0 import (
     AsyncQueryResponse,
     AsyncQueryStatusResponse,
     Infores,
     MetaKnowledgeGraph,
 )
-from translator_tom.v1_6.model_dicts import (
+from translator_tom.v2_0.model_dicts import (
     EdgeDictUtil,
     ResponseDict,
 )

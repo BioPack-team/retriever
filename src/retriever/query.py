@@ -11,10 +11,10 @@ import zstandard
 from fastapi import Request
 from loguru import logger
 from opentelemetry import context, propagate, trace
-from translator_tom.v1_6 import (
+from translator_tom.v2_0 import (
     MetaKnowledgeGraph,
 )
-from translator_tom.v1_6.model_dicts import (
+from translator_tom.v2_0.model_dicts import (
     AsyncQueryResponseDict,
     LogEntryDict,
     ResponseDict,
