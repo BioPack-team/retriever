@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from functools import cached_property
 from typing import override
 
-from translator_tom.v1_6 import CURIE, QEdge, QEdgeID, QNodeID, QueryGraph
+from translator_tom.v2_0 import CURIE, QEdge, QEdgeID, QNodeID, QueryGraph
 
 from retriever.metadata.optable import OperationPlan
 from retriever.types.general import AdjacencyGraph, QEdgeIDMap
@@ -249,7 +249,7 @@ class Branch:
         """
         next_steps = list[Branch]()
 
-        current_edge = self.qgraph.edges[self.current_edge]
+        current_edge = self.qgraph.edges_dict[self.current_edge]
         for next_qnode_id, edges in self.next_edges.items():
             for next_edge in edges:
                 if (

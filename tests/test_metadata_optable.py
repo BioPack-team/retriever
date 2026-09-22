@@ -12,7 +12,7 @@ from typing import cast
 from unittest.mock import AsyncMock
 
 import pytest
-from translator_tom.v1_6 import MetaQualifier, QEdge, Qualifier, QualifierConstraint
+from translator_tom.v2_0 import MetaQualifier, QEdge, QEdgeConstraints
 
 from retriever.data_tiers.utils import parse_dingo_metadata
 from retriever.metadata import optable as optable_module
@@ -209,13 +209,9 @@ def _qualified_edge() -> QEdge:
         subject="n0",
         object="n1",
         predicates=["biolink:affects"],
-        qualifier_constraints=[
-            QualifierConstraint(
-                qualifier_set=[
-                    Qualifier(qualifier_type_id=_QUAL_TYPE, qualifier_value=_QUAL_VALUE)
-                ]
-            )
-        ],
+        constraints=QEdgeConstraints.model_construct(
+            qualifiers=[{_QUAL_TYPE: _QUAL_VALUE}]
+        ),
     )
 
 

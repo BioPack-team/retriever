@@ -14,9 +14,10 @@ from payload.trapi_qgraphs import (  # pyright:ignore[reportImplicitRelativeImpo
     ID_BYPASS_PAYLOAD,
     SINGLE_EXPANDED_QUALIFIER_QGRAPH,
 )
-from translator_tom.v1_6 import Biolink, QueryGraph
-from translator_tom.v1_6.model_dicts import (
+from translator_tom.v2_0 import Biolink, QueryGraph
+from translator_tom.v2_0.model_dicts import (
     QualifierDict,
+    QualifierSetConstraint,
     QueryGraphDict,
 )
 
@@ -35,6 +36,16 @@ EDGE_FIELDS_MAPPING = {"predicates": "predicate_ancestors"}
 NODE_FIELDS_MAPPING = {"ids": "id", "categories": "category"}
 
 SideType = Literal["subject", "object"]
+
+
+def _qualifier_set_to_list(
+    qualifier_set: QualifierSetConstraint,
+) -> list[QualifierDict]:
+    """Expand a flat TRAPI 2.0 QualifierSetConstraint into QualifierDict entries."""
+    return [
+        {"qualifier_type_id": qtype, "qualifier_value": qvalue}
+        for qtype, qvalue in qualifier_set.items()
+    ]
 
 
 @pytest.fixture
@@ -149,7 +160,8 @@ def check_single_query_payload(q_graph: QueryGraphDict, generated_payload: ESPay
     # 1. 1 constraint, >1 qual -> `ESBoolQueryForExpandedQualifiers` flattened into `filter`
     # 2. 1 constraint, 1 qual  -> single `ESEquivalentQualifierPairCollection` appended to `filter`
 
-    qualifier_entries = q_edge.get("qualifier_constraints")
+    constraints = q_edge.get("constraints") or {}
+    qualifier_entries = constraints.get("qualifiers")
     if qualifier_entries:
         if len(qualifier_entries) > 1:
             assert "should" in query_content
@@ -161,7 +173,7 @@ def check_single_query_payload(q_graph: QueryGraphDict, generated_payload: ESPay
             for qualifier_entry, generated_query in zip(
                 qualifier_entries, should_array, strict=False
             ):
-                qualifiers = qualifier_entry["qualifier_set"]
+                qualifiers = _qualifier_set_to_list(qualifier_entry)
                 if len(qualifiers) == 1:
                     verify_expanded_qualifier(
                         qualifiers[0],
@@ -174,7 +186,7 @@ def check_single_query_payload(q_graph: QueryGraphDict, generated_payload: ESPay
                     )
         else:
             # single constraint: qualifier expansion entries are in `filter`
-            qualifiers = qualifier_entries[0]["qualifier_set"]
+            qualifiers = _qualifier_set_to_list(qualifier_entries[0])
             bool_entries = [clause for clause in filter_content if "bool" in clause]
             assert len(bool_entries) == len(qualifiers)
 
@@ -192,7 +204,7 @@ def check_single_query_payload(q_graph: QueryGraphDict, generated_payload: ESPay
                 verify_expanded_qualifier(qualifier, entries_by_type[qtype])
 
     # hacky attribute checking for now
-    if q_edge.get("attribute_constraints"):
+    if constraints.get("attributes"):
         assert "must" in query_content
         must = query_content["must"]
         assert must == [
@@ -295,9 +307,9 @@ def test_expanded_qualifier_constraints(
     assert "minimum_should_match" not in query_content
 
     q_edge = q_graph["edges"]["e0"]
-    qualifier_constraints = q_edge.get("qualifier_constraints")
+    qualifier_constraints = (q_edge.get("constraints") or {}).get("qualifiers")
     assert qualifier_constraints is not None
-    qualifiers = qualifier_constraints[0]["qualifier_set"]
+    qualifiers = _qualifier_set_to_list(qualifier_constraints[0])
 
     # Collect the bool-wrapped expansion entries (each qualifier becomes one)
     expansion_entries = [clause for clause in filter_content if "bool" in clause]

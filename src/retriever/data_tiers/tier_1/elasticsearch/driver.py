@@ -9,7 +9,7 @@ from elasticsearch import AsyncElasticsearch
 from elasticsearch import exceptions as es_exceptions
 from loguru import logger as log
 from opentelemetry import trace
-from translator_tom.v1_6 import CURIE, Biolink, Infores, tomhash
+from translator_tom.v2_0 import CURIE, Biolink, Infores, tomhash
 
 from retriever.config.general import CONFIG
 from retriever.data_tiers.base_driver import DatabaseDriver

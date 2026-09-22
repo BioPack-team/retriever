@@ -3,7 +3,7 @@ from typing import NamedTuple
 
 import aiofiles
 from loguru import logger
-from translator_tom.v1_6 import (
+from translator_tom.v2_0 import (
     Biolink,
     QEdge,
     QEdgeID,
@@ -31,7 +31,7 @@ def ensure_minimal_types(qg: QueryGraph, job_log: TRAPILogger) -> QueryGraph:
                 f"QNode {qnode_id}: Inferred NamedThing from empty category list."
             )
 
-    for qedge_id, qedge in qg.edges.items():
+    for qedge_id, qedge in qg.edges_dict.items():
         if len(qedge.predicates_list) == 0:
             qedge.predicates = [Biolink("related_to")]
             job_log.info(
@@ -45,7 +45,7 @@ def make_mappings(qg: QueryGraph) -> tuple[AdjacencyGraph, QEdgeIDMap]:
     """Make an undirected QGraph representation in which edges are presented by their nodes."""
     agraph: AdjacencyGraph = {}
     edge_id_map: QEdgeIDMap = {}
-    for edge_id, edge in qg.edges.items():
+    for edge_id, edge in qg.edges_dict.items():
         edge_id_map[id(edge)] = QEdgeID(edge_id)
         subject_node = QNodeID(edge.subject)
         object_node = QNodeID(edge.object)
@@ -93,11 +93,10 @@ def get_query_metadata(query: QueryInfo, query_type: str) -> QueryMetadata:
     qnodes, qedges, qpaths = 0, 0, 0
     body = query.body
     if body is not None and body.message.query_graph is not None:
-        qnodes = len(body.message.query_graph.nodes)
-        if isinstance(body.message.query_graph, QueryGraph):
-            qedges = len(body.message.query_graph.edges)
-        else:
-            qpaths = len(body.message.query_graph.paths)
+        qgraph = body.message.query_graph
+        qnodes = len(qgraph.nodes)
+        qedges = len(qgraph.edges_dict)
+        qpaths = len(qgraph.paths_dict)
 
     return QueryMetadata(
         job_id=query.job_id,

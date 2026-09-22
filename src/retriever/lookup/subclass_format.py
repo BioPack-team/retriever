@@ -1,12 +1,14 @@
 from typing import Literal
 
-from translator_tom.v1_6 import CURIE, AuxGraphID, Biolink, EdgeID, tomhash
-from translator_tom.v1_6.model_dicts import (
+from translator_tom.v2_0 import CURIE, AuxGraphID, Biolink, EdgeID, tomhash
+from translator_tom.v2_0.model_dicts import (
+    AnalysisDictUtil,
     AttributeDict,
     AuxiliaryGraphDict,
     EdgeDict,
     EdgeDictUtil,
     KnowledgeGraphDict,
+    KnowledgeGraphDictUtil,
     QualifierDictUtil,
     ResultDict,
     ResultDictUtil,
@@ -56,16 +58,8 @@ def create_subclass_edge(parent: CURIE, descendant: CURIE) -> tuple[EdgeID, Edge
                 upstream_resource_ids=[CONFIG.tier1.backend_infores],
             ),
         ],
-        attributes=[
-            AttributeDict(
-                attribute_type_id="biolink:knowledge_level",
-                value="knowledge_assertion",
-            ),
-            AttributeDict(
-                attribute_type_id="biolink:agent_type",
-                value="manual_agent",
-            ),
-        ],
+        knowledge_level="knowledge_assertion",
+        agent_type="manual_agent",
     )
 
     edge_hash = EdgeDictUtil.hash(edge)
@@ -128,21 +122,14 @@ def build_subclass_construct_edge(
         subject=edge_key[0],
         object=edge_key[3],
         predicate=edge["predicate"],
-        qualifiers=EdgeDictUtil.qualifiers_list(edge),
+        knowledge_level="logical_entailment",
+        agent_type="automated_agent",
         # BUG: this breaks 2.0-clarified attribute constraint binding rules
         # Would have to make a new construct for each edge, rather than aggregate
         attributes=[
             AttributeDict(
                 attribute_type_id="biolink:support_graphs",
                 value=[f"support_{'_'.join(edge_key)}_via_subclass"],
-            ),
-            AttributeDict(
-                attribute_type_id="biolink:knowledge_level",
-                value="logical_entailment",
-            ),
-            AttributeDict(
-                attribute_type_id="biolink:agent_type",
-                value="automated_agent",
             ),
         ],
         sources=[
@@ -157,6 +144,10 @@ def build_subclass_construct_edge(
             ),
         ],
     )
+
+    # TRAPI 2.0: Edge.qualifiers is minItems 1 — only include when present.
+    if qualifiers := EdgeDictUtil.qualifiers_list(edge):
+        construct_edge["qualifiers"] = qualifiers
 
     if edge_source := _primary_knowledge_source(edge):
         construct_edge["sources"].append(
@@ -196,18 +187,15 @@ def insert_constructs(
 
     # Replace edges and nodes in results
     for result in results:
-        for node_bindings in result["node_bindings"].values():
-            for binding in node_bindings:
-                if binding["id"] in subclass_backmap:
-                    binding["id"] = subclass_backmap[binding["id"]]
+        for binding in result["node_bindings"].values():
+            binding["ids"] = [subclass_backmap.get(i, i) for i in binding["ids"]]
 
-        for analysis in result["analyses"]:
-            if "edge_bindings" not in analysis:
-                continue
-            for edge_bindings in analysis["edge_bindings"].values():
-                for binding in edge_bindings:
-                    if binding["id"] in edges_to_fix:
-                        binding["id"] = construct_edges[edges_to_fix[binding["id"]]][0]
+        for analysis in ResultDictUtil.analyses_list(result):
+            for binding in AnalysisDictUtil.edge_bindings_dict(analysis).values():
+                binding["ids"] = [
+                    construct_edges[edges_to_fix[i]][0] if i in edges_to_fix else i
+                    for i in binding["ids"]
+                ]
 
     # Merge the results now that their bindings point at the constructs
     ResultDictUtil.merge_results(results)
@@ -222,14 +210,15 @@ def add_new_knowledge(
 ) -> None:
     """Update the kg/aux with the new format information."""
     # Merge in new edges and aux graphs
-    kg["edges"].update(dict(subclass_edges.values()))
-    kg["edges"].update(dict(construct_edges.values()))
+    edges = kg.get("edges")
+    if edges is None:
+        edges = kg["edges"] = {}
+    edges.update(dict(subclass_edges.values()))
+    edges.update(dict(construct_edges.values()))
 
     aux_graphs.update(
         {
-            support_graph_id: AuxiliaryGraphDict(
-                edges=list(support_edges), attributes=[]
-            )
+            support_graph_id: AuxiliaryGraphDict(edges=list(support_edges))
             for support_graph_id, support_edges in support_graphs.values()
         }
     )
@@ -258,7 +247,7 @@ def solve_subclass_edges(
     # Map original edges to their construct replacements
     construct_edges = ConstructEdgesMapping()
 
-    for edge_id, edge in kg["edges"].items():
+    for edge_id, edge in KnowledgeGraphDictUtil.edges_dict(kg).items():
         edge_key, support_graph = build_intermediate_support_graph(
             subclass_backmap, edge_id, edge, subclass_edges
         )

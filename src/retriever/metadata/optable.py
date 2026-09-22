@@ -9,7 +9,7 @@ from typing import NamedTuple, override
 import ormsgpack
 from loguru import logger
 from opentelemetry import trace
-from translator_tom.v1_6 import (
+from translator_tom.v2_0 import (
     Biolink,
     Curie,
     MetaAttribute,
@@ -20,7 +20,7 @@ from translator_tom.v1_6 import (
     QEdge,
     QEdgeID,
     QNodeID,
-    QualifierConstraint,
+    Qualifier,
     QueryGraph,
 )
 
@@ -519,8 +519,9 @@ class OpTableManager(AsyncDaemon):
         """
         if op.tier != tier:
             return False, []
-        if not QualifierConstraint.set_met_by(
-            edge.qualifier_constraints_list, op.qualifiers or []
+        constraints = edge.constraints
+        if not Qualifier.constraint_set_met_by(
+            constraints.qualifiers_list if constraints else [], op.qualifiers or []
         ):
             return False, []
         op_attr_types = {
@@ -529,8 +530,8 @@ class OpTableManager(AsyncDaemon):
             if mattr.constraint_use or False
         }
         unmet = [
-            constr.name
-            for constr in edge.attribute_constraints_list
+            constr.name or constr.id
+            for constr in (constraints.attributes_list if constraints else [])
             if constr.id not in op_attr_types
         ]
         return len(unmet) == 0, unmet
@@ -604,7 +605,7 @@ class OpTableManager(AsyncDaemon):
         unsupported_qedges = dict[
             QEdgeID, UnsupportedConstraint | QueryNotTraversable
         ]()
-        for qedge_id, qedge in qgraph.edges.items():
+        for qedge_id, qedge in qgraph.edges_dict.items():
             operations = []
             try:
                 operations = await self.find_operations(qedge, qgraph, tier)
@@ -646,7 +647,7 @@ class OpTableManager(AsyncDaemon):
                     met = True
                     for constr in constraints:
                         if constr.id not in available_attrs:
-                            unmet_nodes[qnode_id].add(constr.name)
+                            unmet_nodes[qnode_id].add(constr.name or constr.id)
                             met = False
                     if met:
                         nodes_met[qnode_id] = True

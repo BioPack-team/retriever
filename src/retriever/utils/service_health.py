@@ -17,7 +17,7 @@ from http import HTTPStatus
 from typing import Literal
 
 from fastapi import HTTPException
-from translator_tom.v1_6.model_dicts import LogEntryDict
+from translator_tom.v2_0.model_dicts import LogEntryDict
 
 from retriever.data_tiers import tier_manager
 from retriever.types.general import ErrorDetail

@@ -1,5 +1,5 @@
-from translator_tom.v1_6 import Biolink
-from translator_tom.v1_6.model_dicts import QualifierConstraintDict
+from translator_tom.v2_0 import Biolink
+from translator_tom.v2_0.model_dicts import QualifierSetConstraint
 
 from retriever.data_tiers.tier_1.elasticsearch.constraints.types.qualifier_types import (
     ESBoolQueryForExpandedQualifiers,
@@ -65,30 +65,25 @@ def expand_qualifier_pairs(
 
 
 def handle_single_constraint(
-    constraint: QualifierConstraintDict,
+    constraint: QualifierSetConstraint,
 ) -> list[ESEquivalentQualifierPairCollection] | None:
-    """Generate query terms based on single constraint. One constraint could contain multiple entries in its qualifiers set."""
-    qualifiers = constraint["qualifier_set"]
+    """Generate query terms from a single qualifier set constraint.
 
-    # empty qualifier set
-    if not qualifiers:
+    A QualifierSetConstraint is a flat mapping of qualifier_type_id to value;
+    within a set the relationship is AND.
+    """
+    if not constraint:
         return None
 
-    pairs: set[tuple[str, str]] = set()
+    pairs: set[tuple[str, str]] = {
+        (qual_type, qual_value) for qual_type, qual_value in constraint.items()
+    }
 
-    for qualifier in qualifiers:
-        qual_type = qualifier["qualifier_type_id"]
-        qual_value = qualifier["qualifier_value"]
-        pairs.add((qual_type, qual_value))
-
-    # within a qualifier set, it's AND relationship.
-    must = expand_qualifier_pairs(pairs)
-
-    return must
+    return expand_qualifier_pairs(pairs)
 
 
 def process_qualifier_constraints(
-    constraints: list[QualifierConstraintDict] | None,
+    constraints: list[QualifierSetConstraint] | None,
 ) -> (
     ESConstraintsChainedQuery
     | ESEquivalentQualifierPairCollection

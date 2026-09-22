@@ -10,9 +10,9 @@ from typing import Any
 import loguru
 import orjson
 from loguru import logger
-from translator_tom.v1_6 import LogLevel as TRAPILogLevel
-from translator_tom.v1_6 import LogLevelEnum as TRAPILogLevelEnum
-from translator_tom.v1_6.model_dicts import LogEntryDict
+from translator_tom.v2_0 import LogLevel as TRAPILogLevel
+from translator_tom.v2_0 import LogLevelEnum as TRAPILogLevelEnum
+from translator_tom.v2_0.model_dicts import LogEntryDict
 
 from retriever.config.general import CONFIG
 from retriever.types.general import LogLevel

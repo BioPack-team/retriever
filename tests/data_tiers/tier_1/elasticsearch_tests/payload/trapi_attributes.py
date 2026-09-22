@@ -1,4 +1,4 @@
-from translator_tom.v1_6.model_dicts import AttributeConstraintDict
+from translator_tom.v2_0.model_dicts import AttributeConstraintDict
 
 # sample
 # {

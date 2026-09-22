@@ -7,14 +7,14 @@ from typing import Any, NamedTuple, cast
 
 from loguru import logger
 from opentelemetry import trace
-from translator_tom.v1_6 import (
+from translator_tom.v2_0 import (
     CURIE,
     Biolink,
     EdgeID,
     Infores,
     QueryGraph,
 )
-from translator_tom.v1_6.model_dicts import (
+from translator_tom.v2_0.model_dicts import (
     AuxiliaryGraphDictUtil,
     EdgeDict,
     EdgeDictUtil,
@@ -94,7 +94,7 @@ class SubqueryDispatcher(BatchedAction):
                     end = time.time()
                     kg, logs = subq_result
                     job_log.debug(
-                        f"Subquery got {len(kg['edges'])} records as part of batched query in {math.ceil((end - start) * 1000)}ms"
+                        f"Subquery got {len(KnowledgeGraphDictUtil.edges_dict(kg))} records as part of batched query in {math.ceil((end - start) * 1000)}ms"
                     )
                     logs.extend(job_log.get_logs())
 
@@ -143,7 +143,9 @@ class SubqueryDispatcher(BatchedAction):
                 result = transpiler.convert_results(qgraph, record)
 
                 # Add Retriever to the provenance chain
-                for edge_id, edge in result.knowledge_graph["edges"].items():
+                for edge_id, edge in KnowledgeGraphDictUtil.edges_dict(
+                    result.knowledge_graph
+                ).items():
                     try:
                         EdgeDictUtil.append_aggregator(edge, Infores("retriever"))
                     except ValueError:
@@ -237,7 +239,7 @@ class SubqueryDispatcher(BatchedAction):
 
         Produces multiple if symmetric predicates are present.
         """
-        current_edge = branch.qgraph.edges[branch.current_edge]
+        current_edge = branch.qgraph.edges_dict[branch.current_edge]
         subject_node = branch.qgraph.nodes[current_edge.subject]
         object_node = branch.qgraph.nodes[current_edge.object]
         if not branch.reversed:

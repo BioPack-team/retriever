@@ -170,7 +170,9 @@ async def test_elasticsearch_driver(
     "qgraph",
     INVALID_REGEX_QGRAPHS,
     ids=[
-        str(cast("Any", qgraph)["edges"]["e0"]["attribute_constraints"][0]["value"])
+        str(
+            cast("Any", qgraph)["edges"]["e0"]["constraints"]["attributes"][0]["value"]
+        )
         for qgraph in INVALID_REGEX_QGRAPHS
     ],
 )

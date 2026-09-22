@@ -33,7 +33,12 @@ def _lookup_body(parameters: Parameters | None = None) -> TRAPIQuery:
     """Build a minimal valid TRAPI query body."""
     return TRAPIQuery.model_validate(
         {
-            "message": {"query_graph": {"nodes": {}, "edges": {}}},
+            "message": {
+                "query_graph": {
+                    "nodes": {"n0": {"ids": ["CHEBI:1"]}, "n1": {}},
+                    "edges": {"e0": {"subject": "n0", "object": "n1"}},
+                }
+            },
             **({"parameters": parameters.model_dump()} if parameters else {}),
         }
     )
@@ -169,7 +174,12 @@ async def test_async_lookup_reapplies_data_tier_tag():
         method="POST",
         body=TRAPIAsyncQuery.model_validate(
             {
-                "message": {"query_graph": {"nodes": {}, "edges": {}}},
+                "message": {
+                    "query_graph": {
+                        "nodes": {"n0": {"ids": ["CHEBI:1"]}, "n1": {}},
+                        "edges": {"e0": {"subject": "n0", "object": "n1"}},
+                    }
+                },
                 "callback": "https://example.test/callback",
             }
         ),

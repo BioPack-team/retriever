@@ -6,7 +6,7 @@ from typing import Annotated, Any, Literal, NamedTuple, NotRequired, TypedDict
 from fastapi import BackgroundTasks, Request, Response
 from fastapi.datastructures import Headers
 from pydantic import BeforeValidator
-from translator_tom.v1_6 import (
+from translator_tom.v2_0 import (
     CURIE,
     AuxGraphID,
     EdgeID,
@@ -14,7 +14,7 @@ from translator_tom.v1_6 import (
     QEdgeID,
     QNodeID,
 )
-from translator_tom.v1_6.model_dicts import (
+from translator_tom.v2_0.model_dicts import (
     AuxiliaryGraphDict,
     KnowledgeGraphDict,
     LogEntryDict,
