@@ -272,9 +272,13 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
             "Received QueryGraph of type None, query graph should be present."
         )
 
-    parameters = Parameters.model_construct(tier=query.tier or 0)
-    if query.body.parameters is not None and query.body.parameters.timeout:
-        parameters.timeout = query.body.parameters.timeout
+    # Echo the client's submitted parameters (TRAPI 2.0 Response.parameters).
+    parameters = (
+        query.body.parameters.model_copy()
+        if query.body.parameters is not None
+        else Parameters.model_construct()
+    )
+    parameters.tier = query.tier or 0  # reflect the resolved tier
 
     workflow = (
         [op.to_dict() for op in query.body.workflow] if query.body.workflow else None
@@ -289,8 +293,8 @@ def initialize_lookup(query: QueryInfo) -> tuple[str, TRAPILogger, ResponseDict]
         schema_version=OPENAPI_CONFIG.x_trapi.version,
         workflow=cast(list[OperationDict], workflow),
     )
-    # parameters, submitter, and job_id are retriever extensions to the TRAPI Response.
     response["parameters"] = parameters.to_dict()  # pyright:ignore[reportGeneralTypeIssues] Extra is allowed
+    # submitter and job_id are Retriever extensions to the TRAPI Response.
     response["submitter"] = get_submitter(query)  # pyright:ignore[reportGeneralTypeIssues] Extra is allowed
     response["job_id"] = job_id  # pyright:ignore[reportGeneralTypeIssues] Extra is allowed
 
