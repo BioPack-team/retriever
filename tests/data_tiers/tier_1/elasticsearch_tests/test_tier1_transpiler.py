@@ -14,7 +14,7 @@ from payload.trapi_qgraphs import (  # pyright:ignore[reportImplicitRelativeImpo
     ID_BYPASS_PAYLOAD,
     SINGLE_EXPANDED_QUALIFIER_QGRAPH,
 )
-from translator_tom.v2_0 import Biolink, QueryGraph
+from translator_tom.v2_0 import Biolink, QEdge, QueryGraph
 from translator_tom.v2_0.model_dicts import (
     QualifierDict,
     QualifierSetConstraint,
@@ -29,7 +29,7 @@ from retriever.data_tiers.tier_1.elasticsearch.constraints.types.qualifier_types
 from retriever.data_tiers.tier_1.elasticsearch.transpiler import (
     ElasticsearchTranspiler,
 )
-from retriever.data_tiers.tier_1.elasticsearch.types import ESPayload
+from retriever.data_tiers.tier_1.elasticsearch.types import ESDocument, ESEdge, ESPayload
 
 # How TRAPI query-graph fields map to their Elasticsearch term targets.
 EDGE_FIELDS_MAPPING = {"predicates": "predicate_ancestors"}
@@ -391,3 +391,68 @@ async def test_convert_batch_results(es_transpiler: ElasticsearchTranspiler):
 
     for result in results:
         assert result is not None
+
+
+def _es_edge(
+    knowledge_level: str = "knowledge_assertion",
+    agent_type: str = "manual_agent",
+    source_id: str = "infores:ctd",
+) -> ESEdge:
+    """Minimal ESEdge carrying the top-level KL/AT and a single primary source."""
+    return ESEdge.from_dict(
+        ESDocument(
+            sort=["x"],
+            _source={
+                "id": "e1",
+                "subject": {"id": "NCBIGene:1", "category": ["Gene"]},
+                "object": {"id": "MONDO:1", "category": ["Disease"]},
+                "predicate": "related_to",
+                "predicate_ancestors": ["related_to"],
+                "knowledge_level": knowledge_level,
+                "agent_type": agent_type,
+                "sources": [
+                    {"resource_id": source_id, "resource_role": "primary_knowledge_source"}
+                ],
+            },
+        )
+    )
+
+
+def _qedge(**constraints: Any) -> QEdge:
+    return QEdge.model_validate(
+        {"subject": "n0", "object": "n1", "constraints": constraints}
+    )
+
+
+def test_build_edges_keeps_conforming_edge(es_transpiler: ElasticsearchTranspiler):
+    """An edge meeting the KL/AT/source constraints survives the post-filter."""
+    qedge = _qedge(
+        knowledge_level={"behavior": "ALLOW", "values": ["knowledge_assertion"]},
+        agent_type={"behavior": "ALLOW", "values": ["manual_agent"]},
+        sources={"behavior": "ALLOW", "values": ["infores:ctd"]},
+    )
+
+    assert len(es_transpiler.build_edges([_es_edge()], qedge)) == 1
+
+
+def test_build_edges_drops_on_knowledge_level(es_transpiler: ElasticsearchTranspiler):
+    """A non-conforming knowledge_level drops the edge (post-filter)."""
+    qedge = _qedge(
+        knowledge_level={"behavior": "ALLOW", "values": ["knowledge_assertion"]}
+    )
+
+    assert es_transpiler.build_edges([_es_edge(knowledge_level="prediction")], qedge) == {}
+
+
+def test_build_edges_drops_on_agent_type(es_transpiler: ElasticsearchTranspiler):
+    """A non-conforming agent_type drops the edge (post-filter)."""
+    qedge = _qedge(agent_type={"behavior": "ALLOW", "values": ["manual_agent"]})
+
+    assert es_transpiler.build_edges([_es_edge(agent_type="automated_agent")], qedge) == {}
+
+
+def test_build_edges_drops_on_source(es_transpiler: ElasticsearchTranspiler):
+    """A non-conforming source drops the edge (post-filter)."""
+    qedge = _qedge(sources={"behavior": "ALLOW", "values": ["infores:ctd"]})
+
+    assert es_transpiler.build_edges([_es_edge(source_id="infores:other")], qedge) == {}
