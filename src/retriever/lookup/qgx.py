@@ -20,6 +20,7 @@ from translator_tom.v2_0.model_dicts import (
     KnowledgeGraphDict,
     KnowledgeGraphDictUtil,
     LogEntryDict,
+    NodeBindingDict,
     ResultDict,
 )
 
@@ -171,6 +172,10 @@ class QueryGraphExecutor:
                     status="QueryNotTraversable",
                 )
 
+            # Edge-less (node-only) queries skip branch traversal entirely.
+            if not self.qgraph.edges_dict:
+                return await self._execute_node_only(timeout_task)
+
             await self.expand_initial_subclasses()
 
             starting_branches = await Branch.get_start_branches(
@@ -260,6 +265,50 @@ class QueryGraphExecutor:
                 status="Failed",
             )
 
+    async def _execute_node_only(self, timeout_task: Task[None]) -> LookupArtifacts:
+        """Resolve an edge-less query by fetching its nodes directly.
+
+        Each combination of bound qnode ids becomes a node-only Result
+        (node_bindings only, no analyses), bypassing branch traversal and pruning.
+        """
+        await self.hydrate_missing_nodes()
+
+        # Drop nodes with no canonical match so the KG carries no skeletal entries.
+        for curie in list(self.kgraph["nodes"].keys()):
+            if len(self.kgraph["nodes"][curie].get("categories", [])) == 0:
+                del self.kgraph["nodes"][curie]
+
+        bound_ids = {
+            qnode_id: [
+                CURIE(curie)
+                for curie in (qnode.ids or [])
+                if CURIE(curie) in self.kgraph["nodes"]
+            ]
+            for qnode_id, qnode in self.qgraph.nodes.items()
+        }
+
+        results = [
+            ResultDict(
+                node_bindings={
+                    qnode_id: NodeBindingDict(ids=[curie])
+                    for qnode_id, curie in zip(bound_ids.keys(), combo, strict=True)
+                }
+            )
+            for combo in itertools.product(*bound_ids.values())
+        ]
+
+        timeout_task.cancel()
+        self.job_log.info(
+            f"Tier {self.ctx.tier}: node-only lookup resolved {len(results)} result(s) / {len(self.kgraph['nodes'])} nodes."
+        )
+        return LookupArtifacts(
+            results,
+            self.kgraph,
+            self.aux_graphs,
+            self.job_log.get_logs(),
+            status="Success",
+        )
+
     async def hydrate_missing_nodes(self) -> None:
         """Hydrate skeletal KG nodes using tier-1 canonical node metadata."""
         incomplete_nodes = [
@@ -277,24 +326,28 @@ class QueryGraphExecutor:
             ElasticsearchTranspiler, tier_manager.get_transpiler(1)
         )
 
+        try:
+            fetched = await driver.fetch_nodes(
+                [str(curie) for curie in incomplete_nodes]
+            )
+        except Exception:
+            self.job_log.exception("Failed to batch-hydrate node metadata.")
+            return
+
         hydrated_count = 0
-
         for curie in incomplete_nodes:
-            try:
-                fetched = await driver.fetch_single_node(str(curie))
-                if fetched is None:
-                    self.job_log.warning(
-                        f"Unable to hydrate node metadata for {curie}: no canonical tier-1 node was found."
-                    )
-                    continue
-
-                trapi_node = transpiler.build_single_node(fetched)
-                KnowledgeGraphDictUtil.update(
-                    self.kgraph, KnowledgeGraphDict(nodes={curie: trapi_node}, edges={})
+            node = fetched.get(str(curie))
+            if node is None:
+                self.job_log.warning(
+                    f"Unable to hydrate node metadata for {curie}: no canonical tier-1 node was found."
                 )
-                hydrated_count += 1
-            except Exception:
-                self.job_log.exception(f"Failed to hydrate node metadata for {curie}.")
+                continue
+
+            trapi_node = transpiler.build_single_node(node)
+            KnowledgeGraphDictUtil.update(
+                self.kgraph, KnowledgeGraphDict(nodes={curie: trapi_node}, edges={})
+            )
+            hydrated_count += 1
 
         if hydrated_count > 0:
             self.job_log.debug(f"Hydrated {hydrated_count} skeletal KG nodes.")

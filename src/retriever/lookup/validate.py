@@ -31,7 +31,7 @@ def validate(query: Query | AsyncQuery) -> tuple[list[str], list[str]]:
     warnings = list[str]()
     problems = dict[str, bool]()  # False means failing
     problems["Query graph must have at least one node"] = len(qg.nodes.values()) > 0
-    problems["Query graph must have at least one edge"] = len(qg.edges_dict) > 0
+    # Edge-less (node-only) queries are valid, provided a node carries an ID to resolve.
     problems["Query graph must have at least one node with an ID"] = any(
         node for node in qg.nodes.values() if len(node.ids_list) > 0
     )
