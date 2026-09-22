@@ -173,9 +173,14 @@ class ElasticSearchDriver(DatabaseDriver):
 
         return results
 
-    async def fetch_single_node(self, _curie: str) -> ESNode | None:
-        """Fetch a single canonical node from the Elasticsearch backend."""
-        index_name = "ubergraph_nodes"
+    async def fetch_nodes(self, curies: list[str]) -> dict[str, ESNode]:
+        """Batch-fetch canonical nodes by id from the `ubergraph_nodes` index.
+
+        Returns a mapping keyed by matched node id; ids with no canonical node
+        are simply absent.
+        """
+        if not curies:
+            return {}
 
         if self.es_connection is None:
             raise RuntimeError(
@@ -184,20 +189,20 @@ class ElasticSearchDriver(DatabaseDriver):
 
         with self.nudge_on_failure():
             response = await self.es_connection.search(
-                index=index_name,
-                size=1,
-                query={"term": {"id": _curie}},
-            )
-        hits = response["hits"]["hits"]
-        if len(hits) == 0:
-            return None
-        total_hits = response["hits"]["total"]["value"]
-        if total_hits > 1:
-            log.warning(
-                f"Found {total_hits} canonical node hits for {_curie} in `ubergraph_nodes`; using the first match."
+                index="ubergraph_nodes",
+                size=len(curies),
+                query={"terms": {"id": curies}},
             )
 
-        return ESNode.from_dict(hits[0]["_source"])
+        fetched = dict[str, ESNode]()
+        for hit in response["hits"]["hits"]:
+            node = ESNode.from_dict(hit["_source"])
+            fetched[node.id] = node
+        return fetched
+
+    async def fetch_single_node(self, _curie: str) -> ESNode | None:
+        """Fetch a single canonical node from the Elasticsearch backend."""
+        return (await self.fetch_nodes([_curie])).get(_curie)
 
     @override
     @tracer.start_as_current_span("elasticsearch_query")
