@@ -119,6 +119,11 @@ def validate_qnode(
             False
         )
 
+    if qnode.set_interpretation == "MANY":
+        problems[f"Node `{qnode_id}`: set_interpretation MANY is not supported."] = (
+            False
+        )
+
     warnings = list[str]()
     unknown_fields = list(qnode.extra_dict.keys())
     if len(unknown_fields) > 0:
