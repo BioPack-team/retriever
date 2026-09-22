@@ -49,6 +49,12 @@ def get_simple_op_hash(unhashed_op: UnhashedOperation) -> str:
                     **unhashed_op._asdict(),
                     "attributes": None,
                     "qualifiers": None,
+                    # Sorted so the hash is independent of source order.
+                    "sources": (
+                        tuple(sorted(unhashed_op.sources))
+                        if unhashed_op.sources is not None
+                        else None
+                    ),
                     "access_metadata": None,
                 }.items()
             )
@@ -74,6 +80,12 @@ def get_op_hash(unhashed_op: UnhashedOperation) -> str:
                     )
                     if unhashed_op.qualifiers is not None
                     else None,
+                    # Sorted so the hash is independent of source order.
+                    "sources": (
+                        tuple(sorted(unhashed_op.sources))
+                        if unhashed_op.sources is not None
+                        else None
+                    ),
                     "access_metadata": None,
                 }.items()
             )
@@ -125,6 +137,9 @@ def parse_dingo_metadata_unhashed(
                     )
                     for qual_type in edge["qualifiers"]
                 ],
+                # beta2 MetaEdge.sources: the edge-class's primary knowledge sources.
+                sources=sorted(edge.get("primary_knowledge_sources", {}).keys())
+                or None,
             )
 
             operations_unhashed.append(unhashed_op)
@@ -170,6 +185,7 @@ def parse_trapi_metakg(
             tier=tier,
             attributes=edge.attributes,
             qualifiers=edge.qualifiers_list,
+            sources=edge.sources,
         )
 
         operation = generate_operation(unhashed_op)

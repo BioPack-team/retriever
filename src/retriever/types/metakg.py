@@ -30,6 +30,7 @@ class UnhashedOperation(NamedTuple):
     association: str | None = None
     attributes: list[MetaAttribute] | None = None
     qualifiers: list[MetaQualifier] | None = None
+    sources: list[str] | None = None
     access_metadata: Any | None = None
 
 
@@ -45,6 +46,7 @@ class Operation(NamedTuple):
     association: str | None = None
     attributes: list[MetaAttribute] | None = None
     qualifiers: list[MetaQualifier] | None = None
+    sources: list[str] | None = None
     access_metadata: Any | None = None
 
 

@@ -244,7 +244,11 @@ def test_op_without_qualifiers_rejects_qualified_edge(manager: OpTableManager) -
     assert kept is False
 
 
-def _op(op_hash: str, applicable_values: list[str] | None) -> Operation:
+def _op(
+    op_hash: str,
+    applicable_values: list[str] | None,
+    sources: list[str] | None = None,
+) -> Operation:
     """An op on the ChemicalEntity-affects-Gene edge advertising one qualifier."""
     return Operation(
         hash=op_hash,
@@ -259,7 +263,47 @@ def _op(op_hash: str, applicable_values: list[str] | None) -> Operation:
                 qualifier_type_id=_QUAL_TYPE, applicable_values=applicable_values
             )
         ],
+        sources=sources,
     )
+
+
+def test_dingo_primary_sources_populate_operation(manager: OpTableManager) -> None:
+    """DINGO `primary_knowledge_sources` become the operation's (sorted) sources."""
+    metadata = {
+        "schema": {
+            "edges": [
+                {
+                    "subject_category": ["biolink:ChemicalEntity"],
+                    "object_category": ["biolink:Gene"],
+                    "predicate": "biolink:affects",
+                    "attributes": [],
+                    "qualifiers": {},
+                    "primary_knowledge_sources": {"infores:ctd": 3, "infores:drugbank": 1},
+                }
+            ],
+            "nodes": [],
+        }
+    }
+
+    ops, _ = parse_dingo_metadata(metadata, 0, "infores:test-kp")
+    (op,) = ops
+
+    assert op.sources == ["infores:ctd", "infores:drugbank"]
+
+
+@pytest.mark.asyncio
+async def test_metakg_unions_edge_sources(manager: OpTableManager) -> None:
+    """Two ops on one edge with distinct sources union into MetaEdge.sources (sorted)."""
+    flat = FlatOperations()
+    flat["h1"] = _op("h1", None, sources=["infores:ctd"])
+    flat["h2"] = _op("h2", None, sources=["infores:drugbank"])
+    op_table = OperationTable(SortedOperations(), flat, {})
+    manager.get_op_table = AsyncMock(return_value=op_table)  # pyright: ignore[reportAttributeAccessIssue]
+
+    mkg = await manager.get_trapi_metakg(0)
+
+    (edge,) = mkg.edges
+    assert edge.sources == ["infores:ctd", "infores:drugbank"]
 
 
 @pytest.mark.asyncio

@@ -670,12 +670,14 @@ class OpTableManager(AsyncDaemon):
         dict[SPO, MetaEdge],
         dict[SPO, dict[str, set[str] | None]],
         dict[SPO, dict[str, MetaAttribute]],
+        dict[SPO, set[str]],
         set[Biolink.Entity],
     ]:
         """Build merged TRAPI MetaEdges from the operation table."""
         edges = dict[SPO, MetaEdge]()
         edge_qualifiers = dict[SPO, dict[str, set[str] | None]]()
         edge_attributes = dict[SPO, dict[str, MetaAttribute]]()
+        edge_sources = dict[SPO, set[str]]()
         mentioned_nodes = set[Biolink.Entity]()
         for op in op_table.operations_flat.values():
             if tier is not None and op.tier != tier:
@@ -689,12 +691,14 @@ class OpTableManager(AsyncDaemon):
                 meta_edge = edges[spo]
                 qualifiers = edge_qualifiers[spo]
                 attributes = edge_attributes[spo]
+                sources = edge_sources[spo]
             else:
                 meta_edge = MetaEdge.model_construct(
                     subject=sbj, predicate=pred, object=obj, knowledge_types=["lookup"]
                 )
                 qualifiers = dict[str, set[str] | None]()
                 attributes = dict[str, MetaAttribute]()
+                sources = set[str]()
 
             # None applicable_values = "all values"; dominates any enumerated set.
             if op.qualifiers is not None:
@@ -711,12 +715,17 @@ class OpTableManager(AsyncDaemon):
             if op.attributes is not None:
                 attributes.update({attr.hash(): attr for attr in op.attributes})
 
+            # Union contributing sources (beta2 MetaEdge.sources)
+            if op.sources is not None:
+                sources.update(op.sources)
+
             if spo not in edges:
                 edges[spo] = meta_edge
                 edge_qualifiers[spo] = qualifiers
                 edge_attributes[spo] = attributes
+                edge_sources[spo] = sources
 
-        return edges, edge_qualifiers, edge_attributes, mentioned_nodes
+        return edges, edge_qualifiers, edge_attributes, edge_sources, mentioned_nodes
 
     async def get_trapi_metakg(self, tier: TierNumber | None) -> MetaKnowledgeGraph:
         """Convert an OperationTable to a TRAPI MetaKG dict.
@@ -729,6 +738,7 @@ class OpTableManager(AsyncDaemon):
             edges,
             edge_qualifiers,
             edge_attributes,
+            edge_sources,
             mentioned_nodes,
         ) = await self.build_edges(op_table, tier)
         nodes = dict[Biolink.Entity, MetaNode]()
@@ -747,6 +757,8 @@ class OpTableManager(AsyncDaemon):
                 edge.qualifiers = qualifiers
             if len(edge_attributes[spo]):
                 edge.attributes = list(edge_attributes[spo].values())
+            if edge_sources[spo]:
+                edge.sources = sorted(edge_sources[spo])
 
         for category, tier_nodes in op_table.nodes.items():
             if category not in mentioned_nodes:
