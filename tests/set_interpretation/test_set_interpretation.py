@@ -9,6 +9,8 @@ import uuid
 from translator_tom.v2_0 import QueryGraph
 from translator_tom.v2_0.model_dicts import KnowledgeGraphDict, NodeDict, ResultDict
 
+from retriever.lookup.validate import validate
+from retriever.types.trapi import Query
 from retriever.utils.logs import TRAPILogger
 from retriever.utils.trapi import solve_set_interpretation
 
@@ -99,3 +101,28 @@ def test_many_treated_as_batch():
     )
 
     assert len(out) == 2
+
+
+def test_many_rejected_at_validation():
+    """A MANY set_interpretation node fails validation (unsupported)."""
+    query = Query.model_validate(
+        {
+            "message": {
+                "query_graph": {
+                    "nodes": {
+                        "n0": {"ids": ["NCBIGene:1"], "categories": ["biolink:Gene"]},
+                        "n1": {
+                            "ids": ["MONDO:1", "MONDO:2"],
+                            "categories": ["biolink:Disease"],
+                            "set_interpretation": "MANY",
+                        },
+                    },
+                    "edges": {"e0": {"subject": "n0", "object": "n1"}},
+                }
+            }
+        }
+    )
+
+    _warnings, problems = validate(query)
+
+    assert any("MANY" in problem for problem in problems)
