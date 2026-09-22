@@ -37,13 +37,13 @@ x_translator: # Note that fields usually named with - instead use _ (e.g. x-tran
   component: KP
   team:
     - DOGSURF
-  biolink_version: 4.3.2
+  biolink_version: 4.4.4 # Biolink model version, sourced from translator_tom.
   infores: infores:retriever # Unique identifier for this component, used in provenance.
   externalDocs:
     description: The values for component and team are restricted according to this external JSON schema. See schema and examples at url.
     url: https://github.com/NCATSTranslator/translator_extensions/blob/production/x-translator/
 x_trapi:
-  version: 1.6.0
+  version: 2.0.0 # TRAPI schema version, sourced from translator_tom.
   multicuriesquery: false # Supports advanced set interpretation.
   pathfinderquery: false # Supports Pathfinder-type queries.
   asyncquery: true # Supports async query type.
