@@ -300,15 +300,52 @@ class ElasticsearchTranspiler(Tier1Transpiler):
         return nodes
 
     def build_edges(self, edges: list[ESEdge], qedge: QEdge) -> dict[EdgeID, EdgeDict]:
-        """Build TRAPI edges from backend representation."""
-        trapi_edges = dict[EdgeID, EdgeDict]()
-        for edge in edges:
-            qualifiers: list[QualifierDict] = []
-            sources: list[RetrievalSourceDict] = []
+        """Build TRAPI edges from backend representation.
 
-            # Cases that require additional formatting to be TRAPI-compliant.
-            # KL/AT are lifted to top-level Edge fields (below), so a None value
-            # here excludes them from the attribute stream entirely.
+        Each constraint is checked right after its part is built (KL/AT, then sources,
+        then attributes) so a failing edge short-circuits before doing later work.
+        """
+        trapi_edges = dict[EdgeID, EdgeDict]()
+        qedge_constraints = qedge.constraints
+        for edge in edges:
+            knowledge_level = edge.attributes.get("knowledge_level") or NOT_PROVIDED
+            agent_type = edge.attributes.get("agent_type") or NOT_PROVIDED
+            if qedge_constraints:
+                kl = qedge_constraints.knowledge_level
+                at = qedge_constraints.agent_type
+                if (kl and not kl.met_by(knowledge_level)) or (
+                    at and not at.met_by(agent_type)
+                ):
+                    continue
+
+            sources: list[RetrievalSourceDict] = []
+            for source in edge.sources:
+                retrieval_source = RetrievalSourceDict(
+                    resource_id=Infores(source["resource_id"]),
+                    resource_role=source["resource_role"],
+                )
+                if upstream_resource_ids := source.get("upstream_resource_ids"):
+                    retrieval_source["upstream_resource_ids"] = [
+                        Infores(upstream) for upstream in upstream_resource_ids
+                    ]
+                if source_record_urls := source.get("source_record_urls"):
+                    retrieval_source["source_record_urls"] = source_record_urls
+                sources.append(retrieval_source)
+            if (
+                qedge_constraints
+                and (src := qedge_constraints.sources)
+                and not SourceConstraintDictUtil.met_by(
+                    SourceConstraintDict(
+                        behavior=src.behavior,
+                        values=src.values,
+                        primary_only=src.primary_only,
+                    ),
+                    sources,
+                )
+            ):
+                continue
+
+            # KL/AT are emitted top-level; None drops them from the attribute stream.
             special_cases: SpecialCaseDict = {
                 "category": (
                     "biolink:category",
@@ -320,10 +357,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                 "knowledge_level": ("biolink:knowledge_level", None),
                 "agent_type": ("biolink:agent_type", None),
             }
-
             attributes = self.build_attributes(edge, special_cases)
-
-            qedge_constraints = qedge.constraints
             attribute_constraints = cast(
                 "list[AttributeConstraintDict]",
                 [
@@ -338,7 +372,7 @@ class ElasticsearchTranspiler(Tier1Transpiler):
             ):
                 continue
 
-            # Build Qualifiers
+            qualifiers: list[QualifierDict] = []
             for qtype, qval in edge.qualifiers.items():
                 qualifiers.append(
                     QualifierDict(
@@ -349,46 +383,6 @@ class ElasticsearchTranspiler(Tier1Transpiler):
                     )
                 )
 
-            # Build Sources
-            for source in edge.sources:
-                retrieval_source = RetrievalSourceDict(
-                    resource_id=Infores(source["resource_id"]),
-                    resource_role=source["resource_role"],
-                )
-                if upstream_resource_ids := source.get("upstream_resource_ids"):
-                    retrieval_source["upstream_resource_ids"] = [
-                        Infores(upstream) for upstream in upstream_resource_ids
-                    ]
-                if source_record_urls := source.get("source_record_urls"):
-                    retrieval_source["source_record_urls"] = source_record_urls
-                sources.append(retrieval_source)
-
-            knowledge_level = edge.attributes.get("knowledge_level") or NOT_PROVIDED
-            agent_type = edge.attributes.get("agent_type") or NOT_PROVIDED
-
-            # Post-filter on the dedicated KL/AT/source constraints (2.0-only).
-            if qedge_constraints:
-                kl = qedge_constraints.knowledge_level
-                at = qedge_constraints.agent_type
-                src = qedge_constraints.sources
-                if (
-                    (kl and not kl.met_by(knowledge_level))
-                    or (at and not at.met_by(agent_type))
-                    or (
-                        src
-                        and not SourceConstraintDictUtil.met_by(
-                            SourceConstraintDict(
-                                behavior=src.behavior,
-                                values=src.values,
-                                primary_only=src.primary_only,
-                            ),
-                            sources,
-                        )
-                    )
-                ):
-                    continue
-
-            # Build Edge
             trapi_edge = EdgeDict(
                 predicate=Biolink.Predicate(Biolink(edge.predicate)),
                 subject=CURIE(edge.subject.id),
