@@ -1,5 +1,0 @@
----
-extends: relaxed
-ignore: .venv
-rules:
-  line-length: disable
