@@ -1,3 +1,1323 @@
+info:
+  contact:
+    email: jcallaghan@scripps.edu
+    name: Willow Callaghan
+    url: https://github.com/tokebe
+    x-id: tokebe
+    x-role: responsible developer
+  description: Translator Knowledge Provider
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: https://biothings.io/about
+  title: Retriever (TRAPI v2.0)
+  version: 2.0.0
+  x-translator:
+    biolink_version: 4.4.4
+    component: KP
+    externalDocs:
+      description: The values for component and team are restricted according to this
+        external JSON schema. See schema and examples at url.
+      url: https://github.com/NCATSTranslator/translator_extensions/blob/production/x-translator/
+    infores: infores:retriever
+    team:
+    - DOGSURF
+  x-trapi:
+    asyncquery: true
+    batch_size_limit: 300
+    externalDocs:
+      description: The values for version are restricted according to the regex in
+        this external JSON schema. See schema and examples at url
+      url: https://github.com/NCATSTranslator/translator_extensions/blob/production/x-trapi/
+    multicuriesquery: false
+    operations:
+    - lookup
+    pathfinderquery: false
+    test_data_location:
+      default:
+        url: https://raw.githubusercontent.com/NCATS-Tangerine/translator-api-registry/master/biothings_explorer/sri-test-bte-ara.json
+    version: 2.0.0
+openapi: 3.1.0
+paths:
+  /asyncquery:
+    post:
+      description: Initiate an asynchronous query.
+      operationId: asyncquery_asyncquery_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AsyncQuery'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AsyncQueryResponse'
+          description: The query is accepted for processing and the Response will
+            be sent to the callback url when complete.
+        '400':
+          content:
+            application/json:
+              schema:
+                title: Response 400 Asyncquery Asyncquery Post
+                type: string
+          description: Bad request. The request is invalid according to this OpenAPI
+            schema OR a specific identifier is believed to be invalid somehow (not
+            just unrecognized).
+        '413':
+          content:
+            application/json:
+              schema:
+                title: Response 413 Asyncquery Asyncquery Post
+                type: string
+          description: Payload too large. Indicates that batch size was over the limit
+            specified in x-trapi.
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+        '429':
+          content:
+            application/json:
+              schema:
+                title: Response 429 Asyncquery Asyncquery Post
+                type: string
+          description: Payload too large. Indicates that batch size was over the limit
+            specified in x-trapi.
+        '500':
+          content:
+            application/json:
+              schema:
+                title: Response 500 Asyncquery Asyncquery Post
+                type: string
+          description: Internal Server Error
+      summary: Asyncquery
+      tags:
+      - asyncquery
+  /asyncquery_status/{job_id}:
+    get:
+      description: Get the status of an asynchronous query.
+      operationId: asyncquery_status_asyncquery_status__job_id__get
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        schema:
+          title: Job Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AsyncQueryStatusResponse'
+          description: Returns the status and current logs of a previously submitted
+            asyncquery.
+        '404':
+          content:
+            application/json:
+              schema:
+                title: Response 404 Asyncquery Status Asyncquery Status  Job Id  Get
+                type: string
+          description: job_id not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+        '501':
+          description: Return code 501 indicates that this endpoint has not been implemented
+            at this site. Sites that implement /asyncquery MUST implement /asyncquery_status/{job_id},
+            but those that do not implement /asyncquery SHOULD NOT implement /asyncquery_status.
+      summary: Asyncquery Status
+      tags:
+      - asyncquery_status
+  /config:
+    get:
+      description: Get the current config of the server.
+      operationId: config_config_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: The present config of the server, with secrets removed.
+      summary: Config
+      tags:
+      - metadata
+  /logs:
+    get:
+      description: Retrieve MongoDB-saved server logs.
+      operationId: logs_logs_get
+      parameters:
+      - description: Start datetime to search logs. Defaults to last hour if `lookback`
+          is not set.
+        in: query
+        name: start
+        required: false
+        schema:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          description: Start datetime to search logs. Defaults to last hour if `lookback`
+            is not set.
+          title: Start
+      - description: End datetime to search logs. Defaults to present time.
+        in: query
+        name: end
+        required: false
+        schema:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          description: End datetime to search logs. Defaults to present time.
+          title: End
+      - in: query
+        name: level
+        required: false
+        schema:
+          default: DEBUG
+          enum:
+          - TRACE
+          - DEBUG
+          - INFO
+          - SUCCESS
+          - WARNING
+          - ERROR
+          - CRITICAL
+          title: Level
+          type: string
+      - description: Number of hours back from present time to retrieve. Overrides
+          `start`.
+        in: query
+        name: lookback
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          description: Number of hours back from present time to retrieve. Overrides
+            `start`.
+          title: Lookback
+      - description: ID of a previously-run job to search for. Limits logs to those
+          related to that job.
+        in: query
+        name: job_id
+        required: false
+        schema:
+          anyOf:
+          - pattern: ^[a-zA-Z0-9]+$
+            type: string
+          - type: 'null'
+          description: ID of a previously-run job to search for. Limits logs to those
+            related to that job.
+          title: Job Id
+      - description: 'Respond with a specific format. flat: plaintext log lines; trapi:
+          TRAPI-style logs; struct: loguru-structured format'
+        in: query
+        name: fmt
+        required: false
+        schema:
+          default: flat
+          description: 'Respond with a specific format. flat: plaintext log lines;
+            trapi: TRAPI-style logs; struct: loguru-structured format'
+          enum:
+          - flat
+          - trapi
+          - struct
+          title: Fmt
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Logs in either flat or structured JSON format.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDetail'
+          description: Indicates this service is disabled by config.
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Logs
+      tags:
+      - logs
+  /meta_knowledge_graph:
+    get:
+      description: Retrieve the Meta-Knowledge Graph.
+      operationId: meta_knowledge_graph_meta_knowledge_graph_get
+      parameters:
+      - description: Data Tier to use. Leave unset to view all.
+        in: query
+        name: tier
+        required: false
+        schema:
+          anyOf:
+          - description: Data Tiers (0-2) to use. Defaults to 0 if unset.
+            maximum: 2
+            minimum: 0
+            type: integer
+          - type: 'null'
+          description: Data Tier to use. Leave unset to view all.
+          title: Tier
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetaKnowledgeGraph'
+          description: Returns meta knowledge graph representation of this TRAPI web
+            service.
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Meta Knowledge Graph
+      tags:
+      - meta_knowledge_graph
+  /metadata/tier_{tier}:
+    get:
+      description: Retrieve the metadata associated with a given Data Tier.
+      operationId: metadata_metadata_tier__tier__get
+      parameters:
+      - in: path
+        name: tier
+        required: true
+        schema:
+          description: Data Tiers (0-2) to use. Defaults to 0 if unset.
+          maximum: 2
+          minimum: 0
+          title: Tier
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DINGOMetadata'
+          description: Returns metadata for currently-served data in the backends.
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Metadata
+      tags:
+      - metadata
+  /query:
+    post:
+      description: Initiate a synchronous query.
+      operationId: query_query_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Query'
+              examples:
+              - message:
+                  query_graph:
+                    edges:
+                      e02:
+                        object: n2
+                        predicates:
+                        - biolink:causes
+                        subject: n0
+                    nodes:
+                      n0:
+                        categories:
+                        - biolink:Gene
+                      n2:
+                        categories:
+                        - biolink:Disease
+                        ids:
+                        - MONDO:0011382
+                parameters:
+                  bypass_cache: false
+                  tier: 0
+                  tier_fallback: true
+                submitter: someone-looking-at-examples
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+          description: OK. There may or may not be results. Note that some of the
+            provided identifiers may not have been recognized.
+        '400':
+          content:
+            application/json:
+              schema:
+                title: Response 400 Query Query Post
+                type: string
+          description: Bad request. The request is invalid according to this OpenAPI
+            schema OR a specific identifier is believed to be invalid somehow (not
+            just unrecognized).
+        '413':
+          content:
+            application/json:
+              schema:
+                title: Response 413 Query Query Post
+                type: string
+          description: Payload too large. Indicates that batch size was over the limit
+            specified in x-trapi.
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+        '429':
+          content:
+            application/json:
+              schema:
+                title: Response 429 Query Query Post
+                type: string
+          description: Payload too large. Indicates that batch size was over the limit
+            specified in x-trapi.
+        '500':
+          content:
+            application/json:
+              schema:
+                title: Response 500 Query Query Post
+                type: string
+          description: Internal Server Error
+      summary: Query
+      tags:
+      - query
+  /rehydrate:
+    post:
+      description: 'Passthrough rehydration to backend.
+
+
+        Reads the body without validation so dehydrated responses aren''t rejected
+
+        with a 422 before reaching the backend.'
+      operationId: rehydrate_rehydrate_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Response'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+          description: Successful Response
+      summary: Rehydrate
+  /response/{job_id}:
+    get:
+      description: Get the response for a query (or logs if it's in progress).
+      operationId: response_response__job_id__get
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        schema:
+          title: Job Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: '#/components/schemas/Response'
+                - $ref: '#/components/schemas/AsyncQueryStatusResponse'
+                title: Response Response Response  Job Id  Get
+          description: Returns either the status and logs, or if complete, the complete
+            response  of a previously submitted asyncquery.
+        '404':
+          content:
+            application/json:
+              schema:
+                title: Response 404 Response Response  Job Id  Get
+                type: string
+          description: job_id not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Response
+      tags:
+      - asyncquery_status
+  /status:
+    get:
+      description: Operator-glance health snapshot; per-dependency failures degrade
+        fields, not the response.
+      operationId: status_root_status_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusSnapshot'
+          description: Health snapshot - version, processes, dependencies, freshness.
+      summary: Status Root
+      tags:
+      - status
+  /status/completed:
+    get:
+      description: Paged scan of successfully-terminated jobs.
+      operationId: status_completed_status_completed_get
+      parameters:
+      - in: query
+        name: cursor
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cursor
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 100
+          maximum: 500
+          minimum: 1
+          title: Limit
+          type: integer
+      - in: query
+        name: since
+        required: false
+        schema:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Since
+      - in: query
+        name: until
+        required: false
+        schema:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Until
+      - description: Hours back from now; overrides `since`.
+        in: query
+        name: lookback
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          description: Hours back from now; overrides `since`.
+          title: Lookback
+      - in: query
+        name: data_tier
+        required: false
+        schema:
+          anyOf:
+          - maximum: 2
+            minimum: 0
+            type: integer
+          - type: 'null'
+          title: Data Tier
+      - in: query
+        name: submitter
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Submitter
+      - description: Sort field; default `completed`.
+        in: query
+        name: sort
+        required: false
+        schema:
+          default: completed
+          description: Sort field; default `completed`.
+          enum:
+          - created
+          - completed
+          - duration
+          - results
+          - submitter
+          - status
+          title: Sort
+          type: string
+      - description: Sort direction; default `desc`.
+        in: query
+        name: direction
+        required: false
+        schema:
+          default: desc
+          description: Sort direction; default `desc`.
+          enum:
+          - asc
+          - desc
+          title: Direction
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompletedPage'
+          description: Paged scan of successfully-terminated jobs.
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Status Completed
+      tags:
+      - status
+  /status/counts:
+    get:
+      description: Status breakdown across 24h / week / all-time windows.
+      operationId: status_counts_status_counts_get
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CountsSnapshot'
+          description: Status breakdown across three fixed windows (24h, week, all
+            time).
+      summary: Status Counts
+      tags:
+      - status
+  /status/durations:
+    get:
+      description: Aggregate runtime stats over terminal jobs in the window.
+      operationId: status_durations_status_durations_get
+      parameters:
+      - in: query
+        name: since
+        required: false
+        schema:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Since
+      - in: query
+        name: until
+        required: false
+        schema:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Until
+      - description: Hours back from now; overrides `since`.
+        in: query
+        name: lookback
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: 24.0
+          description: Hours back from now; overrides `since`.
+          title: Lookback
+      - description: AsyncQueryStatusResponse lifecycle code (Running, Completed,
+          Failed); maps to stored outcome internally.
+        in: query
+        name: status
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: Completed
+          description: AsyncQueryStatusResponse lifecycle code (Running, Completed,
+            Failed); maps to stored outcome internally.
+          title: Status
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DurationsResponse'
+          description: Aggregate runtime stats (min/max/avg + percentiles).
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Status Durations
+      tags:
+      - status
+  /status/failed:
+    get:
+      description: Paged scan of failed-or-errored terminal jobs.
+      operationId: status_failed_status_failed_get
+      parameters:
+      - in: query
+        name: cursor
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cursor
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 100
+          maximum: 500
+          minimum: 1
+          title: Limit
+          type: integer
+      - in: query
+        name: since
+        required: false
+        schema:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Since
+      - in: query
+        name: until
+        required: false
+        schema:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Until
+      - description: Hours back from now; overrides `since`.
+        in: query
+        name: lookback
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          description: Hours back from now; overrides `since`.
+          title: Lookback
+      - in: query
+        name: data_tier
+        required: false
+        schema:
+          anyOf:
+          - maximum: 2
+            minimum: 0
+            type: integer
+          - type: 'null'
+          title: Data Tier
+      - in: query
+        name: submitter
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Submitter
+      - description: Narrow to one specific failure status.
+        in: query
+        name: reason
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Narrow to one specific failure status.
+          title: Reason
+      - description: Sort field; default `completed`.
+        in: query
+        name: sort
+        required: false
+        schema:
+          default: completed
+          description: Sort field; default `completed`.
+          enum:
+          - created
+          - completed
+          - duration
+          - results
+          - submitter
+          - status
+          title: Sort
+          type: string
+      - description: Sort direction; default `desc`.
+        in: query
+        name: direction
+        required: false
+        schema:
+          default: desc
+          description: Sort direction; default `desc`.
+          enum:
+          - asc
+          - desc
+          title: Direction
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FailedPage'
+          description: Paged scan of failed/errored terminal jobs.
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Status Failed
+      tags:
+      - status
+  /status/failure_breakdown:
+    get:
+      description: Failure-status counts pivoted by submitter or by tier.
+      operationId: status_failure_breakdown_status_failure_breakdown_get
+      parameters:
+      - description: Group key for the breakdown.
+        in: query
+        name: by
+        required: true
+        schema:
+          description: Group key for the breakdown.
+          enum:
+          - submitter
+          - tier
+          title: By
+          type: string
+      - in: query
+        name: since
+        required: false
+        schema:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Since
+      - in: query
+        name: until
+        required: false
+        schema:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Until
+      - description: Hours back from now; overrides `since`.
+        in: query
+        name: lookback
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          description: Hours back from now; overrides `since`.
+          title: Lookback
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FailureBreakdownResponse'
+          description: Failure-status counts pivoted by submitter or by tier.
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Status Failure Breakdown
+      tags:
+      - status
+  /status/jobs/{job_id}:
+    get:
+      description: Return the full job_status doc for one job_id (metadata + geometry).
+      operationId: status_job_status_jobs__job_id__get
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        schema:
+          title: Job Id
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobDetail'
+          description: Full per-job status (metadata + query/response geometry).
+        '404':
+          description: No job_status doc with that job_id.
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Status Job
+      tags:
+      - status
+  /status/running:
+    get:
+      description: Paged scan of currently-in-flight jobs, newest first.
+      operationId: status_running_status_running_get
+      parameters:
+      - in: query
+        name: cursor
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cursor
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 100
+          maximum: 500
+          minimum: 1
+          title: Limit
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivePage'
+          description: Currently in-flight jobs, newest first.
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Status Running
+      tags:
+      - status
+  /status/server_logs:
+    get:
+      description: Stream logs not associated with any job.
+      operationId: status_server_logs_status_server_logs_get
+      parameters:
+      - in: query
+        name: start
+        required: false
+        schema:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Start
+      - in: query
+        name: end
+        required: false
+        schema:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: End
+      - description: Hours back from now; overrides `start`.
+        in: query
+        name: lookback
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          description: Hours back from now; overrides `start`.
+          title: Lookback
+      - in: query
+        name: level
+        required: false
+        schema:
+          default: DEBUG
+          enum:
+          - TRACE
+          - DEBUG
+          - INFO
+          - SUCCESS
+          - WARNING
+          - ERROR
+          - CRITICAL
+          title: Level
+          type: string
+      - in: query
+        name: fmt
+        required: false
+        schema:
+          default: flat
+          enum:
+          - flat
+          - struct
+          title: Fmt
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: {}
+          description: Logs not associated with any job.
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Status Server Logs
+      tags:
+      - status
+  /status/stuck:
+    get:
+      description: Paged scan of active jobs older than `min_age` (default 1h).
+      operationId: status_stuck_status_stuck_get
+      parameters:
+      - in: query
+        name: cursor
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cursor
+      - in: query
+        name: limit
+        required: false
+        schema:
+          default: 100
+          maximum: 500
+          minimum: 1
+          title: Limit
+          type: integer
+      - description: Hours; jobs running longer than this are returned.
+        in: query
+        name: min_age
+        required: false
+        schema:
+          anyOf:
+          - minimum: 0
+            type: number
+          - type: 'null'
+          description: Hours; jobs running longer than this are returned.
+          title: Min Age
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivePage'
+          description: Active jobs running past the `min_age` threshold (default 1h).
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Status Stuck
+      tags:
+      - status
+  /status/submitter_tier_stats:
+    get:
+      description: Per-(submitter, tier) cells. Drives the heatmaps view.
+      operationId: status_submitter_tier_stats_status_submitter_tier_stats_get
+      parameters:
+      - in: query
+        name: since
+        required: false
+        schema:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Since
+      - in: query
+        name: until
+        required: false
+        schema:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Until
+      - description: Hours back from now; overrides `since`.
+        in: query
+        name: lookback
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          description: Hours back from now; overrides `since`.
+          title: Lookback
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/SubmitterTierRow'
+                title: Response Status Submitter Tier Stats Status Submitter Tier
+                  Stats Get
+                type: array
+          description: Per-(submitter, tier) cell stats; drives the heatmaps view.
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Status Submitter Tier Stats
+      tags:
+      - status
+  /status/submitters:
+    get:
+      description: Per-submitter activity leaderboard.
+      operationId: status_submitters_status_submitters_get
+      parameters:
+      - in: query
+        name: since
+        required: false
+        schema:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Since
+      - in: query
+        name: until
+        required: false
+        schema:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Until
+      - description: Hours back from now; overrides `since`.
+        in: query
+        name: lookback
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          description: Hours back from now; overrides `since`.
+          title: Lookback
+      - in: query
+        name: top
+        required: false
+        schema:
+          default: 50
+          maximum: 200
+          minimum: 1
+          title: Top
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/SubmitterRow'
+                title: Response Status Submitters Status Submitters Get
+                type: array
+          description: Per-submitter activity leaderboard.
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Status Submitters
+      tags:
+      - status
+  /status/tiers:
+    get:
+      description: Per-tier activity + duration percentiles.
+      operationId: status_tiers_status_tiers_get
+      parameters:
+      - in: query
+        name: since
+        required: false
+        schema:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Since
+      - in: query
+        name: until
+        required: false
+        schema:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Until
+      - description: Hours back from now; overrides `since`.
+        in: query
+        name: lookback
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: 24.0
+          description: Hours back from now; overrides `since`.
+          title: Lookback
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/TierRow'
+                title: Response Status Tiers Status Tiers Get
+                type: array
+          description: Per-tier activity and duration percentiles.
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Status Tiers
+      tags:
+      - status
+  /status/timeline:
+    get:
+      description: Time-bucketed throughput counts.
+      operationId: status_timeline_status_timeline_get
+      parameters:
+      - in: query
+        name: field
+        required: false
+        schema:
+          default: completed
+          enum:
+          - created
+          - completed
+          title: Field
+          type: string
+      - in: query
+        name: granularity
+        required: false
+        schema:
+          default: hour
+          enum:
+          - hour
+          - day
+          - week
+          - month
+          title: Granularity
+          type: string
+      - in: query
+        name: since
+        required: false
+        schema:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Since
+      - in: query
+        name: until
+        required: false
+        schema:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Until
+      - description: Hours back from now; overrides `since`.
+        in: query
+        name: lookback
+        required: false
+        schema:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: 24.0
+          description: Hours back from now; overrides `since`.
+          title: Lookback
+      - description: AsyncQueryStatusResponse lifecycle code (Running, Completed,
+          Failed); maps to stored outcome internally.
+        in: query
+        name: status
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: AsyncQueryStatusResponse lifecycle code (Running, Completed,
+            Failed); maps to stored outcome internally.
+          title: Status
+      - description: Restrict to jobs run on this tier.
+        in: query
+        name: data_tier
+        required: false
+        schema:
+          anyOf:
+          - maximum: 2
+            minimum: 0
+            type: integer
+          - type: 'null'
+          description: Restrict to jobs run on this tier.
+          title: Data Tier
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/TimelineBucket'
+                title: Response Status Timeline Status Timeline Get
+                type: array
+          description: Time-bucketed throughput counts for charting.
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+          description: Validation Error
+      summary: Status Timeline
+      tags:
+      - status
+servers:
+- description: DOGSURF AWS Dev instance
+  url: https://dev.retriever.biothings.io/
+  x-maturity: development
+tags:
+- name: meta_knowledge_graph
+- name: query
+- name: asyncquery
+- name: asyncquery_status
+- name: status
+- name: translator
+- name: trapi
+- name: biothings
 components:
   schemas:
     ActiveJobRow:
@@ -5466,1323 +6786,3 @@ components:
       - type
       title: ValidationError
       type: object
-info:
-  contact:
-    email: jcallaghan@scripps.edu
-    name: Willow Callaghan
-    url: https://github.com/tokebe
-    x-id: tokebe
-    x-role: responsible developer
-  description: Translator Knowledge Provider
-  license:
-    name: Apache 2.0
-    url: http://www.apache.org/licenses/LICENSE-2.0.html
-  termsOfService: https://biothings.io/about
-  title: Retriever (TRAPI v2.0)
-  version: 2.0.0
-  x-translator:
-    biolink_version: 4.4.4
-    component: KP
-    externalDocs:
-      description: The values for component and team are restricted according to this
-        external JSON schema. See schema and examples at url.
-      url: https://github.com/NCATSTranslator/translator_extensions/blob/production/x-translator/
-    infores: infores:retriever
-    team:
-    - DOGSURF
-  x-trapi:
-    asyncquery: true
-    batch_size_limit: 300
-    externalDocs:
-      description: The values for version are restricted according to the regex in
-        this external JSON schema. See schema and examples at url
-      url: https://github.com/NCATSTranslator/translator_extensions/blob/production/x-trapi/
-    multicuriesquery: false
-    operations:
-    - lookup
-    pathfinderquery: false
-    test_data_location:
-      default:
-        url: https://raw.githubusercontent.com/NCATS-Tangerine/translator-api-registry/master/biothings_explorer/sri-test-bte-ara.json
-    version: 2.0.0
-openapi: 3.1.0
-paths:
-  /asyncquery:
-    post:
-      description: Initiate an asynchronous query.
-      operationId: asyncquery_asyncquery_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AsyncQuery'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AsyncQueryResponse'
-          description: The query is accepted for processing and the Response will
-            be sent to the callback url when complete.
-        '400':
-          content:
-            application/json:
-              schema:
-                title: Response 400 Asyncquery Asyncquery Post
-                type: string
-          description: Bad request. The request is invalid according to this OpenAPI
-            schema OR a specific identifier is believed to be invalid somehow (not
-            just unrecognized).
-        '413':
-          content:
-            application/json:
-              schema:
-                title: Response 413 Asyncquery Asyncquery Post
-                type: string
-          description: Payload too large. Indicates that batch size was over the limit
-            specified in x-trapi.
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-        '429':
-          content:
-            application/json:
-              schema:
-                title: Response 429 Asyncquery Asyncquery Post
-                type: string
-          description: Payload too large. Indicates that batch size was over the limit
-            specified in x-trapi.
-        '500':
-          content:
-            application/json:
-              schema:
-                title: Response 500 Asyncquery Asyncquery Post
-                type: string
-          description: Internal Server Error
-      summary: Asyncquery
-      tags:
-      - asyncquery
-  /asyncquery_status/{job_id}:
-    get:
-      description: Get the status of an asynchronous query.
-      operationId: asyncquery_status_asyncquery_status__job_id__get
-      parameters:
-      - in: path
-        name: job_id
-        required: true
-        schema:
-          title: Job Id
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AsyncQueryStatusResponse'
-          description: Returns the status and current logs of a previously submitted
-            asyncquery.
-        '404':
-          content:
-            application/json:
-              schema:
-                title: Response 404 Asyncquery Status Asyncquery Status  Job Id  Get
-                type: string
-          description: job_id not found
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-        '501':
-          description: Return code 501 indicates that this endpoint has not been implemented
-            at this site. Sites that implement /asyncquery MUST implement /asyncquery_status/{job_id},
-            but those that do not implement /asyncquery SHOULD NOT implement /asyncquery_status.
-      summary: Asyncquery Status
-      tags:
-      - asyncquery_status
-  /config:
-    get:
-      description: Get the current config of the server.
-      operationId: config_config_get
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: The present config of the server, with secrets removed.
-      summary: Config
-      tags:
-      - metadata
-  /logs:
-    get:
-      description: Retrieve MongoDB-saved server logs.
-      operationId: logs_logs_get
-      parameters:
-      - description: Start datetime to search logs. Defaults to last hour if `lookback`
-          is not set.
-        in: query
-        name: start
-        required: false
-        schema:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          description: Start datetime to search logs. Defaults to last hour if `lookback`
-            is not set.
-          title: Start
-      - description: End datetime to search logs. Defaults to present time.
-        in: query
-        name: end
-        required: false
-        schema:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          description: End datetime to search logs. Defaults to present time.
-          title: End
-      - in: query
-        name: level
-        required: false
-        schema:
-          default: DEBUG
-          enum:
-          - TRACE
-          - DEBUG
-          - INFO
-          - SUCCESS
-          - WARNING
-          - ERROR
-          - CRITICAL
-          title: Level
-          type: string
-      - description: Number of hours back from present time to retrieve. Overrides
-          `start`.
-        in: query
-        name: lookback
-        required: false
-        schema:
-          anyOf:
-          - type: number
-          - type: 'null'
-          description: Number of hours back from present time to retrieve. Overrides
-            `start`.
-          title: Lookback
-      - description: ID of a previously-run job to search for. Limits logs to those
-          related to that job.
-        in: query
-        name: job_id
-        required: false
-        schema:
-          anyOf:
-          - pattern: ^[a-zA-Z0-9]+$
-            type: string
-          - type: 'null'
-          description: ID of a previously-run job to search for. Limits logs to those
-            related to that job.
-          title: Job Id
-      - description: 'Respond with a specific format. flat: plaintext log lines; trapi:
-          TRAPI-style logs; struct: loguru-structured format'
-        in: query
-        name: fmt
-        required: false
-        schema:
-          default: flat
-          description: 'Respond with a specific format. flat: plaintext log lines;
-            trapi: TRAPI-style logs; struct: loguru-structured format'
-          enum:
-          - flat
-          - trapi
-          - struct
-          title: Fmt
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Logs in either flat or structured JSON format.
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorDetail'
-          description: Indicates this service is disabled by config.
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Logs
-      tags:
-      - logs
-  /meta_knowledge_graph:
-    get:
-      description: Retrieve the Meta-Knowledge Graph.
-      operationId: meta_knowledge_graph_meta_knowledge_graph_get
-      parameters:
-      - description: Data Tier to use. Leave unset to view all.
-        in: query
-        name: tier
-        required: false
-        schema:
-          anyOf:
-          - description: Data Tiers (0-2) to use. Defaults to 0 if unset.
-            maximum: 2
-            minimum: 0
-            type: integer
-          - type: 'null'
-          description: Data Tier to use. Leave unset to view all.
-          title: Tier
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MetaKnowledgeGraph'
-          description: Returns meta knowledge graph representation of this TRAPI web
-            service.
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Meta Knowledge Graph
-      tags:
-      - meta_knowledge_graph
-  /metadata/tier_{tier}:
-    get:
-      description: Retrieve the metadata associated with a given Data Tier.
-      operationId: metadata_metadata_tier__tier__get
-      parameters:
-      - in: path
-        name: tier
-        required: true
-        schema:
-          description: Data Tiers (0-2) to use. Defaults to 0 if unset.
-          maximum: 2
-          minimum: 0
-          title: Tier
-          type: integer
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DINGOMetadata'
-          description: Returns metadata for currently-served data in the backends.
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Metadata
-      tags:
-      - metadata
-  /query:
-    post:
-      description: Initiate a synchronous query.
-      operationId: query_query_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Query'
-              examples:
-              - message:
-                  query_graph:
-                    edges:
-                      e02:
-                        object: n2
-                        predicates:
-                        - biolink:causes
-                        subject: n0
-                    nodes:
-                      n0:
-                        categories:
-                        - biolink:Gene
-                      n2:
-                        categories:
-                        - biolink:Disease
-                        ids:
-                        - MONDO:0011382
-                parameters:
-                  bypass_cache: false
-                  tier: 0
-                  tier_fallback: true
-                submitter: someone-looking-at-examples
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Response'
-          description: OK. There may or may not be results. Note that some of the
-            provided identifiers may not have been recognized.
-        '400':
-          content:
-            application/json:
-              schema:
-                title: Response 400 Query Query Post
-                type: string
-          description: Bad request. The request is invalid according to this OpenAPI
-            schema OR a specific identifier is believed to be invalid somehow (not
-            just unrecognized).
-        '413':
-          content:
-            application/json:
-              schema:
-                title: Response 413 Query Query Post
-                type: string
-          description: Payload too large. Indicates that batch size was over the limit
-            specified in x-trapi.
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-        '429':
-          content:
-            application/json:
-              schema:
-                title: Response 429 Query Query Post
-                type: string
-          description: Payload too large. Indicates that batch size was over the limit
-            specified in x-trapi.
-        '500':
-          content:
-            application/json:
-              schema:
-                title: Response 500 Query Query Post
-                type: string
-          description: Internal Server Error
-      summary: Query
-      tags:
-      - query
-  /rehydrate:
-    post:
-      description: 'Passthrough rehydration to backend.
-
-
-        Reads the body without validation so dehydrated responses aren''t rejected
-
-        with a 422 before reaching the backend.'
-      operationId: rehydrate_rehydrate_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Response'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Response'
-          description: Successful Response
-      summary: Rehydrate
-  /response/{job_id}:
-    get:
-      description: Get the response for a query (or logs if it's in progress).
-      operationId: response_response__job_id__get
-      parameters:
-      - in: path
-        name: job_id
-        required: true
-        schema:
-          title: Job Id
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                anyOf:
-                - $ref: '#/components/schemas/Response'
-                - $ref: '#/components/schemas/AsyncQueryStatusResponse'
-                title: Response Response Response  Job Id  Get
-          description: Returns either the status and logs, or if complete, the complete
-            response  of a previously submitted asyncquery.
-        '404':
-          content:
-            application/json:
-              schema:
-                title: Response 404 Response Response  Job Id  Get
-                type: string
-          description: job_id not found
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Response
-      tags:
-      - asyncquery_status
-  /status:
-    get:
-      description: Operator-glance health snapshot; per-dependency failures degrade
-        fields, not the response.
-      operationId: status_root_status_get
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/StatusSnapshot'
-          description: Health snapshot - version, processes, dependencies, freshness.
-      summary: Status Root
-      tags:
-      - status
-  /status/completed:
-    get:
-      description: Paged scan of successfully-terminated jobs.
-      operationId: status_completed_status_completed_get
-      parameters:
-      - in: query
-        name: cursor
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Cursor
-      - in: query
-        name: limit
-        required: false
-        schema:
-          default: 100
-          maximum: 500
-          minimum: 1
-          title: Limit
-          type: integer
-      - in: query
-        name: since
-        required: false
-        schema:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Since
-      - in: query
-        name: until
-        required: false
-        schema:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Until
-      - description: Hours back from now; overrides `since`.
-        in: query
-        name: lookback
-        required: false
-        schema:
-          anyOf:
-          - type: number
-          - type: 'null'
-          description: Hours back from now; overrides `since`.
-          title: Lookback
-      - in: query
-        name: data_tier
-        required: false
-        schema:
-          anyOf:
-          - maximum: 2
-            minimum: 0
-            type: integer
-          - type: 'null'
-          title: Data Tier
-      - in: query
-        name: submitter
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Submitter
-      - description: Sort field; default `completed`.
-        in: query
-        name: sort
-        required: false
-        schema:
-          default: completed
-          description: Sort field; default `completed`.
-          enum:
-          - created
-          - completed
-          - duration
-          - results
-          - submitter
-          - status
-          title: Sort
-          type: string
-      - description: Sort direction; default `desc`.
-        in: query
-        name: direction
-        required: false
-        schema:
-          default: desc
-          description: Sort direction; default `desc`.
-          enum:
-          - asc
-          - desc
-          title: Direction
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CompletedPage'
-          description: Paged scan of successfully-terminated jobs.
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Status Completed
-      tags:
-      - status
-  /status/counts:
-    get:
-      description: Status breakdown across 24h / week / all-time windows.
-      operationId: status_counts_status_counts_get
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CountsSnapshot'
-          description: Status breakdown across three fixed windows (24h, week, all
-            time).
-      summary: Status Counts
-      tags:
-      - status
-  /status/durations:
-    get:
-      description: Aggregate runtime stats over terminal jobs in the window.
-      operationId: status_durations_status_durations_get
-      parameters:
-      - in: query
-        name: since
-        required: false
-        schema:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Since
-      - in: query
-        name: until
-        required: false
-        schema:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Until
-      - description: Hours back from now; overrides `since`.
-        in: query
-        name: lookback
-        required: false
-        schema:
-          anyOf:
-          - type: number
-          - type: 'null'
-          default: 24.0
-          description: Hours back from now; overrides `since`.
-          title: Lookback
-      - description: AsyncQueryStatusResponse lifecycle code (Running, Completed,
-          Failed); maps to stored outcome internally.
-        in: query
-        name: status
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: Completed
-          description: AsyncQueryStatusResponse lifecycle code (Running, Completed,
-            Failed); maps to stored outcome internally.
-          title: Status
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DurationsResponse'
-          description: Aggregate runtime stats (min/max/avg + percentiles).
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Status Durations
-      tags:
-      - status
-  /status/failed:
-    get:
-      description: Paged scan of failed-or-errored terminal jobs.
-      operationId: status_failed_status_failed_get
-      parameters:
-      - in: query
-        name: cursor
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Cursor
-      - in: query
-        name: limit
-        required: false
-        schema:
-          default: 100
-          maximum: 500
-          minimum: 1
-          title: Limit
-          type: integer
-      - in: query
-        name: since
-        required: false
-        schema:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Since
-      - in: query
-        name: until
-        required: false
-        schema:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Until
-      - description: Hours back from now; overrides `since`.
-        in: query
-        name: lookback
-        required: false
-        schema:
-          anyOf:
-          - type: number
-          - type: 'null'
-          description: Hours back from now; overrides `since`.
-          title: Lookback
-      - in: query
-        name: data_tier
-        required: false
-        schema:
-          anyOf:
-          - maximum: 2
-            minimum: 0
-            type: integer
-          - type: 'null'
-          title: Data Tier
-      - in: query
-        name: submitter
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Submitter
-      - description: Narrow to one specific failure status.
-        in: query
-        name: reason
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          description: Narrow to one specific failure status.
-          title: Reason
-      - description: Sort field; default `completed`.
-        in: query
-        name: sort
-        required: false
-        schema:
-          default: completed
-          description: Sort field; default `completed`.
-          enum:
-          - created
-          - completed
-          - duration
-          - results
-          - submitter
-          - status
-          title: Sort
-          type: string
-      - description: Sort direction; default `desc`.
-        in: query
-        name: direction
-        required: false
-        schema:
-          default: desc
-          description: Sort direction; default `desc`.
-          enum:
-          - asc
-          - desc
-          title: Direction
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FailedPage'
-          description: Paged scan of failed/errored terminal jobs.
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Status Failed
-      tags:
-      - status
-  /status/failure_breakdown:
-    get:
-      description: Failure-status counts pivoted by submitter or by tier.
-      operationId: status_failure_breakdown_status_failure_breakdown_get
-      parameters:
-      - description: Group key for the breakdown.
-        in: query
-        name: by
-        required: true
-        schema:
-          description: Group key for the breakdown.
-          enum:
-          - submitter
-          - tier
-          title: By
-          type: string
-      - in: query
-        name: since
-        required: false
-        schema:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Since
-      - in: query
-        name: until
-        required: false
-        schema:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Until
-      - description: Hours back from now; overrides `since`.
-        in: query
-        name: lookback
-        required: false
-        schema:
-          anyOf:
-          - type: number
-          - type: 'null'
-          description: Hours back from now; overrides `since`.
-          title: Lookback
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FailureBreakdownResponse'
-          description: Failure-status counts pivoted by submitter or by tier.
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Status Failure Breakdown
-      tags:
-      - status
-  /status/jobs/{job_id}:
-    get:
-      description: Return the full job_status doc for one job_id (metadata + geometry).
-      operationId: status_job_status_jobs__job_id__get
-      parameters:
-      - in: path
-        name: job_id
-        required: true
-        schema:
-          title: Job Id
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JobDetail'
-          description: Full per-job status (metadata + query/response geometry).
-        '404':
-          description: No job_status doc with that job_id.
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Status Job
-      tags:
-      - status
-  /status/running:
-    get:
-      description: Paged scan of currently-in-flight jobs, newest first.
-      operationId: status_running_status_running_get
-      parameters:
-      - in: query
-        name: cursor
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Cursor
-      - in: query
-        name: limit
-        required: false
-        schema:
-          default: 100
-          maximum: 500
-          minimum: 1
-          title: Limit
-          type: integer
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ActivePage'
-          description: Currently in-flight jobs, newest first.
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Status Running
-      tags:
-      - status
-  /status/server_logs:
-    get:
-      description: Stream logs not associated with any job.
-      operationId: status_server_logs_status_server_logs_get
-      parameters:
-      - in: query
-        name: start
-        required: false
-        schema:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Start
-      - in: query
-        name: end
-        required: false
-        schema:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: End
-      - description: Hours back from now; overrides `start`.
-        in: query
-        name: lookback
-        required: false
-        schema:
-          anyOf:
-          - type: number
-          - type: 'null'
-          description: Hours back from now; overrides `start`.
-          title: Lookback
-      - in: query
-        name: level
-        required: false
-        schema:
-          default: DEBUG
-          enum:
-          - TRACE
-          - DEBUG
-          - INFO
-          - SUCCESS
-          - WARNING
-          - ERROR
-          - CRITICAL
-          title: Level
-          type: string
-      - in: query
-        name: fmt
-        required: false
-        schema:
-          default: flat
-          enum:
-          - flat
-          - struct
-          title: Fmt
-          type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema: {}
-          description: Logs not associated with any job.
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Status Server Logs
-      tags:
-      - status
-  /status/stuck:
-    get:
-      description: Paged scan of active jobs older than `min_age` (default 1h).
-      operationId: status_stuck_status_stuck_get
-      parameters:
-      - in: query
-        name: cursor
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Cursor
-      - in: query
-        name: limit
-        required: false
-        schema:
-          default: 100
-          maximum: 500
-          minimum: 1
-          title: Limit
-          type: integer
-      - description: Hours; jobs running longer than this are returned.
-        in: query
-        name: min_age
-        required: false
-        schema:
-          anyOf:
-          - minimum: 0
-            type: number
-          - type: 'null'
-          description: Hours; jobs running longer than this are returned.
-          title: Min Age
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ActivePage'
-          description: Active jobs running past the `min_age` threshold (default 1h).
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Status Stuck
-      tags:
-      - status
-  /status/submitter_tier_stats:
-    get:
-      description: Per-(submitter, tier) cells. Drives the heatmaps view.
-      operationId: status_submitter_tier_stats_status_submitter_tier_stats_get
-      parameters:
-      - in: query
-        name: since
-        required: false
-        schema:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Since
-      - in: query
-        name: until
-        required: false
-        schema:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Until
-      - description: Hours back from now; overrides `since`.
-        in: query
-        name: lookback
-        required: false
-        schema:
-          anyOf:
-          - type: number
-          - type: 'null'
-          description: Hours back from now; overrides `since`.
-          title: Lookback
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                items:
-                  $ref: '#/components/schemas/SubmitterTierRow'
-                title: Response Status Submitter Tier Stats Status Submitter Tier
-                  Stats Get
-                type: array
-          description: Per-(submitter, tier) cell stats; drives the heatmaps view.
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Status Submitter Tier Stats
-      tags:
-      - status
-  /status/submitters:
-    get:
-      description: Per-submitter activity leaderboard.
-      operationId: status_submitters_status_submitters_get
-      parameters:
-      - in: query
-        name: since
-        required: false
-        schema:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Since
-      - in: query
-        name: until
-        required: false
-        schema:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Until
-      - description: Hours back from now; overrides `since`.
-        in: query
-        name: lookback
-        required: false
-        schema:
-          anyOf:
-          - type: number
-          - type: 'null'
-          description: Hours back from now; overrides `since`.
-          title: Lookback
-      - in: query
-        name: top
-        required: false
-        schema:
-          default: 50
-          maximum: 200
-          minimum: 1
-          title: Top
-          type: integer
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                items:
-                  $ref: '#/components/schemas/SubmitterRow'
-                title: Response Status Submitters Status Submitters Get
-                type: array
-          description: Per-submitter activity leaderboard.
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Status Submitters
-      tags:
-      - status
-  /status/tiers:
-    get:
-      description: Per-tier activity + duration percentiles.
-      operationId: status_tiers_status_tiers_get
-      parameters:
-      - in: query
-        name: since
-        required: false
-        schema:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Since
-      - in: query
-        name: until
-        required: false
-        schema:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Until
-      - description: Hours back from now; overrides `since`.
-        in: query
-        name: lookback
-        required: false
-        schema:
-          anyOf:
-          - type: number
-          - type: 'null'
-          default: 24.0
-          description: Hours back from now; overrides `since`.
-          title: Lookback
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                items:
-                  $ref: '#/components/schemas/TierRow'
-                title: Response Status Tiers Status Tiers Get
-                type: array
-          description: Per-tier activity and duration percentiles.
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Status Tiers
-      tags:
-      - status
-  /status/timeline:
-    get:
-      description: Time-bucketed throughput counts.
-      operationId: status_timeline_status_timeline_get
-      parameters:
-      - in: query
-        name: field
-        required: false
-        schema:
-          default: completed
-          enum:
-          - created
-          - completed
-          title: Field
-          type: string
-      - in: query
-        name: granularity
-        required: false
-        schema:
-          default: hour
-          enum:
-          - hour
-          - day
-          - week
-          - month
-          title: Granularity
-          type: string
-      - in: query
-        name: since
-        required: false
-        schema:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Since
-      - in: query
-        name: until
-        required: false
-        schema:
-          anyOf:
-          - format: date-time
-            type: string
-          - type: 'null'
-          title: Until
-      - description: Hours back from now; overrides `since`.
-        in: query
-        name: lookback
-        required: false
-        schema:
-          anyOf:
-          - type: number
-          - type: 'null'
-          default: 24.0
-          description: Hours back from now; overrides `since`.
-          title: Lookback
-      - description: AsyncQueryStatusResponse lifecycle code (Running, Completed,
-          Failed); maps to stored outcome internally.
-        in: query
-        name: status
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          description: AsyncQueryStatusResponse lifecycle code (Running, Completed,
-            Failed); maps to stored outcome internally.
-          title: Status
-      - description: Restrict to jobs run on this tier.
-        in: query
-        name: data_tier
-        required: false
-        schema:
-          anyOf:
-          - maximum: 2
-            minimum: 0
-            type: integer
-          - type: 'null'
-          description: Restrict to jobs run on this tier.
-          title: Data Tier
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                items:
-                  $ref: '#/components/schemas/TimelineBucket'
-                title: Response Status Timeline Status Timeline Get
-                type: array
-          description: Time-bucketed throughput counts for charting.
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-          description: Validation Error
-      summary: Status Timeline
-      tags:
-      - status
-servers:
-- description: DOGSURF AWS Dev instance
-  url: https://dev.retriever.biothings.io/
-  x-maturity: development
-tags:
-- name: meta_knowledge_graph
-- name: query
-- name: asyncquery
-- name: asyncquery_status
-- name: status
-- name: translator
-- name: trapi
-- name: biothings
