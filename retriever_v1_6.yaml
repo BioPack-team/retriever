@@ -5559,8 +5559,8 @@ info:
     name: Apache 2.0
     url: http://www.apache.org/licenses/LICENSE-2.0.html
   termsOfService: https://biothings.io/about
-  title: Retriever
-  version: 0.0.1
+  title: Retriever (TRAPI v1.6)
+  version: 1.0.0
   x-translator:
     biolink_version: 4.3.2
     component: KP
