@@ -807,7 +807,9 @@ class MongoClient(BackendClient):
                 exc.code == _INDEX_OPTIONS_CONFLICT and expire_after_seconds is not None
             )
             if not ttl_conflict:
-                log.warning(f"Index setup failed for {collection.name} {key_pattern}: {exc}")
+                log.warning(
+                    f"Index setup failed for {collection.name} {key_pattern}: {exc}"
+                )
                 return
 
         try:
@@ -820,7 +822,9 @@ class MongoClient(BackendClient):
                 },
             )
         except Exception as exc:
-            log.warning(f"TTL reconcile failed for {collection.name} {key_pattern}: {exc}")
+            log.warning(
+                f"TTL reconcile failed for {collection.name} {key_pattern}: {exc}"
+            )
 
     async def _setup_after_connection(self) -> None:
         """Detect `$percentile` support and create collection indexes.
