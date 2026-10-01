@@ -15,6 +15,7 @@ from utils.mongo_fixtures import (  # pyright: ignore[reportImplicitRelativeImpo
     test_mongo,  # noqa: F401
 )
 
+from retriever.config.general import CONFIG
 from retriever.utils.job_status import TERMINAL_FAILURE
 from retriever.utils.mongo import (
     JobIdentityFilter,
@@ -23,6 +24,38 @@ from retriever.utils.mongo import (
 )
 
 pytestmark = pytest.mark.live
+
+
+@pytest.mark.asyncio
+async def test_ensure_index_reconciles_changed_ttl(test_mongo: MongoClient) -> None:  # noqa: F811
+    """A changed `expireAfterSeconds` is updated in place via collMod, not left conflicting."""
+    _, coll = test_mongo.get_job_collection()
+    await coll.create_index("touched", name="touched_1", expireAfterSeconds=999_999)
+
+    await test_mongo._ensure_index(  # pyright: ignore[reportPrivateUsage]
+        coll, "touched", expire_after_seconds=CONFIG.job.ttl
+    )
+
+    info = await coll.index_information()
+    assert info["touched_1"]["expireAfterSeconds"] == CONFIG.job.ttl
+
+
+@pytest.mark.asyncio
+async def test_ensure_index_guard_does_not_abort_rest(test_mongo: MongoClient) -> None:  # noqa: F811
+    """A non-TTL conflict is swallowed, not raised, so later indexes still get built."""
+    _, coll = test_mongo.get_job_collection()
+    await coll.create_index("created", name="created_1")
+
+    # Same key, conflicting (unique) non-TTL options -> swallowed, not raised.
+    await test_mongo._ensure_index(  # pyright: ignore[reportPrivateUsage]
+        coll, "created", unique=True
+    )
+
+    await test_mongo._ensure_index(  # pyright: ignore[reportPrivateUsage]
+        coll, "touched", expire_after_seconds=CONFIG.job.ttl
+    )
+    info = await coll.index_information()
+    assert info["touched_1"]["expireAfterSeconds"] == CONFIG.job.ttl
 
 
 @pytest.mark.asyncio
