@@ -1,6 +1,6 @@
 import math
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator
 from contextlib import suppress
 from http import HTTPStatus
 from typing import Any, override
@@ -19,6 +19,7 @@ from retriever.data_tiers.utils import parse_dingo_metadata
 from retriever.types.dingo import DINGOMetadata
 from retriever.types.metakg import Operation, OperationNode
 from retriever.types.trapi import Query
+from retriever.utils.redis import GANDALF_METADATA_KEY, RedisClient
 
 ZSTD_COMPRESSOR = zstandard.ZstdCompressor()
 
@@ -202,13 +203,25 @@ class GandalfDriver(DatabaseDriver):
 
     @override
     async def _connect(self) -> None:
-        """Build the HTTP client and load fresh metadata."""
+        """Build the HTTP client and bootstrap metadata before Redis pulls take over."""
         await self._ensure_client()
         await self._fetch_metadata()
 
     @override
-    def _recovery_callback(self) -> Callable[[], Awaitable[None]]:
-        return self._fetch_metadata
+    async def publish_metadata(self) -> None:
+        """Publish cached metadata to Redis; skip while down so the last-good copy survives."""
+        if not self.up or self.metadata is None:
+            return
+        await RedisClient().set(
+            GANDALF_METADATA_KEY, orjson.dumps(self.metadata), compress=True
+        )
+
+    @override
+    async def sync_metadata_from_cache(self) -> None:
+        """Adopt the builder's published metadata; a missing key keeps the bootstrap copy."""
+        stored = await RedisClient().get(GANDALF_METADATA_KEY, compressed=True)
+        if stored is not None:
+            self.metadata = orjson.loads(stored)
 
     async def _fetch_metadata(self) -> None:
         """Pull fresh metadata from Gandalf into the in-process cache."""

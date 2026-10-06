@@ -35,6 +35,8 @@ PREFIX = "{Retriever}:"
 OP_TABLE_KEY = "op_table"
 OP_TABLE_UPDATE_CHANNEL = "op_table:update"
 
+GANDALF_METADATA_KEY = "gandalf:metadata"
+
 # Worker -> builder signal for a tier recovery; payload is the tier index as a string.
 TIER_RECOVERED_CHANNEL = "tier:recovered"
 
