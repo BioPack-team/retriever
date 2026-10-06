@@ -277,6 +277,11 @@ class OpTableManager(AsyncDaemon):
             OP_TABLE_META_KEY,
             count=len(op_table.operations_flat),
         )
+
+        # Publish each backend's metadata for workers to pull.
+        for tier in range(0, 2):
+            await tier_manager.get_driver(tier).publish_metadata()
+
         await REDIS_CLIENT.publish(OP_TABLE_UPDATE_CHANNEL, 1)
 
     async def retrieve_stored_operation_table(self) -> OperationTable | None:
@@ -463,6 +468,11 @@ class OpTableManager(AsyncDaemon):
         logger.info("Pulling OpTable...")
         async with self.update_lock:
             self._operation_table = await self.retrieve_stored_operation_table()
+
+        # Pull each backend's published metadata into its local cache.
+        for tier in range(0, 2):
+            await tier_manager.get_driver(tier).sync_metadata_from_cache()
+
         logger.success("In-memory OpTable updated.")
 
     async def get_op_table(self) -> OperationTable:
