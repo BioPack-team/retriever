@@ -1314,7 +1314,7 @@ servers:
   x-maturity: testing
 - description: Translator Production instance
   url: https://retriever.transltr.io/
-  x-maturity: testing
+  x-maturity: production
 tags:
 - name: meta_knowledge_graph
 - name: query
