@@ -181,6 +181,57 @@ async def test_collect_tier_ops_all_down_raises_without_fetch(
     down1.get_operations.assert_not_awaited()
 
 
+class _FakeMetaDriver:
+    """Tier-driver stand-in tracking the generic metadata publish/adopt calls."""
+
+    def __init__(self, *, up: bool = True) -> None:
+        self.up = up
+        self.publish_metadata = AsyncMock()
+        self.sync_metadata_from_cache = AsyncMock()
+
+
+def _mock_redis(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stub the Redis write surface used by store_operation_table."""
+    monkeypatch.setattr(optable_module.REDIS_CLIENT, "set", AsyncMock())
+    monkeypatch.setattr(optable_module.REDIS_CLIENT, "write_freshness", AsyncMock())
+    monkeypatch.setattr(optable_module.REDIS_CLIENT, "publish", AsyncMock())
+
+
+_EMPTY_TABLE = OperationTable(SortedOperations(), FlatOperations(), {})
+
+
+@pytest.mark.asyncio
+async def test_store_publishes_each_tier_metadata(
+    manager: OpTableManager, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The builder asks every tier driver to publish its metadata alongside the OpTable."""
+    drivers = {0: _FakeMetaDriver(), 1: _FakeMetaDriver()}
+    _patch_drivers(monkeypatch, drivers)
+    _mock_redis(monkeypatch)
+
+    await manager.store_operation_table(_EMPTY_TABLE)
+
+    drivers[0].publish_metadata.assert_awaited_once()
+    drivers[1].publish_metadata.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_pull_adopts_each_tier_metadata(
+    manager: OpTableManager, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A worker pull has every tier driver adopt its published metadata."""
+    drivers = {0: _FakeMetaDriver(), 1: _FakeMetaDriver()}
+    _patch_drivers(monkeypatch, drivers)
+    monkeypatch.setattr(
+        manager, "retrieve_stored_operation_table", AsyncMock(return_value=None)
+    )
+
+    await manager.pull_op_table("")
+
+    drivers[0].sync_metadata_from_cache.assert_awaited_once()
+    drivers[1].sync_metadata_from_cache.assert_awaited_once()
+
+
 _QUAL_TYPE = "biolink:object_direction_qualifier"
 _QUAL_VALUE = "increased"
 

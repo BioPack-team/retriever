@@ -92,6 +92,28 @@ async def read_metadata_cache(key: str) -> T1MetaData | None:
     return payload
 
 
+async def publish_local_cache_to_redis() -> None:
+    """Persist the local tier-1 metadata to Redis so other processes can adopt it."""
+    metadata = _LOCAL_CACHE.get(CACHE_KEY)
+    if metadata is not None:
+        await save_metadata_cache(CACHE_KEY, metadata)
+
+
+async def refresh_local_cache_from_redis() -> None:
+    """Overwrite the local tier-1 cache with Redis's published copy, if present."""
+    if not RedisClient().up:
+        return
+    try:
+        metadata_pack = await RedisClient().get(
+            get_stable_hash(CACHE_KEY), compressed=True
+        )
+    except Exception:
+        log.debug("Redis read for TIER1_META refresh failed; keeping local cache.")
+        return
+    if metadata_pack is not None:
+        _LOCAL_CACHE[CACHE_KEY] = ormsgpack.unpackb(metadata_pack)
+
+
 def extract_metadata_entries_from_blob(
     blob: T1MetaData, indices: list[str]
 ) -> list[T1MetaData]:

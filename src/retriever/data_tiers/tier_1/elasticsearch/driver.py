@@ -1,6 +1,5 @@
 import asyncio
-import contextlib
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator
 from typing import Any, override
 
 import orjson
@@ -24,6 +23,8 @@ from retriever.data_tiers.tier_1.elasticsearch.meta import (
     get_t1_indices,
     get_t1_metadata,
     merge_operations,
+    publish_local_cache_to_redis,
+    refresh_local_cache_from_redis,
     stream_ubergraph_mapping,
 )
 from retriever.data_tiers.tier_1.elasticsearch.types import (
@@ -90,19 +91,16 @@ class ElasticSearchDriver(DatabaseDriver):
         )
 
     @override
-    def _recovery_callback(self) -> Callable[[], Awaitable[None]]:
-        return self._refresh_metadata_cache
-
-    async def _refresh_metadata_cache(self) -> None:
-        """Repopulate the in-process tier-1 metadata cache from live ES."""
-        if self.es_connection is None:
+    async def publish_metadata(self) -> None:
+        """Persist cached tier-1 metadata to Redis; skip while down so last-good survives."""
+        if not self.up:
             return
-        with contextlib.suppress(Exception):
-            _ = await get_t1_metadata(
-                self.es_connection,
-                CONFIG.tier1.elasticsearch.index_name,
-                bypass_cache=True,
-            )
+        await publish_local_cache_to_redis()
+
+    @override
+    async def sync_metadata_from_cache(self) -> None:
+        """Refresh the local tier-1 cache from the builder's published Redis copy."""
+        await refresh_local_cache_from_redis()
 
     async def _close_connection(self) -> None:
         """Close the ES client connection and drop the reference."""

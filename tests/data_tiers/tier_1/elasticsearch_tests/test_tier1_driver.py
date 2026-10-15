@@ -3,8 +3,10 @@ import importlib
 import zlib
 from collections.abc import Iterator
 from typing import Any, cast
+from unittest.mock import AsyncMock
 
 import msgpack
+import ormsgpack
 import pytest
 from payload.trapi_qgraphs import (  # pyright:ignore[reportImplicitRelativeImport]
     DINGO_QGRAPH,
@@ -20,6 +22,7 @@ from test_tier1_transpiler import (  # pyright:ignore[reportImplicitRelativeImpo
 
 import retriever.config.general as general_mod
 import retriever.data_tiers.tier_1.elasticsearch.driver as driver_mod
+import retriever.data_tiers.tier_1.elasticsearch.meta as meta_mod
 from retriever.data_tiers.tier_1.elasticsearch.meta import (
     extract_metadata_entries_from_blob,
     get_t1_indices,
@@ -449,6 +452,84 @@ async def test_ubergraph_info_retrieval():
     assert streamed > 100_000
 
     await driver.wrapup()
+
+
+class _FakeMetaRedis:
+    """Redis stand-in for the tier-1 metadata publish/adopt helpers."""
+
+    def __init__(self, *, up: bool = True, stored: bytes | None = None) -> None:
+        self.up = up
+        self.get = AsyncMock(return_value=stored)
+        self.set = AsyncMock()
+
+
+def test_es_no_recovery_metadata_fetch() -> None:
+    """ES registers no recovery callback, so workers never refetch from ES on recovery.
+
+    Regression: refreshing on every recovery fanned N workers onto Elasticsearch;
+    metadata now arrives via the builder's Redis publish, adopted on OpTable pull.
+    """
+    assert driver_mod.ElasticSearchDriver()._recovery_callback() is None
+
+
+@pytest.mark.asyncio
+async def test_refresh_local_cache_overwrites_from_redis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Adopting the published copy overwrites a stale local cache entry."""
+    payload = {"idx": {"graph": {}, "release": "r2"}}
+    monkeypatch.setattr(
+        meta_mod, "RedisClient", lambda: _FakeMetaRedis(stored=ormsgpack.packb(payload))
+    )
+    meta_mod._LOCAL_CACHE[meta_mod.CACHE_KEY] = {"stale": True}
+    try:
+        await meta_mod.refresh_local_cache_from_redis()
+        assert meta_mod._LOCAL_CACHE[meta_mod.CACHE_KEY] == payload
+    finally:
+        meta_mod._LOCAL_CACHE.clear()
+
+
+@pytest.mark.asyncio
+async def test_refresh_local_cache_missing_key_keeps_copy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No published copy leaves the existing local cache intact."""
+    monkeypatch.setattr(meta_mod, "RedisClient", lambda: _FakeMetaRedis(stored=None))
+    meta_mod._LOCAL_CACHE[meta_mod.CACHE_KEY] = {"keep": True}
+    try:
+        await meta_mod.refresh_local_cache_from_redis()
+        assert meta_mod._LOCAL_CACHE[meta_mod.CACHE_KEY] == {"keep": True}
+    finally:
+        meta_mod._LOCAL_CACHE.clear()
+
+
+@pytest.mark.asyncio
+async def test_publish_local_cache_writes_redis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Publishing persists the local cache to Redis for other processes."""
+    fake = _FakeMetaRedis()
+    monkeypatch.setattr(meta_mod, "RedisClient", lambda: fake)
+    meta_mod._LOCAL_CACHE[meta_mod.CACHE_KEY] = {"idx": {"graph": {}}}
+    try:
+        await meta_mod.publish_local_cache_to_redis()
+        fake.set.assert_awaited_once()
+    finally:
+        meta_mod._LOCAL_CACHE.clear()
+
+
+@pytest.mark.asyncio
+async def test_publish_local_cache_noop_when_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With nothing cached there is nothing to publish."""
+    fake = _FakeMetaRedis()
+    monkeypatch.setattr(meta_mod, "RedisClient", lambda: fake)
+    meta_mod._LOCAL_CACHE.clear()
+
+    await meta_mod.publish_local_cache_to_redis()
+
+    fake.set.assert_not_awaited()
 
 
 def _chunk_ubergraph(mapping: dict[str, list[str]], chunk_len: int = 16) -> list[str]:

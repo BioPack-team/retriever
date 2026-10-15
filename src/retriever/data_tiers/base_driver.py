@@ -26,6 +26,12 @@ class DatabaseDriver(BackendClient, ABC):
         """Cached data release version of this backend's knowledge, if known."""
         return None
 
+    async def publish_metadata(self) -> None:
+        """Persist metadata to shared storage for workers to adopt; builder-only, no-op default."""
+
+    async def sync_metadata_from_cache(self) -> None:
+        """Refresh the local metadata cache from shared storage; worker-side, no-op default."""
+
     @abstractmethod
     async def get_operations(
         self,
