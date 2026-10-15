@@ -68,6 +68,7 @@ mongo:
   compression_level: 10 # zstd level used to compress stored job documents. Higher means greater compression, at greater CPU cost.
   max_stored_doc_bytes: 134217728 # Compressed job-docs at or above this size are not persisted.
   stored_success_proportion: 0.1 # Fraction of succeeded response bodies to persist. Failures are always kept.
+  unsampled_ttl: 300 # Seconds to retain (inline) a succeeded response body that sampling did not select for long-term storage, so it stays retrievable after completion. 0 drops it immediately.
 tier0:
   backend: gandalf
   backend_infores: infores:dogpark-tier0

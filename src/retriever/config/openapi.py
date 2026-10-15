@@ -89,11 +89,11 @@ class XTrapi(BaseModel):
     asyncquery: Annotated[bool, Field(description="Supports async query type.")] = True
     operations: list[str] = ["lookup"]
     batch_size_limit: Annotated[
-        int, Field(description="Maximum IDs on any one node.")
-    ] = 300
-    # rate_limit: Annotated[
-    #     int, Field(description="Maximum number of requests per minute.")
-    # ] = 1000
+        int | None, Field(description="Maximum IDs on any one node.")
+    ] = None
+    rate_limit: Annotated[
+        int | None, Field(description="Maximum number of requests per minute.")
+    ] = None
     test_data_location: TestDataLocationObject = TestDataLocationObject()
     externalDocs: ExternalDocs = ExternalDocs(
         description="The values for version are restricted according to the regex in this external JSON schema. See schema and examples at url",

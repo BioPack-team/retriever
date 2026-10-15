@@ -116,7 +116,10 @@ def validate_qnode(
     """
     problems = dict[str, bool]()
 
-    if len(qnode.ids_list) > OPENAPI_CONFIG.x_trapi.batch_size_limit:
+    if (
+        OPENAPI_CONFIG.x_trapi.batch_size_limit is not None
+        and len(qnode.ids_list) > OPENAPI_CONFIG.x_trapi.batch_size_limit
+    ):
         problems[
             f"Node `{qnode_id}` ID count ({len(qnode.ids_list)}) exceeds batch size limit of {OPENAPI_CONFIG.x_trapi.batch_size_limit}"
         ] = False
