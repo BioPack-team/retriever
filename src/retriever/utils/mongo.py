@@ -16,7 +16,8 @@ from motor.motor_asyncio import (
     AsyncIOMotorCollection,
     AsyncIOMotorGridFSBucket,
 )
-from pymongo.operations import InsertOne, UpdateOne
+from pymongo.errors import OperationFailure
+from pymongo.operations import IndexModel, InsertOne, UpdateOne
 from pymongo.server_api import ServerApi
 
 from retriever.config.general import CONFIG
@@ -45,6 +46,9 @@ the surviving-id set so neither scales with the total number of stored blobs."""
 
 _PERCENTILE_MIN_MAJOR = 7
 """Mongo major version where `$percentile` became available."""
+
+_INDEX_OPTIONS_CONFLICT = 85
+"""Mongo error code when an index of the same name exists with different options."""
 
 _LOG_LEVEL_THRESHOLD: dict[str, int] = {
     "TRACE": 5,
@@ -769,18 +773,65 @@ class MongoClient(BackendClient):
 
     @override
     def _recovery_callback(self) -> Callable[[], Awaitable[None]]:
-        # Re-run post-connection setup on every recovery. Index creation is
-        # idempotent in Mongo, so a startup-then-flap scenario retries it
-        # without harm.
+        # Re-run post-connection setup on every recovery. Each index is reconciled
+        # independently (TTL changes via collMod), so a startup-then-flap scenario
+        # retries it without harm.
         return self._setup_after_connection
+
+    async def _ensure_index(
+        self,
+        collection: AsyncIOMotorCollection[dict[str, Any]],
+        keys: Any,
+        *,
+        expire_after_seconds: int | None = None,
+        **options: Any,
+    ) -> None:
+        """Create an index, reconciling a changed TTL in place via collMod.
+
+        create_index can't alter an existing index's `expireAfterSeconds` (it raises
+        IndexOptionsConflict); collMod updates it without a drop. Guarded so one
+        index's failure can't abort the rest of the setup.
+        """
+        if expire_after_seconds is not None:
+            options["expireAfterSeconds"] = expire_after_seconds
+
+        # Match the server's default naming so create_index collides with (rather
+        # than duplicates) an existing index, and target collMod by key pattern.
+        key_pattern = IndexModel(keys).document["key"]
+
+        try:
+            await collection.create_index(keys, background=True, **options)
+            return
+        except OperationFailure as exc:
+            ttl_conflict = (
+                exc.code == _INDEX_OPTIONS_CONFLICT and expire_after_seconds is not None
+            )
+            if not ttl_conflict:
+                log.warning(
+                    f"Index setup failed for {collection.name} {key_pattern}: {exc}"
+                )
+                return
+
+        try:
+            await collection.database.command(
+                "collMod",
+                collection.name,
+                index={
+                    "keyPattern": key_pattern,
+                    "expireAfterSeconds": expire_after_seconds,
+                },
+            )
+        except Exception as exc:
+            log.warning(
+                f"TTL reconcile failed for {collection.name} {key_pattern}: {exc}"
+            )
 
     async def _setup_after_connection(self) -> None:
         """Detect `$percentile` support and create collection indexes.
 
-        Run after a successful connection (initial or recovered). Each
-        step is independently guarded so a single failure doesn't abort
-        the others; what survives is what gets re-attempted on the next
-        recovery.
+        Run after a successful connection (initial or recovered). Each step is
+        independently guarded so one failure doesn't abort the others; what survives
+        is re-attempted on the next recovery.
         """
         # Detect $percentile support once. Branch in aggregation methods
         # on this flag rather than catching MongoCommandError mid-pipeline.
@@ -794,36 +845,27 @@ class MongoClient(BackendClient):
             )
             self._supports_percentile = False
 
-        try:
-            job_collections = self.get_job_collection()
-            for collection in job_collections:
-                await collection.create_index("job_id", unique=True, background=True)
-                await collection.create_index(
-                    "touched", background=True, expireAfterSeconds=CONFIG.job.ttl
-                )
-                await collection.create_index(
-                    "completed", background=True, expireAfterSeconds=CONFIG.job.ttl_max
-                )
-                # Per-document TTL: reaps each doc once its own `expiry` passes.
-                await collection.create_index(
-                    "expiry", background=True, expireAfterSeconds=0
-                )
-                await collection.create_index("created", background=True)
+        for collection in self.get_job_collection():
+            await self._ensure_index(collection, "job_id", unique=True)
+            await self._ensure_index(
+                collection, "touched", expire_after_seconds=CONFIG.job.ttl
+            )
+            await self._ensure_index(
+                collection, "completed", expire_after_seconds=CONFIG.job.ttl_max
+            )
+            # Per-document TTL: reaps each doc once its own `expiry` passes.
+            await self._ensure_index(collection, "expiry", expire_after_seconds=0)
+            await self._ensure_index(collection, "created")
 
-            # Backs the `metadata.job_id` lookups in `delete_doc_blobs` and the
-            # reaper; the bucket creates its own file/chunk indexes on first upload.
-            await self._doc_blob_files().create_index(
-                "metadata.job_id", background=True
-            )
+        # Backs the `metadata.job_id` lookups in `delete_doc_blobs` and the
+        # reaper; the bucket creates its own file/chunk indexes on first upload.
+        await self._ensure_index(self._doc_blob_files(), "metadata.job_id")
 
-            log_collection = self.get_log_collection()
-            await log_collection.create_index(
-                {"time": 1}, background=True, expireAfterSeconds=CONFIG.log.mongo_ttl
-            )
-        except Exception as exc:
-            log.warning(
-                f"MongoDB index setup failed; will retry on next recovery. Error: {exc}"
-            )
+        await self._ensure_index(
+            self.get_log_collection(),
+            {"time": 1},
+            expire_after_seconds=CONFIG.log.mongo_ttl,
+        )
 
     async def db_storage_bytes(self) -> int:
         """Return the on-disk storage size of the retriever_persist database."""
