@@ -430,7 +430,7 @@ class GeneralConfig(CommentedSettings):
     telemetry: TelemetrySettings = TelemetrySettings()
 
     # Weird override happening here, see https://github.com/makukha/pydantic-file-secrets for an explanation
-    model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(  # pyright:ignore[reportIncompatibleVariableOverride] This is the intended pattern
+    model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(
         case_sensitive=False,
         env_nested_delimiter="__",
         env_file=".env",
