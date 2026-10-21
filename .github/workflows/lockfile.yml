@@ -3,6 +3,7 @@ name: Upgrade uv.lock
 on:
   schedule:
     - cron: 0 0 * * 0 # Run every Sunday at midnight
+      timezone: "America/New_York"
   workflow_dispatch:
 jobs:
   upgrade-lockfile:
