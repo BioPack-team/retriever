@@ -62,6 +62,7 @@ dev = [
     "bpython>=0.26",
     "msgpack-types>=0.5.0",
     "google-yamlfmt>=0.21.0",
+    "git-cliff>=2,<3",
 ]
 
 [tool.uv]
@@ -158,6 +159,21 @@ dev = 'task dbs && task launch:debug'
 # Config work
 yamllint = 'yamllint .'
 yamlfmt = 'yamlfmt --exclude .venv .'
+
+# Changelog / release
+'changelog:preview' = 'git-cliff --unreleased'
+changelog = """
+    v=$(uv version --short) \
+    && PREV_TAG=$(git describe --tags --match "v[0-9]*" --abbrev=0 2>/dev/null) \
+    git-cliff \
+        --unreleased \
+        --tag "v$v" \
+        --prepend CHANGELOG.md \
+    && echo "Drafted CHANGELOG.md v$v, review and commit to release."
+"""
+release = 'uv version --bump patch --no-sync && task changelog'
+'release:minor' = 'uv version --bump minor --no-sync && task changelog'
+'release:major' = 'uv version --bump major --no-sync && task changelog'
 
 # Cleanup
 rmlogs = "rm ./logs/* && echo 'Logs deleted.'"
