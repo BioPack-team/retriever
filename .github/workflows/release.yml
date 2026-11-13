@@ -1,18 +1,40 @@
-name: Auto-publish
+name: Autorelease with approval
 
-on: [push, workflow_dispatch]
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
 
 jobs:
-  # Auto-publish when version is increased
-  publish-job:
-    # Only publish on `main` branch
-    if: github.ref == 'refs/heads/main'
+  detect:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
+    outputs:
+      is-new: ${{ steps.detect-state.outputs.is-new }}
+      version: ${{ steps.detect-state.outputs.version }}
+      changelog: ${{ steps.detect-state.outputs.changelog }}
     steps:
-    - uses: etils-actions/pypi-auto-publish@v1
-      with:
-        gh-token: ${{ secrets.GITHUB_TOKEN }}
-        parse-changelog: true
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: detect-state
+        uses: tokebe/pyproject-gh-release@v1
+        with:
+          create-release: false
+
+  release:
+    needs: detect
+    # Skip if there isn't a new release to make
+    if: needs.detect.outputs.is-new == 'true'
+    runs-on: ubuntu-latest
+    environment: release # Environment requests approval
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.detect.outputs.version }}
+          name: v${{ needs.detect.outputs.version }}
+          body: ${{ needs.detect.outputs.changelog }}
