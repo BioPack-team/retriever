@@ -1,6 +1,6 @@
 [project]
 name = "retriever"
-version = "1.0.0"
+version = "1.0.1"
 description = "A Translator KP that aims to construct responses composed of knowledge from all other KPs"
 authors = [
     { name = "tokebe", email = "43009413+tokebe@users.noreply.github.com" },
