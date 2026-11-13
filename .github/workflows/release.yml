@@ -38,3 +38,12 @@ jobs:
           tag_name: v${{ needs.detect.outputs.version }}
           name: v${{ needs.detect.outputs.version }}
           body: ${{ needs.detect.outputs.changelog }}
+
+  docker:
+    needs: [detect, release]
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/docker-image.yml
+    with:
+      version: ${{ needs.detect.outputs.version }}
