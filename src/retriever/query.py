@@ -48,7 +48,7 @@ from retriever.utils.mongo import (
 
 tracer = trace.get_tracer("lookup.execution.tracer")
 MONGO_QUEUE = MongoQueue()
-ZSTD_COMPRESSOR = zstandard.ZstdCompressor(level=CONFIG.mongo.compression_level)
+ZSTD_COMPRESSOR = zstandard.ZstdCompressor(level=CONFIG.compression_level)
 ZSTD_DECOMPRESSOR = zstandard.ZstdDecompressor()
 
 

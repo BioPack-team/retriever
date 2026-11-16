@@ -105,12 +105,6 @@ class MongoSettings(BaseModel):
     shutdown_timeout: Annotated[
         int, Field(description="Time in seconds to wait for serialize task to finish.")
     ] = 3
-    compression_level: Annotated[
-        int,
-        Field(
-            description="zstd level used to compress stored job documents. Higher means greater compression, at greater CPU cost."
-        ),
-    ] = 10
     max_stored_doc_bytes: Annotated[
         int,
         Field(
@@ -419,6 +413,12 @@ class GeneralConfig(CommentedSettings):
             description="Allow all queries to enable profiling with a query parameter."
         ),
     ] = True
+    compression_level: Annotated[
+        int,
+        Field(
+            description="zstd level used to compress stored job documents. Higher means greater compression, at greater CPU cost."
+        ),
+    ] = 1
 
     job: JobSettings = JobSettings()
     log: LogSettings = LogSettings()

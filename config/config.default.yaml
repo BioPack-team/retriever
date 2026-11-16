@@ -22,6 +22,7 @@ cors:
 workers: # Number of workers, defaults to n_cpus * worker_cpu_ratio if unset.
 worker_cpu_ratio: 1 # Ratio of workers to n_cpus if worker count is unset (rounds to ceiling after multiplication).
 allow_profiler: true # Allow all queries to enable profiling with a query parameter.
+compression_level: 1 # zstd level used to compress stored job documents. Higher means greater compression, at greater CPU cost.
 job:
   callback:
     retries: 3 # Number of times to retry the callback.
@@ -65,7 +66,6 @@ mongo:
   authsource:
   attempts: 3 # Number of attempts to accomplish operation before considering it failed.
   shutdown_timeout: 3 # Time in seconds to wait for serialize task to finish.
-  compression_level: 10 # zstd level used to compress stored job documents. Higher means greater compression, at greater CPU cost.
   max_stored_doc_bytes: 134217728 # Compressed job-docs at or above this size are not persisted.
   stored_success_proportion: 0.1 # Fraction of succeeded response bodies to persist. Failures are always kept.
   unsampled_ttl: 300 # Seconds to retain (inline) a succeeded response body that sampling did not select for long-term storage, so it stays retrievable after completion. 0 drops it immediately.

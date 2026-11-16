@@ -54,7 +54,7 @@ tracer = trace.get_tracer("lookup.execution.tracer")
 MONGO_QUEUE = MongoQueue()
 OP_TABLE_MANAGER = OpTableManager()
 
-ZSTD_COMPRESSOR = zstandard.ZstdCompressor(level=CONFIG.mongo.compression_level)
+ZSTD_COMPRESSOR = zstandard.ZstdCompressor(level=CONFIG.compression_level)
 
 CALLBACK_BODY_LOG_LIMIT = 500
 """Truncate logged callback response bodies to this many chars."""
